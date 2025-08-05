@@ -38,8 +38,12 @@
         <div class="modal-content">
             <h3>Информация о провинции</h3>
             <p><strong>ID:</strong> <span id="province-id">-</span></p>
+            <p><strong>Название:</strong> <span id="province-name">-</span></p>
             <p><strong>Владелец:</strong> <span id="province-owner">-</span></p>
-            <p><strong>Цвет:</strong> <span id="province-color">-</span> 
+            <p><strong>Население:</strong> <span id="province-population">-</span></p>
+            <p><strong>Ресурсы:</strong> <span id="province-resources">-</span></p>
+            <p><strong>Описание:</strong> <span id="province-description">-</span></p>
+            <p><strong>Цвет:</strong> <span id="province-color">-</span>
                <span id="color-preview" class="color-preview"></span></p>
             <button onclick="closeModal()">Закрыть</button>
         </div>
@@ -49,16 +53,15 @@
         // Глобальные переменные
         const provinces = [];
         let maskLoaded = false;
-        
-        // Инициализация данных провинций
-        function initProvinces() {
-            for (let i = 1; i <= 484; i++) {
-                const hex = i.toString(16).padStart(6, '0').toUpperCase();
-                provinces.push({
-                    id: i,
-                    color: `#${hex}`,
-                    owner: i <= 35 ? "Конвен" : "Terra Incognita"
-                });
+
+        // Загрузка данных провинций
+        async function loadProvinces() {
+            try {
+                const res = await fetch('/api/provinces');
+                const data = await res.json();
+                provinces.push(...data);
+            } catch (e) {
+                console.error('Ошибка загрузки данных провинций', e);
             }
         }
         
@@ -112,7 +115,11 @@
         // Отображение модального окна
         function showProvinceInfo(province, exactColor) {
             document.getElementById('province-id').textContent = province ? province.id : 'Неизвестно';
+            document.getElementById('province-name').textContent = province ? province.name : 'Неизвестно';
             document.getElementById('province-owner').textContent = province ? province.owner : 'Неизвестно';
+            document.getElementById('province-population').textContent = province ? province.population : '-';
+            document.getElementById('province-resources').textContent = province ? province.resources : '-';
+            document.getElementById('province-description').textContent = province ? province.description : '-';
             document.getElementById('province-color').textContent = exactColor;
             document.getElementById('color-preview').style.backgroundColor = exactColor;
             document.getElementById('modal').style.display = 'flex';
@@ -125,12 +132,11 @@
         
         // Инициализация при загрузке страницы
         window.onload = async function() {
-            initProvinces();
             try {
-                await loadMask();
-                document.getElementById('debug-info').textContent = "Маска успешно загружена. Кликните на карту.";
+                await Promise.all([loadMask(), loadProvinces()]);
+                document.getElementById('debug-info').textContent = "Данные загружены. Кликните на карту.";
             } catch (e) {
-                document.getElementById('debug-info').textContent = "Ошибка загрузки маски: " + e.message;
+                document.getElementById('debug-info').textContent = "Ошибка загрузки данных: " + e.message;
                 document.getElementById('debug-info').style.color = "red";
             }
             

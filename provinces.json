@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "name": "Province 1",
+    "owner": "Terra Incognita",
+    "color": "#000001",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 2,
+    "name": "Province 2",
+    "owner": "Terra Incognita",
+    "color": "#000002",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 3,
+    "name": "Province 3",
+    "owner": "Terra Incognita",
+    "color": "#000003",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 4,
+    "name": "Province 4",
+    "owner": "Terra Incognita",
+    "color": "#000004",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 5,
+    "name": "Province 5",
+    "owner": "Terra Incognita",
+    "color": "#000005",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 6,
+    "name": "Province 6",
+    "owner": "Terra Incognita",
+    "color": "#000006",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 7,
+    "name": "Province 7",
+    "owner": "Terra Incognita",
+    "color": "#000007",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 8,
+    "name": "Province 8",
+    "owner": "Terra Incognita",
+    "color": "#000008",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 9,
+    "name": "Province 9",
+    "owner": "Terra Incognita",
+    "color": "#000009",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  },
+  {
+    "id": 10,
+    "name": "Province 10",
+    "owner": "Terra Incognita",
+    "color": "#00000A",
+    "population": 0,
+    "resources": "",
+    "description": ""
+  }
+]
