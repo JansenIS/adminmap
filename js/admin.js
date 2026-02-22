@@ -273,6 +273,73 @@
     setZoom(1);
   }
 
+
+  function boot(map) {
+    btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
+    btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
+    btnSaveProv.addEventListener("click", () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); });
+
+    viewModeSelect.addEventListener("change", () => applyLayerState(map));
+    if (toggleProvEmblemsBtn) {
+      toggleProvEmblemsBtn.addEventListener("click", () => {
+        hideProvinceEmblems = !hideProvinceEmblems;
+        syncProvEmblemsToggleLabel();
+        applyLayerState(map);
+      });
+      syncProvEmblemsToggleLabel();
+    }
+    realmTypeSelect.addEventListener("change", rebuildRealmSelect);
+    realmSelect.addEventListener("change", loadRealmFields);
+    btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });
+    btnSaveRealm.addEventListener("click", () => {
+      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      const realm = ensureRealm(type, id);
+      realm.name = String(realmNameInput.value || id).trim() || id;
+      realm.color = String(realmColorInput.value || "#ff3b30");
+      realm.capital_key = Number(realmCapitalInput.value) >>> 0;
+      realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
+      rebuildRealmSelect(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); exportStateToTextarea();
+    });
+    btnAddSelectedToRealm.addEventListener("click", () => {
+      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      const field = MODE_TO_FIELD[type]; const realm = ensureRealm(type, id);
+      const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
+      for (const key of keys) { const pd = getProvData(key); if (pd) pd[field] = id; }
+      realm.province_keys = keys;
+      applyLayerState(map); exportStateToTextarea();
+    });
+    btnRemoveSelectedFromRealm.addEventListener("click", () => {
+      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      const field = MODE_TO_FIELD[type];
+      const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
+      for (const key of keys) { const pd = getProvData(key); if (pd && pd[field] === id) pd[field] = ""; }
+      applyLayerState(map); exportStateToTextarea();
+    });
+
+    realmUploadEmblemBtn.addEventListener("click", () => realmEmblemFile.click());
+    realmEmblemFile.addEventListener("change", async () => {
+      const file = realmEmblemFile.files && realmEmblemFile.files[0]; realmEmblemFile.value = ""; if (!file) return;
+      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      const text = String(await file.text() || "").replace(/^﻿/, "");
+      const realm = ensureRealm(type, id); realm.emblem_svg = svgTextToDataUri(text); realm.emblem_box = extractSvgBox(text);
+      applyLayerState(map); exportStateToTextarea();
+    });
+    realmRemoveEmblemBtn.addEventListener("click", () => { const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return; const realm = ensureRealm(type, id); realm.emblem_svg = ""; realm.emblem_box = null; applyLayerState(map); exportStateToTextarea(); });
+
+    btnExport.addEventListener("click", exportStateToTextarea);
+    btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "map_state.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
+    btnImport.addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
+    btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
+
+    uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
+    emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = svgTextToDataUri(text); pd.emblem_box = extractSvgBox(text); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
+    removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
+
+    provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
+    suzerainSelect.addEventListener("change", saveProvinceFieldsFromUI); seniorSelect.addEventListener("change", saveProvinceFieldsFromUI); vassalsSelect.addEventListener("change", saveProvinceFieldsFromUI); terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
+  }
+
   async function loadInitialState(url) {
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
