@@ -30,6 +30,7 @@
   const btnSaveProv = el("saveProv");
 
   const viewModeSelect = el("viewMode");
+  const toggleProvEmblemsBtn = el("toggleProvEmblems");
   const realmTypeSelect = el("realmType");
   const realmSelect = el("realmSelect");
   const realmNameInput = el("realmName");
@@ -71,6 +72,7 @@
 
   let state = null;
   let selectedKey = 0;
+  let hideProvinceEmblems = false;
   const selectedKeys = new Set();
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
@@ -165,7 +167,7 @@
       if (mode === "provinces") {
         if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       }
-      if (pd.emblem_svg) {
+      if (!hideProvinceEmblems && pd.emblem_svg) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
         map.setEmblem(key, pd.emblem_svg, box);
       }
@@ -194,6 +196,12 @@
     map.repaintAllEmblems().catch(() => {});
   }
 
+
+  function syncProvEmblemsToggleLabel() {
+    if (!toggleProvEmblemsBtn) return;
+    toggleProvEmblemsBtn.textContent = hideProvinceEmblems ? "Показать геральдику провинций" : "Скрыть геральдику провинций";
+  }
+
   function sanitizeSvgText(svgText) { return String(svgText || "").replace(/<script[\s\S]*?<\/script\s*>/gi, ""); }
   function svgTextToDataUri(svgText) { return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(sanitizeSvgText(svgText)); }
   function extractSvgBox(svgText) { const box = MapUtils.parseSvgBox(svgText); return [box.w, box.h]; }
@@ -206,6 +214,14 @@
     btnSaveProv.addEventListener("click", () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); });
 
     viewModeSelect.addEventListener("change", () => applyLayerState(map));
+    if (toggleProvEmblemsBtn) {
+      toggleProvEmblemsBtn.addEventListener("click", () => {
+        hideProvinceEmblems = !hideProvinceEmblems;
+        syncProvEmblemsToggleLabel();
+        applyLayerState(map);
+      });
+      syncProvEmblemsToggleLabel();
+    }
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
     btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });

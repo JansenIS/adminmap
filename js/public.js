@@ -5,10 +5,10 @@
   const el = (id) => document.getElementById(id);
   const tooltip = el("tooltip");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
-  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode");
+  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems");
   const DEFAULT_STATE_URL = "data/map_state.json";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id" };
-  let state = null; let selectedKey = 0;
+  let state = null; let selectedKey = 0; let hideProvinceEmblems = false;
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
   function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
@@ -39,7 +39,7 @@
     for (const [k, pd] of Object.entries(state.provinces)) {
       const key = Number(k) >>> 0;
       if (mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
-      if (pd.emblem_svg) {
+      if (!hideProvinceEmblems && pd.emblem_svg) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
         map.setEmblem(key, pd.emblem_svg, box);
       }
@@ -64,6 +64,11 @@
     await map.repaintAllEmblems();
   }
 
+
+  function syncProvEmblemsToggleLabel() {
+    if (!toggleProvEmblemsBtn) return;
+    toggleProvEmblemsBtn.textContent = hideProvinceEmblems ? "Показать геральдику провинций" : "Скрыть геральдику провинций";
+  }
   function initZoomControls(map) { const mapArea = document.getElementById("mapArea"); const mapWrap = document.getElementById("mapWrap"); const baseMap = document.getElementById("baseMap"); if (!mapArea || !mapWrap || !baseMap) return; let currentScale = 1; function setZoom(newScale) { newScale = Number(newScale); if (!isFinite(newScale) || newScale <= 0) newScale = 1; const centerX = (mapArea.scrollLeft + mapArea.clientWidth / 2) / currentScale; const centerY = (mapArea.scrollTop + mapArea.clientHeight / 2) / currentScale; currentScale = newScale; const W = baseMap.naturalWidth || map.W || 0; const H = baseMap.naturalHeight || map.H || 0; if (W && H) { mapWrap.style.width = Math.round(W * currentScale) + "px"; mapWrap.style.height = Math.round(H * currentScale) + "px"; } mapArea.scrollLeft = Math.max(0, centerX * currentScale - mapArea.clientWidth / 2); mapArea.scrollTop = Math.max(0, centerY * currentScale - mapArea.clientHeight / 2); } document.querySelectorAll(".zoomBtn").forEach(b => b.addEventListener("click", () => setZoom(b.getAttribute("data-zoom")))); setZoom(1); }
 
   async function main() {
@@ -73,6 +78,14 @@
     async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey)); }
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
     viewModeSelect.addEventListener("change", () => applyState(map).catch(e => alert(e.message)));
+    if (toggleProvEmblemsBtn) {
+      toggleProvEmblemsBtn.addEventListener("click", () => {
+        hideProvinceEmblems = !hideProvinceEmblems;
+        syncProvEmblemsToggleLabel();
+        applyState(map).catch(e => alert(e.message));
+      });
+      syncProvEmblemsToggleLabel();
+    }
     await reload(); setSidebarEmpty();
   }
 
