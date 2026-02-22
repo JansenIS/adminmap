@@ -335,18 +335,79 @@
       const img = mctx.createImageData(bw, bh);
       const data = img.data;
       const keySet = new Set(keys);
+      const maskBits = new Uint8Array(bw * bh);
       let p = 0;
       for (let yy = 0; yy < bh; yy++) {
         const row = (y0 + yy) * this.W;
         for (let xx = 0; xx < bw; xx++, p += 4) {
-          if (keySet.has(this.keyPerPixel[row + (x0 + xx)] >>> 0)) {
+          const inside = keySet.has(this.keyPerPixel[row + (x0 + xx)] >>> 0);
+          if (inside) {
             data[p] = 255; data[p + 1] = 255; data[p + 2] = 255; data[p + 3] = 255;
+            maskBits[yy * bw + xx] = 1;
           } else {
             data[p + 3] = 0;
           }
         }
       }
       mctx.putImageData(img, 0, 0);
+
+      // For split territories (exclaves), center emblem on the largest connected component,
+      // not on the full bounding box of all components.
+      const visited = new Uint8Array(maskBits.length);
+      const qx = new Int32Array(maskBits.length);
+      const qy = new Int32Array(maskBits.length);
+      let bestCount = 0;
+      let bestSumX = 0;
+      let bestSumY = 0;
+      for (let sy = 0; sy < bh; sy++) {
+        for (let sx = 0; sx < bw; sx++) {
+          const start = sy * bw + sx;
+          if (!maskBits[start] || visited[start]) continue;
+
+          let head = 0, tail = 0;
+          qx[tail] = sx;
+          qy[tail] = sy;
+          tail++;
+          visited[start] = 1;
+
+          let count = 0;
+          let sumX = 0;
+          let sumY = 0;
+
+          while (head < tail) {
+            const x = qx[head];
+            const y = qy[head];
+            head++;
+
+            count++;
+            sumX += x;
+            sumY += y;
+
+            if (x > 0) {
+              const ni = y * bw + (x - 1);
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x - 1; qy[tail] = y; tail++; }
+            }
+            if (x + 1 < bw) {
+              const ni = y * bw + (x + 1);
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x + 1; qy[tail] = y; tail++; }
+            }
+            if (y > 0) {
+              const ni = (y - 1) * bw + x;
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x; qy[tail] = y - 1; tail++; }
+            }
+            if (y + 1 < bh) {
+              const ni = (y + 1) * bw + x;
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x; qy[tail] = y + 1; tail++; }
+            }
+          }
+
+          if (count > bestCount) {
+            bestCount = count;
+            bestSumX = sumX;
+            bestSumY = sumY;
+          }
+        }
+      }
 
       const imgEmblem = await this._loadImageCached(g.src);
       const patch = document.createElement("canvas");
@@ -362,8 +423,11 @@
       if (th > innerH) { th = innerH; tw = Math.round(th * aspect); }
       tw = Math.max(1, Math.floor(tw * clamp(g.scale, 0.2, 3.0)));
       th = Math.max(1, Math.floor(th * clamp(g.scale, 0.2, 3.0)));
-      const dx = Math.round((bw - tw) / 2);
-      const dy = Math.round((bh - th) / 2);
+
+      const centerX = bestCount ? (bestSumX / bestCount) : (bw / 2);
+      const centerY = bestCount ? (bestSumY / bestCount) : (bh / 2);
+      const dx = clamp(Math.round(centerX - tw / 2), 0, Math.max(0, bw - tw));
+      const dy = clamp(Math.round(centerY - th / 2), 0, Math.max(0, bh - th));
 
       pctx.globalAlpha = clamp(g.opacity, 0, 1);
       pctx.imageSmoothingEnabled = true;
