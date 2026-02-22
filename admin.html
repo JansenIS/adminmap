@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Админка карты провинций</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e7eef7; }
+    .app { display:flex; height:100vh; height:100dvh; }
+    .sidebar { width: 420px; min-width: 360px; max-width: 520px; border-right:1px solid #223041; background:#0d131b; padding:14px 14px 18px; box-sizing:border-box; overflow:auto; }
+    h1 { font-size:16px; margin:0 0 10px; font-weight:650; }
+    .muted { color:#a6b4c5; font-size:12px; line-height:1.35; }
+    .card { margin-top:12px; padding:12px; background:#0b0f14; border:1px solid #223041; border-radius:12px; }
+    .grid { display:grid; grid-template-columns: 120px 1fr; gap:10px; align-items:center; }
+    .grid label { font-size:12px; color:#a6b4c5; }
+    input[type="text"], select { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; outline:none; }
+    select[multiple] { height: 160px; }
+    input[type="color"]{ width:52px; height:32px; border:0; background:transparent; padding:0; }
+    input[type="range"]{ width:100%; }
+    .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    button { background:#1a2634; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; cursor:pointer; font-weight:650; }
+    button:hover { background:#223446; }
+    textarea { width:100%; min-height:160px; resize:vertical; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:10px; box-sizing:border-box; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
+    .maparea { flex:1; overflow:auto; padding:14px; box-sizing:border-box; }
+    /* IMPORTANT: mapWrap gets explicit px width/height from JS. Base image MUST fill it without changing aspect.
+       If JS gives correct aspect (W/H), there will be NO stretch. */
+    #mapWrap { position:relative; display:inline-block; }
+    #baseMap { position:absolute; left:0; top:0; width:100%; height:100%; max-width:none; max-height:none; display:block; }
+    canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+    #tooltip { position:fixed; z-index:50; pointer-events:none; background: rgba(13,19,27,0.92); border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; font-size:12px; color:#e7eef7; display:none; box-shadow: 0 8px 30px rgba(0,0,0,0.35); max-width: 360px; }
+    .kv { font-size:12px; margin-top:8px; } .kv div { margin:4px 0; } .kv b { font-weight:650; }
+    .small { font-size:11px; color:#a6b4c5; line-height:1.35; }
+    .emblemPreview { width: 100%; height: 140px; border:1px dashed #2b3f56; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#0b0f14; overflow:hidden; }
+    .emblemPreview img { max-width:100%; max-height:100%; display:block; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>Админка: провинции</h1>
+      <div class="muted">Клик по провинции — выбор. Данные и гербы сохраняются в JSON (<code>map_state.json</code>).</div>
+
+      <div class="card">
+        <div class="kv">
+          <div><b>Выбрано:</b> <span id="selName">—</span></div>
+          <div><b>PID:</b> <span id="selPid">—</span></div>
+          <div><b>KEY:</b> <span id="selKey">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Масштаб карты</div>
+        <div class="btnrow" style="margin-top:10px;">
+          <button type="button" class="zoomBtn" data-zoom="1">1×</button>
+          <button type="button" class="zoomBtn" data-zoom="2">2×</button>
+          <button type="button" class="zoomBtn" data-zoom="5">5×</button>
+          <button type="button" class="zoomBtn" data-zoom="10">10×</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <label>Цвет</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="color" type="color" value="#ff3b30" />
+            <span class="muted">заливка</span>
+          </div>
+
+          <label>Прозрачность</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="alpha" type="range" min="0" max="255" value="140" />
+            <span id="alphaVal" class="muted" style="width:44px; text-align:right;">140</span>
+          </div>
+        </div>
+
+        <div class="btnrow">
+          <button id="applyFill" type="button">Применить заливку</button>
+          <button id="clearFill" type="button">Снять заливку</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <label>Название</label>
+          <input id="provName" type="text" placeholder="Название провинции" />
+
+          <label>Владелец</label>
+          <div>
+            <input id="ownerInput" type="text" list="peopleList" placeholder="Имя владельца (добавит в список)" />
+            <datalist id="peopleList"></datalist>
+          </div>
+
+          <label>Сюзерен</label>
+          <select id="suzerainSelect"></select>
+
+          <label>Сеньор</label>
+          <select id="seniorSelect"></select>
+
+          <label>Вассалы</label>
+          <select id="vassalsSelect" multiple></select>
+
+          <label>Местность</label>
+          <select id="terrainSelect"></select>
+        </div>
+
+        <div class="btnrow">
+          <button id="saveProv" type="button">Сохранить провинцию</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Герб провинции (SVG)</div>
+        <div style="margin-top:10px;" class="emblemPreview">
+          <img id="emblemPreviewImg" alt="preview" style="display:none;" />
+          <div id="emblemPreviewEmpty" class="muted">Герб не задан</div>
+        </div>
+        <div class="btnrow">
+          <button id="uploadEmblemBtn" type="button">Загрузить SVG</button>
+          <button id="removeEmblemBtn" type="button">Удалить герб</button>
+        </div>
+        <input id="emblemFile" type="file" accept="image/svg+xml,.svg" style="display:none;" />
+      </div>
+
+      <div class="card">
+        <div class="muted">Экспорт/импорт JSON</div>
+        <div class="btnrow">
+          <button id="export" type="button">Экспорт в поле</button>
+          <button id="download" type="button">Скачать map_state.json</button>
+          <button id="import" type="button">Импорт из файла</button>
+          <button id="saveServer" type="button">Сохранить на сервер (опц.)</button>
+        </div>
+        <input id="importFile" type="file" accept="application/json" style="display:none;" />
+        <div style="margin-top:10px;">
+          <textarea id="state" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </aside>
+
+    <main class="maparea" id="mapArea">
+      <div id="mapWrap">
+        <img id="baseMap" src="map.png" alt="Карта" />
+        <canvas id="fill"></canvas>
+        <canvas id="emblems"></canvas>
+        <canvas id="hover"></canvas>
+      </div>
+      <div id="tooltip"></div>
+    </main>
+  </div>
+
+  <script src="js/app_core.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
