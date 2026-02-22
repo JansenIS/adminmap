@@ -48,16 +48,23 @@ if (!is_array($state) || !isset($state["provinces"])) {
   exit;
 }
 
-// Basic sanity limit: prevent huge writes by mistake
+// Basic sanity limit: prevent huge writes by mistake.
+// Can be overridden from web-server config if needed, e.g.:
+//   SetEnv ADMINMAP_MAX_STATE_BYTES 15000000
+$MAX_STATE_BYTES = (int)($_SERVER["ADMINMAP_MAX_STATE_BYTES"] ?? 15_000_000);
+$MAX_STATE_BYTES = max(1_000_000, $MAX_STATE_BYTES);
+
+// NOTE: payload also depends on web server / php.ini limits
+// (client_max_body_size, post_max_size, upload_max_filesize).
 $encoded = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 if ($encoded === false) {
   http_response_code(500);
   echo "Encode failed";
   exit;
 }
-if (strlen($encoded) > 5_000_000) {
+if (strlen($encoded) > $MAX_STATE_BYTES) {
   http_response_code(413);
-  echo "Payload too large";
+  echo "Payload too large (max {$MAX_STATE_BYTES} bytes)";
   exit;
 }
 
