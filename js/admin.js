@@ -206,72 +206,71 @@
   function svgTextToDataUri(svgText) { return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(sanitizeSvgText(svgText)); }
   function extractSvgBox(svgText) { const box = MapUtils.parseSvgBox(svgText); return [box.w, box.h]; }
 
-  function initZoomControls(map) { const mapArea = document.getElementById("mapArea"); const mapWrap = document.getElementById("mapWrap"); const baseMap = document.getElementById("baseMap"); if (!mapArea || !mapWrap || !baseMap) return; let currentScale = 1; function setZoom(newScale) { newScale = Number(newScale); if (!isFinite(newScale) || newScale <= 0) newScale = 1; const centerX = (mapArea.scrollLeft + mapArea.clientWidth / 2) / currentScale; const centerY = (mapArea.scrollTop + mapArea.clientHeight / 2) / currentScale; currentScale = newScale; const W = baseMap.naturalWidth || map.W || 0; const H = baseMap.naturalHeight || map.H || 0; if (W && H) { mapWrap.style.width = Math.round(W * currentScale) + "px"; mapWrap.style.height = Math.round(H * currentScale) + "px"; } mapArea.scrollLeft = Math.max(0, centerX * currentScale - mapArea.clientWidth / 2); mapArea.scrollTop = Math.max(0, centerY * currentScale - mapArea.clientHeight / 2); } document.querySelectorAll(".zoomBtn").forEach(b => b.addEventListener("click", () => setZoom(b.getAttribute("data-zoom")))); setZoom(1); }
+  function initZoomControls(map) {
+    const mapArea = document.getElementById("mapArea");
+    const mapWrap = document.getElementById("mapWrap");
+    const baseMap = document.getElementById("baseMap");
+    if (!mapArea || !mapWrap || !baseMap) return;
 
-  function boot(map) {
-    btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
-    btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
-    btnSaveProv.addEventListener("click", () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); });
+    const MIN_ZOOM = 0.1;
+    const MAX_ZOOM = 12;
+    const WHEEL_FACTOR = 1.12;
+    let currentScale = 1;
 
-    viewModeSelect.addEventListener("change", () => applyLayerState(map));
-    if (toggleProvEmblemsBtn) {
-      toggleProvEmblemsBtn.addEventListener("click", () => {
-        hideProvinceEmblems = !hideProvinceEmblems;
-        syncProvEmblemsToggleLabel();
-        applyLayerState(map);
-      });
-      syncProvEmblemsToggleLabel();
+    function getBaseSize() {
+      return [baseMap.naturalWidth || map.W || 0, baseMap.naturalHeight || map.H || 0];
     }
-    realmTypeSelect.addEventListener("change", rebuildRealmSelect);
-    realmSelect.addEventListener("change", loadRealmFields);
-    btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });
-    btnSaveRealm.addEventListener("click", () => {
-      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
-      const realm = ensureRealm(type, id);
-      realm.name = String(realmNameInput.value || id).trim() || id;
-      realm.color = String(realmColorInput.value || "#ff3b30");
-      realm.capital_key = Number(realmCapitalInput.value) >>> 0;
-      realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
-      rebuildRealmSelect(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); exportStateToTextarea();
-    });
-    btnAddSelectedToRealm.addEventListener("click", () => {
-      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
-      const field = MODE_TO_FIELD[type]; const realm = ensureRealm(type, id);
-      const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
-      for (const key of keys) { const pd = getProvData(key); if (pd) pd[field] = id; }
-      realm.province_keys = keys;
-      applyLayerState(map); exportStateToTextarea();
-    });
-    btnRemoveSelectedFromRealm.addEventListener("click", () => {
-      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
-      const field = MODE_TO_FIELD[type];
-      const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
-      for (const key of keys) { const pd = getProvData(key); if (pd && pd[field] === id) pd[field] = ""; }
-      applyLayerState(map); exportStateToTextarea();
+
+    function getFitScale() {
+      const [W, H] = getBaseSize();
+      if (!W || !H) return 1;
+      const sx = mapArea.clientWidth / W;
+      const sy = mapArea.clientHeight / H;
+      return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(sx, sy)));
+    }
+
+    function setZoom(newScale, anchorClientX, anchorClientY) {
+      newScale = Number(newScale);
+      if (!isFinite(newScale) || newScale <= 0) newScale = 1;
+      newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+
+      const [W, H] = getBaseSize();
+      if (!W || !H) return;
+
+      const anchorX = (anchorClientX == null ? mapArea.clientWidth / 2 : anchorClientX);
+      const anchorY = (anchorClientY == null ? mapArea.clientHeight / 2 : anchorClientY);
+
+      const worldX = (mapArea.scrollLeft + anchorX) / currentScale;
+      const worldY = (mapArea.scrollTop + anchorY) / currentScale;
+
+      currentScale = newScale;
+      mapWrap.style.width = Math.round(W * currentScale) + "px";
+      mapWrap.style.height = Math.round(H * currentScale) + "px";
+
+      mapArea.scrollLeft = Math.max(0, worldX * currentScale - anchorX);
+      mapArea.scrollTop = Math.max(0, worldY * currentScale - anchorY);
+    }
+
+    document.querySelectorAll(".zoomBtn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-zoom");
+        if (target === "fit") return setZoom(getFitScale());
+        setZoom(target);
+      });
     });
 
-    realmUploadEmblemBtn.addEventListener("click", () => realmEmblemFile.click());
-    realmEmblemFile.addEventListener("change", async () => {
-      const file = realmEmblemFile.files && realmEmblemFile.files[0]; realmEmblemFile.value = ""; if (!file) return;
-      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
-      const text = String(await file.text() || "").replace(/^\uFEFF/, "");
-      const realm = ensureRealm(type, id); realm.emblem_svg = svgTextToDataUri(text); realm.emblem_box = extractSvgBox(text);
-      applyLayerState(map); exportStateToTextarea();
+    mapArea.addEventListener("wheel", (evt) => {
+      if (!evt.deltaY) return;
+      evt.preventDefault();
+      const nextScale = evt.deltaY < 0 ? currentScale * WHEEL_FACTOR : currentScale / WHEEL_FACTOR;
+      setZoom(nextScale, evt.clientX - mapArea.getBoundingClientRect().left, evt.clientY - mapArea.getBoundingClientRect().top);
+    }, { passive: false });
+
+    window.addEventListener("resize", () => {
+      if (Math.abs(currentScale - getFitScale()) < 0.001) setZoom(getFitScale());
     });
-    realmRemoveEmblemBtn.addEventListener("click", () => { const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return; const realm = ensureRealm(type, id); realm.emblem_svg = ""; realm.emblem_box = null; applyLayerState(map); exportStateToTextarea(); });
 
-    btnExport.addEventListener("click", exportStateToTextarea);
-    btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "map_state.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
-    btnImport.addEventListener("click", () => importFile.click());
-    importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
-    btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
-
-    uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
-    emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^\uFEFF/, ""); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = svgTextToDataUri(text); pd.emblem_box = extractSvgBox(text); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
-    removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
-
-    provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
-    suzerainSelect.addEventListener("change", saveProvinceFieldsFromUI); seniorSelect.addEventListener("change", saveProvinceFieldsFromUI); vassalsSelect.addEventListener("change", saveProvinceFieldsFromUI); terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
+    setZoom(1);
   }
 
   async function loadInitialState(url) {

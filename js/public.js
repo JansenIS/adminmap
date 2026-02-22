@@ -69,7 +69,72 @@
     if (!toggleProvEmblemsBtn) return;
     toggleProvEmblemsBtn.textContent = hideProvinceEmblems ? "Показать геральдику провинций" : "Скрыть геральдику провинций";
   }
-  function initZoomControls(map) { const mapArea = document.getElementById("mapArea"); const mapWrap = document.getElementById("mapWrap"); const baseMap = document.getElementById("baseMap"); if (!mapArea || !mapWrap || !baseMap) return; let currentScale = 1; function setZoom(newScale) { newScale = Number(newScale); if (!isFinite(newScale) || newScale <= 0) newScale = 1; const centerX = (mapArea.scrollLeft + mapArea.clientWidth / 2) / currentScale; const centerY = (mapArea.scrollTop + mapArea.clientHeight / 2) / currentScale; currentScale = newScale; const W = baseMap.naturalWidth || map.W || 0; const H = baseMap.naturalHeight || map.H || 0; if (W && H) { mapWrap.style.width = Math.round(W * currentScale) + "px"; mapWrap.style.height = Math.round(H * currentScale) + "px"; } mapArea.scrollLeft = Math.max(0, centerX * currentScale - mapArea.clientWidth / 2); mapArea.scrollTop = Math.max(0, centerY * currentScale - mapArea.clientHeight / 2); } document.querySelectorAll(".zoomBtn").forEach(b => b.addEventListener("click", () => setZoom(b.getAttribute("data-zoom")))); setZoom(1); }
+  function initZoomControls(map) {
+    const mapArea = document.getElementById("mapArea");
+    const mapWrap = document.getElementById("mapWrap");
+    const baseMap = document.getElementById("baseMap");
+    if (!mapArea || !mapWrap || !baseMap) return;
+
+    const MIN_ZOOM = 0.1;
+    const MAX_ZOOM = 12;
+    const WHEEL_FACTOR = 1.12;
+    let currentScale = 1;
+
+    function getBaseSize() {
+      return [baseMap.naturalWidth || map.W || 0, baseMap.naturalHeight || map.H || 0];
+    }
+
+    function getFitScale() {
+      const [W, H] = getBaseSize();
+      if (!W || !H) return 1;
+      const sx = mapArea.clientWidth / W;
+      const sy = mapArea.clientHeight / H;
+      return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(sx, sy)));
+    }
+
+    function setZoom(newScale, anchorClientX, anchorClientY) {
+      newScale = Number(newScale);
+      if (!isFinite(newScale) || newScale <= 0) newScale = 1;
+      newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+
+      const [W, H] = getBaseSize();
+      if (!W || !H) return;
+
+      const anchorX = (anchorClientX == null ? mapArea.clientWidth / 2 : anchorClientX);
+      const anchorY = (anchorClientY == null ? mapArea.clientHeight / 2 : anchorClientY);
+
+      const worldX = (mapArea.scrollLeft + anchorX) / currentScale;
+      const worldY = (mapArea.scrollTop + anchorY) / currentScale;
+
+      currentScale = newScale;
+      mapWrap.style.width = Math.round(W * currentScale) + "px";
+      mapWrap.style.height = Math.round(H * currentScale) + "px";
+
+      mapArea.scrollLeft = Math.max(0, worldX * currentScale - anchorX);
+      mapArea.scrollTop = Math.max(0, worldY * currentScale - anchorY);
+    }
+
+    document.querySelectorAll(".zoomBtn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-zoom");
+        if (target === "fit") return setZoom(getFitScale());
+        setZoom(target);
+      });
+    });
+
+    mapArea.addEventListener("wheel", (evt) => {
+      if (!evt.deltaY) return;
+      evt.preventDefault();
+      const nextScale = evt.deltaY < 0 ? currentScale * WHEEL_FACTOR : currentScale / WHEEL_FACTOR;
+      setZoom(nextScale, evt.clientX - mapArea.getBoundingClientRect().left, evt.clientY - mapArea.getBoundingClientRect().top);
+    }, { passive: false });
+
+    window.addEventListener("resize", () => {
+      if (Math.abs(currentScale - getFitScale()) < 0.001) setZoom(getFitScale());
+    });
+
+    setZoom(1);
+  }
 
   async function main() {
     urlInput.value = DEFAULT_STATE_URL;
