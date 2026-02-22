@@ -46,9 +46,22 @@
           <div><b>Выбрано:</b> <span id="selName">—</span></div>
           <div><b>PID:</b> <span id="selPid">—</span></div>
           <div><b>KEY:</b> <span id="selKey">—</span></div>
+          <div><b>Выделено:</b> <span id="multiSelCount">0</span></div>
         </div>
       </div>
 
+
+      <div class="card">
+        <div class="grid">
+          <label>Режим</label>
+          <select id="viewMode">
+            <option value="provinces">Режим провинций</option>
+            <option value="kingdoms">Королевства</option>
+            <option value="great_houses">Большие Дома</option>
+            <option value="minor_houses">Малые Дома</option>
+          </select>
+        </div>
+      </div>
       <div class="card">
         <div class="muted">Масштаб карты</div>
         <div class="btnrow" style="margin-top:10px;">
@@ -122,6 +135,40 @@
         <input id="emblemFile" type="file" accept="image/svg+xml,.svg" style="display:none;" />
       </div>
 
+
+      <div class="card">
+        <div class="muted">Феодальные сущности (Ctrl/Shift+клик для мультивыбора провинций)</div>
+        <div class="grid" style="margin-top:10px;">
+          <label>Тип</label>
+          <select id="realmType">
+            <option value="kingdoms">Королевства</option>
+            <option value="great_houses">Большие Дома</option>
+            <option value="minor_houses">Малые Дома</option>
+          </select>
+          <label>Сущность</label>
+          <select id="realmSelect"></select>
+          <label>Название</label>
+          <input id="realmName" type="text" placeholder="Название" />
+          <label>Цвет</label>
+          <input id="realmColor" type="color" value="#ff3b30" />
+          <label>Столица KEY</label>
+          <input id="realmCapital" type="text" placeholder="Напр. 34172" />
+          <label>Масштаб герба</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" />
+            <span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span>
+          </div>
+        </div>
+        <div class="btnrow">
+          <button id="newRealm" type="button">Новая сущность</button>
+          <button id="saveRealm" type="button">Сохранить сущность</button>
+          <button id="addSelectedToRealm" type="button">Добавить выделенные провинции</button>
+          <button id="removeSelectedFromRealm" type="button">Убрать выделенные провинции</button>
+          <button id="realmUploadEmblemBtn" type="button">Загрузить герб сущности</button>
+          <button id="realmRemoveEmblemBtn" type="button">Удалить герб сущности</button>
+        </div>
+        <input id="realmEmblemFile" type="file" accept="image/svg+xml,.svg" style="display:none;" />
+      </div>
       <div class="card">
         <div class="muted">Экспорт/импорт JSON</div>
         <div class="btnrow">
