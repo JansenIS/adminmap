@@ -76,6 +76,10 @@
   let hideProvinceEmblems = false;
   const selectedKeys = new Set();
 
+  function isPlainObject(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
   function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } return s; }
@@ -84,10 +88,10 @@
   function realmBucketByType(type) { if (!state[type] || typeof state[type] !== "object") state[type] = {}; return state[type]; }
 
   function ensureFeudalSchema(obj) {
-    if (!obj.kingdoms || typeof obj.kingdoms !== "object") obj.kingdoms = {};
-    if (!obj.great_houses || typeof obj.great_houses !== "object") obj.great_houses = {};
-    if (!obj.minor_houses || typeof obj.minor_houses !== "object") obj.minor_houses = {};
-    if (!obj.free_cities || typeof obj.free_cities !== "object") obj.free_cities = {};
+    if (!isPlainObject(obj.kingdoms)) obj.kingdoms = {};
+    if (!isPlainObject(obj.great_houses)) obj.great_houses = {};
+    if (!isPlainObject(obj.minor_houses)) obj.minor_houses = {};
+    if (!isPlainObject(obj.free_cities)) obj.free_cities = {};
     for (const pd of Object.values(obj.provinces || {})) {
       if (!pd || typeof pd !== "object") continue;
       if (typeof pd.kingdom_id !== "string") pd.kingdom_id = "";
