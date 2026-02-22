@@ -68,7 +68,8 @@
   const SAVE_TOKEN = "";
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
-  const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id" };
+  const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
+  const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
 
   let state = null;
   let selectedKey = 0;
@@ -86,11 +87,13 @@
     if (!obj.kingdoms || typeof obj.kingdoms !== "object") obj.kingdoms = {};
     if (!obj.great_houses || typeof obj.great_houses !== "object") obj.great_houses = {};
     if (!obj.minor_houses || typeof obj.minor_houses !== "object") obj.minor_houses = {};
+    if (!obj.free_cities || typeof obj.free_cities !== "object") obj.free_cities = {};
     for (const pd of Object.values(obj.provinces || {})) {
       if (!pd || typeof pd !== "object") continue;
       if (typeof pd.kingdom_id !== "string") pd.kingdom_id = "";
       if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
       if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
+      if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
     }
   }
 
@@ -157,6 +160,26 @@
     return bucket[id];
   }
 
+  function drawRealmLayer(map, type, opacity, emblemOpacity) {
+    const field = MODE_TO_FIELD[type];
+    const bucket = realmBucketByType(type);
+    for (const [id, realm] of Object.entries(bucket)) {
+      const keys = [];
+      for (const [k, pd] of Object.entries(state.provinces)) {
+        const key = Number(k) >>> 0;
+        if (pd[field] === id) keys.push(key);
+      }
+      if (!keys.length) continue;
+      const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
+      const cap = Number(realm.capital_key) >>> 0;
+      for (const key of keys) map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]);
+      if (realm.emblem_svg) {
+        const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
+        map.setGroupEmblem(`${type}:${id}`, keys, realm.emblem_svg, box, { scale: realm.emblem_scale || 1, opacity: emblemOpacity });
+      }
+    }
+  }
+
   function applyLayerState(map) {
     const mode = currentMode();
     map.clearAllFills();
@@ -174,23 +197,8 @@
     }
 
     if (mode !== "provinces") {
-      const field = MODE_TO_FIELD[mode];
-      const bucket = realmBucketByType(mode);
-      for (const [id, realm] of Object.entries(bucket)) {
-        const keys = [];
-        for (const [k, pd] of Object.entries(state.provinces)) {
-          const key = Number(k) >>> 0;
-          if (pd[field] === id) keys.push(key);
-        }
-        if (!keys.length) continue;
-        const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
-        const cap = Number(realm.capital_key) >>> 0;
-        for (const key of keys) map.setFill(key, [r, g, b, key === cap ? 200 : 150]);
-        if (realm.emblem_svg) {
-          const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
-          map.setGroupEmblem(`${mode}:${id}`, keys, realm.emblem_svg, box, { scale: realm.emblem_scale || 1, opacity: 0.6 });
-        }
-      }
+      drawRealmLayer(map, mode, 150, 0.6);
+      if (REALM_OVERLAY_MODES.has(mode)) drawRealmLayer(map, "free_cities", 230, 0.75);
     }
 
     map.repaintAllEmblems().catch(() => {});
