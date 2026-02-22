@@ -96,6 +96,15 @@
       this.W = this.baseImg.naturalWidth;
       this.H = this.baseImg.naturalHeight;
 
+      // Keep map container in the same native size as the source image.
+      // Zoom controls may override this later, but initial render should always
+      // start from full resolution so the province mask stays pixel-aligned.
+      const wrap = this.baseImg.parentElement;
+      if (wrap && wrap.style) {
+        wrap.style.width = this.W + "px";
+        wrap.style.height = this.H + "px";
+      }
+
       this.fillCanvas.width = this.W; this.fillCanvas.height = this.H;
       this.emblemCanvas.width = this.W; this.emblemCanvas.height = this.H;
       this.hoverCanvas.width = this.W; this.hoverCanvas.height = this.H;
