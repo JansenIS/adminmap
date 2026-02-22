@@ -67,6 +67,8 @@
 
       this.W = 0;
       this.H = 0;
+      this.sourceMaskW = 0;
+      this.sourceMaskH = 0;
 
       this.keyPerPixel = null;
       this.provincesByKey = new Map();
@@ -101,13 +103,14 @@
       const provincesMeta = await this._loadJSON(this.opts.provincesMetaUrl || "provinces.json");
       if (!provincesMeta || !Array.isArray(provincesMeta.provinces)) throw new Error("Invalid provinces.json");
 
-      for (const p of provincesMeta.provinces) {
-        this.provincesByKey.set((p.key >>> 0), p);
-      }
-
       const maskImg = await this._loadImage(this.opts.maskUrl || "provinces_id.png");
-      if (maskImg.naturalWidth !== this.W || maskImg.naturalHeight !== this.H) {
-        throw new Error("provinces_id.png size mismatch vs map.png");
+      this.sourceMaskW = maskImg.naturalWidth;
+      this.sourceMaskH = maskImg.naturalHeight;
+
+      const scaleX = this.sourceMaskW > 0 ? (this.W / this.sourceMaskW) : 1;
+      const scaleY = this.sourceMaskH > 0 ? (this.H / this.sourceMaskH) : 1;
+      for (const p of provincesMeta.provinces) {
+        this.provincesByKey.set((p.key >>> 0), this._scaleProvinceMeta(p, scaleX, scaleY));
       }
 
       this.keyPerPixel = this._buildKeyPerPixel(maskImg);
@@ -566,7 +569,7 @@
 
       offCtx.imageSmoothingEnabled = false;
       offCtx.clearRect(0, 0, this.W, this.H);
-      offCtx.drawImage(maskImg, 0, 0);
+      offCtx.drawImage(maskImg, 0, 0, this.W, this.H);
 
       const maskData = offCtx.getImageData(0, 0, this.W, this.H).data;
       const arr = new Uint32Array(this.W * this.H);
@@ -577,6 +580,28 @@
         arr[i] = ((maskData[p] << 16) | (maskData[p + 1] << 8) | (maskData[p + 2])) >>> 0;
       }
       return arr;
+    }
+
+    _scaleProvinceMeta(meta, scaleX, scaleY) {
+      if (!meta || typeof meta !== "object") return meta;
+      if (Math.abs(scaleX - 1) < 1e-9 && Math.abs(scaleY - 1) < 1e-9) return meta;
+
+      const out = { ...meta };
+
+      if (Array.isArray(meta.bbox) && meta.bbox.length === 4) {
+        out.bbox = [
+          Math.floor(meta.bbox[0] * scaleX),
+          Math.floor(meta.bbox[1] * scaleY),
+          Math.ceil(meta.bbox[2] * scaleX),
+          Math.ceil(meta.bbox[3] * scaleY)
+        ];
+      }
+
+      if (Array.isArray(meta.centroid) && meta.centroid.length === 2) {
+        out.centroid = [meta.centroid[0] * scaleX, meta.centroid[1] * scaleY];
+      }
+
+      return out;
     }
 
     async _ensureBaseLoaded() {
