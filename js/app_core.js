@@ -73,6 +73,7 @@
       this.fillByKey = new Map();
 
       this.emblemByKey = new Map();   // key -> {src, box:{w,h}, margin, scale}
+      this.groupEmblemById = new Map(); // id -> {keys, src, box, margin, scale, opacity}
       this.clipMaskByKey = new Map(); // key -> canvas mask
       this.imgCache = new Map();      // src -> Promise<Image>
 
@@ -215,13 +216,43 @@
 
     clearAllEmblems() {
       this.emblemByKey.clear();
+      this.groupEmblemById.clear();
       this.emblemCtx.clearRect(0, 0, this.W, this.H);
+    }
+
+    setGroupEmblem(id, keys, src, box, options) {
+      const gid = String(id || "").trim();
+      if (!gid) return;
+      if (!src || !Array.isArray(keys) || !keys.length) {
+        this.clearGroupEmblem(gid);
+        return;
+      }
+
+      const opt = options || {};
+      const margin = (opt.margin == null ? 0.12 : +opt.margin);
+      const scale = (opt.scale == null ? 1.0 : +opt.scale);
+      const opacity = (opt.opacity == null ? 1.0 : +opt.opacity);
+      const b = box && typeof box.w === "number" && typeof box.h === "number" ? box : { w: 2000, h: 2400 };
+
+      const normKeys = keys.map(k => (k >>> 0)).filter(Boolean);
+      if (!normKeys.length) {
+        this.clearGroupEmblem(gid);
+        return;
+      }
+      this.groupEmblemById.set(gid, { keys: normKeys, src, box: b, margin, scale, opacity });
+    }
+
+    clearGroupEmblem(id) {
+      this.groupEmblemById.delete(String(id || ""));
     }
 
     async repaintAllEmblems() {
       this.emblemCtx.clearRect(0, 0, this.W, this.H);
       for (const k of this.emblemByKey.keys()) {
         await this._drawSingleEmblem(k);
+      }
+      for (const gid of this.groupEmblemById.keys()) {
+        await this._drawSingleGroupEmblem(gid);
       }
     }
 
@@ -273,6 +304,135 @@
       pctx.drawImage(img, dx, dy, tw, th);
 
       const mask = this._getClipMaskCanvas(k);
+      pctx.globalCompositeOperation = "destination-in";
+      pctx.drawImage(mask, 0, 0);
+      pctx.globalCompositeOperation = "source-over";
+
+      this.emblemCtx.drawImage(patch, x0, y0);
+    }
+
+    async _drawSingleGroupEmblem(groupId) {
+      const g = this.groupEmblemById.get(String(groupId || ""));
+      if (!g || !g.keys || !g.keys.length) return;
+
+      let x0 = this.W, y0 = this.H, x1 = 0, y1 = 0;
+      const keys = [];
+      for (const rawKey of g.keys) {
+        const key = rawKey >>> 0;
+        const meta = this.getProvinceMeta(key);
+        if (!meta) continue;
+        const b = meta.bbox;
+        x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]);
+        x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]);
+        keys.push(key);
+      }
+      if (!keys.length || x1 <= x0 || y1 <= y0) return;
+
+      const bw = x1 - x0, bh = y1 - y0;
+      const mask = document.createElement("canvas");
+      mask.width = bw; mask.height = bh;
+      const mctx = mask.getContext("2d", { willReadFrequently: true });
+      const img = mctx.createImageData(bw, bh);
+      const data = img.data;
+      const keySet = new Set(keys);
+      const maskBits = new Uint8Array(bw * bh);
+      let p = 0;
+      for (let yy = 0; yy < bh; yy++) {
+        const row = (y0 + yy) * this.W;
+        for (let xx = 0; xx < bw; xx++, p += 4) {
+          const inside = keySet.has(this.keyPerPixel[row + (x0 + xx)] >>> 0);
+          if (inside) {
+            data[p] = 255; data[p + 1] = 255; data[p + 2] = 255; data[p + 3] = 255;
+            maskBits[yy * bw + xx] = 1;
+          } else {
+            data[p + 3] = 0;
+          }
+        }
+      }
+      mctx.putImageData(img, 0, 0);
+
+      // For split territories (exclaves), center emblem on the largest connected component,
+      // not on the full bounding box of all components.
+      const visited = new Uint8Array(maskBits.length);
+      const qx = new Int32Array(maskBits.length);
+      const qy = new Int32Array(maskBits.length);
+      let bestCount = 0;
+      let bestSumX = 0;
+      let bestSumY = 0;
+      for (let sy = 0; sy < bh; sy++) {
+        for (let sx = 0; sx < bw; sx++) {
+          const start = sy * bw + sx;
+          if (!maskBits[start] || visited[start]) continue;
+
+          let head = 0, tail = 0;
+          qx[tail] = sx;
+          qy[tail] = sy;
+          tail++;
+          visited[start] = 1;
+
+          let count = 0;
+          let sumX = 0;
+          let sumY = 0;
+
+          while (head < tail) {
+            const x = qx[head];
+            const y = qy[head];
+            head++;
+
+            count++;
+            sumX += x;
+            sumY += y;
+
+            if (x > 0) {
+              const ni = y * bw + (x - 1);
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x - 1; qy[tail] = y; tail++; }
+            }
+            if (x + 1 < bw) {
+              const ni = y * bw + (x + 1);
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x + 1; qy[tail] = y; tail++; }
+            }
+            if (y > 0) {
+              const ni = (y - 1) * bw + x;
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x; qy[tail] = y - 1; tail++; }
+            }
+            if (y + 1 < bh) {
+              const ni = (y + 1) * bw + x;
+              if (maskBits[ni] && !visited[ni]) { visited[ni] = 1; qx[tail] = x; qy[tail] = y + 1; tail++; }
+            }
+          }
+
+          if (count > bestCount) {
+            bestCount = count;
+            bestSumX = sumX;
+            bestSumY = sumY;
+          }
+        }
+      }
+
+      const imgEmblem = await this._loadImageCached(g.src);
+      const patch = document.createElement("canvas");
+      patch.width = bw; patch.height = bh;
+      const pctx = patch.getContext("2d", { willReadFrequently: true });
+
+      const marginFrac = clamp(g.margin, 0, 0.45);
+      const innerW = Math.max(1, Math.floor(bw * (1 - 2 * marginFrac)));
+      const innerH = Math.max(1, Math.floor(bh * (1 - 2 * marginFrac)));
+      const aspect = ((g.box && g.box.w) ? g.box.w : 2000) / ((g.box && g.box.h) ? g.box.h : 2400);
+      let tw = innerW;
+      let th = Math.round(tw / aspect);
+      if (th > innerH) { th = innerH; tw = Math.round(th * aspect); }
+      tw = Math.max(1, Math.floor(tw * clamp(g.scale, 0.2, 3.0)));
+      th = Math.max(1, Math.floor(th * clamp(g.scale, 0.2, 3.0)));
+
+      const centerX = bestCount ? (bestSumX / bestCount) : (bw / 2);
+      const centerY = bestCount ? (bestSumY / bestCount) : (bh / 2);
+      const dx = clamp(Math.round(centerX - tw / 2), 0, Math.max(0, bw - tw));
+      const dy = clamp(Math.round(centerY - th / 2), 0, Math.max(0, bh - th));
+
+      pctx.globalAlpha = clamp(g.opacity, 0, 1);
+      pctx.imageSmoothingEnabled = true;
+      pctx.drawImage(imgEmblem, dx, dy, tw, th);
+      pctx.globalAlpha = 1;
       pctx.globalCompositeOperation = "destination-in";
       pctx.drawImage(mask, 0, 0);
       pctx.globalCompositeOperation = "source-over";
