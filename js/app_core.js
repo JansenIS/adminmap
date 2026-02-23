@@ -71,7 +71,8 @@
       this.sourceMaskH = 0;
 
       this.keyPerPixel = null;
-      this.provincesByKey = new Map();
+      this.provincesByKey = new Map(); // pid -> meta
+      this.pidByMaskKey = new Map(); // mask RGB key -> pid
       this.fillByKey = new Map();
 
       this.emblemByKey = new Map();   // key -> {src, box:{w,h}, margin, scale}
@@ -119,10 +120,15 @@
       const scaleX = this.sourceMaskW > 0 ? (this.W / this.sourceMaskW) : 1;
       const scaleY = this.sourceMaskH > 0 ? (this.H / this.sourceMaskH) : 1;
       for (const p of provincesMeta.provinces) {
-        this.provincesByKey.set((p.key >>> 0), this._scaleProvinceMeta(p, scaleX, scaleY));
+        const scaled = this._scaleProvinceMeta(p, scaleX, scaleY);
+        scaled.mask_key = p.key >>> 0;
+        const pid = p.pid >>> 0;
+        this.provincesByKey.set(pid, scaled);
+        this.pidByMaskKey.set(scaled.mask_key, pid);
       }
 
       this.keyPerPixel = this._buildKeyPerPixel(maskImg);
+      this._refreshProvinceGeometryFromMask();
 
       this.baseImg.addEventListener("mousemove", this._boundMouseMove);
       this.baseImg.addEventListener("mouseleave", this._boundMouseLeave);
@@ -452,6 +458,31 @@
       this.emblemCtx.drawImage(patch, x0, y0);
     }
 
+
+    _refreshProvinceGeometryFromMask() {
+      const stats = new Map();
+      for (let y = 0; y < this.H; y++) {
+        const row = y * this.W;
+        for (let x = 0; x < this.W; x++) {
+          const pid = this.keyPerPixel[row + x] >>> 0;
+          if (!pid) continue;
+          let st = stats.get(pid);
+          if (!st) { st = { minX: x, minY: y, maxX: x, maxY: y, sumX: 0, sumY: 0, cnt: 0 }; stats.set(pid, st); }
+          if (x < st.minX) st.minX = x; if (y < st.minY) st.minY = y;
+          if (x > st.maxX) st.maxX = x; if (y > st.maxY) st.maxY = y;
+          st.sumX += x; st.sumY += y; st.cnt++;
+        }
+      }
+
+      for (const [pid, st] of stats.entries()) {
+        const meta = this.provincesByKey.get(pid) || { pid };
+        meta.bbox = [st.minX, st.minY, st.maxX + 1, st.maxY + 1];
+        meta.centroid = st.cnt ? [st.sumX / st.cnt, st.sumY / st.cnt] : [st.minX, st.minY];
+        meta.area_px = st.cnt;
+        this.provincesByKey.set(pid, meta);
+      }
+    }
+
     _getClipMaskCanvas(key) {
       const k = key >>> 0;
       const cached = this.clipMaskByKey.get(k);
@@ -590,6 +621,40 @@
       }
 
       return arr;
+    }
+
+    _pickNonZeroKey(arr, cx, cy, bbox) {
+      const [x0, y0, x1, y1] = bbox;
+      const minX = clamp(Math.floor(x0), 0, this.W - 1);
+      const minY = clamp(Math.floor(y0), 0, this.H - 1);
+      const maxX = clamp(Math.ceil(x1) - 1, 0, this.W - 1);
+      const maxY = clamp(Math.ceil(y1) - 1, 0, this.H - 1);
+
+      const x = clamp(cx | 0, minX, maxX);
+      const y = clamp(cy | 0, minY, maxY);
+      const k0 = arr[y * this.W + x] >>> 0;
+      if (k0) return k0;
+
+      for (let r = 1; r <= 8; r++) {
+        const sx0 = clamp(x - r, minX, maxX);
+        const sx1 = clamp(x + r, minX, maxX);
+        const sy0 = clamp(y - r, minY, maxY);
+        const sy1 = clamp(y + r, minY, maxY);
+
+        for (let xx = sx0; xx <= sx1; xx++) {
+          const kt = arr[sy0 * this.W + xx] >>> 0;
+          if (kt) return kt;
+          const kb = arr[sy1 * this.W + xx] >>> 0;
+          if (kb) return kb;
+        }
+        for (let yy = sy0; yy <= sy1; yy++) {
+          const kl = arr[yy * this.W + sx0] >>> 0;
+          if (kl) return kl;
+          const kr = arr[yy * this.W + sx1] >>> 0;
+          if (kr) return kr;
+        }
+      }
+      return 0;
     }
 
     _scaleProvinceMeta(meta, scaleX, scaleY) {

@@ -13,7 +13,13 @@
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
   function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
-  function renderProvince(key, meta) { selectedKey = key >>> 0; if (!state || !selectedKey) return setSidebarEmpty(); const pd = state.provinces[String(selectedKey)]; if (!pd) return setSidebarEmpty(); title.textContent = pd.name || (meta && meta.name) || "—"; pidEl.textContent = String(pd.pid ?? (meta ? meta.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; }
+  function getStateProvinceByPid(pid) { if (!state || !state.provinces) return null; return state.provinces[String(Number(pid) || 0)] || null; }
+  function keyForPid(map, pid) {
+    const p = Number(pid); if (!isFinite(p) || p <= 0) return 0;
+    for (const [key, meta] of map.provincesByKey.entries()) if (meta && Number(meta.pid) === p) return key >>> 0;
+    return 0;
+  }
+  function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) return setSidebarEmpty(); const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) return setSidebarEmpty(); title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; }
 
   function ensureFeudalSchema(obj) {
     if (!obj.kingdoms || typeof obj.kingdoms !== "object") obj.kingdoms = {};
@@ -33,10 +39,10 @@
     const bucket = state[type] || {};
     for (const [id, realm] of Object.entries(bucket)) {
       const keys = [];
-      for (const [k, pd] of Object.entries(state.provinces)) if (pd[field] === id) keys.push(Number(k) >>> 0);
+      for (const pd of Object.values(state.provinces)) { if (pd[field] !== id) continue; const k = keyForPid(map, pd.pid); if (k) keys.push(k); }
       if (!keys.length) continue;
       const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
-      const cap = Number(realm.capital_key) >>> 0;
+      const cap = keyForPid(map, realm.capital_pid || realm.capital_key || realm.capital);
       keys.forEach(key => map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]));
       if (realm.emblem_svg) {
         const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -45,48 +51,39 @@
     }
   }
 
+
+  function normalizeStateByPid(obj) {
+    const src = obj && obj.provinces ? obj.provinces : {};
+    const out = {};
+    for (const [k, pd] of Object.entries(src)) {
+      if (!pd || typeof pd !== "object") continue;
+      const pid = Number(pd.pid != null ? pd.pid : k) | 0;
+      if (pid <= 0) continue;
+      if (!(String(pid) in out)) out[String(pid)] = pd;
+      out[String(pid)].pid = pid;
+    }
+    obj.provinces = out;
+    return obj;
+  }
+
   async function loadState(url) {
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; }
     ensureFeudalSchema(obj);
+    normalizeStateByPid(obj);
     return obj;
   }
 
 
 
-  function alignStateToMapKeys(obj, map) {
-    const provinces = obj && obj.provinces;
-    if (!provinces || !map || !(map.provincesByKey instanceof Map)) return obj;
-
-    const expected = new Set(Array.from(map.provincesByKey.keys(), k => String(k >>> 0)));
-    const entries = Object.entries(provinces);
-    if (!entries.length) return obj;
-
-    let overlap = 0;
-    for (const [k] of entries) if (expected.has(k)) overlap++;
-    if (overlap === entries.length) return obj;
-
-    const pidToKey = new Map();
-    for (const [k, meta] of map.provincesByKey.entries()) {
-      if (meta && meta.pid != null) pidToKey.set(Number(meta.pid), String(k >>> 0));
-    }
-
-    const remapped = {};
-    for (const [oldKey, pd] of entries) {
-      const pid = pd && pd.pid != null ? Number(pd.pid) : NaN;
-      const targetKey = expected.has(oldKey) ? oldKey : (pidToKey.get(pid) || oldKey);
-      if (!(targetKey in remapped)) remapped[targetKey] = pd;
-    }
-    obj.provinces = remapped;
-    return obj;
-  }
 
   async function applyState(map) {
     const mode = viewModeSelect.value || "provinces";
     map.clearAllFills(); map.clearAllEmblems();
-    for (const [k, pd] of Object.entries(state.provinces)) {
-      const key = Number(k) >>> 0;
+    for (const pd of Object.values(state.provinces)) {
+      const key = keyForPid(map, pd.pid);
+      if (!key) continue;
       if (mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       if (!hideProvinceEmblems && pd.emblem_svg) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -175,9 +172,9 @@
 
   async function main() {
     urlInput.value = DEFAULT_STATE_URL;
-    const map = new RasterProvinceMap({ baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png", onHover: ({ key, meta, evt }) => { if (!key || !state) return tooltip.style.display = "none"; const pd = state.provinces[String(key)] || {}; const label = pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : "")); setTooltip(evt, label); }, onClick: ({ key, meta }) => renderProvince(key, meta) });
+    const map = new RasterProvinceMap({ baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png", onHover: ({ key, meta, evt }) => { if (!key || !state) return tooltip.style.display = "none"; const pd = getStateProvinceByPid(meta && meta.pid); const label = (pd && pd.name) || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : "")); setTooltip(evt, label); }, onClick: ({ key, meta }) => renderProvince(key, meta, map) });
     await map.init(); initZoomControls(map);
-    async function reload() { state = alignStateToMapKeys(await loadState(urlInput.value.trim() || DEFAULT_STATE_URL), map); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey)); }
+    async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map); }
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
     viewModeSelect.addEventListener("change", () => applyState(map).catch(e => alert(e.message)));
     if (toggleProvEmblemsBtn) {
