@@ -112,9 +112,9 @@
       const provincesMeta = await this._loadJSON(this.opts.provincesMetaUrl || "provinces.json");
       if (!provincesMeta || !Array.isArray(provincesMeta.provinces)) throw new Error("Invalid provinces.json");
 
-      const maskImg = await this._loadImage(this.opts.maskUrl || "provinces_id.png");
-      this.sourceMaskW = maskImg.naturalWidth;
-      this.sourceMaskH = maskImg.naturalHeight;
+      const maskImg = await this._loadMaskAsset(this.opts.maskUrl || "provinces_id.png");
+      this.sourceMaskW = maskImg.naturalWidth || maskImg.width || 0;
+      this.sourceMaskH = maskImg.naturalHeight || maskImg.height || 0;
 
       const scaleX = this.sourceMaskW > 0 ? (this.W / this.sourceMaskW) : 1;
       const scaleY = this.sourceMaskH > 0 ? (this.H / this.sourceMaskH) : 1;
@@ -589,62 +589,7 @@
         arr[i] = ((maskData[p] << 16) | (maskData[p + 1] << 8) | (maskData[p + 2])) >>> 0;
       }
 
-      // Some editors save PNG masks with color profile chunks (sRGB/ICC/gAMA), and browsers
-      // may color-manage decoded pixels. In that case RGB values read from canvas may shift by
-      // a few units and stop matching keys from provinces.json exactly.
-      // Build a remap from observed mask keys -> metadata keys using province anchors.
-      const remap = new Map();
-      for (const [expectedKey, meta] of this.provincesByKey.entries()) {
-        if (!meta || !Array.isArray(meta.bbox) || meta.bbox.length !== 4) continue;
-        const [x0, y0, x1, y1] = meta.bbox;
-        const cx = (meta.centroid && meta.centroid.length === 2) ? Math.round(meta.centroid[0]) : Math.round((x0 + x1) / 2);
-        const cy = (meta.centroid && meta.centroid.length === 2) ? Math.round(meta.centroid[1]) : Math.round((y0 + y1) / 2);
-        const observedKey = this._pickNonZeroKey(arr, cx, cy, [x0, y0, x1, y1]);
-        if (!observedKey) continue;
-        if (!remap.has(observedKey)) remap.set(observedKey, expectedKey >>> 0);
-      }
-
-      if (remap.size) {
-        for (let i = 0; i < arr.length; i++) {
-          const mapped = remap.get(arr[i]);
-          if (mapped != null) arr[i] = mapped;
-        }
-      }
       return arr;
-    }
-
-    _pickNonZeroKey(arr, cx, cy, bbox) {
-      const [x0, y0, x1, y1] = bbox;
-      const minX = clamp(Math.floor(x0), 0, this.W - 1);
-      const minY = clamp(Math.floor(y0), 0, this.H - 1);
-      const maxX = clamp(Math.ceil(x1) - 1, 0, this.W - 1);
-      const maxY = clamp(Math.ceil(y1) - 1, 0, this.H - 1);
-
-      const x = clamp(cx | 0, minX, maxX);
-      const y = clamp(cy | 0, minY, maxY);
-      const k0 = arr[y * this.W + x] >>> 0;
-      if (k0) return k0;
-
-      for (let r = 1; r <= 8; r++) {
-        const sx0 = clamp(x - r, minX, maxX);
-        const sx1 = clamp(x + r, minX, maxX);
-        const sy0 = clamp(y - r, minY, maxY);
-        const sy1 = clamp(y + r, minY, maxY);
-
-        for (let xx = sx0; xx <= sx1; xx++) {
-          const kt = arr[sy0 * this.W + xx] >>> 0;
-          if (kt) return kt;
-          const kb = arr[sy1 * this.W + xx] >>> 0;
-          if (kb) return kb;
-        }
-        for (let yy = sy0; yy <= sy1; yy++) {
-          const kl = arr[yy * this.W + sx0] >>> 0;
-          if (kl) return kl;
-          const kr = arr[yy * this.W + sx1] >>> 0;
-          if (kr) return kr;
-        }
-      }
-      return 0;
     }
 
     _scaleProvinceMeta(meta, scaleX, scaleY) {
@@ -681,6 +626,20 @@
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
       return res.json();
+    }
+
+    async _loadMaskAsset(url) {
+      if (typeof createImageBitmap === "function") {
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+          const blob = await res.blob();
+          return await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+        } catch (_) {
+          // Fallback to regular image load when createImageBitmap options are unsupported.
+        }
+      }
+      return this._loadImage(url);
     }
 
     _loadImage(url) {

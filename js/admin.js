@@ -361,6 +361,35 @@
     return obj;
   }
 
+
+
+  function alignStateToMapKeys(obj, map) {
+    const provinces = obj && obj.provinces;
+    if (!provinces || !map || !(map.provincesByKey instanceof Map)) return obj;
+
+    const expected = new Set(Array.from(map.provincesByKey.keys(), k => String(k >>> 0)));
+    const entries = Object.entries(provinces);
+    if (!entries.length) return obj;
+
+    let overlap = 0;
+    for (const [k] of entries) if (expected.has(k)) overlap++;
+    if (overlap === entries.length) return obj;
+
+    const pidToKey = new Map();
+    for (const [k, meta] of map.provincesByKey.entries()) {
+      if (meta && meta.pid != null) pidToKey.set(Number(meta.pid), String(k >>> 0));
+    }
+
+    const remapped = {};
+    for (const [oldKey, pd] of entries) {
+      const pid = pd && pd.pid != null ? Number(pd.pid) : NaN;
+      const targetKey = expected.has(oldKey) ? oldKey : (pidToKey.get(pid) || oldKey);
+      if (!(targetKey in remapped)) remapped[targetKey] = pd;
+    }
+    obj.provinces = remapped;
+    return obj;
+  }
+
   async function main() {
     state = await loadInitialState(STATE_URL_DEFAULT);
     rebuildPeopleControls(); rebuildTerrainSelect(); rebuildRealmSelect();
@@ -380,6 +409,7 @@
     });
 
     await map.init();
+    state = alignStateToMapKeys(state, map);
     initZoomControls(map);
     boot(map);
     setSelection(0, null);
