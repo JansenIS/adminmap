@@ -311,7 +311,7 @@
   function dataUriSvgToText(src) {
     const s = String(src || "").trim();
     if (!s.startsWith("data:image/svg+xml")) return "";
-    const commaIdx = s.index(",");
+    const commaIdx = s.indexOf(",");
     if (commaIdx < 0) return "";
     const meta = s.slice(0, commaIdx).toLowerCase();
     const body = s.slice(commaIdx + 1);
