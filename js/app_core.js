@@ -112,9 +112,9 @@
       const provincesMeta = await this._loadJSON(this.opts.provincesMetaUrl || "provinces.json");
       if (!provincesMeta || !Array.isArray(provincesMeta.provinces)) throw new Error("Invalid provinces.json");
 
-      const maskImg = await this._loadImage(this.opts.maskUrl || "provinces_id.png");
-      this.sourceMaskW = maskImg.naturalWidth;
-      this.sourceMaskH = maskImg.naturalHeight;
+      const maskImg = await this._loadMaskAsset(this.opts.maskUrl || "provinces_id.png");
+      this.sourceMaskW = maskImg.naturalWidth || maskImg.width || 0;
+      this.sourceMaskH = maskImg.naturalHeight || maskImg.height || 0;
 
       const scaleX = this.sourceMaskW > 0 ? (this.W / this.sourceMaskW) : 1;
       const scaleY = this.sourceMaskH > 0 ? (this.H / this.sourceMaskH) : 1;
@@ -123,6 +123,7 @@
       }
 
       this.keyPerPixel = this._buildKeyPerPixel(maskImg);
+      this._refreshProvinceGeometryFromMask();
 
       this.baseImg.addEventListener("mousemove", this._boundMouseMove);
       this.baseImg.addEventListener("mouseleave", this._boundMouseLeave);
@@ -452,6 +453,30 @@
       this.emblemCtx.drawImage(patch, x0, y0);
     }
 
+    _refreshProvinceGeometryFromMask() {
+      const stats = new Map();
+      for (let y = 0; y < this.H; y++) {
+        const row = y * this.W;
+        for (let x = 0; x < this.W; x++) {
+          const key = this.keyPerPixel[row + x] >>> 0;
+          if (!key) continue;
+          let st = stats.get(key);
+          if (!st) { st = { minX: x, minY: y, maxX: x, maxY: y, sumX: 0, sumY: 0, cnt: 0 }; stats.set(key, st); }
+          if (x < st.minX) st.minX = x; if (y < st.minY) st.minY = y;
+          if (x > st.maxX) st.maxX = x; if (y > st.maxY) st.maxY = y;
+          st.sumX += x; st.sumY += y; st.cnt++;
+        }
+      }
+
+      for (const [key, st] of stats.entries()) {
+        const meta = this.provincesByKey.get(key) || { key };
+        meta.bbox = [st.minX, st.minY, st.maxX + 1, st.maxY + 1];
+        meta.centroid = st.cnt ? [st.sumX / st.cnt, st.sumY / st.cnt] : [st.minX, st.minY];
+        meta.area_px = st.cnt;
+        this.provincesByKey.set(key, meta);
+      }
+    }
+
     _getClipMaskCanvas(key) {
       const k = key >>> 0;
       const cached = this.clipMaskByKey.get(k);
@@ -588,6 +613,7 @@
         if (!alpha) { arr[i] = 0; continue; }
         arr[i] = ((maskData[p] << 16) | (maskData[p + 1] << 8) | (maskData[p + 2])) >>> 0;
       }
+
       return arr;
     }
 
@@ -625,6 +651,20 @@
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
       return res.json();
+    }
+
+    async _loadMaskAsset(url) {
+      if (typeof createImageBitmap === "function") {
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+          const blob = await res.blob();
+          return await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+        } catch (_) {
+          // Fallback to regular image load when createImageBitmap options are unsupported.
+        }
+      }
+      return this._loadImage(url);
     }
 
     _loadImage(url) {

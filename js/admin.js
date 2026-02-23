@@ -75,6 +75,8 @@
   let selectedKey = 0;
   let hideProvinceEmblems = false;
   const selectedKeys = new Set();
+  const keyByPid = new Map();
+  const pidByKey = new Map();
 
   function isPlainObject(value) {
     return !!value && typeof value === "object" && !Array.isArray(value);
@@ -83,7 +85,15 @@
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
   function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } return s; }
-  function getProvData(key) { return state.provinces[String(key >>> 0)] || null; }
+  function rebuildPidKeyMaps(map) {
+    keyByPid.clear(); pidByKey.clear();
+    for (const [key, meta] of map.provincesByKey.entries()) {
+      const pid = meta && meta.pid != null ? Number(meta.pid) : 0;
+      if (pid > 0) { keyByPid.set(pid, key >>> 0); pidByKey.set(key >>> 0, pid); }
+    }
+  }
+  function keyForPid(pid) { const p = Number(pid); return keyByPid.get(p) || 0; }
+  function getProvData(key) { const pid = pidByKey.get(key >>> 0) || 0; return pid ? (state.provinces[String(pid)] || null) : null; }
   function currentMode() { return viewModeSelect.value || "provinces"; }
   function realmBucketByType(type) { if (!state[type] || typeof state[type] !== "object") state[type] = {}; return state[type]; }
 
@@ -134,7 +144,7 @@
 
   function buildRealmEntries(type) {
     const bucket = realmBucketByType(type);
-    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, color: "#ff3b30", capital_key: 0, province_keys: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 }, r)]);
+    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 }, r)]);
   }
 
   function rebuildRealmSelect() {
@@ -153,14 +163,14 @@
     const realm = id ? realmBucketByType(type)[id] : null;
     realmNameInput.value = realm ? (realm.name || id) : "";
     realmColorInput.value = realm && realm.color ? realm.color : "#ff3b30";
-    realmCapitalInput.value = realm && realm.capital_key ? String(realm.capital_key) : "";
+    realmCapitalInput.value = realm && (realm.capital_pid || realm.capital_key) ? String(realm.capital_pid || realm.capital_key) : "";
     realmEmblemScaleInput.value = String(realm && realm.emblem_scale ? realm.emblem_scale : 1);
     realmEmblemScaleVal.textContent = realmEmblemScaleInput.value;
   }
 
   function ensureRealm(type, id) {
     const bucket = realmBucketByType(type);
-    if (!bucket[id]) bucket[id] = { name: id, color: "#ff3b30", capital_key: 0, province_keys: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 };
+    if (!bucket[id]) bucket[id] = { name: id, color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 };
     return bucket[id];
   }
 
@@ -169,13 +179,14 @@
     const bucket = realmBucketByType(type);
     for (const [id, realm] of Object.entries(bucket)) {
       const keys = [];
-      for (const [k, pd] of Object.entries(state.provinces)) {
-        const key = Number(k) >>> 0;
-        if (pd[field] === id) keys.push(key);
+      for (const pd of Object.values(state.provinces)) {
+        if (pd[field] !== id) continue;
+        const key = keyForPid(pd.pid);
+        if (key) keys.push(key);
       }
       if (!keys.length) continue;
       const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
-      const cap = Number(realm.capital_key) >>> 0;
+      const cap = keyForPid(realm.capital_pid || realm.capital_key || realm.capital);
       for (const key of keys) map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]);
       if (realm.emblem_svg) {
         const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -189,8 +200,9 @@
     map.clearAllFills();
     map.clearAllEmblems();
 
-    for (const [k, pd] of Object.entries(state.provinces)) {
-      const key = Number(k) >>> 0;
+    for (const pd of Object.values(state.provinces)) {
+      const key = keyForPid(pd.pid);
+      if (!key) continue;
       if (mode === "provinces") {
         if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       }
@@ -308,7 +320,7 @@
       const realm = ensureRealm(type, id);
       realm.name = String(realmNameInput.value || id).trim() || id;
       realm.color = String(realmColorInput.value || "#ff3b30");
-      realm.capital_key = Number(realmCapitalInput.value) >>> 0;
+      realm.capital_pid = Number(realmCapitalInput.value) >>> 0;
       realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
       rebuildRealmSelect(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); exportStateToTextarea();
     });
@@ -317,7 +329,7 @@
       const field = MODE_TO_FIELD[type]; const realm = ensureRealm(type, id);
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       for (const key of keys) { const pd = getProvData(key); if (pd) pd[field] = id; }
-      realm.province_keys = keys;
+      realm.province_pids = keys.map(k => pidByKey.get(k) || 0).filter(Boolean);
       applyLayerState(map); exportStateToTextarea();
     });
     btnRemoveSelectedFromRealm.addEventListener("click", () => {
@@ -352,14 +364,33 @@
     suzerainSelect.addEventListener("change", saveProvinceFieldsFromUI); seniorSelect.addEventListener("change", saveProvinceFieldsFromUI); vassalsSelect.addEventListener("change", saveProvinceFieldsFromUI); terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
   }
 
+
+  function normalizeStateByPid(obj) {
+    const src = obj && obj.provinces ? obj.provinces : {};
+    const out = {};
+    for (const [k, pd] of Object.entries(src)) {
+      if (!pd || typeof pd !== "object") continue;
+      const pid = Number(pd.pid != null ? pd.pid : k) | 0;
+      if (pid <= 0) continue;
+      if (!(String(pid) in out)) out[String(pid)] = pd;
+      out[String(pid)].pid = pid;
+    }
+    obj.provinces = out;
+    return obj;
+  }
+
   async function loadInitialState(url) {
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
     obj.people = normalizePeopleList(obj.people || []); if (!Array.isArray(obj.terrain_types)) obj.terrain_types = TERRAIN_TYPES_FALLBACK.slice();
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; }
     ensureFeudalSchema(obj);
+    normalizeStateByPid(obj);
     return obj;
   }
+
+
+
 
   async function main() {
     state = await loadInitialState(STATE_URL_DEFAULT);
@@ -367,7 +398,7 @@
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",
-      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pd = state.provinces[String(key)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); },
+      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); },
       onClick: ({ key, meta, evt }) => {
         if (evt.ctrlKey || evt.metaKey || evt.shiftKey) {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
@@ -380,6 +411,7 @@
     });
 
     await map.init();
+    rebuildPidKeyMaps(map);
     initZoomControls(map);
     boot(map);
     setSelection(0, null);
