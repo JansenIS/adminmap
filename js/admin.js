@@ -53,6 +53,11 @@
 
   const btnSaveServer = el("saveServer");
   const stateTA = el("state");
+  const btnExportProvincesPng = el("exportProvincesPng");
+  const btnExportKingdomsPng = el("exportKingdomsPng");
+  const btnExportGreatHousesPng = el("exportGreatHousesPng");
+  const btnExportMinorHousesPng = el("exportMinorHousesPng");
+
 
   const uploadEmblemBtn = el("uploadEmblemBtn");
   const removeEmblemBtn = el("removeEmblemBtn");
@@ -219,6 +224,78 @@
 
     map.repaintAllEmblems().catch(() => {});
   }
+  function collectProvinceKeysByRealmId(map, field, realmId) {
+    const id = String(realmId || "").trim();
+    if (!id) return [];
+    const keys = [];
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || pd[field] !== id) continue;
+      const key = keyForPid(pd.pid);
+      if (key) keys.push(key);
+    }
+    return keys;
+  }
+
+  function buildLayerExportFillMap(mode) {
+    const fills = new Map();
+    if (mode === "provinces") {
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd) continue;
+        const key = keyForPid(pd.pid);
+        if (!key || !Array.isArray(pd.fill_rgba) || pd.fill_rgba.length < 3) continue;
+        fills.set(key, [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0, 255]);
+      }
+      return fills;
+    }
+
+    const field = MODE_TO_FIELD[mode];
+    const bucket = realmBucketByType(mode);
+    for (const [id, realm] of Object.entries(bucket)) {
+      const [r, g, b] = MapUtils.hexToRgb(realm && realm.color ? realm.color : "#ff3b30");
+      const rgba = [r, g, b, 255];
+      const keys = collectProvinceKeysByRealmId(null, field, id);
+      for (const key of keys) fills.set(key, rgba);
+    }
+    return fills;
+  }
+
+  function downloadCanvasAsPng(canvas, filename) {
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function exportLayerPng(map, mode, filename) {
+    if (!map || !map.W || !map.H || !map.fillCtx || !map.keyPerPixel) {
+      alert("Карта ещё не готова для выгрузки PNG.");
+      return;
+    }
+    const fills = buildLayerExportFillMap(mode);
+    const out = document.createElement("canvas");
+    out.width = map.W;
+    out.height = map.H;
+    const ctx = out.getContext("2d", { willReadFrequently: true });
+    const img = ctx.createImageData(map.W, map.H);
+    const data = img.data;
+    const keys = map.keyPerPixel;
+    for (let i = 0, px = 0; i < keys.length; i++, px += 4) {
+      const key = keys[i] >>> 0;
+      const rgba = key ? fills.get(key) : null;
+      if (!rgba) continue;
+      data[px] = rgba[0] | 0;
+      data[px + 1] = rgba[1] | 0;
+      data[px + 2] = rgba[2] | 0;
+      data[px + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    downloadCanvasAsPng(out, filename);
+  }
+
+
 
 
   function syncProvEmblemsToggleLabel() {
@@ -352,6 +429,10 @@
 
     btnExport.addEventListener("click", exportStateToTextarea);
     btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "map_state.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
+    if (btnExportProvincesPng) btnExportProvincesPng.addEventListener("click", () => exportLayerPng(map, "provinces", "layer_provinces.png"));
+    if (btnExportKingdomsPng) btnExportKingdomsPng.addEventListener("click", () => exportLayerPng(map, "kingdoms", "layer_kingdoms.png"));
+    if (btnExportGreatHousesPng) btnExportGreatHousesPng.addEventListener("click", () => exportLayerPng(map, "great_houses", "layer_great_houses.png"));
+    if (btnExportMinorHousesPng) btnExportMinorHousesPng.addEventListener("click", () => exportLayerPng(map, "minor_houses", "layer_minor_houses.png"));
     btnImport.addEventListener("click", () => importFile.click());
     importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
     btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
