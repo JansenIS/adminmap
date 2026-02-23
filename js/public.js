@@ -21,6 +21,14 @@
   }
   function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) return setSidebarEmpty(); const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) return setSidebarEmpty(); title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; }
 
+  function emblemSourceToDataUri(src) {
+    const s = String(src || "").trim();
+    if (!s) return "";
+    if (s.startsWith("data:")) return s;
+    if (/<svg[\s>]/i.test(s)) return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(String(s).replace(/<script[\s\S]*?<\/script\s*>/gi, ""));
+    return s;
+  }
+
   function ensureFeudalSchema(obj) {
     if (!obj.kingdoms || typeof obj.kingdoms !== "object") obj.kingdoms = {};
     if (!obj.great_houses || typeof obj.great_houses !== "object") obj.great_houses = {};
@@ -44,9 +52,10 @@
       const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
       const cap = keyForPid(map, realm.capital_pid || realm.capital_key || realm.capital);
       keys.forEach(key => map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]));
-      if (realm.emblem_svg) {
+      const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
+      if (emblemSrc) {
         const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
-        map.setGroupEmblem(`${type}:${id}`, keys, realm.emblem_svg, box, { scale: realm.emblem_scale || 1, opacity: emblemOpacity });
+        map.setGroupEmblem(`${type}:${id}`, keys, emblemSrc, box, { scale: realm.emblem_scale || 1, opacity: emblemOpacity });
       }
     }
   }
@@ -85,9 +94,10 @@
       const key = keyForPid(map, pd.pid);
       if (!key) continue;
       if (mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
-      if (!hideProvinceEmblems && pd.emblem_svg) {
+      const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
+      if (!hideProvinceEmblems && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
-        map.setEmblem(key, pd.emblem_svg, box);
+        map.setEmblem(key, emblemSrc, box);
       }
     }
 

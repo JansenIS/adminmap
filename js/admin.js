@@ -127,7 +127,7 @@
 
   function rebuildTerrainSelect() { const list = Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK; const cur = terrainSelect.value || ""; terrainSelect.innerHTML = ""; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; terrainSelect.appendChild(o0); for (const t of list) { const o = document.createElement("option"); o.value = t; o.textContent = t; terrainSelect.appendChild(o); } terrainSelect.value = cur; }
 
-  function setEmblemPreview(pd) { const src = pd && pd.emblem_svg ? String(pd.emblem_svg) : ""; if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
+  function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
 
   function setSelection(key, meta) {
     selectedKey = key >>> 0;
@@ -193,9 +193,10 @@
       const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
       const cap = keyForPid(realm.capital_pid || realm.capital_key || realm.capital);
       for (const key of keys) map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]);
-      if (realm.emblem_svg) {
+      const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
+      if (emblemSrc) {
         const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
-        map.setGroupEmblem(`${type}:${id}`, keys, realm.emblem_svg, box, { scale: realm.emblem_scale || 1, opacity: emblemOpacity });
+        map.setGroupEmblem(`${type}:${id}`, keys, emblemSrc, box, { scale: realm.emblem_scale || 1, opacity: emblemOpacity });
       }
     }
   }
@@ -211,9 +212,10 @@
       if (mode === "provinces") {
         if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       }
-      if (!hideProvinceEmblems && pd.emblem_svg) {
+      const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
+      if (!hideProvinceEmblems && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
-        map.setEmblem(key, pd.emblem_svg, box);
+        map.setEmblem(key, emblemSrc, box);
       }
     }
 
@@ -306,6 +308,48 @@
   function sanitizeSvgText(svgText) { return String(svgText || "").replace(/<script[\s\S]*?<\/script\s*>/gi, ""); }
   function svgTextToDataUri(svgText) { return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(sanitizeSvgText(svgText)); }
   function extractSvgBox(svgText) { const box = MapUtils.parseSvgBox(svgText); return [box.w, box.h]; }
+  function dataUriSvgToText(src) {
+    const s = String(src || "").trim();
+    if (!s.startsWith("data:image/svg+xml")) return "";
+    const commaIdx = s.indexOf(",");
+    if (commaIdx < 0) return "";
+    const meta = s.slice(0, commaIdx).toLowerCase();
+    const body = s.slice(commaIdx + 1);
+    try {
+      if (meta.includes(";base64")) {
+        const bin = atob(body);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder("utf-8").decode(bytes);
+      }
+      return decodeURIComponent(body);
+    } catch (_) {
+      return "";
+    }
+  }
+  function emblemSourceToDataUri(src) {
+    const s = String(src || "").trim();
+    if (!s) return "";
+    if (s.startsWith("data:")) return s;
+    if (/<svg[\s>]/i.test(s)) return svgTextToDataUri(s);
+    return s;
+  }
+  function normalizeStoredEmblems(obj) {
+    for (const pd of Object.values(obj.provinces || {})) {
+      if (!pd || typeof pd !== "object") continue;
+      const src = String(pd.emblem_svg || "");
+      const decoded = dataUriSvgToText(src);
+      if (decoded) pd.emblem_svg = sanitizeSvgText(decoded);
+    }
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+      for (const realm of Object.values(obj[type] || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        const src = String(realm.emblem_svg || "");
+        const decoded = dataUriSvgToText(src);
+        if (decoded) realm.emblem_svg = sanitizeSvgText(decoded);
+      }
+    }
+  }
 
   function initZoomControls(map) {
     const mapArea = document.getElementById("mapArea");
@@ -422,7 +466,8 @@
       const file = realmEmblemFile.files && realmEmblemFile.files[0]; realmEmblemFile.value = ""; if (!file) return;
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       const text = String(await file.text() || "").replace(/^﻿/, "");
-      const realm = ensureRealm(type, id); realm.emblem_svg = svgTextToDataUri(text); realm.emblem_box = extractSvgBox(text);
+      const safeSvg = sanitizeSvgText(text);
+      const realm = ensureRealm(type, id); realm.emblem_svg = safeSvg; realm.emblem_box = extractSvgBox(safeSvg);
       applyLayerState(map); exportStateToTextarea();
     });
     realmRemoveEmblemBtn.addEventListener("click", () => { const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return; const realm = ensureRealm(type, id); realm.emblem_svg = ""; realm.emblem_box = null; applyLayerState(map); exportStateToTextarea(); });
@@ -438,7 +483,7 @@
     btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
 
     uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
-    emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = svgTextToDataUri(text); pd.emblem_box = extractSvgBox(text); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
+    emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const safeSvg = sanitizeSvgText(text); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = safeSvg; pd.emblem_box = extractSvgBox(safeSvg); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
     removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
 
     provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
@@ -467,6 +512,7 @@
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
+    normalizeStoredEmblems(obj);
     return obj;
   }
 
