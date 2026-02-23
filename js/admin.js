@@ -87,7 +87,7 @@
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
-  const MINOR_ALPHA = { rest: 40, vassal: 100, domain: 160, capital: 200 };
+  const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
 
   let state = null;
   let selectedKey = 0;
@@ -238,6 +238,21 @@
     return layer;
   }
 
+  function getMinorHouseHoverKeys(pid) {
+    const pd = state.provinces[String(Number(pid) >>> 0)] || null;
+    if (!pd || !pd.great_house_id) return [];
+
+    const layer = getGreatHouseMinorLayer(pd.great_house_id);
+    if (!layer) return [];
+
+    const hoveredPid = Number(pd.pid) >>> 0;
+    if (!hoveredPid) return [];
+
+    const hoveredVassal = (layer.vassals || []).find(v => (v.province_pids || []).some(x => (Number(x) >>> 0) === hoveredPid));
+    const pids = hoveredVassal ? (hoveredVassal.province_pids || []) : (layer.domain_pids || []);
+    return pids.map(pidVal => keyForPid(pidVal)).filter(Boolean);
+  }
+
   function drawMinorHousesLayer(map) {
     drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0);
     drawRealmLayer(map, "free_cities", 230, 0);
@@ -267,7 +282,8 @@
           const key = keyForPid(pid);
           if (!key) continue;
           vassalKeys.add(key);
-          map.setFill(key, [vr, vg, vb, MINOR_ALPHA.vassal]);
+          const isVassalCapital = (Number(v.capital_pid) >>> 0) === (Number(pid) >>> 0);
+          map.setFill(key, [vr, vg, vb, isVassalCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
         }
       }
 
@@ -828,7 +844,7 @@
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",
-      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); },
+      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); if (currentMode() === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } },
       onClick: ({ key, meta, evt }) => {
         if (evt.ctrlKey || evt.metaKey || evt.shiftKey) {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);

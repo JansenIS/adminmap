@@ -196,9 +196,19 @@
     setHoverHighlight(key, rgba) {
       const k = key >>> 0;
       if (!k) { this.clearHover(); return; }
-      this.hoverCtx.clearRect(0, 0, this.W, this.H);
-      this.paintProvince(this.hoverCtx, k, rgba || [255, 255, 255, 60], false);
+      this.setHoverHighlights([k], rgba);
       this.hoverKey = k;
+    }
+
+    setHoverHighlights(keys, rgba) {
+      const list = Array.isArray(keys) ? keys.map(v => v >>> 0).filter(Boolean) : [];
+      if (!list.length) { this.clearHover(); return; }
+
+      this.hoverCtx.clearRect(0, 0, this.W, this.H);
+      for (const k of list) {
+        this.paintProvince(this.hoverCtx, k, rgba || [255, 255, 255, 60], false);
+      }
+      this.hoverKey = list[0] >>> 0;
     }
 
     // Emblems
