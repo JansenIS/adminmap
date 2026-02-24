@@ -100,7 +100,6 @@
 
   const provinceById = new Map(data.provinces.map(p => [p.id, p]));
   const hexByQR = new Map();
-  const hexById = new Map();
   const provinceHexes = new Map();
 
   const realm = {
@@ -164,7 +163,6 @@
       const full = {...h, pid: po.id};
       list.push(full);
       hexByQR.set(`${h.q},${h.r}`, full);
-      hexById.set(h.id, full);
     }
     provinceHexes.set(po.id, list);
   }
@@ -204,19 +202,35 @@
   }
 
   let dpr = window.devicePixelRatio || 1;
+  let viewport = {scale: 1, ox: 0, oy: 0};
+
+  function updateViewportTransform() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    const scale = Math.min(w / vb.w, h / vb.h);
+    const drawW = vb.w * scale;
+    const drawH = vb.h * scale;
+    viewport.scale = scale;
+    viewport.ox = (w - drawW) * 0.5;
+    viewport.oy = (h - drawH) * 0.5;
+  }
+
   function resize() {
     const {width, height} = canvas.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.floor(width * dpr));
     canvas.height = Math.max(1, Math.floor(height * dpr));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    updateViewportTransform();
     render();
   }
 
   function clientToWorld(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const rx = (clientX - rect.left) / rect.width;
-    const ry = (clientY - rect.top) / rect.height;
-    return { x: vb.x + rx * vb.w, y: vb.y + ry * vb.h };
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const wx = (sx - viewport.ox) / viewport.scale + vb.x;
+    const wy = (sy - viewport.oy) / viewport.scale + vb.y;
+    return { x: wx, y: wy };
   }
 
   function pointInPoly(pt, poly) {
@@ -264,18 +278,20 @@
   function render() {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#101823';
     ctx.fillRect(0, 0, w, h);
+
+    updateViewportTransform();
 
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 0, w, h);
+    ctx.rect(viewport.ox, viewport.oy, vb.w * viewport.scale, vb.h * viewport.scale);
     ctx.clip();
 
-    ctx.translate((-vb.x / vb.w) * w, (-vb.y / vb.h) * h);
-    ctx.scale(w / vb.w, h / vb.h);
+    ctx.translate(viewport.ox - vb.x * viewport.scale, viewport.oy - vb.y * viewport.scale);
+    ctx.scale(viewport.scale, viewport.scale);
 
     const layer = fillLayerSelect.value;
     const showHexBorders = toggleHexBorders.checked;
@@ -331,8 +347,11 @@
   let panStart = null;
 
   canvas.addEventListener('mousemove', (evt) => {
+    const world = clientToWorld(evt.clientX, evt.clientY);
+    if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) return;
+
     if (isPanning) {
-      const p = clientToWorld(evt.clientX, evt.clientY);
+      const p = world;
       const dx = p.x - panStart.p.x;
       const dy = p.y - panStart.p.y;
       vb.x = panStart.vb.x - dx;
@@ -340,7 +359,6 @@
       render();
       return;
     }
-    const world = clientToWorld(evt.clientX, evt.clientY);
     const hex = findHexAt(world);
     hoverHex = hex;
     setInfo(hex);
@@ -358,6 +376,7 @@
     const delta = Math.sign(evt.deltaY);
     const zoomFactor = delta > 0 ? 1.12 : 1 / 1.12;
     const p = clientToWorld(evt.clientX, evt.clientY);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
 
     const newW = vb.w * zoomFactor;
     const newH = vb.h * zoomFactor;
