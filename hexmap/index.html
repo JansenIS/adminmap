@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Lurra Provinces Hexmap</title>
+<style>
+  html,body{height:100%;margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif;}
+  #ui{position:fixed;left:10px;top:10px;z-index:10;background:rgba(255,255,255,0.92);border:1px solid #bbb;border-radius:8px;padding:10px;min-width:240px;}
+  #ui .row{margin:6px 0;}
+  #info{font-size:12px;line-height:1.25;color:#111;white-space:pre;}
+  #wrap{position:absolute;inset:0;}
+  svg{width:100%;height:100%;display:block;}
+  .hex{stroke:rgba(0,0,0,0.60);stroke-width:0.18;vector-effect:non-scaling-stroke;}
+  .hex.hexHover{stroke:rgba(0,0,0,0.95);stroke-width:0.55;}
+  g.prov.provHover .hex{stroke:rgba(0,0,0,0.95);stroke-width:0.55;}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="row"><b>Режим наведения</b></div>
+  <div class="row">
+    <label><input type="radio" name="mode" value="hex" checked> Гекс</label>
+    <label style="margin-left:10px;"><input type="radio" name="mode" value="province"> Провинция</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="toggleBorders" checked> Показать границы гексов</label>
+  </div>
+  <div class="row" style="font-size:12px;color:#333;">
+    Wheel: zoom · Drag: pan · Double click: reset
+  </div>
+  <div id="info"></div>
+</div>
+
+<div id="wrap">
+  <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1003.55 1067" preserveAspectRatio="xMidYMid meet">
+    <g id="layer"></g>
+  </svg>
+</div>
+
+<script src="data.js"></script>
+<script>
+(() => {
+  const svg = document.getElementById('svg');
+  const layer = document.getElementById('layer');
+  const info = document.getElementById('info');
+  const toggleBorders = document.getElementById('toggleBorders');
+
+  const data = window.HEXMAP;
+  const HEX_SIZE = data.hexSize;
+
+  // deterministic province color
+  function colorForProvince(pid) {
+    const h = (pid * 137.508) % 360;
+    return `hsl(${
+      (h).toFixed(3)
+    }, 60%, 55%)`;
+  }
+
+  function hexPoints(cx, cy) {
+    // flat-top, angles 0..300 step 60
+    const pts = [];
+    for (let k=0;k<6;k++) {
+      const a = (Math.PI/180) * (60*k);
+      const x = cx + HEX_SIZE * Math.cos(a);
+      const y = cy + HEX_SIZE * Math.sin(a);
+      pts.push(x.toFixed(3) + ',' + y.toFixed(3));
+    }
+    return pts.join(' ');
+  }
+
+  // Build SVG in one pass to avoid layout thrash
+  // data.provOffsets can be either:
+  //  A) numeric cumulative offsets array (length = provinces+1)
+  //  B) array of objects: {id,start,count}
+  const provRecords = (Array.isArray(data.provOffsets) && typeof data.provOffsets[0] === 'number')
+    ? data.provinces.map((p, i) => ({
+        id: p.id,
+        start: data.provOffsets[i],
+        count: data.provOffsets[i+1] - data.provOffsets[i]
+      }))
+    : data.provOffsets;
+
+  let html = '';
+  for (const po of provRecords) {
+    const pid = po.id;
+    const start = po.start;
+    const count = po.count;
+
+    html += `<g class="prov" id="p${pid}" data-p="${pid}">`;
+    for (let i = 0; i < count; i++) {
+      const h = data.hexes[start + i];
+      const pts = hexPoints(h.cx, h.cy, data.hexSize);
+      html += `<polygon class="hex" data-h="${h.id}" data-p="${pid}" data-q="${h.q}" data-r="${h.r}" data-n="${h.n}" points="${pts}" />`;
+    }
+    html += `</g>`;
+  }
+  layer.innerHTML = html;
+
+  // Hover/selection state
+  let mode = 'hex';
+  let lastHex = null;
+  let lastProv = null;
+
+  function clearHover() {
+    if (lastHex) lastHex.classList.remove('hexHover');
+    if (lastProv) lastProv.classList.remove('provHover');
+    lastHex = null;
+    lastProv = null;
+  }
+
+  function setInfoHex(el) {
+    const pid = el.getAttribute('data-p');
+    const n = el.getAttribute('data-n');
+    const q = el.getAttribute('data-q');
+    const r = el.getAttribute('data-r');
+    const id = el.getAttribute('data-h');
+    info.textContent = `Провинция: P${pid}\nГекс: #${n} (в провинции)\nAxial: q=${q}, r=${r}\nGlobal ID: ${id}`;
+  }
+
+  function setInfoProv(pid) {
+    const p = data.provinces[pid-1];
+    if (!p) {
+      info.textContent = `Провинция: P${pid}`;
+      return;
+    }
+    info.textContent = `Провинция: P${pid}\nГексов: ${p.hexCount}`;
+  }
+
+  // Event delegation
+  layer.addEventListener('mousemove', (e) => {
+    const t = e.target;
+    if (!(t instanceof SVGPolygonElement)) return;
+
+    if (mode === 'hex') {
+      if (lastHex !== t) {
+        if (lastHex) lastHex.classList.remove('hexHover');
+        lastHex = t;
+        lastHex.classList.add('hexHover');
+      }
+      if (lastProv) { lastProv.classList.remove('provHover'); lastProv=null; }
+      setInfoHex(t);
+    } else {
+      const pid = t.getAttribute('data-p');
+      const g = document.getElementById('p'+pid);
+      if (lastProv !== g) {
+        if (lastProv) lastProv.classList.remove('provHover');
+        lastProv = g;
+        lastProv.classList.add('provHover');
+      }
+      if (lastHex) { lastHex.classList.remove('hexHover'); lastHex=null; }
+      setInfoProv(parseInt(pid,10));
+    }
+  });
+
+  layer.addEventListener('mouseleave', () => {
+    clearHover();
+    info.textContent = '';
+  });
+
+  document.querySelectorAll('input[name="mode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      mode = document.querySelector('input[name="mode"]:checked').value;
+      clearHover();
+      info.textContent = '';
+    });
+  });
+
+  toggleBorders.addEventListener('change', () => {
+    const show = toggleBorders.checked;
+    svg.classList.toggle('noBorders', !show);
+    document.querySelectorAll('.hex').forEach(el => {
+      el.style.strokeOpacity = show ? '' : '0';
+    });
+  });
+
+  // Zoom & pan via viewBox
+  const vb0 = {x:0,y:0,w:1003.55,h:1067};
+  let vb = {...vb0};
+  let isPanning = false;
+  let panStart = null;
+
+  function setViewBox() {
+    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  }
+
+  function clientToSvgPoint(evt) {
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return {x:0,y:0};
+    const inv = ctm.inverse();
+    const sp = pt.matrixTransform(inv);
+    return {x: sp.x, y: sp.y};
+  }
+
+  svg.addEventListener('wheel', (evt) => {
+    evt.preventDefault();
+    const delta = Math.sign(evt.deltaY);
+    const zoomFactor = delta > 0 ? 1.12 : 1/1.12;
+
+    const p = clientToSvgPoint(evt);
+    const nx = p.x;
+    const ny = p.y;
+
+    const newW = vb.w * zoomFactor;
+    const newH = vb.h * zoomFactor;
+
+    // keep point under cursor stable
+    const rx = (nx - vb.x) / vb.w;
+    const ry = (ny - vb.y) / vb.h;
+
+    vb.x = nx - rx * newW;
+    vb.y = ny - ry * newH;
+    vb.w = newW;
+    vb.h = newH;
+
+    setViewBox();
+  }, {passive:false});
+
+  svg.addEventListener('mousedown', (evt) => {
+    isPanning = true;
+    panStart = {p: clientToSvgPoint(evt), vb: {...vb}};
+  });
+
+  window.addEventListener('mousemove', (evt) => {
+    if (!isPanning) return;
+    const p = clientToSvgPoint(evt);
+    const dx = p.x - panStart.p.x;
+    const dy = p.y - panStart.p.y;
+    vb.x = panStart.vb.x - dx;
+    vb.y = panStart.vb.y - dy;
+    setViewBox();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+  });
+
+  svg.addEventListener('dblclick', (evt) => {
+    vb = {...vb0};
+    setViewBox();
+  });
+
+  setViewBox();
+})();
+</script>
+</body>
+</html>
