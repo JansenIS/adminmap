@@ -5,245 +5,395 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Lurra Provinces Hexmap</title>
 <style>
-  html,body{height:100%;margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif;}
-  #ui{position:fixed;left:10px;top:10px;z-index:10;background:rgba(255,255,255,0.92);border:1px solid #bbb;border-radius:8px;padding:10px;min-width:240px;}
-  #ui .row{margin:6px 0;}
-  #info{font-size:12px;line-height:1.25;color:#111;white-space:pre;}
-  #wrap{position:absolute;inset:0;}
-  svg{width:100%;height:100%;display:block;}
-  .hex{stroke:rgba(0,0,0,0.60);stroke-width:0.18;vector-effect:non-scaling-stroke;}
-  .hex.hexHover{stroke:rgba(0,0,0,0.95);stroke-width:0.55;}
-  g.prov.provHover .hex{stroke:rgba(0,0,0,0.95);stroke-width:0.55;}
+  :root { color-scheme: dark; }
+  html,body{height:100%;margin:0;background:#0b0f14;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#e7eef7;}
+  .app{display:flex;height:100vh;height:100dvh;}
+  .sidebar{width:360px;min-width:320px;max-width:460px;border-right:1px solid #223041;background:#0d131b;padding:14px 14px 18px;box-sizing:border-box;overflow:auto;}
+  h1{font-size:16px;margin:0 0 10px;font-weight:650;}
+  .muted{color:#a6b4c5;font-size:12px;line-height:1.35;}
+  .card{margin-top:12px;padding:12px;background:#0b0f14;border:1px solid #223041;border-radius:12px;}
+  .row{display:flex;gap:10px;align-items:center;margin-top:8px;}
+  .row label{font-size:13px;color:#d2deeb;}
+  select,input[type="checkbox"]{accent-color:#4b86d9;}
+  select{width:100%;box-sizing:border-box;background:#0b0f14;color:#e7eef7;border:1px solid #2b3f56;border-radius:10px;padding:8px 10px;outline:none;}
+  .small{font-size:11px;color:#a6b4c5;line-height:1.35;margin-top:10px;}
+  #info{font-size:12px;line-height:1.35;color:#e7eef7;white-space:pre;max-height:280px;overflow:auto;}
+  #wrap{flex:1;position:relative;overflow:hidden;background:#101823;}
+  canvas{width:100%;height:100%;display:block;}
 </style>
 </head>
 <body>
-<div id="ui">
-  <div class="row"><b>Режим наведения</b></div>
-  <div class="row">
-    <label><input type="radio" name="mode" value="hex" checked> Гекс</label>
-    <label style="margin-left:10px;"><input type="radio" name="mode" value="province"> Провинция</label>
-  </div>
-  <div class="row">
-    <label><input type="checkbox" id="toggleBorders" checked> Показать границы гексов</label>
-  </div>
-  <div class="row" style="font-size:12px;color:#333;">
-    Wheel: zoom · Drag: pan · Double click: reset
-  </div>
-  <div id="info"></div>
-</div>
+<div class="app">
+<aside class="sidebar" id="ui">
+  <h1>Hexmap (просмотр)</h1>
+  <div class="muted">Общий стиль и управление синхронизированы с основной картой: тёмная панель, карточки настроек, единый набор слоёв.</div>
 
-<div id="wrap">
-  <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1003.55 1067" preserveAspectRatio="xMidYMid meet">
-    <g id="layer"></g>
-  </svg>
+  <div class="card">
+    <div class="muted">Режим наведения</div>
+    <div class="row">
+      <label><input type="radio" name="mode" value="hex" checked> Гекс</label>
+      <label><input type="radio" name="mode" value="province"> Провинция</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Режим отображения</div>
+    <div class="row">
+      <select id="fillLayer">
+        <option value="province">Режим провинций</option>
+        <option value="kingdom">Королевства</option>
+        <option value="greatHouse">Большие дома</option>
+        <option value="minorHouse">Малые дома</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Слои и контуры</div>
+    <div class="row">
+      <label><input type="checkbox" id="toggleHexBorders" checked> Границы гексов</label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="toggleKingdom" checked> Контур королевств</label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="toggleGreat"> Контур больших домов</label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="toggleMinor"> Контур малых домов</label>
+    </div>
+    <div class="small">Wheel: zoom · Drag: pan · Double click: reset.</div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Информация</div>
+    <div id="info"></div>
+  </div>
+</aside>
+
+<main id="wrap"><canvas id="mapCanvas"></canvas></main>
 </div>
 
 <script src="data.js"></script>
 <script>
 (() => {
-  const svg = document.getElementById('svg');
-  const layer = document.getElementById('layer');
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d', { alpha:false });
   const info = document.getElementById('info');
-  const toggleBorders = document.getElementById('toggleBorders');
+  const fillLayerSelect = document.getElementById('fillLayer');
+  const toggleHexBorders = document.getElementById('toggleHexBorders');
+  const toggleKingdom = document.getElementById('toggleKingdom');
+  const toggleGreat = document.getElementById('toggleGreat');
+  const toggleMinor = document.getElementById('toggleMinor');
 
   const data = window.HEXMAP;
+  const [vbX, vbY, vbW, vbH] = data.viewBox;
+  const vb0 = {x:vbX,y:vbY,w:vbW,h:vbH};
+  let vb = {...vb0};
+
   const HEX_SIZE = data.hexSize;
+  const SQRT3 = Math.sqrt(3);
 
-  // deterministic province color
-  function colorForProvince(pid) {
-    const h = (pid * 137.508) % 360;
-    return `hsl(${
-      (h).toFixed(3)
-    }, 60%, 55%)`;
-  }
-
-  function hexPoints(cx, cy) {
-    // flat-top, angles 0..300 step 60
-    const pts = [];
-    for (let k=0;k<6;k++) {
-      const a = (Math.PI/180) * (60*k);
-      const x = cx + HEX_SIZE * Math.cos(a);
-      const y = cy + HEX_SIZE * Math.sin(a);
-      pts.push(x.toFixed(3) + ',' + y.toFixed(3));
-    }
-    return pts.join(' ');
-  }
-
-  // Build SVG in one pass to avoid layout thrash
-  // data.provOffsets can be either:
-  //  A) numeric cumulative offsets array (length = provinces+1)
-  //  B) array of objects: {id,start,count}
   const provRecords = (Array.isArray(data.provOffsets) && typeof data.provOffsets[0] === 'number')
-    ? data.provinces.map((p, i) => ({
-        id: p.id,
-        start: data.provOffsets[i],
-        count: data.provOffsets[i+1] - data.provOffsets[i]
-      }))
+    ? data.provinces.map((p, i) => ({ id: p.id, start: data.provOffsets[i], count: data.provOffsets[i+1] - data.provOffsets[i] }))
     : data.provOffsets;
 
-  let html = '';
+  const provinceById = new Map(data.provinces.map(p => [p.id, p]));
+  const hexByQR = new Map();
+  const hexById = new Map();
+  const provinceHexes = new Map();
+
+  const realm = {
+    kingdoms: new Map(),
+    greatHouses: new Map(),
+    minorHouses: new Map(),
+    provinceMeta: new Map()
+  };
+
+  function ensureRegion(map, id, fallbackName, hue){
+    if (!map.has(id)) map.set(id, {id, name: fallbackName, color:`hsl(${hue}, 58%, 56%)`});
+  }
+
+  function buildDefaultRealms() {
+    for (const p of data.provinces) {
+      const pid = p.id;
+      const k = `k-${(pid % 12) + 1}`;
+      const g = `g-${(pid % 36) + 1}`;
+      const m = `m-${(pid % 90) + 1}`;
+      ensureRegion(realm.kingdoms, k, `Королевство ${(pid % 12) + 1}`, (pid * 31) % 360);
+      ensureRegion(realm.greatHouses, g, `Большой дом ${(pid % 36) + 1}`, (pid * 19) % 360);
+      ensureRegion(realm.minorHouses, m, `Малый дом ${(pid % 90) + 1}`, (pid * 13) % 360);
+      realm.provinceMeta.set(pid, { kingdomId: k, greatHouseId: g, minorHouseId: m });
+    }
+  }
+
+  async function applyRealmOverrides() {
+    try {
+      const resp = await fetch('../data/map_state.json', { cache: 'no-store' });
+      if (!resp.ok) return;
+      const state = await resp.json();
+      if (!state?.provinces) return;
+      for (const [pidRaw, meta] of Object.entries(state.provinces)) {
+        const pid = Number(pidRaw);
+        if (!realm.provinceMeta.has(pid)) continue;
+        const current = realm.provinceMeta.get(pid);
+        if (meta.kingdom_id) {
+          current.kingdomId = `k-${meta.kingdom_id}`;
+          ensureRegion(realm.kingdoms, current.kingdomId, `Королевство ${meta.kingdom_id}`, (pid * 31) % 360);
+        }
+        if (meta.great_house_id) {
+          current.greatHouseId = `g-${meta.great_house_id}`;
+          ensureRegion(realm.greatHouses, current.greatHouseId, `Большой дом ${meta.great_house_id}`, (pid * 19) % 360);
+        }
+        if (meta.minor_house_id) {
+          current.minorHouseId = `m-${meta.minor_house_id}`;
+          ensureRegion(realm.minorHouses, current.minorHouseId, `Малый дом ${meta.minor_house_id}`, (pid * 13) % 360);
+        }
+      }
+    } catch (_) {
+      // file:// fallback: keep deterministic demo layers
+    }
+  }
+
+  buildDefaultRealms();
+
   for (const po of provRecords) {
-    const pid = po.id;
-    const start = po.start;
-    const count = po.count;
-
-    html += `<g class="prov" id="p${pid}" data-p="${pid}">`;
-    for (let i = 0; i < count; i++) {
-      const h = data.hexes[start + i];
-      const pts = hexPoints(h.cx, h.cy, data.hexSize);
-      html += `<polygon class="hex" data-h="${h.id}" data-p="${pid}" data-q="${h.q}" data-r="${h.r}" data-n="${h.n}" points="${pts}" />`;
+    const list = [];
+    for (let i = 0; i < po.count; i++) {
+      const h = data.hexes[po.start + i];
+      const full = {...h, pid: po.id};
+      list.push(full);
+      hexByQR.set(`${h.q},${h.r}`, full);
+      hexById.set(h.id, full);
     }
-    html += `</g>`;
+    provinceHexes.set(po.id, list);
   }
-  layer.innerHTML = html;
 
-  // Hover/selection state
+  function colorForProvince(pid) {
+    return `hsl(${((pid * 137.508) % 360).toFixed(3)},60%,55%)`;
+  }
+
+  function colorForLayer(pid, layer) {
+    if (layer === 'province') return colorForProvince(pid);
+    const meta = realm.provinceMeta.get(pid);
+    if (!meta) return '#ccc';
+    if (layer === 'kingdom') return realm.kingdoms.get(meta.kingdomId)?.color || '#ccc';
+    if (layer === 'greatHouse') return realm.greatHouses.get(meta.greatHouseId)?.color || '#ccc';
+    return realm.minorHouses.get(meta.minorHouseId)?.color || '#ccc';
+  }
+
+  function hexVertices(cx, cy) {
+    const pts = [];
+    for (let k = 0; k < 6; k++) {
+      const a = (Math.PI / 180) * (60 * k);
+      pts.push([cx + HEX_SIZE * Math.cos(a), cy + HEX_SIZE * Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  const pathByHexId = new Map();
+  const verticesByHexId = new Map();
+  for (const h of data.hexes) {
+    const verts = hexVertices(h.cx, h.cy);
+    verticesByHexId.set(h.id, verts);
+    const p = new Path2D();
+    p.moveTo(verts[0][0], verts[0][1]);
+    for (let i = 1; i < 6; i++) p.lineTo(verts[i][0], verts[i][1]);
+    p.closePath();
+    pathByHexId.set(h.id, p);
+  }
+
+  let dpr = window.devicePixelRatio || 1;
+  function resize() {
+    const {width, height} = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+
+  function clientToWorld(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const rx = (clientX - rect.left) / rect.width;
+    const ry = (clientY - rect.top) / rect.height;
+    return { x: vb.x + rx * vb.w, y: vb.y + ry * vb.h };
+  }
+
+  function pointInPoly(pt, poly) {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 1e-9) + xi)) c = !c;
+    }
+    return c;
+  }
+
+  function findHexAt(world) {
+    const approxQ = Math.round((world.x / (HEX_SIZE * 1.5)));
+    const approxR = Math.round((world.y - ((approxQ & 1) ? HEX_SIZE * SQRT3 / 2 : 0)) / (HEX_SIZE * SQRT3));
+    let best = null;
+    let bestD = Infinity;
+    for (let dq = -2; dq <= 2; dq++) {
+      for (let dr = -2; dr <= 2; dr++) {
+        const q = approxQ + dq;
+        const r = approxR + dr;
+        const cand = hexByQR.get(`${q},${r}`);
+        if (!cand) continue;
+        const d = (cand.cx - world.x) ** 2 + (cand.cy - world.y) ** 2;
+        if (d < bestD) { bestD = d; best = cand; }
+      }
+    }
+    if (!best) return null;
+    const verts = verticesByHexId.get(best.id);
+    return pointInPoly(world, verts) ? best : null;
+  }
+
+  function renderHex(path, fillColor, strokeColor, strokeWidth) {
+    ctx.fillStyle = fillColor;
+    ctx.fill(path);
+    if (strokeColor) {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke(path);
+    }
+  }
+
+  let hoverHex = null;
   let mode = 'hex';
-  let lastHex = null;
-  let lastProv = null;
 
-  function clearHover() {
-    if (lastHex) lastHex.classList.remove('hexHover');
-    if (lastProv) lastProv.classList.remove('provHover');
-    lastHex = null;
-    lastProv = null;
-  }
+  function render() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
 
-  function setInfoHex(el) {
-    const pid = el.getAttribute('data-p');
-    const n = el.getAttribute('data-n');
-    const q = el.getAttribute('data-q');
-    const r = el.getAttribute('data-r');
-    const id = el.getAttribute('data-h');
-    info.textContent = `Провинция: P${pid}\nГекс: #${n} (в провинции)\nAxial: q=${q}, r=${r}\nGlobal ID: ${id}`;
-  }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
 
-  function setInfoProv(pid) {
-    const p = data.provinces[pid-1];
-    if (!p) {
-      info.textContent = `Провинция: P${pid}`;
-      return;
+    ctx.translate((-vb.x / vb.w) * w, (-vb.y / vb.h) * h);
+    ctx.scale(w / vb.w, h / vb.h);
+
+    const layer = fillLayerSelect.value;
+    const showHexBorders = toggleHexBorders.checked;
+
+    for (const po of provRecords) {
+      const fill = colorForLayer(po.id, layer);
+      const list = provinceHexes.get(po.id);
+      for (const h of list) {
+        renderHex(pathByHexId.get(h.id), fill, showHexBorders ? 'rgba(0,0,0,0.45)' : null, 0.18);
+      }
     }
-    info.textContent = `Провинция: P${pid}\nГексов: ${p.hexCount}`;
+
+    if (toggleKingdom.checked || toggleGreat.checked || toggleMinor.checked) {
+      for (const po of provRecords) {
+        const list = provinceHexes.get(po.id);
+        const meta = realm.provinceMeta.get(po.id);
+        for (const h of list) {
+          const p = pathByHexId.get(h.id);
+          if (toggleKingdom.checked) { ctx.strokeStyle = realm.kingdoms.get(meta.kingdomId).color; ctx.lineWidth = 0.04; ctx.stroke(p); }
+          if (toggleGreat.checked) { ctx.strokeStyle = realm.greatHouses.get(meta.greatHouseId).color; ctx.lineWidth = 0.025; ctx.stroke(p); }
+          if (toggleMinor.checked) { ctx.strokeStyle = realm.minorHouses.get(meta.minorHouseId).color; ctx.lineWidth = 0.015; ctx.stroke(p); }
+        }
+      }
+    }
+
+    if (hoverHex) {
+      const path = pathByHexId.get(hoverHex.id);
+      ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke(path);
+    }
+
+    ctx.restore();
   }
 
-  // Event delegation
-  layer.addEventListener('mousemove', (e) => {
-    const t = e.target;
-    if (!(t instanceof SVGPolygonElement)) return;
+  function setInfo(hex) {
+    if (!hex) { info.textContent = ''; return; }
+    const pid = hex.p;
+    const p = provinceById.get(pid);
+    const meta = realm.provinceMeta.get(pid);
+    const k = realm.kingdoms.get(meta.kingdomId);
+    const g = realm.greatHouses.get(meta.greatHouseId);
+    const m = realm.minorHouses.get(meta.minorHouseId);
 
     if (mode === 'hex') {
-      if (lastHex !== t) {
-        if (lastHex) lastHex.classList.remove('hexHover');
-        lastHex = t;
-        lastHex.classList.add('hexHover');
-      }
-      if (lastProv) { lastProv.classList.remove('provHover'); lastProv=null; }
-      setInfoHex(t);
-    } else {
-      const pid = t.getAttribute('data-p');
-      const g = document.getElementById('p'+pid);
-      if (lastProv !== g) {
-        if (lastProv) lastProv.classList.remove('provHover');
-        lastProv = g;
-        lastProv.classList.add('provHover');
-      }
-      if (lastHex) { lastHex.classList.remove('hexHover'); lastHex=null; }
-      setInfoProv(parseInt(pid,10));
+      info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nКоролевство: ${k.name}\nБольшой дом: ${g.name}\nМалый дом: ${m.name}`;
+      return;
     }
+    info.textContent = `Провинция: P${pid}\nГексов: ${p?.hexCount ?? '-'}\nКоролевство: ${k.name}\nБольшой дом: ${g.name}\nМалый дом: ${m.name}`;
+  }
+
+  let isPanning = false;
+  let panStart = null;
+
+  canvas.addEventListener('mousemove', (evt) => {
+    if (isPanning) {
+      const p = clientToWorld(evt.clientX, evt.clientY);
+      const dx = p.x - panStart.p.x;
+      const dy = p.y - panStart.p.y;
+      vb.x = panStart.vb.x - dx;
+      vb.y = panStart.vb.y - dy;
+      render();
+      return;
+    }
+    const world = clientToWorld(evt.clientX, evt.clientY);
+    const hex = findHexAt(world);
+    hoverHex = hex;
+    setInfo(hex);
+    render();
   });
 
-  layer.addEventListener('mouseleave', () => {
-    clearHover();
-    info.textContent = '';
+  canvas.addEventListener('mouseleave', () => {
+    hoverHex = null;
+    setInfo(null);
+    render();
   });
+
+  canvas.addEventListener('wheel', (evt) => {
+    evt.preventDefault();
+    const delta = Math.sign(evt.deltaY);
+    const zoomFactor = delta > 0 ? 1.12 : 1 / 1.12;
+    const p = clientToWorld(evt.clientX, evt.clientY);
+
+    const newW = vb.w * zoomFactor;
+    const newH = vb.h * zoomFactor;
+    const rx = (p.x - vb.x) / vb.w;
+    const ry = (p.y - vb.y) / vb.h;
+    vb.x = p.x - rx * newW;
+    vb.y = p.y - ry * newH;
+    vb.w = newW;
+    vb.h = newH;
+    render();
+  }, {passive:false});
+
+  canvas.addEventListener('mousedown', (evt) => {
+    isPanning = true;
+    panStart = { p: clientToWorld(evt.clientX, evt.clientY), vb: {...vb} };
+  });
+
+  window.addEventListener('mouseup', () => { isPanning = false; });
+  canvas.addEventListener('dblclick', () => { vb = {...vb0}; render(); });
 
   document.querySelectorAll('input[name="mode"]').forEach(r => {
     r.addEventListener('change', () => {
       mode = document.querySelector('input[name="mode"]:checked').value;
-      clearHover();
-      info.textContent = '';
+      if (hoverHex) setInfo(hoverHex);
     });
   });
 
-  toggleBorders.addEventListener('change', () => {
-    const show = toggleBorders.checked;
-    svg.classList.toggle('noBorders', !show);
-    document.querySelectorAll('.hex').forEach(el => {
-      el.style.strokeOpacity = show ? '' : '0';
-    });
+  [fillLayerSelect, toggleHexBorders, toggleKingdom, toggleGreat, toggleMinor].forEach(el => {
+    el.addEventListener('change', render);
   });
 
-  // Zoom & pan via viewBox
-  const vb0 = {x:0,y:0,w:1003.55,h:1067};
-  let vb = {...vb0};
-  let isPanning = false;
-  let panStart = null;
+  window.addEventListener('resize', resize);
 
-  function setViewBox() {
-    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-  }
-
-  function clientToSvgPoint(evt) {
-    const pt = svg.createSVGPoint();
-    pt.x = evt.clientX;
-    pt.y = evt.clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return {x:0,y:0};
-    const inv = ctm.inverse();
-    const sp = pt.matrixTransform(inv);
-    return {x: sp.x, y: sp.y};
-  }
-
-  svg.addEventListener('wheel', (evt) => {
-    evt.preventDefault();
-    const delta = Math.sign(evt.deltaY);
-    const zoomFactor = delta > 0 ? 1.12 : 1/1.12;
-
-    const p = clientToSvgPoint(evt);
-    const nx = p.x;
-    const ny = p.y;
-
-    const newW = vb.w * zoomFactor;
-    const newH = vb.h * zoomFactor;
-
-    // keep point under cursor stable
-    const rx = (nx - vb.x) / vb.w;
-    const ry = (ny - vb.y) / vb.h;
-
-    vb.x = nx - rx * newW;
-    vb.y = ny - ry * newH;
-    vb.w = newW;
-    vb.h = newH;
-
-    setViewBox();
-  }, {passive:false});
-
-  svg.addEventListener('mousedown', (evt) => {
-    isPanning = true;
-    panStart = {p: clientToSvgPoint(evt), vb: {...vb}};
+  applyRealmOverrides().finally(() => {
+    resize();
   });
-
-  window.addEventListener('mousemove', (evt) => {
-    if (!isPanning) return;
-    const p = clientToSvgPoint(evt);
-    const dx = p.x - panStart.p.x;
-    const dy = p.y - panStart.p.y;
-    vb.x = panStart.vb.x - dx;
-    vb.y = panStart.vb.y - dy;
-    setViewBox();
-  });
-
-  window.addEventListener('mouseup', () => {
-    isPanning = false;
-  });
-
-  svg.addEventListener('dblclick', (evt) => {
-    vb = {...vb0};
-    setViewBox();
-  });
-
-  setViewBox();
 })();
 </script>
 </body>
