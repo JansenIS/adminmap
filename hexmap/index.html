@@ -63,13 +63,15 @@
 
   <div class="card">
     <div class="muted">Редактор PID (переназначение)</div>
-    <div class="small">1) Наведи и кликни на гекс/провинцию. 2) Укажи целевой PID. 3) Применить.</div>
+    <div class="small">1) Наведи и кликни на гекс/провинцию. 2) Укажи целевой PID. 3) Применить.
+Или используй «Авто PID (ряды)» для нумерации сверху вниз, слева направо.</div>
     <div class="row"><span class="muted">Исходный PID:</span> <b id="pidSource">—</b></div>
     <div class="row"><input id="pidTarget" type="number" min="1" step="1" placeholder="Целевой PID"/></div>
     <div class="row">
       <button id="applyPid" type="button" disabled>Применить</button>
       <button id="resetPid" type="button" disabled>Сбросить</button>
       <button id="resetAllPid" type="button">Сбросить всё</button>
+      <button id="autoPidRows" type="button">Авто PID (ряды)</button>
     </div>
     <div class="row"><button id="exportPidMap" type="button">Экспорт маппинга PID</button></div>
     <div class="row"><textarea id="pidMapOut" readonly placeholder='{"sourcePid":"targetPid"}'></textarea></div>
@@ -100,6 +102,7 @@
   const applyPid = document.getElementById('applyPid');
   const resetPid = document.getElementById('resetPid');
   const resetAllPid = document.getElementById('resetAllPid');
+  const autoPidRows = document.getElementById('autoPidRows');
   const exportPidMap = document.getElementById('exportPidMap');
   const pidMapOut = document.getElementById('pidMapOut');
 
@@ -522,6 +525,62 @@
     } catch (_) {
       // clipboard may be unavailable
     }
+  });
+
+
+  function computeProvinceCentroid(hexes) {
+    let sx = 0, sy = 0;
+    for (const h of hexes) { sx += h.cx; sy += h.cy; }
+    const n = Math.max(1, hexes.length);
+    return { x: sx / n, y: sy / n };
+  }
+
+  function autoRemapPidByRows() {
+    const ids = Array.from(originalProvinceHexes.keys());
+    if (!ids.length) return;
+
+    const items = ids.map((pid) => {
+      const c = computeProvinceCentroid(originalProvinceHexes.get(pid) || []);
+      return { pid, x: c.x, y: c.y };
+    });
+
+    // Group into horizontal rows, then sort rows top->bottom and items left->right.
+    const rowBand = HEX_SIZE * 7.0;
+    items.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const rows = [];
+    for (const it of items) {
+      let row = rows.find(r => Math.abs(r.y - it.y) <= rowBand);
+      if (!row) {
+        row = { y: it.y, items: [] };
+        rows.push(row);
+      }
+      row.items.push(it);
+      row.y = (row.y * (row.items.length - 1) + it.y) / row.items.length;
+    }
+
+    rows.sort((a, b) => a.y - b.y);
+    for (const row of rows) row.items.sort((a, b) => a.x - b.x);
+
+    const ordered = [];
+    for (const row of rows) ordered.push(...row.items);
+
+    pidRemap.clear();
+    for (let i = 0; i < ordered.length; i++) {
+      const src = ordered[i].pid;
+      const dst = i + 1;
+      if (src !== dst) pidRemap.set(src, dst);
+    }
+
+    rebuildEffectiveProvinceHexes();
+    hoverProvId = hoverHex ? (hoverHex.effectivePid ?? hoverHex.pid ?? hoverHex.p) : null;
+    exportPidRemap();
+    render();
+    if (hoverHex) setInfo(hoverHex);
+  }
+
+
+  autoPidRows.addEventListener('click', () => {
+    autoRemapPidByRows();
   });
 
   window.addEventListener('resize', resize);
