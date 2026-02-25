@@ -103,8 +103,19 @@
     return mutedColor(owner.color);
   }
 
+
+  function normalizeEmblemSource(src) {
+    if (!src || typeof src !== "string") return "";
+    const v = src.trim();
+    if (!v) return "";
+    if (/^data:image\//i.test(v) || /^blob:/i.test(v) || /^https?:/i.test(v)) return v;
+    if (v.startsWith("<svg")) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(v)}`;
+    return "";
+  }
+
   function requestEmblemImage(key, emblemSvg) {
-    if (!emblemSvg || emblemImageCache.has(key) || emblemImagePending.has(key)) return;
+    const source = normalizeEmblemSource(emblemSvg);
+    if (!source || emblemImageCache.has(key) || emblemImagePending.has(key)) return;
     emblemImagePending.add(key);
     const img = new Image();
     img.onload = () => {
@@ -116,7 +127,7 @@
       emblemImagePending.delete(key);
       emblemImageCache.set(key, null);
     };
-    img.src = emblemSvg;
+    img.src = source;
   }
 
   function effectivePidFor(pid) {
@@ -264,10 +275,16 @@
       for (const h of list) { sx += h.cx; sy += h.cy; }
       const cx = sx / list.length;
       const cy = sy / list.length;
-      const size = Math.max(2.2, Math.min(6.5, Math.sqrt(list.length) * 0.2));
+      const radius = Math.max(2.8, Math.min(9.5, Math.sqrt(list.length) * HEX_SIZE * 0.85));
+      const size = radius * 2;
 
       ctx.save();
-      ctx.globalAlpha = 0.72;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.9;
       ctx.drawImage(img, cx - size * 0.5, cy - size * 0.5, size, size);
       ctx.restore();
     }
