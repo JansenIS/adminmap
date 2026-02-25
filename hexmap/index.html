@@ -73,7 +73,10 @@
       <button id="resetAllPid" type="button">Сбросить всё</button>
       <button id="autoOverlayPid" type="button">Авто-мэппинг (наложение)</button>
     </div>
-    <div class="row"><button id="exportPidMap" type="button">Экспорт маппинга PID</button></div>
+    <div class="row">
+      <button id="exportPidMap" type="button">Экспорт маппинга PID</button>
+      <button id="savePidServer" type="button">Сохранить на сервер</button>
+    </div>
     <div class="row"><textarea id="pidMapOut" readonly placeholder='{"sourcePid":"targetPid"}'></textarea></div>
   </div>
 
@@ -104,6 +107,7 @@
   const resetAllPid = document.getElementById('resetAllPid');
   const autoOverlayPid = document.getElementById('autoOverlayPid');
   const exportPidMap = document.getElementById('exportPidMap');
+  const savePidServer = document.getElementById('savePidServer');
   const pidMapOut = document.getElementById('pidMapOut');
 
   const data = window.HEXMAP;
@@ -221,6 +225,54 @@
     const out = {};
     for (const [src, dst] of pidRemap.entries()) out[src] = dst;
     pidMapOut.value = JSON.stringify(out, null, 2);
+  }
+
+  function parsePidRemapObject(obj) {
+    const out = new Map();
+    if (!obj || typeof obj !== 'object') return out;
+    for (const [k, v] of Object.entries(obj)) {
+      const src = Number(k);
+      const dst = Number(v);
+      if (src > 0 && dst > 0 && src !== dst) out.set(src, dst);
+    }
+    return out;
+  }
+
+  async function loadPidRemapFromServer() {
+    try {
+      const resp = await fetch('../data/hexmap_pid_remap.json', { cache: 'no-store' });
+      if (!resp.ok) return;
+      const payload = await resp.json();
+      const mapObj = payload?.pid_remap || payload;
+      const loaded = parsePidRemapObject(mapObj);
+      pidRemap.clear();
+      for (const [s, d] of loaded.entries()) pidRemap.set(s, d);
+      rebuildEffectiveProvinceHexes();
+      hoverProvId = hoverHex ? (hoverHex.effectivePid ?? hoverHex.pid ?? hoverHex.p) : null;
+      exportPidRemap();
+      render();
+      if (hoverHex) setInfo(hoverHex);
+      pidMapOut.value = `# loaded from server (${loaded.size} remaps)
+` + pidMapOut.value;
+    } catch (_) {
+      // optional file
+    }
+  }
+
+  async function savePidRemapToServer() {
+    const body = {
+      token: '',
+      pid_remap: Object.fromEntries(pidRemap.entries()),
+      updated_utc: new Date().toISOString()
+    };
+    const resp = await fetch('../save_hexmap_pid_remap.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const txt = await resp.text();
+    if (!resp.ok) throw new Error(txt || `HTTP ${resp.status}`);
+    return txt || 'OK';
   }
 
   async function loadMainProvinceDataset() {
@@ -793,6 +845,21 @@
     }
   });
 
+  savePidServer.addEventListener('click', async () => {
+    try {
+      savePidServer.disabled = true;
+      const status = await savePidRemapToServer();
+      exportPidRemap();
+      pidMapOut.value = `# saved on server: ${status}
+` + pidMapOut.value;
+    } catch (err) {
+      pidMapOut.value = `# save error: ${err?.message || err}
+` + (pidMapOut.value || '');
+    } finally {
+      savePidServer.disabled = false;
+    }
+  });
+
 
   autoOverlayPid.addEventListener('click', async () => {
     try {
@@ -825,8 +892,10 @@
   updatePidEditorState();
   exportPidRemap();
 
-  applyRealmOverrides().finally(() => {
-    resize();
+  loadPidRemapFromServer().finally(() => {
+    applyRealmOverrides().finally(() => {
+      resize();
+    });
   });
 })();
 </script>
