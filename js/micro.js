@@ -109,7 +109,9 @@
     const v = src.trim();
     if (!v) return "";
     if (/^data:image\//i.test(v) || /^blob:/i.test(v) || /^https?:/i.test(v)) return v;
-    if (v.startsWith("<svg")) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(v)}`;
+    if (v.startsWith("<?xml") || v.startsWith("<svg")) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(v)}`;
+    const compact = v.replace(/\s+/g, "");
+    if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length > 64) return `data:image/svg+xml;base64,${compact}`;
     return "";
   }
 
@@ -273,48 +275,13 @@
   }
 
 
-  function ownerMonogram(owner) {
-    const base = String(owner?.name || owner?.id || "?").trim();
-    if (!base) return "?";
-    const parts = base.split(/\s+/).filter(Boolean);
-    const chars = parts.slice(0, 2).map((w) => w[0]).join("");
-    return (chars || base.slice(0, 2)).toUpperCase();
-  }
-
-  function drawOwnerFallbackBadge(owner, minX, minY, maxX, maxY) {
-    const bw = maxX - minX;
-    const bh = maxY - minY;
-    const cx = minX + bw * 0.5;
-    const cy = minY + bh * 0.5;
-    const r = Math.max(4.5, Math.min(18, Math.min(bw, bh) * 0.16));
-    const mono = ownerMonogram(owner);
-
-    ctx.save();
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = "#f4f1e7";
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 0.65;
-    ctx.strokeStyle = "rgba(20,24,30,0.9)";
-    ctx.lineWidth = Math.max(0.25, r * 0.1);
-    ctx.stroke();
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = "#1b2230";
-    ctx.font = `${Math.max(2.8, r * 0.85)}px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(mono, cx, cy + r * 0.03);
-    ctx.restore();
-  }
-
   function drawMutedOwnerEmblems(state) {
     const groups = new Map();
 
     for (const pid of visibleProvincePids) {
       if (selectedProvincePids.has(pid)) continue;
       const owner = getOwnerInfo(pid, state);
-      if (owner.kind === "none") continue;
+      if (owner.kind === "none" || !owner.emblemSvg) continue;
       const key = `${owner.kind}:${owner.id}`;
       if (!groups.has(key)) groups.set(key, { owner, hexes: [] });
       groups.get(key).hexes.push(...(effectiveProvinceHexes.get(pid) || []));
@@ -325,7 +292,7 @@
       if (!hexes.length) continue;
 
       requestEmblemImage(key, owner.emblemSvg);
-      const img = owner.emblemSvg ? emblemImageCache.get(key) : null;
+      const img = emblemImageCache.get(key);
 
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       ctx.save();
@@ -358,15 +325,13 @@
       const dx = minX + (bw - dw) * 0.5;
       const dy = minY + (bh - dh) * 0.5;
 
-      ctx.clip();
-      if (img) {
-        ctx.globalAlpha = 0.5;
-        ctx.drawImage(img, dx, dy, dw, dh);
-      } else {
+      if (!img) {
         ctx.restore();
-        drawOwnerFallbackBadge(owner, minX, minY, maxX, maxY);
         continue;
       }
+      ctx.clip();
+      ctx.globalAlpha = 0.72;
+      ctx.drawImage(img, dx, dy, dw, dh);
       ctx.restore();
     }
   }
