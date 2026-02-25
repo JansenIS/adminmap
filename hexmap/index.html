@@ -239,6 +239,20 @@
   }
 
   async function loadPidRemapFromServer() {
+    const embedded = parsePidRemapObject(data?.pidRemap);
+    if (embedded.size) {
+      pidRemap.clear();
+      for (const [s, d] of embedded.entries()) pidRemap.set(s, d);
+      rebuildEffectiveProvinceHexes();
+      hoverProvId = hoverHex ? (hoverHex.effectivePid ?? hoverHex.pid ?? hoverHex.p) : null;
+      exportPidRemap();
+      render();
+      if (hoverHex) setInfo(hoverHex);
+      pidMapOut.value = `# loaded from data.js (${embedded.size} remaps)
+` + pidMapOut.value;
+      return;
+    }
+
     try {
       const resp = await fetch('../data/hexmap_pid_remap.json', { cache: 'no-store' });
       if (!resp.ok) return;
@@ -252,7 +266,7 @@
       exportPidRemap();
       render();
       if (hoverHex) setInfo(hoverHex);
-      pidMapOut.value = `# loaded from server (${loaded.size} remaps)
+      pidMapOut.value = `# loaded from legacy remap file (${loaded.size} remaps)
 ` + pidMapOut.value;
     } catch (_) {
       // optional file
@@ -272,6 +286,7 @@
     });
     const txt = await resp.text();
     if (!resp.ok) throw new Error(txt || `HTTP ${resp.status}`);
+    data.pidRemap = body.pid_remap;
     return txt || 'OK';
   }
 
