@@ -78,13 +78,13 @@
     const pd = realmByProvince.get(pid) || {};
     if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
       const owner = state.free_cities[pd.free_city_id];
-      return { kind: "free_city", id: pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+      return { kind: "free_city", id: pd.free_city_id, name: owner.name || pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
     }
     if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]) {
       const owner = state.kingdoms[pd.kingdom_id];
-      return { kind: "kingdom", id: pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+      return { kind: "kingdom", id: pd.kingdom_id, name: owner.name || pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
     }
-    return { kind: "none", id: "", color: "#778193", emblemSvg: "", emblemBox: null, emblemScale: 1 };
+    return { kind: "none", id: "", name: "", color: "#778193", emblemSvg: "", emblemBox: null, emblemScale: 1 };
   }
 
   function mutedColor(hexColor) {
@@ -259,13 +259,49 @@
     };
   }
 
+
+  function ownerMonogram(owner) {
+    const base = String(owner?.name || owner?.id || "?").trim();
+    if (!base) return "?";
+    const parts = base.split(/\s+/).filter(Boolean);
+    const chars = parts.slice(0, 2).map((w) => w[0]).join("");
+    return (chars || base.slice(0, 2)).toUpperCase();
+  }
+
+  function drawOwnerFallbackBadge(owner, minX, minY, maxX, maxY) {
+    const bw = maxX - minX;
+    const bh = maxY - minY;
+    const cx = minX + bw * 0.5;
+    const cy = minY + bh * 0.5;
+    const r = Math.max(4.5, Math.min(18, Math.min(bw, bh) * 0.16));
+    const mono = ownerMonogram(owner);
+
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = "#f4f1e7";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.65;
+    ctx.strokeStyle = "rgba(20,24,30,0.9)";
+    ctx.lineWidth = Math.max(0.25, r * 0.1);
+    ctx.stroke();
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#1b2230";
+    ctx.font = `${Math.max(2.8, r * 0.85)}px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(mono, cx, cy + r * 0.03);
+    ctx.restore();
+  }
+
   function drawMutedOwnerEmblems(state) {
     const groups = new Map();
 
     for (const pid of visibleProvincePids) {
       if (selectedProvincePids.has(pid)) continue;
       const owner = getOwnerInfo(pid, state);
-      if (!owner.emblemSvg || owner.kind === "none") continue;
+      if (owner.kind === "none") continue;
       const key = `${owner.kind}:${owner.id}`;
       if (!groups.has(key)) groups.set(key, { owner, hexes: [] });
       groups.get(key).hexes.push(...(effectiveProvinceHexes.get(pid) || []));
@@ -276,8 +312,7 @@
       if (!hexes.length) continue;
 
       requestEmblemImage(key, owner.emblemSvg);
-      const img = emblemImageCache.get(key);
-      if (!img) continue;
+      const img = owner.emblemSvg ? emblemImageCache.get(key) : null;
 
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       ctx.save();
@@ -302,8 +337,8 @@
 
       const bw = maxX - minX;
       const bh = maxY - minY;
-      const boxW = Number(owner.emblemBox?.[0]) || Number(owner.emblemBox?.w) || Math.max(1, img.width);
-      const boxH = Number(owner.emblemBox?.[1]) || Number(owner.emblemBox?.h) || Math.max(1, img.height);
+      const boxW = Number(owner.emblemBox?.[0]) || Number(owner.emblemBox?.w) || Math.max(1, img?.width || 1);
+      const boxH = Number(owner.emblemBox?.[1]) || Number(owner.emblemBox?.h) || Math.max(1, img?.height || 1);
       const fitScale = Math.max(bw / boxW, bh / boxH) * Math.max(0.2, Math.min(3, owner.emblemScale || 1));
       const dw = boxW * fitScale;
       const dh = boxH * fitScale;
@@ -311,8 +346,14 @@
       const dy = minY + (bh - dh) * 0.5;
 
       ctx.clip();
-      ctx.globalAlpha = 0.5;
-      ctx.drawImage(img, dx, dy, dw, dh);
+      if (img) {
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(img, dx, dy, dw, dh);
+      } else {
+        ctx.restore();
+        drawOwnerFallbackBadge(owner, minX, minY, maxX, maxY);
+        continue;
+      }
       ctx.restore();
     }
   }
