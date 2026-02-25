@@ -17,10 +17,13 @@ declare(strict_types=1);
 
 header("Content-Type: text/plain; charset=utf-8");
 
-function decode_data_url_png(string $src): ?string {
+function decode_data_url_image(string $src): ?array {
   if (!preg_match('#^data:image/(png|webp|jpeg|jpg);base64,(.+)$#i', $src, $m)) return null;
+  $fmt = strtolower((string)$m[1]);
+  $ext = ($fmt === "jpeg" || $fmt === "jpg") ? "jpg" : $fmt;
   $raw = base64_decode($m[2], true);
-  return ($raw === false || $raw === "") ? null : $raw;
+  if ($raw === false || $raw === "") return null;
+  return ["ext" => $ext, "bytes" => $raw];
 }
 
 $raw = file_get_contents("php://input");
@@ -101,12 +104,12 @@ if (is_array($provinceCards)) {
   foreach ($provinceCards as $pidRaw => $dataUrl) {
     $pid = (int)$pidRaw;
     if ($pid <= 0 || !is_string($dataUrl) || $dataUrl === "") continue;
-    $bytes = decode_data_url_png($dataUrl);
-    if ($bytes === null) continue;
-    $name = sprintf("province_%04d.png", $pid);
+    $img = decode_data_url_image($dataUrl);
+    if ($img === null) continue;
+    $name = sprintf("province_%04d.%s", $pid, $img["ext"]);
     $path = $provincesDir . DIRECTORY_SEPARATOR . $name;
     $tmp = $path . ".tmp";
-    if (file_put_contents($tmp, $bytes) === false || !rename($tmp, $path)) {
+    if (file_put_contents($tmp, $img["bytes"]) === false || !rename($tmp, $path)) {
       @unlink($tmp);
       http_response_code(500);
       echo "Failed to write province card";

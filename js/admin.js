@@ -101,6 +101,10 @@
   const keyByPid = new Map();
   const pidByKey = new Map();
   const hexmapData = window.HEXMAP || null;
+  const provinceCardBaseByPid = new Map();
+  const CARD_TARGET_W = 1280;
+  const CARD_TARGET_H = 720;
+  const CARD_OUTPUT_QUALITY = 0.82;
 
   function loadImage(src) {
     return new Promise((resolve, reject) => {
@@ -181,7 +185,7 @@
   function rebuildTerrainSelect() { const list = Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK; const cur = terrainSelect.value || ""; terrainSelect.innerHTML = ""; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; terrainSelect.appendChild(o0); for (const t of list) { const o = document.createElement("option"); o.value = t; o.textContent = t; terrainSelect.appendChild(o); } terrainSelect.value = cur; }
 
   function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
-  function setProvinceCardPreview(pd) { const src = String((pd && (pd.province_card_image || pd.province_card_base_image)) || "").trim(); if (src) { provinceCardPreviewImg.src = src; provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
+  function setProvinceCardPreview(pd) { const pid = pd ? (Number(pd.pid) >>> 0) : 0; const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : ""; const src = String((pd && pd.province_card_image) || baseSrc || "").trim(); if (src) { provinceCardPreviewImg.src = src; provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
   function getProvinceOwnerColor(pd) {
     if (pd && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length >= 3) return [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0];
     if (pd && pd.kingdom_id) {
@@ -195,17 +199,27 @@
     const p = Number(pid) >>> 0;
     return hexmapData.hexes.filter(h => (Number(h.p) >>> 0) === p);
   }
-  async function composeProvinceCardImage(pd) {
-    const baseSrc = String(pd && pd.province_card_base_image || "").trim();
-    if (!baseSrc) throw new Error("Сначала загрузи фон карточки провинции");
-    const baseImg = await loadImage(baseSrc);
-    const w = Math.max(1, baseImg.naturalWidth || baseImg.width || 1);
-    const h = Math.max(1, baseImg.naturalHeight || baseImg.height || 1);
+  function drawImageCover(ctx, img, dw, dh) {
+    const iw = Math.max(1, img.naturalWidth || img.width || 1);
+    const ih = Math.max(1, img.naturalHeight || img.height || 1);
+    const scale = Math.max(dw / iw, dh / ih);
+    const sw = Math.max(1, Math.round(dw / scale));
+    const sh = Math.max(1, Math.round(dh / scale));
+    const sx = Math.max(0, Math.floor((iw - sw) * 0.5));
+    const sy = Math.max(0, Math.floor((ih - sh) * 0.5));
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+  }
+  async function composeProvinceCardImage(pd, baseSrc) {
+    const baseImageSrc = String(baseSrc || "").trim();
+    if (!baseImageSrc) throw new Error("Сначала загрузи фон карточки провинции");
+    const baseImg = await loadImage(baseImageSrc);
+    const w = CARD_TARGET_W;
+    const h = CARD_TARGET_H;
     const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas не инициализирован");
-    ctx.drawImage(baseImg, 0, 0, w, h);
+    drawImageCover(ctx, baseImg, w, h);
 
     const kingdom = pd && pd.kingdom_id ? realmBucketByType("kingdoms")[pd.kingdom_id] : null;
     const kingdomSrc = emblemSourceToDataUri(kingdom && kingdom.emblem_svg);
@@ -272,7 +286,7 @@
       } catch (_) {}
     }
 
-    return canvas.toDataURL("image/png");
+    return canvas.toDataURL("image/jpeg", CARD_OUTPUT_QUALITY);
   }
 
   function setSelection(key, meta) {
@@ -290,9 +304,9 @@
     setProvinceCardPreview(pd);
   }
 
-  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
+  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
-  function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
+  function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
 
 
   function rgbToHsl(r, g, b) {
@@ -930,19 +944,24 @@
       if (!file || !selectedKey) return;
       const pd = getProvData(selectedKey);
       if (!pd) return;
-      pd.province_card_base_image = await fileToDataUrl(file);
-      if (typeof pd.province_card_image !== "string") pd.province_card_image = "";
+      const pid = Number(pd.pid) >>> 0;
+      if (!pid) return;
+      const baseDataUrl = await fileToDataUrl(file);
+      provinceCardBaseByPid.set(pid, baseDataUrl);
       setProvinceCardPreview(pd);
-      exportStateToTextarea();
     });
     if (buildProvinceImageBtn) buildProvinceImageBtn.addEventListener("click", async () => {
       if (!selectedKey) return alert("Сначала выбери провинцию.");
       const pd = getProvData(selectedKey);
       if (!pd) return;
       try {
-        const cardDataUrl = await composeProvinceCardImage(pd);
-        const fileName = `province_${String(pd.pid || selectedKey).padStart(4, "0")}.png`;
+        const pid = Number(pd.pid) >>> 0;
+        if (!pid) throw new Error("Не определён PID провинции");
+        const baseSrc = provinceCardBaseByPid.get(pid) || String(pd.province_card_base_image || "").trim();
+        const cardDataUrl = await composeProvinceCardImage(pd, baseSrc);
+        const fileName = `province_${String(pid).padStart(4, "0")}.jpg`;
         pd.province_card_image = `provinces/${fileName}`;
+        pd.province_card_base_image = "";
         setProvinceCardPreview(pd);
         exportStateToTextarea();
         const res = await fetch(SAVE_ENDPOINT, {
@@ -980,7 +999,7 @@
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
     obj.people = normalizePeopleList(obj.people || []); if (!Array.isArray(obj.terrain_types)) obj.terrain_types = TERRAIN_TYPES_FALLBACK.slice();
-    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; }
+    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
     normalizeStoredEmblems(obj);
