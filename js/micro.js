@@ -130,6 +130,20 @@
     img.src = source;
   }
 
+
+  function ownerLabelForPid(pid, state) {
+    const pd = realmByProvince.get(pid) || {};
+    if (pd.free_city_id) {
+      const name = state?.free_cities?.[pd.free_city_id]?.name || pd.free_city_id;
+      return `Территория: ${name}`;
+    }
+    if (pd.kingdom_id) {
+      const name = state?.kingdoms?.[pd.kingdom_id]?.name || pd.kingdom_id;
+      return `Королевство: ${name}`;
+    }
+    return "Королевство: -";
+  }
+
   function effectivePidFor(pid) {
     return pidRemap.get(pid) ?? pid;
   }
@@ -194,8 +208,7 @@
     }
     const pid = effectivePidForHex(hex);
     const p = provinceById.get(pid);
-    const pd = realmByProvince.get(pid);
-    const ownerLabel = pd?.free_city_id ? `Территория: ${pd.free_city_id}` : `Королевство: ${pd?.kingdom_id || "-"}`;
+    const ownerLabel = ownerLabelForPid(pid, window.__MICRO_STATE__);
 
     if (mode === "hex") {
       info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nSource PID: P${hex.p}\n${ownerLabel}`;
