@@ -6,6 +6,10 @@
   const tooltip = el("tooltip");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
   const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap");
+  const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
+  const modalProvinceMapImage = el("modalProvinceMapImage"); const modalKingdomHerald = el("modalKingdomHerald"); const modalKingdomName = el("modalKingdomName");
+  const modalGreatHouseHerald = el("modalGreatHouseHerald"); const modalGreatHouseName = el("modalGreatHouseName"); const modalMinorHouseHerald = el("modalMinorHouseHerald");
+  const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle");
   const DEFAULT_STATE_URL = "data/map_state.json";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
@@ -231,6 +235,101 @@
     }
   }
 
+  function setModalHerald(imgEl, src, alt) {
+    if (!imgEl) return;
+    imgEl.alt = alt || "Герб";
+    if (src) {
+      imgEl.src = src;
+      imgEl.style.visibility = "visible";
+    } else {
+      imgEl.removeAttribute("src");
+      imgEl.style.visibility = "hidden";
+    }
+  }
+
+  function getMinorHouseInfo(pd) {
+    if (!state || !pd || !pd.great_house_id) return { name: "—", emblemSvg: "" };
+    const realm = (state.great_houses || {})[pd.great_house_id];
+    const layer = realm && realm.minor_house_layer;
+    const pid = Number(pd.pid) >>> 0;
+    if (!layer || !Array.isArray(layer.vassals)) return { name: "—", emblemSvg: "" };
+    for (const v of layer.vassals) {
+      const pids = Array.isArray(v.province_pids) ? v.province_pids : [];
+      if (!pids.some(x => (Number(x) >>> 0) === pid)) continue;
+      const capPid = Number(v.capital_pid) >>> 0;
+      const cap = capPid ? getStateProvinceByPid(capPid) : null;
+      return { name: v.name || "Безымянный вассал", emblemSvg: (cap && cap.emblem_svg) || "" };
+    }
+    if (Array.isArray(layer.domain_pids) && layer.domain_pids.some(x => (Number(x) >>> 0) === pid)) {
+      const capPid = Number(layer.capital_pid) >>> 0;
+      const cap = capPid ? getStateProvinceByPid(capPid) : null;
+      return { name: "Домен Большого Дома", emblemSvg: (cap && cap.emblem_svg) || "" };
+    }
+    return { name: "—", emblemSvg: "" };
+  }
+
+  async function buildProvinceMaskedImage(map, key) {
+    const k = key >>> 0;
+    if (!k) return "";
+    const mask = map.clipMaskByKey.get(k);
+    if (!mask) return "";
+    const meta = map.getProvinceMeta(k);
+    if (!meta || !Array.isArray(meta.bbox)) return "";
+    const [x0, y0, x1, y1] = meta.bbox;
+    const bw = Math.max(1, x1 - x0);
+    const bh = Math.max(1, y1 - y0);
+    const canvas = document.createElement("canvas");
+    canvas.width = bw;
+    canvas.height = bh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    ctx.drawImage(map.baseImg, x0, y0, bw, bh, 0, 0, bw, bh);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(mask, x0, y0, bw, bh, 0, 0, bw, bh);
+    ctx.globalCompositeOperation = "source-over";
+    return canvas.toDataURL("image/png");
+  }
+
+  async function openProvinceModal(map, key, meta) {
+    if (!provinceModal || !state || !key) return;
+    const m = meta || map.getProvinceMeta(key);
+    const pd = m ? getStateProvinceByPid(m.pid) : null;
+    if (!pd) return;
+
+    modalProvinceTitle.textContent = (pd.name || m.name || "Провинция").toUpperCase();
+
+    const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
+    const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
+    const minorHouse = getMinorHouseInfo(pd);
+
+    modalKingdomName.textContent = kingdom && kingdom.name ? kingdom.name : "—";
+    modalGreatHouseName.textContent = greatHouse && greatHouse.name ? greatHouse.name : "—";
+    modalMinorHouseName.textContent = minorHouse.name || "—";
+
+    setModalHerald(modalProvinceHerald, emblemSourceToDataUri(pd.emblem_svg), "Герб провинции");
+    setModalHerald(modalKingdomHerald, emblemSourceToDataUri(kingdom && kingdom.emblem_svg), "Герб королевства");
+    setModalHerald(modalGreatHouseHerald, emblemSourceToDataUri(greatHouse && greatHouse.emblem_svg), "Герб большого дома");
+    setModalHerald(modalMinorHouseHerald, emblemSourceToDataUri(minorHouse.emblemSvg), "Герб малого дома");
+
+    const maskedDataUri = await buildProvinceMaskedImage(map, key);
+    if (maskedDataUri) {
+      modalProvinceMapImage.src = maskedDataUri;
+      modalProvinceMapImage.style.visibility = "visible";
+    } else {
+      modalProvinceMapImage.removeAttribute("src");
+      modalProvinceMapImage.style.visibility = "hidden";
+    }
+
+    provinceModal.classList.add("open");
+    provinceModal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeProvinceModal() {
+    if (!provinceModal) return;
+    provinceModal.classList.remove("open");
+    provinceModal.setAttribute("aria-hidden", "true");
+  }
+
   function normalizeStateByPid(obj) {
     const src = obj && obj.provinces ? obj.provinces : {};
     const out = {};
@@ -356,7 +455,7 @@
 
   async function main() {
     urlInput.value = DEFAULT_STATE_URL;
-    const map = new RasterProvinceMap({ baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png", onHover: ({ key, meta, evt }) => { if (!key || !state) return tooltip.style.display = "none"; const pd = getStateProvinceByPid(meta && meta.pid); const label = (pd && pd.name) || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : "")); setTooltip(evt, label); if ((viewModeSelect.value || "provinces") === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(map, meta && meta.pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } }, onClick: ({ key, meta }) => renderProvince(key, meta, map) });
+    const map = new RasterProvinceMap({ baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png", onHover: ({ key, meta, evt }) => { if (!key || !state) return tooltip.style.display = "none"; const pd = getStateProvinceByPid(meta && meta.pid); const label = (pd && pd.name) || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : "")); setTooltip(evt, label); if ((viewModeSelect.value || "provinces") === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(map, meta && meta.pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } }, onClick: ({ key, meta }) => { renderProvince(key, meta, map); openProvinceModal(map, key, meta).catch(e => console.warn(e)); } });
     await map.init(); initZoomControls(map);
     async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map); }
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
@@ -380,6 +479,15 @@
       });
       syncProvEmblemsToggleLabel();
     }
+    if (provinceModalClose) provinceModalClose.addEventListener("click", closeProvinceModal);
+    if (provinceModal) {
+      provinceModal.addEventListener("click", (evt) => {
+        if (evt.target === provinceModal) closeProvinceModal();
+      });
+    }
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") closeProvinceModal();
+    });
     await reload(); setSidebarEmpty();
   }
 
