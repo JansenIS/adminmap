@@ -32,6 +32,7 @@
 
   const provinceById = new Map(data.provinces.map(p => [p.id, p]));
   const realmByProvince = new Map();
+  const pidRemap = new Map();
   const selectedProvincePids = new Set();
   const neighborProvincePids = new Set();
   const visibleProvincePids = new Set();
@@ -79,6 +80,10 @@
     return "#778193";
   }
 
+  function effectivePidFor(pid) {
+    return pidRemap.get(pid) ?? pid;
+  }
+
   function pointInPoly(pt, poly) {
     let c = false;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -119,13 +124,13 @@
       info.textContent = "";
       return;
     }
-    const pid = hex.p;
+    const pid = effectivePidFor(hex.p);
     const p = provinceById.get(pid);
     const pd = realmByProvince.get(pid);
     const ownerLabel = pd?.free_city_id ? `Территория: ${pd.free_city_id}` : `Королевство: ${pd?.kingdom_id || "-"}`;
 
     if (mode === "hex") {
-      info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\n${ownerLabel}`;
+      info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nSource PID: P${hex.p}\n${ownerLabel}`;
       return;
     }
 
@@ -194,7 +199,7 @@
         for (const [dq, dr] of offsets) {
           const nh = coordToHex.get(`${h.q + dq},${h.r + dr}`);
           if (!nh) continue;
-          const npid = nh.p;
+          const npid = effectivePidFor(nh.p);
           if (npid === pid) continue;
           if (!selectedProvincePids.has(npid)) neighborProvincePids.add(npid);
         }
@@ -239,7 +244,7 @@
         ctx.lineWidth = 0.45;
         ctx.stroke(path);
       }
-    } else if (hoverHex && visibleProvincePids.has(hoverHex.p)) {
+    } else if (hoverHex && visibleProvincePids.has(effectivePidFor(hoverHex.p))) {
       const path = pathByHexId.get(hoverHex.id);
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 0.6;
@@ -250,6 +255,17 @@
   }
 
   async function main() {
+    const pidRemapResp = await fetch("data/hexmap_pid_remap.json", { cache: "no-store" });
+    if (pidRemapResp.ok) {
+      const remapPayload = await pidRemapResp.json();
+      const remapObj = remapPayload?.pid_remap || remapPayload;
+      for (const [srcRaw, dstRaw] of Object.entries(remapObj || {})) {
+        const src = Number(srcRaw);
+        const dst = Number(dstRaw);
+        if (src > 0 && dst > 0 && src !== dst) pidRemap.set(src, dst);
+      }
+    }
+
     const resp = await fetch("data/map_state.json", { cache: "no-store" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const state = await resp.json();
@@ -259,8 +275,8 @@
       const pid = Number(pidRaw);
       if (!(pid > 0)) continue;
       realmByProvince.set(pid, pd || {});
-      if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(pid);
-      if (selectedKind !== "free_city" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(effectivePidFor(pid));
+      if (selectedKind !== "free_city" && pd.kingdom_id === selectedId) selectedProvincePids.add(effectivePidFor(pid));
     }
 
     if (!selectedProvincePids.size) {
@@ -278,7 +294,9 @@
         const h = data.hexes[po.start + i];
         list.push(h);
       }
-      effectiveProvinceHexes.set(po.id, list);
+      const effectivePid = effectivePidFor(po.id);
+      if (!effectiveProvinceHexes.has(effectivePid)) effectiveProvinceHexes.set(effectivePid, []);
+      effectiveProvinceHexes.get(effectivePid).push(...list);
     }
 
     collectNeighborProvincePids();
@@ -308,8 +326,8 @@
     }
 
     hoverHex = findHexAt(world);
-    if (hoverHex && !visibleProvincePids.has(hoverHex.p)) hoverHex = null;
-    hoverProvId = hoverHex ? hoverHex.p : null;
+    if (hoverHex && !visibleProvincePids.has(effectivePidFor(hoverHex.p))) hoverHex = null;
+    hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
     setInfo(hoverHex);
     render();
   });
@@ -350,7 +368,7 @@
   document.querySelectorAll('input[name="mode"]').forEach(r => {
     r.addEventListener("change", () => {
       mode = document.querySelector('input[name="mode"]:checked').value;
-      hoverProvId = hoverHex ? hoverHex.p : null;
+      hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
       if (hoverHex) setInfo(hoverHex);
       render();
     });
