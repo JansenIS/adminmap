@@ -271,19 +271,6 @@
     const state = await resp.json();
     window.__MICRO_STATE__ = state;
 
-    for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
-      const pid = Number(pidRaw);
-      if (!(pid > 0)) continue;
-      realmByProvince.set(pid, pd || {});
-      if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(effectivePidFor(pid));
-      if (selectedKind !== "free_city" && pd.kingdom_id === selectedId) selectedProvincePids.add(effectivePidFor(pid));
-    }
-
-    if (!selectedProvincePids.size) {
-      title.textContent = "Для выбранного королевства/территории не найдено провинций.";
-      return;
-    }
-
     const provRecords = (Array.isArray(data.provOffsets) && typeof data.provOffsets[0] === "number")
       ? data.provinces.map((p, i) => ({ id: p.id, start: data.provOffsets[i], count: data.provOffsets[i + 1] - data.provOffsets[i] }))
       : data.provOffsets;
@@ -297,6 +284,27 @@
       const effectivePid = effectivePidFor(po.id);
       if (!effectiveProvinceHexes.has(effectivePid)) effectiveProvinceHexes.set(effectivePid, []);
       effectiveProvinceHexes.get(effectivePid).push(...list);
+    }
+
+    for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
+      const sourcePid = Number(pidRaw);
+      if (!(sourcePid > 0)) continue;
+      const effectivePid = effectivePidFor(sourcePid);
+      if (!realmByProvince.has(effectivePid) || effectivePid === sourcePid) {
+        realmByProvince.set(effectivePid, pd || {});
+      }
+    }
+
+    for (const pid of effectiveProvinceHexes.keys()) {
+      const pd = realmByProvince.get(pid);
+      if (!pd) continue;
+      if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind !== "free_city" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
+    }
+
+    if (!selectedProvincePids.size) {
+      title.textContent = "Для выбранного королевства/территории не найдено провинций.";
+      return;
     }
 
     collectNeighborProvincePids();
