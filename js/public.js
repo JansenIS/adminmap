@@ -18,18 +18,25 @@
   function updateMicroMapButton() {
     if (!openMicroMapBtn) return;
     const mode = viewModeSelect.value || "provinces";
-    const visible = mode === "kingdoms" && !!selectedMicroTarget;
+    const visible = (mode === "kingdoms" || mode === "great_houses") && !!selectedMicroTarget;
     openMicroMapBtn.classList.toggle("hidden", !visible);
     if (!visible) return;
-    const kindLabel = selectedMicroTarget.kind === "free_city" ? "территории" : "королевства";
+    const kindLabel = selectedMicroTarget.kind === "free_city"
+      ? "территории"
+      : (selectedMicroTarget.kind === "great_house" ? "Большого Дома" : "королевства");
     openMicroMapBtn.textContent = `Перейти на микрокарту ${kindLabel}: ${selectedMicroTarget.name}`;
   }
   function getMicroTargetByPid(pid) {
     if (!state) return null;
     const pd = getStateProvinceByPid(pid);
     if (!pd) return null;
+    const mode = viewModeSelect.value || "provinces";
+    if (mode === "great_houses" && pd.great_house_id && (state.great_houses || {})[pd.great_house_id]) {
+      return { kind: "great_house", id: pd.great_house_id, name: state.great_houses[pd.great_house_id].name || pd.great_house_id };
+    }
     if (pd.free_city_id && (state.free_cities || {})[pd.free_city_id]) return { kind: "free_city", id: pd.free_city_id, name: state.free_cities[pd.free_city_id].name || pd.free_city_id };
     if (pd.kingdom_id && (state.kingdoms || {})[pd.kingdom_id]) return { kind: "kingdom", id: pd.kingdom_id, name: state.kingdoms[pd.kingdom_id].name || pd.kingdom_id };
+    if (mode === "great_houses" && pd.great_house_id) return { kind: "great_house", id: pd.great_house_id, name: pd.great_house_id };
     return null;
   }
   function getStateProvinceByPid(pid) { if (!state || !state.provinces) return null; return state.provinces[String(Number(pid) || 0)] || null; }
