@@ -63,13 +63,15 @@
 
   <div class="card">
     <div class="muted">Редактор PID (переназначение)</div>
-    <div class="small">1) Наведи и кликни на гекс/провинцию. 2) Укажи целевой PID. 3) Применить.</div>
+    <div class="small">1) Наведи и кликни на гекс/провинцию. 2) Укажи целевой PID. 3) Применить.
+Можно запустить авто-мэппинг по наложению центров двух карт.</div>
     <div class="row"><span class="muted">Исходный PID:</span> <b id="pidSource">—</b></div>
     <div class="row"><input id="pidTarget" type="number" min="1" step="1" placeholder="Целевой PID"/></div>
     <div class="row">
       <button id="applyPid" type="button" disabled>Применить</button>
       <button id="resetPid" type="button" disabled>Сбросить</button>
       <button id="resetAllPid" type="button">Сбросить всё</button>
+      <button id="autoOverlayPid" type="button">Авто-мэппинг (наложение)</button>
     </div>
     <div class="row"><button id="exportPidMap" type="button">Экспорт маппинга PID</button></div>
     <div class="row"><textarea id="pidMapOut" readonly placeholder='{"sourcePid":"targetPid"}'></textarea></div>
@@ -100,6 +102,7 @@
   const applyPid = document.getElementById('applyPid');
   const resetPid = document.getElementById('resetPid');
   const resetAllPid = document.getElementById('resetAllPid');
+  const autoOverlayPid = document.getElementById('autoOverlayPid');
   const exportPidMap = document.getElementById('exportPidMap');
   const pidMapOut = document.getElementById('pidMapOut');
 
@@ -123,6 +126,7 @@
   const pidRemap = new Map();
 
   let selectedSourcePid = null;
+  let mainProvinceDataset = null;
 
   function spatialKey(cx, cy) {
     return `${Math.floor(cx / spatialCell)},${Math.floor(cy / spatialCell)}`;
@@ -217,6 +221,65 @@
     const out = {};
     for (const [src, dst] of pidRemap.entries()) out[src] = dst;
     pidMapOut.value = JSON.stringify(out, null, 2);
+  }
+
+  async function loadMainProvinceDataset() {
+    if (mainProvinceDataset) return mainProvinceDataset;
+    const resp = await fetch('../provinces.json', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('Не удалось загрузить provinces.json');
+    const data = await resp.json();
+    if (!data?.image?.width || !data?.image?.height || !Array.isArray(data?.provinces)) {
+      throw new Error('Некорректный формат provinces.json');
+    }
+    mainProvinceDataset = data;
+    return mainProvinceDataset;
+  }
+
+  function buildOverlayAutoRemap(mainData) {
+    const src = [];
+    for (const [pid, hexes] of originalProvinceHexes.entries()) {
+      if (!hexes.length) continue;
+      let sx = 0, sy = 0;
+      for (const h of hexes) { sx += h.cx; sy += h.cy; }
+      const cx = sx / hexes.length;
+      const cy = sy / hexes.length;
+      src.push({ pid, x: (cx - vb0.x) / vb0.w, y: (cy - vb0.y) / vb0.h });
+    }
+
+    const dstBase = (mainData.provinces || []).map((p) => ({
+      pid: Number(p.pid),
+      x: (Number(p.centroid?.[0]) || 0) / Number(mainData.image.width),
+      y: (Number(p.centroid?.[1]) || 0) / Number(mainData.image.height)
+    })).filter(p => p.pid > 0);
+
+    function assign(useFlipX) {
+      const dst = dstBase.map(d => ({...d, x: useFlipX ? (1 - d.x) : d.x }));
+      const pairs = [];
+      for (const s of src) {
+        for (const d of dst) {
+          const dx = s.x - d.x;
+          const dy = s.y - d.y;
+          pairs.push({ spid: s.pid, dpid: d.pid, dist: dx*dx + dy*dy });
+        }
+      }
+      pairs.sort((a,b)=>a.dist-b.dist);
+      const usedS = new Set();
+      const usedD = new Set();
+      const out = new Map();
+      let cost = 0;
+      for (const p of pairs) {
+        if (usedS.has(p.spid) || usedD.has(p.dpid)) continue;
+        usedS.add(p.spid); usedD.add(p.dpid);
+        out.set(p.spid, p.dpid);
+        cost += p.dist;
+        if (out.size === Math.min(src.length, dst.length)) break;
+      }
+      return { out, meanCost: out.size ? cost / out.size : Number.POSITIVE_INFINITY, flipped: useFlipX };
+    }
+
+    const normal = assign(false);
+    const flipped = assign(true);
+    return normal.meanCost <= flipped.meanCost ? normal : flipped;
   }
 
   function colorForProvince(pid) {
@@ -524,6 +587,30 @@
     }
   });
 
+
+  autoOverlayPid.addEventListener('click', async () => {
+    try {
+      autoOverlayPid.disabled = true;
+      const dataset = await loadMainProvinceDataset();
+      const result = buildOverlayAutoRemap(dataset);
+      pidRemap.clear();
+      for (const [srcPid, dstPid] of result.out.entries()) {
+        if (srcPid !== dstPid) pidRemap.set(srcPid, dstPid);
+      }
+      rebuildEffectiveProvinceHexes();
+      hoverProvId = hoverHex ? (hoverHex.effectivePid ?? hoverHex.pid ?? hoverHex.p) : null;
+      exportPidRemap();
+      render();
+      if (hoverHex) setInfo(hoverHex);
+      pidMapOut.value = `# overlay-match: ${result.flipped ? 'flipX' : 'normal'}, meanCost=${result.meanCost.toFixed(6)}
+` + pidMapOut.value;
+    } catch (err) {
+      pidMapOut.value = `# auto-overlay error: ${err?.message || err}
+` + (pidMapOut.value || '');
+    } finally {
+      autoOverlayPid.disabled = false;
+    }
+  });
 
   window.addEventListener('resize', resize);
 
