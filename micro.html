@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Микрокарта</title>
+<style>
+  :root { color-scheme: dark; }
+  html,body{height:100%;margin:0;background:#0b0f14;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#e7eef7;}
+  .app{display:flex;height:100vh;height:100dvh;}
+  .sidebar{width:360px;min-width:320px;max-width:460px;border-right:1px solid #223041;background:#0d131b;padding:14px 14px 18px;box-sizing:border-box;overflow:auto;}
+  h1{font-size:16px;margin:0 0 10px;font-weight:650;}
+  .muted{color:#a6b4c5;font-size:12px;line-height:1.35;}
+  .card{margin-top:12px;padding:12px;background:#0b0f14;border:1px solid #223041;border-radius:12px;}
+  .row{display:flex;gap:10px;align-items:center;margin-top:8px;}
+  .row label{font-size:13px;color:#d2deeb;}
+  .small{font-size:11px;color:#a6b4c5;line-height:1.35;margin-top:10px;}
+  #info{font-size:12px;line-height:1.35;color:#e7eef7;white-space:pre;max-height:280px;overflow:auto;}
+  #wrap{flex:1;position:relative;overflow:hidden;background:#101823;}
+  canvas{width:100%;height:100%;display:block;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <h1>Микрокарта</h1>
+    <div class="muted" id="microTitle">Загрузка…</div>
+
+    <div class="card">
+      <div class="muted">Режим наведения</div>
+      <div class="row">
+        <label><input type="radio" name="mode" value="hex" checked> Гекс</label>
+        <label><input type="radio" name="mode" value="province"> Провинция</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted">Легенда</div>
+      <div class="small">Бежевый — провинции выбранного королевства/территории. Остальные — соседние провинции в цветах своих королевств/территорий.</div>
+    </div>
+
+    <div class="card">
+      <div class="muted">Информация</div>
+      <div id="info"></div>
+    </div>
+  </aside>
+
+  <main id="wrap"><canvas id="mapCanvas"></canvas></main>
+</div>
+
+<script src="hexmap/data.js"></script>
+<script src="js/micro.js"></script>
+</body>
+</html>

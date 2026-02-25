@@ -5,22 +5,40 @@
   const el = (id) => document.getElementById(id);
   const tooltip = el("tooltip");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
-  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems");
+  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap");
   const DEFAULT_STATE_URL = "data/map_state.json";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
   let state = null; let selectedKey = 0; let hideProvinceEmblems = false;
+  let selectedMicroTarget = null;
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
   function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
+  function updateMicroMapButton() {
+    if (!openMicroMapBtn) return;
+    const mode = viewModeSelect.value || "provinces";
+    const visible = mode === "kingdoms" && !!selectedMicroTarget;
+    openMicroMapBtn.classList.toggle("hidden", !visible);
+    if (!visible) return;
+    const kindLabel = selectedMicroTarget.kind === "free_city" ? "территории" : "королевства";
+    openMicroMapBtn.textContent = `Перейти на микрокарту ${kindLabel}: ${selectedMicroTarget.name}`;
+  }
+  function getMicroTargetByPid(pid) {
+    if (!state) return null;
+    const pd = getStateProvinceByPid(pid);
+    if (!pd) return null;
+    if (pd.free_city_id && (state.free_cities || {})[pd.free_city_id]) return { kind: "free_city", id: pd.free_city_id, name: state.free_cities[pd.free_city_id].name || pd.free_city_id };
+    if (pd.kingdom_id && (state.kingdoms || {})[pd.kingdom_id]) return { kind: "kingdom", id: pd.kingdom_id, name: state.kingdoms[pd.kingdom_id].name || pd.kingdom_id };
+    return null;
+  }
   function getStateProvinceByPid(pid) { if (!state || !state.provinces) return null; return state.provinces[String(Number(pid) || 0)] || null; }
   function keyForPid(map, pid) {
     const p = Number(pid); if (!isFinite(p) || p <= 0) return 0;
     for (const [key, meta] of map.provincesByKey.entries()) if (meta && Number(meta.pid) === p) return key >>> 0;
     return 0;
   }
-  function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) return setSidebarEmpty(); const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) return setSidebarEmpty(); title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; }
+  function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; selectedMicroTarget = getMicroTargetByPid(pid); updateMicroMapButton(); }
 
   function emblemSourceToDataUri(src) {
     const s = String(src || "").trim();
@@ -335,7 +353,18 @@
     await map.init(); initZoomControls(map);
     async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map); }
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
-    viewModeSelect.addEventListener("change", () => applyState(map).catch(e => alert(e.message)));
+    viewModeSelect.addEventListener("change", () => {
+      updateMicroMapButton();
+      applyState(map).catch(e => alert(e.message));
+    });
+    if (openMicroMapBtn) {
+      openMicroMapBtn.addEventListener("click", () => {
+        if (!selectedMicroTarget) return;
+        const url = `micro.html?kind=${encodeURIComponent(selectedMicroTarget.kind)}&id=${encodeURIComponent(selectedMicroTarget.id)}`;
+        window.open(url, "_blank", "noopener");
+      });
+      updateMicroMapButton();
+    }
     if (toggleProvEmblemsBtn) {
       toggleProvEmblemsBtn.addEventListener("click", () => {
         hideProvinceEmblems = !hideProvinceEmblems;
