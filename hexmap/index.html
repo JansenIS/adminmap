@@ -64,7 +64,7 @@
   <div class="card">
     <div class="muted">Редактор PID (переназначение)</div>
     <div class="small">1) Наведи и кликни на гекс/провинцию. 2) Укажи целевой PID. 3) Применить.
-Или используй «Авто PID (ряды)» для нумерации сверху вниз, слева направо.</div>
+Или используй «Авто PID (ряды)»: сверху вниз по рядам, а направление в ряду выбирается чекбоксом.</div>
     <div class="row"><span class="muted">Исходный PID:</span> <b id="pidSource">—</b></div>
     <div class="row"><input id="pidTarget" type="number" min="1" step="1" placeholder="Целевой PID"/></div>
     <div class="row">
@@ -73,6 +73,7 @@
       <button id="resetAllPid" type="button">Сбросить всё</button>
       <button id="autoPidRows" type="button">Авто PID (ряды)</button>
     </div>
+    <div class="row"><label><input id="autoPidRtl" type="checkbox" checked> Нумеровать в ряду справа налево</label></div>
     <div class="row"><button id="exportPidMap" type="button">Экспорт маппинга PID</button></div>
     <div class="row"><textarea id="pidMapOut" readonly placeholder='{"sourcePid":"targetPid"}'></textarea></div>
   </div>
@@ -103,6 +104,7 @@
   const resetPid = document.getElementById('resetPid');
   const resetAllPid = document.getElementById('resetAllPid');
   const autoPidRows = document.getElementById('autoPidRows');
+  const autoPidRtl = document.getElementById('autoPidRtl');
   const exportPidMap = document.getElementById('exportPidMap');
   const pidMapOut = document.getElementById('pidMapOut');
 
@@ -544,7 +546,7 @@
       return { pid, x: c.x, y: c.y };
     });
 
-    // Group into horizontal rows, then sort rows top->bottom and items left->right.
+    // Group into horizontal rows, then sort rows top->bottom and items by chosen horizontal direction.
     const rowBand = HEX_SIZE * 7.0;
     items.sort((a, b) => (a.y - b.y) || (a.x - b.x));
     const rows = [];
@@ -559,7 +561,8 @@
     }
 
     rows.sort((a, b) => a.y - b.y);
-    for (const row of rows) row.items.sort((a, b) => a.x - b.x);
+    const rowCmp = autoPidRtl?.checked ? ((a, b) => b.x - a.x) : ((a, b) => a.x - b.x);
+    for (const row of rows) row.items.sort(rowCmp);
 
     const ordered = [];
     for (const row of rows) ordered.push(...row.items);
