@@ -369,6 +369,40 @@
     }
   }
 
+  function edgeKey(ax, ay, bx, by) {
+    const scale = 1000;
+    const a = `${Math.round(ax * scale)},${Math.round(ay * scale)}`;
+    const b = `${Math.round(bx * scale)},${Math.round(by * scale)}`;
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  }
+
+  function collectProvinceEdges(hexes) {
+    const edgeStats = new Map();
+    for (const h of hexes) {
+      const verts = verticesByHexId.get(h.id);
+      if (!verts || verts.length < 6) continue;
+      for (let i = 0; i < 6; i++) {
+        const a = verts[i];
+        const b = verts[(i + 1) % 6];
+        const key = edgeKey(a[0], a[1], b[0], b[1]);
+        const rec = edgeStats.get(key);
+        if (rec) {
+          rec.count += 1;
+        } else {
+          edgeStats.set(key, { count: 1, a, b });
+        }
+      }
+    }
+
+    const internalEdges = [];
+    const externalEdges = [];
+    for (const rec of edgeStats.values()) {
+      if (rec.count > 1) internalEdges.push(rec);
+      else externalEdges.push(rec);
+    }
+    return { internalEdges, externalEdges };
+  }
+
   function render() {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -393,10 +427,30 @@
         const path = pathByHexId.get(h.id);
         ctx.fillStyle = fill;
         ctx.fill(path);
-        ctx.strokeStyle = "rgba(0,0,0,0.45)";
-        ctx.lineWidth = 0.18;
-        ctx.stroke(path);
       }
+    }
+
+    for (const pid of visibleProvincePids) {
+      const list = effectiveProvinceHexes.get(pid) || [];
+      const { internalEdges, externalEdges } = collectProvinceEdges(list);
+
+      ctx.strokeStyle = "rgba(0,0,0,0.38)";
+      ctx.lineWidth = 0.12;
+      ctx.beginPath();
+      for (const edge of internalEdges) {
+        ctx.moveTo(edge.a[0], edge.a[1]);
+        ctx.lineTo(edge.b[0], edge.b[1]);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(0,0,0,0.72)";
+      ctx.lineWidth = 0.38;
+      ctx.beginPath();
+      for (const edge of externalEdges) {
+        ctx.moveTo(edge.a[0], edge.a[1]);
+        ctx.lineTo(edge.b[0], edge.b[1]);
+      }
+      ctx.stroke();
     }
 
     drawMutedOwnerEmblems(window.__MICRO_STATE__);
