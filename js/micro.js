@@ -78,13 +78,13 @@
     const pd = realmByProvince.get(pid) || {};
     if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
       const owner = state.free_cities[pd.free_city_id];
-      return { kind: "free_city", id: pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "" };
+      return { kind: "free_city", id: pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
     }
     if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]) {
       const owner = state.kingdoms[pd.kingdom_id];
-      return { kind: "kingdom", id: pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "" };
+      return { kind: "kingdom", id: pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
     }
-    return { kind: "none", id: "", color: "#778193", emblemSvg: "" };
+    return { kind: "none", id: "", color: "#778193", emblemSvg: "", emblemBox: null, emblemScale: 1 };
   }
 
   function mutedColor(hexColor) {
@@ -280,29 +280,38 @@
       if (!img) continue;
 
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      const clipPath = new Path2D();
+      ctx.save();
+      ctx.beginPath();
+      let pathStarted = false;
       for (const h of hexes) {
-        const p = pathByHexId.get(h.id);
-        if (!p) continue;
-        clipPath.addPath(p);
+        const verts = verticesByHexId.get(h.id);
+        if (!verts || !verts.length) continue;
+        ctx.moveTo(verts[0][0], verts[0][1]);
+        for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i][0], verts[i][1]);
+        ctx.closePath();
+        pathStarted = true;
         minX = Math.min(minX, h.cx - HEX_SIZE * 1.05);
         minY = Math.min(minY, h.cy - HEX_SIZE * 1.05);
         maxX = Math.max(maxX, h.cx + HEX_SIZE * 1.05);
         maxY = Math.max(maxY, h.cy + HEX_SIZE * 1.05);
       }
-      if (!isFinite(minX) || maxX <= minX || maxY <= minY) continue;
+      if (!pathStarted || !isFinite(minX) || maxX <= minX || maxY <= minY) {
+        ctx.restore();
+        continue;
+      }
 
       const bw = maxX - minX;
       const bh = maxY - minY;
-      const scale = Math.max(bw / Math.max(1, img.width), bh / Math.max(1, img.height));
-      const dw = img.width * scale;
-      const dh = img.height * scale;
+      const boxW = Number(owner.emblemBox?.[0]) || Number(owner.emblemBox?.w) || Math.max(1, img.width);
+      const boxH = Number(owner.emblemBox?.[1]) || Number(owner.emblemBox?.h) || Math.max(1, img.height);
+      const fitScale = Math.max(bw / boxW, bh / boxH) * Math.max(0.2, Math.min(3, owner.emblemScale || 1));
+      const dw = boxW * fitScale;
+      const dh = boxH * fitScale;
       const dx = minX + (bw - dw) * 0.5;
       const dy = minY + (bh - dh) * 0.5;
 
-      ctx.save();
-      ctx.clip(clipPath);
-      ctx.globalAlpha = 0.28;
+      ctx.clip();
+      ctx.globalAlpha = 0.5;
       ctx.drawImage(img, dx, dy, dw, dh);
       ctx.restore();
     }
