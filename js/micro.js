@@ -33,6 +33,7 @@
   const provinceById = new Map(data.provinces.map(p => [p.id, p]));
   const realmByProvince = new Map();
   const pidRemap = new Map();
+  const pidResolved = new Map();
   const selectedProvincePids = new Set();
   const neighborProvincePids = new Set();
   const visibleProvincePids = new Set();
@@ -81,7 +82,36 @@
   }
 
   function effectivePidFor(pid) {
-    return pidRemap.get(pid) ?? pid;
+    if (!(pid > 0)) return pid;
+    if (pidResolved.has(pid)) return pidResolved.get(pid);
+
+    const chain = [];
+    const chainIndex = new Map();
+    let cur = pid;
+
+    while (pidRemap.has(cur)) {
+      if (pidResolved.has(cur)) {
+        const resolved = pidResolved.get(cur);
+        for (const item of chain) pidResolved.set(item, resolved);
+        return resolved;
+      }
+
+      const loopAt = chainIndex.get(cur);
+      if (loopAt !== undefined) {
+        const cycle = chain.slice(loopAt);
+        const canonical = Math.min(...cycle);
+        for (const item of cycle) pidResolved.set(item, canonical);
+        for (let i = 0; i < loopAt; i++) pidResolved.set(chain[i], canonical);
+        return canonical;
+      }
+
+      chainIndex.set(cur, chain.length);
+      chain.push(cur);
+      cur = pidRemap.get(cur);
+    }
+
+    for (const item of chain) pidResolved.set(item, cur);
+    return cur;
   }
 
   function pointInPoly(pt, poly) {
@@ -264,6 +294,7 @@
         const dst = Number(dstRaw);
         if (src > 0 && dst > 0 && src !== dst) pidRemap.set(src, dst);
       }
+      pidResolved.clear();
     }
 
     const resp = await fetch("data/map_state.json", { cache: "no-store" });
