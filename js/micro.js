@@ -43,6 +43,8 @@
   const coordToHex = new Map();
   const hexSpatial = new Map();
   const spatialCell = HEX_SIZE * 2.4;
+  const emblemImageCache = new Map();
+  const emblemImagePending = new Set();
 
   function spatialKey(cx, cy) {
     return `${Math.floor(cx / spatialCell)},${Math.floor(cy / spatialCell)}`;
@@ -72,13 +74,49 @@
     hexSpatial.get(bucketKey).push(h);
   }
 
+  function getOwnerInfo(pid, state) {
+    const pd = realmByProvince.get(pid) || {};
+    if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
+      const owner = state.free_cities[pd.free_city_id];
+      return { kind: "free_city", id: pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "" };
+    }
+    if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]) {
+      const owner = state.kingdoms[pd.kingdom_id];
+      return { kind: "kingdom", id: pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "" };
+    }
+    return { kind: "none", id: "", color: "#778193", emblemSvg: "" };
+  }
+
+  function mutedColor(hexColor) {
+    if (typeof hexColor !== "string") return "#435063";
+    const m = hexColor.trim().match(/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+    if (!m) return hexColor;
+    const bg = [16, 24, 35];
+    const rgb = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+    const mix = rgb.map((v, i) => Math.round(v * 0.3 + bg[i] * 0.7));
+    return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+  }
+
   function colorForPid(pid, state) {
     if (selectedProvincePids.has(pid)) return BEIGE;
-    const pd = realmByProvince.get(pid);
-    if (!pd) return "#778193";
-    if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]?.color) return state.free_cities[pd.free_city_id].color;
-    if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]?.color) return state.kingdoms[pd.kingdom_id].color;
-    return "#778193";
+    const owner = getOwnerInfo(pid, state);
+    return mutedColor(owner.color);
+  }
+
+  function requestEmblemImage(key, emblemSvg) {
+    if (!emblemSvg || emblemImageCache.has(key) || emblemImagePending.has(key)) return;
+    emblemImagePending.add(key);
+    const img = new Image();
+    img.onload = () => {
+      emblemImagePending.delete(key);
+      emblemImageCache.set(key, img);
+      render();
+    };
+    img.onerror = () => {
+      emblemImagePending.delete(key);
+      emblemImageCache.set(key, null);
+    };
+    img.src = emblemSvg;
   }
 
   function effectivePidFor(pid) {
@@ -210,6 +248,31 @@
     };
   }
 
+  function drawMutedOwnerEmblems(state) {
+    for (const pid of visibleProvincePids) {
+      if (selectedProvincePids.has(pid)) continue;
+      const list = effectiveProvinceHexes.get(pid) || [];
+      if (!list.length) continue;
+      const owner = getOwnerInfo(pid, state);
+      if (!owner.emblemSvg) continue;
+      const key = `${owner.kind}:${owner.id}`;
+      requestEmblemImage(key, owner.emblemSvg);
+      const img = emblemImageCache.get(key);
+      if (!img) continue;
+
+      let sx = 0, sy = 0;
+      for (const h of list) { sx += h.cx; sy += h.cy; }
+      const cx = sx / list.length;
+      const cy = sy / list.length;
+      const size = Math.max(2.2, Math.min(6.5, Math.sqrt(list.length) * 0.2));
+
+      ctx.save();
+      ctx.globalAlpha = 0.72;
+      ctx.drawImage(img, cx - size * 0.5, cy - size * 0.5, size, size);
+      ctx.restore();
+    }
+  }
+
   function collectNeighborProvincePids() {
     for (const pid of selectedProvincePids) {
       const list = effectiveProvinceHexes.get(pid) || [];
@@ -255,6 +318,8 @@
         ctx.stroke(path);
       }
     }
+
+    drawMutedOwnerEmblems(window.__MICRO_STATE__);
 
     if (mode === "province" && hoverProvId && visibleProvincePids.has(hoverProvId)) {
       for (const h of (effectiveProvinceHexes.get(hoverProvId) || [])) {
