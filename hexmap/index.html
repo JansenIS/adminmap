@@ -243,44 +243,132 @@
       for (const h of hexes) { sx += h.cx; sy += h.cy; }
       const cx = sx / hexes.length;
       const cy = sy / hexes.length;
-      src.push({ pid, x: (cx - vb0.x) / vb0.w, y: (cy - vb0.y) / vb0.h });
+      src.push({
+        pid,
+        x: (cx - vb0.x) / vb0.w,
+        y: (cy - vb0.y) / vb0.h,
+        area: hexes.length
+      });
     }
 
     const dstBase = (mainData.provinces || []).map((p) => ({
       pid: Number(p.pid),
       x: (Number(p.centroid?.[0]) || 0) / Number(mainData.image.width),
-      y: (Number(p.centroid?.[1]) || 0) / Number(mainData.image.height)
+      y: (Number(p.centroid?.[1]) || 0) / Number(mainData.image.height),
+      area: Math.max(1, Number(p.area_px) || 1)
     })).filter(p => p.pid > 0);
 
-    function assign(useFlipX) {
-      const dst = dstBase.map(d => ({...d, x: useFlipX ? (1 - d.x) : d.x }));
-      const pairs = [];
-      for (const s of src) {
-        for (const d of dst) {
-          const dx = s.x - d.x;
-          const dy = s.y - d.y;
-          pairs.push({ spid: s.pid, dpid: d.pid, dist: dx*dx + dy*dy });
+    const srcAreaMean = src.reduce((a, b) => a + b.area, 0) / Math.max(1, src.length);
+    const dstAreaMean = dstBase.reduce((a, b) => a + b.area, 0) / Math.max(1, dstBase.length);
+
+    function solveLinearSystem(mat, rhs) {
+      const n = rhs.length;
+      const a = mat.map((row, i) => [...row, rhs[i]]);
+      for (let c = 0; c < n; c++) {
+        let piv = c;
+        for (let r = c + 1; r < n; r++) if (Math.abs(a[r][c]) > Math.abs(a[piv][c])) piv = r;
+        if (Math.abs(a[piv][c]) < 1e-12) return null;
+        if (piv !== c) [a[c], a[piv]] = [a[piv], a[c]];
+        const div = a[c][c];
+        for (let j = c; j <= n; j++) a[c][j] /= div;
+        for (let r = 0; r < n; r++) {
+          if (r === c) continue;
+          const f = a[r][c];
+          if (!f) continue;
+          for (let j = c; j <= n; j++) a[r][j] -= f * a[c][j];
         }
       }
-      pairs.sort((a,b)=>a.dist-b.dist);
-      const usedS = new Set();
-      const usedD = new Set();
-      const out = new Map();
-      let cost = 0;
-      for (const p of pairs) {
-        if (usedS.has(p.spid) || usedD.has(p.dpid)) continue;
-        usedS.add(p.spid); usedD.add(p.dpid);
-        out.set(p.spid, p.dpid);
-        cost += p.dist;
-        if (out.size === Math.min(src.length, dst.length)) break;
-      }
-      return { out, meanCost: out.size ? cost / out.size : Number.POSITIVE_INFINITY, flipped: useFlipX };
+      return a.map(row => row[n]);
     }
 
-    const normal = assign(false);
-    const flipped = assign(true);
+    function fitAffine(matches, srcByPid, dstByPid) {
+      if (matches.length < 3) {
+        return {a:1,b:0,c:0,d:0,e:1,f:0};
+      }
+      const M = Array.from({length: 6}, () => Array(6).fill(0));
+      const B = Array(6).fill(0);
+
+      function acc(row, y) {
+        for (let i = 0; i < 6; i++) {
+          B[i] += row[i] * y;
+          for (let j = 0; j < 6; j++) M[i][j] += row[i] * row[j];
+        }
+      }
+
+      for (const m of matches) {
+        const s = srcByPid.get(m.spid);
+        const d = dstByPid.get(m.dpid);
+        if (!s || !d) continue;
+        const rx = [s.x, s.y, 1, 0, 0, 0];
+        const ry = [0, 0, 0, s.x, s.y, 1];
+        acc(rx, d.x);
+        acc(ry, d.y);
+      }
+
+      const sol = solveLinearSystem(M, B);
+      if (!sol) return {a:1,b:0,c:0,d:0,e:1,f:0};
+      return {a:sol[0], b:sol[1], c:sol[2], d:sol[3], e:sol[4], f:sol[5]};
+    }
+
+    function tx(p, t) {
+      return { x: t.a * p.x + t.b * p.y + t.c, y: t.d * p.x + t.e * p.y + t.f };
+    }
+
+    function assignOneToOne(srcList, dstList, transform) {
+      const pairs = [];
+      const areaWeight = 0.025;
+      for (const s of srcList) {
+        const st = tx(s, transform);
+        const sArea = Math.max(1, s.area / srcAreaMean);
+        for (const d of dstList) {
+          const dx = st.x - d.x;
+          const dy = st.y - d.y;
+          const dist = dx * dx + dy * dy;
+          const dArea = Math.max(1, d.area / dstAreaMean);
+          const areaPenalty = Math.abs(Math.log(sArea) - Math.log(dArea));
+          pairs.push({ spid: s.pid, dpid: d.pid, cost: dist + areaWeight * areaPenalty });
+        }
+      }
+      pairs.sort((a, b) => a.cost - b.cost);
+      const usedS = new Set();
+      const usedD = new Set();
+      const out = [];
+      let total = 0;
+      for (const p of pairs) {
+        if (usedS.has(p.spid) || usedD.has(p.dpid)) continue;
+        usedS.add(p.spid);
+        usedD.add(p.dpid);
+        out.push(p);
+        total += p.cost;
+        if (out.length === Math.min(srcList.length, dstList.length)) break;
+      }
+      return { matches: out, meanCost: out.length ? total / out.length : Number.POSITIVE_INFINITY };
+    }
+
+    function run(useFlipX) {
+      const srcList = src.map(s => ({ ...s, x: useFlipX ? (1 - s.x) : s.x }));
+      const dstList = dstBase.map(d => ({ ...d }));
+      const srcByPid = new Map(srcList.map(s => [s.pid, s]));
+      const dstByPid = new Map(dstList.map(d => [d.pid, d]));
+
+      let transform = {a:1,b:0,c:0,d:0,e:1,f:0};
+      let assn = {matches: [], meanCost: Number.POSITIVE_INFINITY};
+
+      for (let iter = 0; iter < 5; iter++) {
+        assn = assignOneToOne(srcList, dstList, transform);
+        transform = fitAffine(assn.matches, srcByPid, dstByPid);
+      }
+
+      const out = new Map();
+      for (const m of assn.matches) out.set(m.spid, m.dpid);
+      return { out, meanCost: assn.meanCost, flipped: useFlipX, transform };
+    }
+
+    const normal = run(false);
+    const flipped = run(true);
     return normal.meanCost <= flipped.meanCost ? normal : flipped;
   }
+
 
   function colorForProvince(pid) {
     return `hsl(${((pid * 137.508) % 360).toFixed(3)},60%,55%)`;
