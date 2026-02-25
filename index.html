@@ -25,6 +25,19 @@
     #baseMap { position:absolute; left:0; top:0; width:100%; height:100%; max-width:none; max-height:none; display:block; }
     canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
     #tooltip { position:fixed; z-index:50; pointer-events:none; background: rgba(13,19,27,0.92); border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; font-size:12px; color:#e7eef7; display:none; box-shadow: 0 8px 30px rgba(0,0,0,0.35); max-width: 360px; }
+    .province-modal { position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
+    .province-modal.open { display:flex; }
+    .province-modal__window { width:min(840px, 96vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
+    .province-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
+    .province-modal__content { padding:16px; clear:both; }
+    .province-modal__map-shot { width:100%; max-height:320px; object-fit:contain; border:1px solid #223041; border-radius:12px; background:#080c11; }
+    .province-modal__lineage { margin-top:14px; display:grid; gap:10px; }
+    .province-modal__lineage-item { display:flex; align-items:center; gap:10px; font-size:14px; }
+    .province-modal__lineage-item span { color:#a6b4c5; min-width:120px; }
+    .province-modal__herald { width:42px; height:42px; border-radius:8px; border:1px solid #2b3f56; background:#111923; object-fit:contain; }
+    .province-modal__header { margin-top:18px; display:flex; gap:12px; align-items:center; }
+    .province-modal__title { margin:0; font-size:28px; letter-spacing:0.08em; text-transform:uppercase; }
+    .province-modal__text { margin-top:16px; line-height:1.45; color:#d8e1ec; }
     .small { font-size:11px; color:#a6b4c5; line-height:1.35; margin-top:10px; }
     .hidden { display:none !important; }
   </style>
@@ -102,6 +115,25 @@
       </div>
       <div id="tooltip"></div>
     </main>
+  </div>
+
+  <div id="provinceModal" class="province-modal" aria-hidden="true">
+    <div class="province-modal__window" role="dialog" aria-modal="true" aria-label="Страница провинции">
+      <button id="provinceModalClose" class="province-modal__close" type="button" aria-label="Закрыть">×</button>
+      <div class="province-modal__content">
+        <img id="modalProvinceMapImage" class="province-modal__map-shot" alt="Изображение провинции" />
+        <div class="province-modal__lineage">
+          <div class="province-modal__lineage-item"><span>Королевство</span><img id="modalKingdomHerald" class="province-modal__herald" alt="Герб королевства" /><strong id="modalKingdomName">—</strong></div>
+          <div class="province-modal__lineage-item"><span>Большой Дом</span><img id="modalGreatHouseHerald" class="province-modal__herald" alt="Герб большого дома" /><strong id="modalGreatHouseName">—</strong></div>
+          <div class="province-modal__lineage-item"><span>Малый Дом / вассал</span><img id="modalMinorHouseHerald" class="province-modal__herald" alt="Герб малого дома" /><strong id="modalMinorHouseName">—</strong></div>
+        </div>
+        <div class="province-modal__header">
+          <img id="modalProvinceHerald" class="province-modal__herald" alt="Герб провинции" />
+          <h2 id="modalProvinceTitle" class="province-modal__title">—</h2>
+        </div>
+        <p class="province-modal__text">Здесь будет располагаться расширенное описание провинции. Заполните этот блок лором, историей, важными персонажами и текущими событиями.</p>
+      </div>
+    </div>
   </div>
 
   <script src="js/app_core.js"></script>
