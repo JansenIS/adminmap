@@ -99,8 +99,17 @@
     : data.provOffsets;
 
   const provinceById = new Map(data.provinces.map(p => [p.id, p]));
-  const hexByQR = new Map();
   const provinceHexes = new Map();
+
+
+  const spatialCell = HEX_SIZE * 2.4;
+  const hexSpatial = new Map();
+
+  function spatialKey(cx, cy) {
+    const gx = Math.floor(cx / spatialCell);
+    const gy = Math.floor(cy / spatialCell);
+    return `${gx},${gy}`;
+  }
 
   const realm = {
     kingdoms: new Map(),
@@ -162,9 +171,15 @@
       const h = data.hexes[po.start + i];
       const full = {...h, pid: po.id};
       list.push(full);
-      hexByQR.set(`${h.q},${h.r}`, full);
     }
     provinceHexes.set(po.id, list);
+  }
+
+
+  for (const h of data.hexes) {
+    const key = spatialKey(h.cx, h.cy);
+    if (!hexSpatial.has(key)) hexSpatial.set(key, []);
+    hexSpatial.get(key).push(h.id);
   }
 
   function colorForProvince(pid) {
@@ -243,19 +258,24 @@
   }
 
   function findHexAt(world) {
-    const approxQ = Math.round((world.x / (HEX_SIZE * 1.5)));
-    const approxR = Math.round((world.y - ((approxQ & 1) ? HEX_SIZE * SQRT3 / 2 : 0)) / (HEX_SIZE * SQRT3));
+    const gx = Math.floor(world.x / spatialCell);
+    const gy = Math.floor(world.y / spatialCell);
     let best = null;
     let bestD = Infinity;
 
-    for (let dq = -3; dq <= 3; dq++) {
-      for (let dr = -3; dr <= 3; dr++) {
-        const q = approxQ + dq;
-        const r = approxR + dr;
-        const cand = hexByQR.get(`${q},${r}`);
-        if (!cand) continue;
-        const d = (cand.cx - world.x) ** 2 + (cand.cy - world.y) ** 2;
-        if (d < bestD) { bestD = d; best = cand; }
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = hexSpatial.get(`${gx + dx},${gy + dy}`);
+        if (!bucket) continue;
+        for (const hid of bucket) {
+          const h = data.hexes[hid - 1];
+          if (!h) continue;
+          const d = (h.cx - world.x) ** 2 + (h.cy - world.y) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = h;
+          }
+        }
       }
     }
 
@@ -264,9 +284,7 @@
     const verts = verticesByHexId.get(best.id);
     if (verts && pointInPoly(world, verts)) return best;
 
-    // Fallback: if cursor is very close to center, still treat as hover.
-    // This avoids "dead" hover zones from coordinate rounding at some zooms.
-    const maxCenterDist = (HEX_SIZE * 1.2) ** 2;
+    const maxCenterDist = (HEX_SIZE * 1.35) ** 2;
     return bestD <= maxCenterDist ? best : null;
   }
 
@@ -281,6 +299,7 @@
   }
 
   let hoverHex = null;
+  let hoverProvId = null;
   let mode = 'hex';
 
   function render() {
@@ -325,7 +344,14 @@
       }
     }
 
-    if (hoverHex) {
+    if (mode === 'province' && hoverProvId && provinceHexes.has(hoverProvId)) {
+      for (const h of provinceHexes.get(hoverProvId)) {
+        const path = pathByHexId.get(h.id);
+        ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+        ctx.lineWidth = 0.45;
+        ctx.stroke(path);
+      }
+    } else if (hoverHex) {
       const path = pathByHexId.get(hoverHex.id);
       ctx.strokeStyle = 'rgba(0,0,0,0.95)';
       ctx.lineWidth = 0.6;
@@ -340,15 +366,16 @@
     const pid = hex.p ?? hex.pid;
     const p = provinceById.get(pid);
     const meta = realm.provinceMeta.get(pid);
+    if (!meta) { info.textContent = `Провинция: P${pid}`; return; }
     const k = realm.kingdoms.get(meta.kingdomId);
     const g = realm.greatHouses.get(meta.greatHouseId);
     const m = realm.minorHouses.get(meta.minorHouseId);
 
     if (mode === 'hex') {
-      info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nКоролевство: ${k.name}\nБольшой дом: ${g.name}\nМалый дом: ${m.name}`;
+      info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nКоролевство: ${k?.name ?? '-'}\nБольшой дом: ${g?.name ?? '-'}\nМалый дом: ${m?.name ?? '-'}`;
       return;
     }
-    info.textContent = `Провинция: P${pid}\nГексов: ${p?.hexCount ?? '-'}\nКоролевство: ${k.name}\nБольшой дом: ${g.name}\nМалый дом: ${m.name}`;
+    info.textContent = `Провинция: P${pid}\nГексов: ${p?.hexCount ?? provinceHexes.get(pid)?.length ?? '-'}\nКоролевство: ${k?.name ?? '-'}\nБольшой дом: ${g?.name ?? '-'}\nМалый дом: ${m?.name ?? '-'}`;
   }
 
   let isPanning = false;
@@ -369,12 +396,14 @@
     }
     const hex = findHexAt(world);
     hoverHex = hex;
+    hoverProvId = hex ? (hex.p ?? hex.pid) : null;
     setInfo(hex);
     render();
   });
 
   canvas.addEventListener('mouseleave', () => {
     hoverHex = null;
+    hoverProvId = null;
     setInfo(null);
     render();
   });
@@ -408,6 +437,7 @@
   document.querySelectorAll('input[name="mode"]').forEach(r => {
     r.addEventListener('change', () => {
       mode = document.querySelector('input[name="mode"]:checked').value;
+      hoverProvId = hoverHex ? (hoverHex.p ?? hoverHex.pid) : null;
       if (hoverHex) setInfo(hoverHex);
     });
   });
