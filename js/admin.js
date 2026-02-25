@@ -76,6 +76,11 @@
   const emblemFile = el("emblemFile");
   const emblemPreviewImg = el("emblemPreviewImg");
   const emblemPreviewEmpty = el("emblemPreviewEmpty");
+  const uploadProvinceImageBtn = el("uploadProvinceImageBtn");
+  const buildProvinceImageBtn = el("buildProvinceImageBtn");
+  const provinceImageFile = el("provinceImageFile");
+  const provinceCardPreviewImg = el("provinceCardPreviewImg");
+  const provinceCardPreviewEmpty = el("provinceCardPreviewEmpty");
 
   alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
@@ -95,6 +100,25 @@
   const selectedKeys = new Set();
   const keyByPid = new Map();
   const pidByKey = new Map();
+  const hexmapData = window.HEXMAP || null;
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Не удалось загрузить изображение"));
+      img.src = src;
+    });
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+      reader.readAsDataURL(file);
+    });
+  }
 
   function isPlainObject(value) {
     return !!value && typeof value === "object" && !Array.isArray(value);
@@ -157,12 +181,105 @@
   function rebuildTerrainSelect() { const list = Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK; const cur = terrainSelect.value || ""; terrainSelect.innerHTML = ""; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; terrainSelect.appendChild(o0); for (const t of list) { const o = document.createElement("option"); o.value = t; o.textContent = t; terrainSelect.appendChild(o); } terrainSelect.value = cur; }
 
   function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
+  function setProvinceCardPreview(pd) { const src = String((pd && (pd.province_card_image || pd.province_card_base_image)) || "").trim(); if (src) { provinceCardPreviewImg.src = src; provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
+  function getProvinceOwnerColor(pd) {
+    if (pd && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length >= 3) return [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0];
+    if (pd && pd.kingdom_id) {
+      const realm = realmBucketByType("kingdoms")[pd.kingdom_id];
+      if (realm && realm.color) return MapUtils.hexToRgb(realm.color);
+    }
+    return [90, 117, 146];
+  }
+  function getHexesForProvincePid(pid) {
+    if (!hexmapData || !Array.isArray(hexmapData.hexes)) return [];
+    const p = Number(pid) >>> 0;
+    return hexmapData.hexes.filter(h => (Number(h.p) >>> 0) === p);
+  }
+  async function composeProvinceCardImage(pd) {
+    const baseSrc = String(pd && pd.province_card_base_image || "").trim();
+    if (!baseSrc) throw new Error("Сначала загрузи фон карточки провинции");
+    const baseImg = await loadImage(baseSrc);
+    const w = Math.max(1, baseImg.naturalWidth || baseImg.width || 1);
+    const h = Math.max(1, baseImg.naturalHeight || baseImg.height || 1);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas не инициализирован");
+    ctx.drawImage(baseImg, 0, 0, w, h);
+
+    const kingdom = pd && pd.kingdom_id ? realmBucketByType("kingdoms")[pd.kingdom_id] : null;
+    const kingdomSrc = emblemSourceToDataUri(kingdom && kingdom.emblem_svg);
+    if (kingdomSrc) {
+      try {
+        const kimg = await loadImage(kingdomSrc);
+        const size = Math.round(Math.min(w, h) * 0.22);
+        const m = Math.round(Math.min(w, h) * 0.04);
+        ctx.drawImage(kimg, m, m, size, size);
+      } catch (_) {}
+    }
+
+    const boxSize = Math.round(Math.min(w, h) * 0.34);
+    const margin = Math.round(Math.min(w, h) * 0.04);
+    const boxX = w - boxSize - margin;
+    const boxY = h - boxSize - margin;
+    ctx.fillStyle = "rgba(8,12,17,0.8)";
+    ctx.strokeStyle = "rgba(43,63,86,0.9)";
+    ctx.lineWidth = Math.max(1, Math.round(boxSize * 0.01));
+    ctx.fillRect(boxX, boxY, boxSize, boxSize);
+    ctx.strokeRect(boxX, boxY, boxSize, boxSize);
+
+    const hexes = getHexesForProvincePid(pd.pid);
+    if (hexes.length) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const hex of hexes) {
+        minX = Math.min(minX, Number(hex.cx) - 1.2 * Number(hexmapData.hexSize || 1));
+        minY = Math.min(minY, Number(hex.cy) - 1.2 * Number(hexmapData.hexSize || 1));
+        maxX = Math.max(maxX, Number(hex.cx) + 1.2 * Number(hexmapData.hexSize || 1));
+        maxY = Math.max(maxY, Number(hex.cy) + 1.2 * Number(hexmapData.hexSize || 1));
+      }
+      const pw = Math.max(1, maxX - minX);
+      const ph = Math.max(1, maxY - minY);
+      const scale = Math.min((boxSize * 0.84) / pw, (boxSize * 0.84) / ph);
+      const ox = boxX + (boxSize - pw * scale) * 0.5 - minX * scale;
+      const oy = boxY + (boxSize - ph * scale) * 0.5 - minY * scale;
+      const [fr, fg, fb] = getProvinceOwnerColor(pd);
+      const r = Number(hexmapData.hexSize || 1) * scale;
+      ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
+      ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      for (const hex of hexes) {
+        const cx = Number(hex.cx) * scale + ox;
+        const cy = Number(hex.cy) * scale + oy;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 180) * (60 * i);
+          const x = cx + r * Math.cos(a);
+          const y = cy + r * Math.sin(a);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    const provEmblemSrc = emblemSourceToDataUri(pd && pd.emblem_svg);
+    if (provEmblemSrc) {
+      try {
+        const pimg = await loadImage(provEmblemSrc);
+        const es = Math.round(boxSize * 0.34);
+        ctx.drawImage(pimg, boxX + boxSize - es - Math.round(boxSize * 0.06), boxY + boxSize - es - Math.round(boxSize * 0.06), es, es);
+      } catch (_) {}
+    }
+
+    return canvas.toDataURL("image/png");
+  }
 
   function setSelection(key, meta) {
     selectedKey = key >>> 0;
     const pd = getProvData(selectedKey);
     multiSelCount.textContent = String(selectedKeys.size || (selectedKey ? 1 : 0));
-    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainSelect.value = ""; seniorSelect.value = ""; Array.from(vassalsSelect.options).forEach(o => o.selected = false); terrainSelect.value = ""; setEmblemPreview(null); return; }
+    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainSelect.value = ""; seniorSelect.value = ""; Array.from(vassalsSelect.options).forEach(o => o.selected = false); terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
     selName.textContent = pd.name || (meta && meta.name) || "—"; selPid.textContent = String(pd.pid ?? (meta ? meta.pid : "—")); selKey.textContent = String(selectedKey);
     provNameInput.value = pd.name || ""; ownerInput.value = pd.owner || "";
     if (pd.owner) ensurePerson(pd.owner); if (pd.suzerain) ensurePerson(pd.suzerain); if (pd.senior) ensurePerson(pd.senior); if (Array.isArray(pd.vassals)) for (const v of pd.vassals) ensurePerson(v);
@@ -170,9 +287,10 @@
     const vset = new Set(Array.isArray(pd.vassals) ? pd.vassals : []); for (const opt of vassalsSelect.options) opt.selected = vset.has(opt.value);
     if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
+    setProvinceCardPreview(pd);
   }
 
-  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); selName.textContent = pd.name || selName.textContent; }
+  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
 
@@ -805,6 +923,40 @@
     emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const safeSvg = sanitizeSvgText(text); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = safeSvg; pd.emblem_box = extractSvgBox(safeSvg); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
     removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
 
+    if (uploadProvinceImageBtn) uploadProvinceImageBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); provinceImageFile.click(); });
+    if (provinceImageFile) provinceImageFile.addEventListener("change", async () => {
+      const file = provinceImageFile.files && provinceImageFile.files[0];
+      provinceImageFile.value = "";
+      if (!file || !selectedKey) return;
+      const pd = getProvData(selectedKey);
+      if (!pd) return;
+      pd.province_card_base_image = await fileToDataUrl(file);
+      if (typeof pd.province_card_image !== "string") pd.province_card_image = "";
+      setProvinceCardPreview(pd);
+      exportStateToTextarea();
+    });
+    if (buildProvinceImageBtn) buildProvinceImageBtn.addEventListener("click", async () => {
+      if (!selectedKey) return alert("Сначала выбери провинцию.");
+      const pd = getProvData(selectedKey);
+      if (!pd) return;
+      try {
+        const cardDataUrl = await composeProvinceCardImage(pd);
+        const fileName = `province_${String(pd.pid || selectedKey).padStart(4, "0")}.png`;
+        pd.province_card_image = `provinces/${fileName}`;
+        setProvinceCardPreview(pd);
+        exportStateToTextarea();
+        const res = await fetch(SAVE_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json;charset=utf-8" },
+          body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value), province_cards: { [String(pd.pid)]: cardDataUrl } })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        alert("Карточка провинции собрана и сохранена в папку provinces.");
+      } catch (err) {
+        alert("Не удалось собрать карточку: " + (err && err.message ? err.message : err));
+      }
+    });
+
     provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
     suzerainSelect.addEventListener("change", saveProvinceFieldsFromUI); seniorSelect.addEventListener("change", saveProvinceFieldsFromUI); vassalsSelect.addEventListener("change", saveProvinceFieldsFromUI); terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
   }
@@ -828,7 +980,7 @@
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
     obj.people = normalizePeopleList(obj.people || []); if (!Array.isArray(obj.terrain_types)) obj.terrain_types = TERRAIN_TYPES_FALLBACK.slice();
-    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; }
+    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
     normalizeStoredEmblems(obj);
