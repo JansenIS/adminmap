@@ -311,13 +311,19 @@
     setModalHerald(modalGreatHouseHerald, emblemSourceToDataUri(greatHouse && greatHouse.emblem_svg), "Герб большого дома");
     setModalHerald(modalMinorHouseHerald, emblemSourceToDataUri(minorHouse.emblemSvg), "Герб малого дома");
 
-    const maskedDataUri = await buildProvinceMaskedImage(map, key);
-    if (maskedDataUri) {
-      modalProvinceMapImage.src = maskedDataUri;
+    const savedCardImage = String(pd.province_card_image || "").trim();
+    if (savedCardImage) {
+      modalProvinceMapImage.src = savedCardImage;
       modalProvinceMapImage.style.visibility = "visible";
     } else {
-      modalProvinceMapImage.removeAttribute("src");
-      modalProvinceMapImage.style.visibility = "hidden";
+      const maskedDataUri = await buildProvinceMaskedImage(map, key);
+      if (maskedDataUri) {
+        modalProvinceMapImage.src = maskedDataUri;
+        modalProvinceMapImage.style.visibility = "visible";
+      } else {
+        modalProvinceMapImage.removeAttribute("src");
+        modalProvinceMapImage.style.visibility = "hidden";
+      }
     }
 
     provinceModal.classList.add("open");
@@ -347,7 +353,7 @@
   async function loadState(url) {
     const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
-    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; }
+    for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
     return obj;

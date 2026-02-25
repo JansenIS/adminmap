@@ -17,6 +17,12 @@ declare(strict_types=1);
 
 header("Content-Type: text/plain; charset=utf-8");
 
+function decode_data_url_png(string $src): ?string {
+  if (!preg_match('#^data:image/(png|webp|jpeg|jpg);base64,(.+)$#i', $src, $m)) return null;
+  $raw = base64_decode($m[2], true);
+  return ($raw === false || $raw === "") ? null : $raw;
+}
+
 $raw = file_get_contents("php://input");
 if ($raw === false || $raw === "") {
   http_response_code(400);
@@ -82,6 +88,31 @@ if (!rename($tmpPath, $outPath)) {
   http_response_code(500);
   echo "Rename failed";
   exit;
+}
+
+$provinceCards = $data["province_cards"] ?? null;
+if (is_array($provinceCards)) {
+  $provincesDir = __DIR__ . DIRECTORY_SEPARATOR . "provinces";
+  if (!is_dir($provincesDir) && !mkdir($provincesDir, 0775, true) && !is_dir($provincesDir)) {
+    http_response_code(500);
+    echo "Cannot create provinces dir";
+    exit;
+  }
+  foreach ($provinceCards as $pidRaw => $dataUrl) {
+    $pid = (int)$pidRaw;
+    if ($pid <= 0 || !is_string($dataUrl) || $dataUrl === "") continue;
+    $bytes = decode_data_url_png($dataUrl);
+    if ($bytes === null) continue;
+    $name = sprintf("province_%04d.png", $pid);
+    $path = $provincesDir . DIRECTORY_SEPARATOR . $name;
+    $tmp = $path . ".tmp";
+    if (file_put_contents($tmp, $bytes) === false || !rename($tmp, $path)) {
+      @unlink($tmp);
+      http_response_code(500);
+      echo "Failed to write province card";
+      exit;
+    }
+  }
 }
 
 echo "OK";
