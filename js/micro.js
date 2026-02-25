@@ -36,12 +36,15 @@
   const selectedProvincePids = new Set();
   const neighborProvincePids = new Set();
   const visibleProvincePids = new Set();
+  const originalProvinceHexes = new Map();
   const effectiveProvinceHexes = new Map();
   const pathByHexId = new Map();
   const verticesByHexId = new Map();
   const coordToHex = new Map();
   const hexSpatial = new Map();
   const spatialCell = HEX_SIZE * 2.4;
+  const emblemImageCache = new Map();
+  const emblemImagePending = new Set();
 
   function spatialKey(cx, cy) {
     return `${Math.floor(cx / spatialCell)},${Math.floor(cy / spatialCell)}`;
@@ -71,18 +74,99 @@
     hexSpatial.get(bucketKey).push(h);
   }
 
+  function getOwnerInfo(pid, state) {
+    const pd = realmByProvince.get(pid) || {};
+    if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
+      const owner = state.free_cities[pd.free_city_id];
+      return { kind: "free_city", id: pd.free_city_id, name: owner.name || pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+    }
+    if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]) {
+      const owner = state.kingdoms[pd.kingdom_id];
+      return { kind: "kingdom", id: pd.kingdom_id, name: owner.name || pd.kingdom_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+    }
+    return { kind: "none", id: "", name: "", color: "#778193", emblemSvg: "", emblemBox: null, emblemScale: 1 };
+  }
+
+  function mutedColor(hexColor) {
+    if (typeof hexColor !== "string") return "#435063";
+    const m = hexColor.trim().match(/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+    if (!m) return hexColor;
+    const bg = [16, 24, 35];
+    const rgb = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+    const mix = rgb.map((v, i) => Math.round(v * 0.3 + bg[i] * 0.7));
+    return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+  }
+
   function colorForPid(pid, state) {
     if (selectedProvincePids.has(pid)) return BEIGE;
-    const pd = realmByProvince.get(pid);
-    if (!pd) return "#778193";
-    if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]?.color) return state.free_cities[pd.free_city_id].color;
-    if (pd.kingdom_id && state.kingdoms && state.kingdoms[pd.kingdom_id]?.color) return state.kingdoms[pd.kingdom_id].color;
-    return "#778193";
+    const owner = getOwnerInfo(pid, state);
+    return mutedColor(owner.color);
+  }
+
+
+  function normalizeEmblemSource(src) {
+    if (!src || typeof src !== "string") return "";
+    const v = src.trim();
+    if (!v) return "";
+    if (/^data:image\//i.test(v) || /^blob:/i.test(v) || /^https?:/i.test(v)) return v;
+    if (v.startsWith("<?xml") || v.startsWith("<svg")) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(v)}`;
+    const compact = v.replace(/\s+/g, "");
+    if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length > 64) return `data:image/svg+xml;base64,${compact}`;
+    return "";
+  }
+
+  function requestEmblemImage(key, emblemSvg) {
+    const source = normalizeEmblemSource(emblemSvg);
+    if (!source || emblemImageCache.has(key) || emblemImagePending.has(key)) return;
+    emblemImagePending.add(key);
+    const img = new Image();
+    img.onload = () => {
+      emblemImagePending.delete(key);
+      emblemImageCache.set(key, img);
+      render();
+    };
+    img.onerror = () => {
+      emblemImagePending.delete(key);
+      emblemImageCache.set(key, null);
+    };
+    img.src = source;
+  }
+
+
+  function ownerLabelForPid(pid, state) {
+    const pd = realmByProvince.get(pid) || {};
+    if (pd.free_city_id) {
+      const name = state?.free_cities?.[pd.free_city_id]?.name || pd.free_city_id;
+      return `Территория: ${name}`;
+    }
+    if (pd.kingdom_id) {
+      const name = state?.kingdoms?.[pd.kingdom_id]?.name || pd.kingdom_id;
+      return `Королевство: ${name}`;
+    }
+    return "Королевство: -";
   }
 
   function effectivePidFor(pid) {
     return pidRemap.get(pid) ?? pid;
   }
+
+  function effectivePidForHex(hex) {
+    return hex?.effectivePid ?? effectivePidFor(hex?.p);
+  }
+
+  function rebuildEffectiveProvinceHexes() {
+    effectiveProvinceHexes.clear();
+    for (const [sourcePid, list] of originalProvinceHexes.entries()) {
+      const dstPid = effectivePidFor(sourcePid);
+      if (!effectiveProvinceHexes.has(dstPid)) effectiveProvinceHexes.set(dstPid, []);
+      const bucket = effectiveProvinceHexes.get(dstPid);
+      for (const h of list) {
+        h.effectivePid = dstPid;
+        bucket.push(h);
+      }
+    }
+  }
+
 
   function pointInPoly(pt, poly) {
     let c = false;
@@ -124,10 +208,9 @@
       info.textContent = "";
       return;
     }
-    const pid = effectivePidFor(hex.p);
+    const pid = effectivePidForHex(hex);
     const p = provinceById.get(pid);
-    const pd = realmByProvince.get(pid);
-    const ownerLabel = pd?.free_city_id ? `Территория: ${pd.free_city_id}` : `Королевство: ${pd?.kingdom_id || "-"}`;
+    const ownerLabel = ownerLabelForPid(pid, window.__MICRO_STATE__);
 
     if (mode === "hex") {
       info.textContent = `Провинция: P${pid}\nГекс: #${hex.n}\nAxial: q=${hex.q}, r=${hex.r}\nGlobal ID: ${hex.id}\nSource PID: P${hex.p}\n${ownerLabel}`;
@@ -191,6 +274,69 @@
     };
   }
 
+
+  function drawMutedOwnerEmblems(state) {
+    const groups = new Map();
+
+    for (const pid of visibleProvincePids) {
+      if (selectedProvincePids.has(pid)) continue;
+      const owner = getOwnerInfo(pid, state);
+      if (owner.kind === "none" || !owner.emblemSvg) continue;
+      const key = `${owner.kind}:${owner.id}`;
+      if (!groups.has(key)) groups.set(key, { owner, hexes: [] });
+      groups.get(key).hexes.push(...(effectiveProvinceHexes.get(pid) || []));
+    }
+
+    for (const [key, group] of groups.entries()) {
+      const { owner, hexes } = group;
+      if (!hexes.length) continue;
+
+      requestEmblemImage(key, owner.emblemSvg);
+      const img = emblemImageCache.get(key);
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      ctx.save();
+      ctx.beginPath();
+      let pathStarted = false;
+      for (const h of hexes) {
+        const verts = verticesByHexId.get(h.id);
+        if (!verts || !verts.length) continue;
+        ctx.moveTo(verts[0][0], verts[0][1]);
+        for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i][0], verts[i][1]);
+        ctx.closePath();
+        pathStarted = true;
+        minX = Math.min(minX, h.cx - HEX_SIZE * 1.05);
+        minY = Math.min(minY, h.cy - HEX_SIZE * 1.05);
+        maxX = Math.max(maxX, h.cx + HEX_SIZE * 1.05);
+        maxY = Math.max(maxY, h.cy + HEX_SIZE * 1.05);
+      }
+      if (!pathStarted || !isFinite(minX) || maxX <= minX || maxY <= minY) {
+        ctx.restore();
+        continue;
+      }
+
+      const bw = maxX - minX;
+      const bh = maxY - minY;
+      const boxW = Number(owner.emblemBox?.[0]) || Number(owner.emblemBox?.w) || Math.max(1, img?.width || 1);
+      const boxH = Number(owner.emblemBox?.[1]) || Number(owner.emblemBox?.h) || Math.max(1, img?.height || 1);
+      const fitScale = Math.max(bw / boxW, bh / boxH) * Math.max(0.2, Math.min(3, owner.emblemScale || 1));
+      const dw = boxW * fitScale;
+      const dh = boxH * fitScale;
+      const dx = minX + (bw - dw) * 0.5;
+      const dy = minY + (bh - dh) * 0.5;
+
+      if (!img) {
+        ctx.restore();
+        continue;
+      }
+      ctx.clip();
+      ctx.globalAlpha = 0.72;
+      ctx.drawImage(img, dx, dy, dw, dh);
+      ctx.restore();
+    }
+  }
+
+
   function collectNeighborProvincePids() {
     for (const pid of selectedProvincePids) {
       const list = effectiveProvinceHexes.get(pid) || [];
@@ -199,7 +345,7 @@
         for (const [dq, dr] of offsets) {
           const nh = coordToHex.get(`${h.q + dq},${h.r + dr}`);
           if (!nh) continue;
-          const npid = effectivePidFor(nh.p);
+          const npid = effectivePidForHex(nh);
           if (npid === pid) continue;
           if (!selectedProvincePids.has(npid)) neighborProvincePids.add(npid);
         }
@@ -237,6 +383,8 @@
       }
     }
 
+    drawMutedOwnerEmblems(window.__MICRO_STATE__);
+
     if (mode === "province" && hoverProvId && visibleProvincePids.has(hoverProvId)) {
       for (const h of (effectiveProvinceHexes.get(hoverProvId) || [])) {
         const path = pathByHexId.get(h.id);
@@ -244,7 +392,7 @@
         ctx.lineWidth = 0.45;
         ctx.stroke(path);
       }
-    } else if (hoverHex && visibleProvincePids.has(effectivePidFor(hoverHex.p))) {
+    } else if (hoverHex && visibleProvincePids.has(effectivePidForHex(hoverHex))) {
       const path = pathByHexId.get(hoverHex.id);
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 0.6;
@@ -275,24 +423,27 @@
       ? data.provinces.map((p, i) => ({ id: p.id, start: data.provOffsets[i], count: data.provOffsets[i + 1] - data.provOffsets[i] }))
       : data.provOffsets;
 
+    originalProvinceHexes.clear();
     for (const po of provRecords) {
       const list = [];
       for (let i = 0; i < po.count; i++) {
-        const h = data.hexes[po.start + i];
-        list.push(h);
+        const sourceHex = data.hexes[po.start + i];
+        list.push({ ...sourceHex, p: po.id, effectivePid: po.id });
       }
-      const effectivePid = effectivePidFor(po.id);
-      if (!effectiveProvinceHexes.has(effectivePid)) effectiveProvinceHexes.set(effectivePid, []);
-      effectiveProvinceHexes.get(effectivePid).push(...list);
+      originalProvinceHexes.set(po.id, list);
     }
+    rebuildEffectiveProvinceHexes();
 
+    realmByProvince.clear();
+    for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
+      const pid = Number(pidRaw);
+      if (pid > 0) realmByProvince.set(pid, pd || {});
+    }
     for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
       const sourcePid = Number(pidRaw);
       if (!(sourcePid > 0)) continue;
       const effectivePid = effectivePidFor(sourcePid);
-      if (!realmByProvince.has(effectivePid) || effectivePid === sourcePid) {
-        realmByProvince.set(effectivePid, pd || {});
-      }
+      if (!realmByProvince.has(effectivePid)) realmByProvince.set(effectivePid, pd || {});
     }
 
     for (const pid of effectiveProvinceHexes.keys()) {
@@ -334,8 +485,8 @@
     }
 
     hoverHex = findHexAt(world);
-    if (hoverHex && !visibleProvincePids.has(effectivePidFor(hoverHex.p))) hoverHex = null;
-    hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
+    if (hoverHex && !visibleProvincePids.has(effectivePidForHex(hoverHex))) hoverHex = null;
+    hoverProvId = hoverHex ? effectivePidForHex(hoverHex) : null;
     setInfo(hoverHex);
     render();
   });
@@ -376,7 +527,7 @@
   document.querySelectorAll('input[name="mode"]').forEach(r => {
     r.addEventListener("change", () => {
       mode = document.querySelector('input[name="mode"]:checked').value;
-      hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
+      hoverProvId = hoverHex ? effectivePidForHex(hoverHex) : null;
       if (hoverHex) setInfo(hoverHex);
       render();
     });
