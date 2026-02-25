@@ -98,11 +98,15 @@
 
       const loopAt = chainIndex.get(cur);
       if (loopAt !== undefined) {
-        const cycle = chain.slice(loopAt);
-        const canonical = Math.min(...cycle);
-        for (const item of cycle) pidResolved.set(item, canonical);
-        for (let i = 0; i < loopAt; i++) pidResolved.set(chain[i], canonical);
-        return canonical;
+        for (let i = loopAt; i < chain.length; i++) {
+          const node = chain[i];
+          pidResolved.set(node, pidRemap.get(node) ?? node);
+        }
+        for (let i = loopAt - 1; i >= 0; i--) {
+          const node = chain[i];
+          pidResolved.set(node, pidResolved.get(chain[i + 1]));
+        }
+        return pidResolved.get(pid);
       }
 
       chainIndex.set(cur, chain.length);
