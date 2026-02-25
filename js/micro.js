@@ -260,35 +260,54 @@
   }
 
   function drawMutedOwnerEmblems(state) {
+    const groups = new Map();
+
     for (const pid of visibleProvincePids) {
       if (selectedProvincePids.has(pid)) continue;
-      const list = effectiveProvinceHexes.get(pid) || [];
-      if (!list.length) continue;
       const owner = getOwnerInfo(pid, state);
-      if (!owner.emblemSvg) continue;
+      if (!owner.emblemSvg || owner.kind === "none") continue;
       const key = `${owner.kind}:${owner.id}`;
+      if (!groups.has(key)) groups.set(key, { owner, hexes: [] });
+      groups.get(key).hexes.push(...(effectiveProvinceHexes.get(pid) || []));
+    }
+
+    for (const [key, group] of groups.entries()) {
+      const { owner, hexes } = group;
+      if (!hexes.length) continue;
+
       requestEmblemImage(key, owner.emblemSvg);
       const img = emblemImageCache.get(key);
       if (!img) continue;
 
-      let sx = 0, sy = 0;
-      for (const h of list) { sx += h.cx; sy += h.cy; }
-      const cx = sx / list.length;
-      const cy = sy / list.length;
-      const radius = Math.max(2.8, Math.min(9.5, Math.sqrt(list.length) * HEX_SIZE * 0.85));
-      const size = radius * 2;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      const clipPath = new Path2D();
+      for (const h of hexes) {
+        const p = pathByHexId.get(h.id);
+        if (!p) continue;
+        clipPath.addPath(p);
+        minX = Math.min(minX, h.cx - HEX_SIZE * 1.05);
+        minY = Math.min(minY, h.cy - HEX_SIZE * 1.05);
+        maxX = Math.max(maxX, h.cx + HEX_SIZE * 1.05);
+        maxY = Math.max(maxY, h.cy + HEX_SIZE * 1.05);
+      }
+      if (!isFinite(minX) || maxX <= minX || maxY <= minY) continue;
+
+      const bw = maxX - minX;
+      const bh = maxY - minY;
+      const scale = Math.max(bw / Math.max(1, img.width), bh / Math.max(1, img.height));
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const dx = minX + (bw - dw) * 0.5;
+      const dy = minY + (bh - dh) * 0.5;
 
       ctx.save();
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 0.72, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 0.9;
-      ctx.drawImage(img, cx - size * 0.5, cy - size * 0.5, size, size);
+      ctx.clip(clipPath);
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(img, dx, dy, dw, dh);
       ctx.restore();
     }
   }
+
 
   function collectNeighborProvincePids() {
     for (const pid of selectedProvincePids) {
