@@ -33,10 +33,10 @@
   const provinceById = new Map(data.provinces.map(p => [p.id, p]));
   const realmByProvince = new Map();
   const pidRemap = new Map();
-  const pidResolved = new Map();
   const selectedProvincePids = new Set();
   const neighborProvincePids = new Set();
   const visibleProvincePids = new Set();
+  const originalProvinceHexes = new Map();
   const effectiveProvinceHexes = new Map();
   const pathByHexId = new Map();
   const verticesByHexId = new Map();
@@ -82,41 +82,26 @@
   }
 
   function effectivePidFor(pid) {
-    if (!(pid > 0)) return pid;
-    if (pidResolved.has(pid)) return pidResolved.get(pid);
-
-    const chain = [];
-    const chainIndex = new Map();
-    let cur = pid;
-
-    while (pidRemap.has(cur)) {
-      if (pidResolved.has(cur)) {
-        const resolved = pidResolved.get(cur);
-        for (const item of chain) pidResolved.set(item, resolved);
-        return resolved;
-      }
-
-      const loopAt = chainIndex.get(cur);
-      if (loopAt !== undefined) {
-        for (let i = loopAt; i < chain.length; i++) {
-          const node = chain[i];
-          pidResolved.set(node, pidRemap.get(node) ?? node);
-        }
-        for (let i = loopAt - 1; i >= 0; i--) {
-          const node = chain[i];
-          pidResolved.set(node, pidResolved.get(chain[i + 1]));
-        }
-        return pidResolved.get(pid);
-      }
-
-      chainIndex.set(cur, chain.length);
-      chain.push(cur);
-      cur = pidRemap.get(cur);
-    }
-
-    for (const item of chain) pidResolved.set(item, cur);
-    return cur;
+    return pidRemap.get(pid) ?? pid;
   }
+
+  function effectivePidForHex(hex) {
+    return hex?.effectivePid ?? effectivePidFor(hex?.p);
+  }
+
+  function rebuildEffectiveProvinceHexes() {
+    effectiveProvinceHexes.clear();
+    for (const [sourcePid, list] of originalProvinceHexes.entries()) {
+      const dstPid = effectivePidFor(sourcePid);
+      if (!effectiveProvinceHexes.has(dstPid)) effectiveProvinceHexes.set(dstPid, []);
+      const bucket = effectiveProvinceHexes.get(dstPid);
+      for (const h of list) {
+        h.effectivePid = dstPid;
+        bucket.push(h);
+      }
+    }
+  }
+
 
   function pointInPoly(pt, poly) {
     let c = false;
@@ -158,7 +143,7 @@
       info.textContent = "";
       return;
     }
-    const pid = effectivePidFor(hex.p);
+    const pid = effectivePidForHex(hex);
     const p = provinceById.get(pid);
     const pd = realmByProvince.get(pid);
     const ownerLabel = pd?.free_city_id ? `Территория: ${pd.free_city_id}` : `Королевство: ${pd?.kingdom_id || "-"}`;
@@ -233,7 +218,7 @@
         for (const [dq, dr] of offsets) {
           const nh = coordToHex.get(`${h.q + dq},${h.r + dr}`);
           if (!nh) continue;
-          const npid = effectivePidFor(nh.p);
+          const npid = effectivePidForHex(nh);
           if (npid === pid) continue;
           if (!selectedProvincePids.has(npid)) neighborProvincePids.add(npid);
         }
@@ -278,7 +263,7 @@
         ctx.lineWidth = 0.45;
         ctx.stroke(path);
       }
-    } else if (hoverHex && visibleProvincePids.has(effectivePidFor(hoverHex.p))) {
+    } else if (hoverHex && visibleProvincePids.has(effectivePidForHex(hoverHex))) {
       const path = pathByHexId.get(hoverHex.id);
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 0.6;
@@ -298,7 +283,6 @@
         const dst = Number(dstRaw);
         if (src > 0 && dst > 0 && src !== dst) pidRemap.set(src, dst);
       }
-      pidResolved.clear();
     }
 
     const resp = await fetch("data/map_state.json", { cache: "no-store" });
@@ -310,24 +294,27 @@
       ? data.provinces.map((p, i) => ({ id: p.id, start: data.provOffsets[i], count: data.provOffsets[i + 1] - data.provOffsets[i] }))
       : data.provOffsets;
 
+    originalProvinceHexes.clear();
     for (const po of provRecords) {
       const list = [];
       for (let i = 0; i < po.count; i++) {
-        const h = data.hexes[po.start + i];
-        list.push(h);
+        const sourceHex = data.hexes[po.start + i];
+        list.push({ ...sourceHex, p: po.id, effectivePid: po.id });
       }
-      const effectivePid = effectivePidFor(po.id);
-      if (!effectiveProvinceHexes.has(effectivePid)) effectiveProvinceHexes.set(effectivePid, []);
-      effectiveProvinceHexes.get(effectivePid).push(...list);
+      originalProvinceHexes.set(po.id, list);
     }
+    rebuildEffectiveProvinceHexes();
 
+    realmByProvince.clear();
+    for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
+      const pid = Number(pidRaw);
+      if (pid > 0) realmByProvince.set(pid, pd || {});
+    }
     for (const [pidRaw, pd] of Object.entries(state.provinces || {})) {
       const sourcePid = Number(pidRaw);
       if (!(sourcePid > 0)) continue;
       const effectivePid = effectivePidFor(sourcePid);
-      if (!realmByProvince.has(effectivePid) || effectivePid === sourcePid) {
-        realmByProvince.set(effectivePid, pd || {});
-      }
+      if (!realmByProvince.has(effectivePid)) realmByProvince.set(effectivePid, pd || {});
     }
 
     for (const pid of effectiveProvinceHexes.keys()) {
@@ -369,8 +356,8 @@
     }
 
     hoverHex = findHexAt(world);
-    if (hoverHex && !visibleProvincePids.has(effectivePidFor(hoverHex.p))) hoverHex = null;
-    hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
+    if (hoverHex && !visibleProvincePids.has(effectivePidForHex(hoverHex))) hoverHex = null;
+    hoverProvId = hoverHex ? effectivePidForHex(hoverHex) : null;
     setInfo(hoverHex);
     render();
   });
@@ -411,7 +398,7 @@
   document.querySelectorAll('input[name="mode"]').forEach(r => {
     r.addEventListener("change", () => {
       mode = document.querySelector('input[name="mode"]:checked').value;
-      hoverProvId = hoverHex ? effectivePidFor(hoverHex.p) : null;
+      hoverProvId = hoverHex ? effectivePidForHex(hoverHex) : null;
       if (hoverHex) setInfo(hoverHex);
       render();
     });
