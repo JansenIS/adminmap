@@ -21,6 +21,14 @@
   const query = new URLSearchParams(window.location.search);
   const selectedKind = query.get("kind") || "kingdom";
   const selectedId = query.get("id") || "";
+  const isGreatHouseMode = selectedKind === "great_house";
+
+  const LABELS = {
+    great_house: "Большой Дом",
+    free_city: "Территория",
+    kingdom: "Королевство"
+  };
+
 
   let dpr = window.devicePixelRatio || 1;
   let viewport = { scale: 1, ox: 0, oy: 0 };
@@ -76,6 +84,10 @@
 
   function getOwnerInfo(pid, state) {
     const pd = realmByProvince.get(pid) || {};
+    if (isGreatHouseMode && pd.great_house_id && state.great_houses && state.great_houses[pd.great_house_id]) {
+      const owner = state.great_houses[pd.great_house_id];
+      return { kind: "great_house", id: pd.great_house_id, name: owner.name || pd.great_house_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+    }
     if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
       const owner = state.free_cities[pd.free_city_id];
       return { kind: "free_city", id: pd.free_city_id, name: owner.name || pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
@@ -135,6 +147,10 @@
 
   function ownerLabelForPid(pid, state) {
     const pd = realmByProvince.get(pid) || {};
+    if (isGreatHouseMode && pd.great_house_id) {
+      const name = state?.great_houses?.[pd.great_house_id]?.name || pd.great_house_id;
+      return `Большой Дом: ${name}`;
+    }
     if (pd.free_city_id) {
       const name = state?.free_cities?.[pd.free_city_id]?.name || pd.free_city_id;
       return `Территория: ${name}`;
@@ -143,7 +159,7 @@
       const name = state?.kingdoms?.[pd.kingdom_id]?.name || pd.kingdom_id;
       return `Королевство: ${name}`;
     }
-    return "Королевство: -";
+    return isGreatHouseMode ? "Большой Дом: -" : "Королевство: -";
   }
 
   function effectivePidFor(pid) {
@@ -449,12 +465,14 @@
     for (const pid of effectiveProvinceHexes.keys()) {
       const pd = realmByProvince.get(pid);
       if (!pd) continue;
+      if (selectedKind === "great_house" && pd.great_house_id === selectedId) selectedProvincePids.add(pid);
       if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(pid);
-      if (selectedKind !== "free_city" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "kingdom" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
     }
 
     if (!selectedProvincePids.size) {
-      title.textContent = "Для выбранного королевства/территории не найдено провинций.";
+      const selectedTypeLabel = LABELS[selectedKind] || "Область";
+      title.textContent = `Для выбранной сущности (${selectedTypeLabel}) не найдено провинций.`;
       return;
     }
 
@@ -462,10 +480,13 @@
     for (const pid of selectedProvincePids) visibleProvincePids.add(pid);
     for (const pid of neighborProvincePids) visibleProvincePids.add(pid);
 
-    const label = (selectedKind === "free_city")
-      ? (state.free_cities?.[selectedId]?.name || selectedId)
-      : (state.kingdoms?.[selectedId]?.name || selectedId);
-    title.textContent = `${selectedKind === "free_city" ? "Территория" : "Королевство"}: ${label}. Показано провинций: ${visibleProvincePids.size}.`;
+    const label = (selectedKind === "great_house")
+      ? (state.great_houses?.[selectedId]?.name || selectedId)
+      : ((selectedKind === "free_city")
+        ? (state.free_cities?.[selectedId]?.name || selectedId)
+        : (state.kingdoms?.[selectedId]?.name || selectedId));
+    const selectedTypeLabel = LABELS[selectedKind] || "Область";
+    title.textContent = `${selectedTypeLabel}: ${label}. Показано провинций: ${visibleProvincePids.size}.`;
 
     fitViewToVisibleHexes();
     resize();
