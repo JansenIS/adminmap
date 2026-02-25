@@ -314,6 +314,22 @@
       return { x: t.a * p.x + t.b * p.y + t.c, y: t.d * p.x + t.e * p.y + t.f };
     }
 
+    function buildKnn(points, k) {
+      const out = new Map();
+      for (const a of points) {
+        const arr = [];
+        for (const b of points) {
+          if (a.pid === b.pid) continue;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          arr.push({ pid: b.pid, dist: dx * dx + dy * dy });
+        }
+        arr.sort((u, v) => u.dist - v.dist);
+        out.set(a.pid, arr.slice(0, k).map(x => x.pid));
+      }
+      return out;
+    }
+
     function assignOneToOne(srcList, dstList, transform) {
       const pairs = [];
       const areaWeight = 0.025;
@@ -345,6 +361,105 @@
       return { matches: out, meanCost: out.length ? total / out.length : Number.POSITIVE_INFINITY };
     }
 
+    function refineByRelativeTopology(srcList, dstList, matches) {
+      const srcByPid = new Map(srcList.map(s => [s.pid, s]));
+      const dstByPid = new Map(dstList.map(d => [d.pid, d]));
+      const neigh = buildKnn(srcList, 6);
+
+      const map = new Map();
+      const inv = new Map();
+      for (const m of matches) {
+        map.set(m.spid, m.dpid);
+        inv.set(m.dpid, m.spid);
+      }
+
+      const pairCost = new Map();
+      const candidates = new Map();
+      const areaWeight = 0.025;
+      for (const s of srcList) {
+        const arr = [];
+        const sArea = Math.max(1, s.area / srcAreaMean);
+        for (const d of dstList) {
+          const dx = s.x - d.x;
+          const dy = s.y - d.y;
+          const dist = dx * dx + dy * dy;
+          const dArea = Math.max(1, d.area / dstAreaMean);
+          const areaPenalty = Math.abs(Math.log(sArea) - Math.log(dArea));
+          const c = dist + areaWeight * areaPenalty;
+          arr.push({ dpid: d.pid, cost: c });
+          pairCost.set(`${s.pid}:${d.pid}`, c);
+        }
+        arr.sort((a, b) => a.cost - b.cost);
+        candidates.set(s.pid, arr.slice(0, 10).map(v => v.dpid));
+      }
+
+      function nodeScore(spid) {
+        const dpid = map.get(spid);
+        if (!dpid) return Number.POSITIVE_INFINITY;
+        let score = (pairCost.get(`${spid}:${dpid}`) || 0);
+        const s = srcByPid.get(spid);
+        const d = dstByPid.get(dpid);
+        for (const nspid of (neigh.get(spid) || [])) {
+          const ndpid = map.get(nspid);
+          if (!ndpid) continue;
+          const ns = srcByPid.get(nspid);
+          const nd = dstByPid.get(ndpid);
+          const sdx = ns.x - s.x;
+          const sdy = ns.y - s.y;
+          const ddx = nd.x - d.x;
+          const ddy = nd.y - d.y;
+          if (sdx * ddx < 0) score += 0.01;
+          if (sdy * ddy < 0) score += 0.01;
+          const sdist = Math.hypot(sdx, sdy) + 1e-9;
+          const ddist = Math.hypot(ddx, ddy) + 1e-9;
+          score += 0.015 * Math.abs(Math.log(sdist / ddist));
+        }
+        return score;
+      }
+
+      for (let iter = 0; iter < 4; iter++) {
+        let improved = false;
+        for (const s of srcList) {
+          const spid = s.pid;
+          const curD = map.get(spid);
+          const cands = candidates.get(spid) || [];
+          for (const candD of cands) {
+            if (candD === curD) continue;
+            const otherS = inv.get(candD);
+            if (!otherS) continue;
+
+            const affected = new Set([spid, otherS, ...(neigh.get(spid) || []), ...(neigh.get(otherS) || [])]);
+            let before = 0;
+            for (const a of affected) before += nodeScore(a);
+
+            map.set(spid, candD); map.set(otherS, curD);
+            inv.set(candD, spid); inv.set(curD, otherS);
+
+            let after = 0;
+            for (const a of affected) after += nodeScore(a);
+
+            if (after + 1e-8 < before) {
+              improved = true;
+              break;
+            }
+
+            map.set(spid, curD); map.set(otherS, candD);
+            inv.set(candD, otherS); inv.set(curD, spid);
+          }
+        }
+        if (!improved) break;
+      }
+
+      const out = [];
+      let total = 0;
+      for (const [spid, dpid] of map.entries()) {
+        const c = pairCost.get(`${spid}:${dpid}`) || 0;
+        out.push({ spid, dpid, cost: c });
+        total += c;
+      }
+      return { matches: out, meanCost: out.length ? total / out.length : Number.POSITIVE_INFINITY };
+    }
+
     function run(useFlipX) {
       const srcList = src.map(s => ({ ...s, x: useFlipX ? (1 - s.x) : s.x }));
       const dstList = dstBase.map(d => ({ ...d }));
@@ -358,6 +473,9 @@
         assn = assignOneToOne(srcList, dstList, transform);
         transform = fitAffine(assn.matches, srcByPid, dstByPid);
       }
+
+      const transformedSrc = srcList.map(s => ({ ...s, ...tx(s, transform) }));
+      assn = refineByRelativeTopology(transformedSrc, dstList, assn.matches);
 
       const out = new Map();
       for (const m of assn.matches) out.set(m.spid, m.dpid);
