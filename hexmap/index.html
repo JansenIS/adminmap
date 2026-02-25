@@ -247,8 +247,9 @@
     const approxR = Math.round((world.y - ((approxQ & 1) ? HEX_SIZE * SQRT3 / 2 : 0)) / (HEX_SIZE * SQRT3));
     let best = null;
     let bestD = Infinity;
-    for (let dq = -2; dq <= 2; dq++) {
-      for (let dr = -2; dr <= 2; dr++) {
+
+    for (let dq = -3; dq <= 3; dq++) {
+      for (let dr = -3; dr <= 3; dr++) {
         const q = approxQ + dq;
         const r = approxR + dr;
         const cand = hexByQR.get(`${q},${r}`);
@@ -257,9 +258,16 @@
         if (d < bestD) { bestD = d; best = cand; }
       }
     }
+
     if (!best) return null;
+
     const verts = verticesByHexId.get(best.id);
-    return pointInPoly(world, verts) ? best : null;
+    if (verts && pointInPoly(world, verts)) return best;
+
+    // Fallback: if cursor is very close to center, still treat as hover.
+    // This avoids "dead" hover zones from coordinate rounding at some zooms.
+    const maxCenterDist = (HEX_SIZE * 1.2) ** 2;
+    return bestD <= maxCenterDist ? best : null;
   }
 
   function renderHex(path, fillColor, strokeColor, strokeWidth) {
@@ -329,7 +337,7 @@
 
   function setInfo(hex) {
     if (!hex) { info.textContent = ''; return; }
-    const pid = hex.p;
+    const pid = hex.p ?? hex.pid;
     const p = provinceById.get(pid);
     const meta = realm.provinceMeta.get(pid);
     const k = realm.kingdoms.get(meta.kingdomId);
