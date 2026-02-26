@@ -400,6 +400,7 @@ final class EconomySimulator
 
         $afterRows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_cons FROM sim_state s ORDER BY s.pid,s.commodity_id')->fetchAll();
         $this->applyNeighborTrade($afterRows);
+        $this->applyExternalTrade();
     }
 
     public function provinceReport(int $pid, string $tier = 'all', string $sort = 'value', int $limit = 80, bool $activeOnly = false): ?array
@@ -584,9 +585,10 @@ final class EconomySimulator
 
     public function adminMapData(): array
     {
-        $provinces = $this->db->query('SELECT pid,name,kingdom_id,great_house_id,minor_house_id,free_city_id FROM provinces ORDER BY pid')->fetchAll();
+        $provinces = $this->db->query('SELECT pid,name,kingdom_id,great_house_id,minor_house_id,free_city_id,centroid_x,centroid_y,hex_count,owner FROM provinces ORDER BY pid')->fetchAll();
         $provByPid = [];
         foreach ($provinces as $p) {
+            $d = $this->provinceDerived((int)$p['pid'], (int)$p['hex_count'], (string)$p['owner'], (string)$p['free_city_id']);
             $provByPid[(int)$p['pid']] = [
                 'pid' => (int)$p['pid'],
                 'name' => $p['name'],
@@ -594,6 +596,11 @@ final class EconomySimulator
                 'great_house_id' => (string)$p['great_house_id'],
                 'minor_house_id' => (string)$p['minor_house_id'],
                 'free_city_id' => (string)$p['free_city_id'],
+                'centroid' => [(float)$p['centroid_x'], (float)$p['centroid_y']],
+                'hex_count' => (int)$p['hex_count'],
+                'pop' => (int)$d['pop'],
+                'gdp' => (int)$d['gdpTurnover'],
+                'infra' => (float)$d['infra'],
             ];
         }
 
@@ -737,6 +744,38 @@ final class EconomySimulator
         }
     }
 
+
+
+    private function applyExternalTrade(): void
+    {
+        $rows = $this->db->query('SELECT pid,commodity_id,stock,price,yearly_cons FROM sim_state ORDER BY commodity_id,pid')->fetchAll();
+        $by = [];
+        foreach ($rows as $r) {
+            $cid = $r['commodity_id'];
+            $by[$cid][] = $r;
+        }
+
+        $upd = $this->db->prepare('UPDATE sim_state SET stock=?, price=? WHERE pid=? AND commodity_id=?');
+        foreach ($by as $cid => $items) {
+            $avgPrice = array_sum(array_map(static fn($x) => (float)$x['price'], $items)) / max(1, count($items));
+            foreach ($items as $it) {
+                $target = max(1.0, (float)$it['yearly_cons'] * 1.2);
+                $stock = (float)$it['stock'];
+                $price = (float)$it['price'];
+
+                $need = max(0.0, $target - $stock);
+                $surplus = max(0.0, $stock - $target);
+
+                $inflow = $need * 0.08 * (1.0 - $this->tradeFriction());
+                $outflow = $surplus * 0.05 * (1.0 - $this->tradeFriction());
+
+                $stock = max(0.0, $stock + $inflow - $outflow);
+                $price = max(0.5, min($avgPrice * 2.5, $price * (1.0 + (($need - $outflow) / $target) * 0.04)));
+
+                $upd->execute([round($stock, 6), round($price, 6), (int)$it['pid'], $cid]);
+            }
+        }
+    }
 
     private function transportUnitCost(): float
     {

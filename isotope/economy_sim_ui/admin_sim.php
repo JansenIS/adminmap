@@ -19,9 +19,17 @@
           <option value="minor_house">МД (Малые дома)</option>
         </select>
       </label>
+      <label>Размер кружков
+        <select id="sizeMode">
+          <option value="pop">Население</option>
+          <option value="gdp">ВВП</option>
+          <option value="infra">Инфраструктура</option>
+          <option value="hex">Размер провинции (hex)</option>
+        </select>
+      </label>
       <label><input id="showContours" type="checkbox" checked> Контуры провинций</label>
-      <label><input id="transparentMode" type="checkbox"> Прозрачный режим</label>
-      <span class="hint">Особые территории (free city) помечаются тонкой маркировкой без ломания выбранной покраски.</span>
+      <label><input id="transparentMode" type="checkbox" checked> Прозрачный режим</label>
+      <span class="hint">Прозрачный режим = кружки + контуры. Особые территории маркируются отдельным обводом.</span>
     </div>
     <canvas id="mapCanvas" width="1900" height="2050"></canvas>
   </section>

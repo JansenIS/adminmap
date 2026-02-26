@@ -3,7 +3,7 @@ const els = {
   canvas: $('mapCanvas'), title: $('title'), pid: $('pid'), name: $('name'), isCity: $('isCity'),
   pop: $('pop'), infra: $('infra'), transportCap: $('transportCap'), transportUsed: $('transportUsed'), gdpTurnover: $('gdpTurnover'),
   buildingsTbl: $('buildingsTbl').querySelector('tbody'), addBuilding: $('addBuilding'), save: $('save'), status: $('status'),
-  paintMode: $('paintMode'), showContours: $('showContours'), transparentMode: $('transparentMode')
+  paintMode: $('paintMode'), sizeMode: $('sizeMode'), showContours: $('showContours'), transparentMode: $('transparentMode')
 };
 const ctx = els.canvas.getContext('2d');
 
@@ -38,37 +38,50 @@ function provinceColor(p, alpha) {
   return hashColor(p.minor_house_id || 'no_minor_house', alpha);
 }
 
+function valueByMode(p) {
+  if (els.sizeMode.value === 'gdp') return Number(p.gdp || 0);
+  if (els.sizeMode.value === 'infra') return Number(p.infra || 0);
+  if (els.sizeMode.value === 'hex') return Number(p.hex_count || 0);
+  return Number(p.pop || 0);
+}
+
+function circleRadius(p, minV, maxV) {
+  const v = valueByMode(p);
+  if (maxV <= minV) return 6;
+  const t = (v - minV) / (maxV - minV);
+  return 3 + t * 16;
+}
+
 function drawMap() {
   const contours = els.showContours.checked;
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
 
   if (els.transparentMode.checked) {
-    // Прозрачный режим: кружки-центры + контуры провинций (без сплошной заливки)
+    const values = provinces.map(valueByMode);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+
     for (const p of provinces) {
-      const radius = Math.max(2.5, Math.min(14, Math.sqrt((p.hex_count || 1) / 10)));
-      const base = provinceColor(p, 0.45);
-      ctx.fillStyle = base;
+      const radius = circleRadius(p, minV, maxV);
+      ctx.fillStyle = provinceColor(p, 0.55);
       ctx.beginPath();
       ctx.arc(p.centroid[0], p.centroid[1], radius, 0, Math.PI * 2);
       ctx.fill();
 
       if (p.free_city_id) {
         ctx.strokeStyle = 'rgba(255,90,150,0.95)';
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(p.centroid[0], p.centroid[1], radius + 2, 0, Math.PI * 2);
+        ctx.arc(p.centroid[0], p.centroid[1], radius + 2.5, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
   } else {
-    const alpha = 0.9;
     for (const h of hexes) {
       const p = provinceByPid.get(h.pid);
       if (!p) continue;
-      ctx.fillStyle = provinceColor(p, alpha);
+      ctx.fillStyle = provinceColor(p, 0.9);
       ctx.fillRect(h.cx - 0.9, h.cy - 0.9, 1.8, 1.8);
-
-      // спец-территории отмечаем только контуром точки, а не отдельной заливкой
       if (p.free_city_id) {
         ctx.fillStyle = 'rgba(255,90,150,0.9)';
         ctx.fillRect(h.cx - 0.35, h.cy - 0.35, 0.7, 0.7);
@@ -90,7 +103,7 @@ function drawMap() {
       ctx.strokeStyle = '#ffd166';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.centroid[0], p.centroid[1], 14, 0, Math.PI * 2);
+      ctx.arc(p.centroid[0], p.centroid[1], 16, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -155,6 +168,13 @@ async function save() {
   };
   const data = await api('admin-province-save', { pid: selected.pid }, 'POST', payload);
   selected = data;
+  const p = provinceByPid.get(selected.pid);
+  if (p) {
+    p.pop = selected.pop;
+    p.gdp = selected.gdpTurnover;
+    p.infra = selected.infra;
+  }
+  drawMap();
   els.status.textContent = `Сохранено: PID ${selected.pid} (${new Date().toLocaleTimeString()})`;
 }
 
@@ -179,6 +199,7 @@ async function init() {
 els.addBuilding.onclick = () => addBuildingRow();
 els.save.onclick = () => save().catch((e) => els.status.textContent = e.message);
 els.paintMode.onchange = drawMap;
+els.sizeMode.onchange = drawMap;
 els.showContours.onchange = drawMap;
 els.transparentMode.onchange = drawMap;
 
