@@ -1,0 +1,391 @@
+/**
+ * Каталог товаров и рецептов производств для экономического симулятора.
+ * Основано на "Биржа.txt" + добавлены сельхозресурсы: мутакурицы, мутабрюква.
+ *
+ * Единицы измерения — как в списке, но движок оперирует числами без размерности.
+ */
+
+/** @typedef {"raw"|"component"|"product"|"animal"} CommodityTier */
+/** @typedef {{id:string,name:string,unit:string,tier:CommodityTier,basePrice:number,bulk:number,decayPerDay:number,rarity:number}} Commodity */
+
+/**
+ * bulk: относительная "крупность/тяжесть" для стоимости перевозки (1 = базовая).
+ * decayPerDay: доля потери в пути/на складе (0..1). Для большинства 0.
+ * rarity: насколько ресурс "редок" при генерации потенциала (0..1). Чем больше — тем меньше средний выпуск.
+ */
+
+/** @type {Commodity[]} */
+export const COMMODITIES = [
+  // RAW
+  { id:"wood_raw", name:"Древесина", unit:"м³", tier:"raw", basePrice:8, bulk:1.2, decayPerDay:0.00, rarity:0.05 },
+  { id:"fiber_raw", name:"Прядильное волокно", unit:"кг", tier:"raw", basePrice:6, bulk:0.8, decayPerDay:0.01, rarity:0.08 },
+  { id:"hides_raw", name:"Необработанные шкуры", unit:"шт", tier:"raw", basePrice:10, bulk:0.9, decayPerDay:0.00, rarity:0.10 },
+  { id:"rubber_raw", name:"Сырьевой каучук", unit:"кг", tier:"raw", basePrice:14, bulk:0.9, decayPerDay:0.00, rarity:0.20 },
+  { id:"petrochem_raw", name:"Нефтехимическое сырьё", unit:"кг", tier:"raw", basePrice:18, bulk:1.1, decayPerDay:0.00, rarity:0.25 },
+  { id:"iron_ore", name:"Железная руда", unit:"т", tier:"raw", basePrice:20, bulk:1.6, decayPerDay:0.00, rarity:0.18 },
+  { id:"coke", name:"Кокс", unit:"т", tier:"raw", basePrice:16, bulk:1.4, decayPerDay:0.00, rarity:0.15 },
+  { id:"meat", name:"Мясо", unit:"кг", tier:"raw", basePrice:22, bulk:1.0, decayPerDay:0.03, rarity:0.10 },
+  { id:"gold", name:"Золото", unit:"г", tier:"raw", basePrice:120, bulk:0.1, decayPerDay:0.00, rarity:0.90 },
+  { id:"silver", name:"Серебро", unit:"кг", tier:"raw", basePrice:90, bulk:0.2, decayPerDay:0.00, rarity:0.75 },
+  { id:"copper", name:"Медь", unit:"т", tier:"raw", basePrice:55, bulk:1.4, decayPerDay:0.00, rarity:0.45 },
+  { id:"iron", name:"Железо", unit:"т", tier:"raw", basePrice:35, bulk:1.5, decayPerDay:0.00, rarity:0.20 },
+  { id:"lead", name:"Свинец", unit:"т", tier:"raw", basePrice:40, bulk:1.5, decayPerDay:0.00, rarity:0.35 },
+  { id:"tin", name:"Олово", unit:"т", tier:"raw", basePrice:60, bulk:1.3, decayPerDay:0.00, rarity:0.40 },
+  { id:"villadium", name:"Вилладиум", unit:"г", tier:"raw", basePrice:300, bulk:0.05, decayPerDay:0.00, rarity:0.98 },
+
+  // Добавлено пользователем: сельхозресурсы
+  { id:"mutabryukva", name:"Мутабрюква", unit:"кг", tier:"raw", basePrice:5, bulk:1.0, decayPerDay:0.02, rarity:0.03 },
+  { id:"mutachicken", name:"Мутакурицы", unit:"шт", tier:"raw", basePrice:9, bulk:1.0, decayPerDay:0.01, rarity:0.06 },
+
+  // COMPONENTS
+  { id:"e_parts", name:"Электронные компоненты", unit:"наб.", tier:"component", basePrice:85, bulk:0.2, decayPerDay:0.00, rarity:0.70 },
+  { id:"rolled_steel", name:"Прокатная сталь", unit:"лист", tier:"component", basePrice:70, bulk:0.9, decayPerDay:0.00, rarity:0.35 },
+  { id:"precision_steel", name:"Высокоточная сталь", unit:"лист", tier:"component", basePrice:120, bulk:0.8, decayPerDay:0.00, rarity:0.55 },
+  { id:"mcu_set", name:"Микропроцессорный набор", unit:"шт", tier:"component", basePrice:240, bulk:0.1, decayPerDay:0.00, rarity:0.92 },
+  { id:"filter_substrate", name:"Фильтрующий субстрат", unit:"кг", tier:"component", basePrice:45, bulk:0.6, decayPerDay:0.00, rarity:0.35 },
+  { id:"electrolyte_chems", name:"Химикаты для электролита", unit:"л", tier:"component", basePrice:55, bulk:0.7, decayPerDay:0.00, rarity:0.40 },
+  { id:"distilled_water", name:"Дистиллированная вода", unit:"л", tier:"component", basePrice:12, bulk:1.0, decayPerDay:0.00, rarity:0.10 },
+  { id:"engine_kit", name:"Комплект движка", unit:"шт", tier:"component", basePrice:260, bulk:1.2, decayPerDay:0.00, rarity:0.55 },
+  { id:"life_core", name:"Ядро жизнеобеспечения", unit:"шт", tier:"component", basePrice:320, bulk:0.8, decayPerDay:0.00, rarity:0.75 },
+  { id:"bread", name:"Хлеб", unit:"кг", tier:"component", basePrice:12, bulk:1.0, decayPerDay:0.02, rarity:0.05 },
+  { id:"meat_cans", name:"Мясные консервы", unit:"кг", tier:"component", basePrice:28, bulk:1.0, decayPerDay:0.00, rarity:0.08 },
+  { id:"steel", name:"Сталь", unit:"т", tier:"component", basePrice:65, bulk:1.5, decayPerDay:0.00, rarity:0.30 },
+  { id:"wood_processed", name:"Обработанная древесина", unit:"м³", tier:"component", basePrice:18, bulk:1.2, decayPerDay:0.00, rarity:0.06 },
+  { id:"armotextile", name:"Бронетекстиль", unit:"рулон", tier:"component", basePrice:95, bulk:0.6, decayPerDay:0.00, rarity:0.30 },
+  { id:"leather_reinforced", name:"Усиленная кожа", unit:"компл.", tier:"component", basePrice:80, bulk:0.7, decayPerDay:0.00, rarity:0.20 },
+  { id:"rubber_industrial", name:"Промышленная резина", unit:"компл.", tier:"component", basePrice:75, bulk:0.9, decayPerDay:0.00, rarity:0.25 },
+  { id:"poly_housings", name:"Полимерные корпуса", unit:"компл.", tier:"component", basePrice:68, bulk:0.8, decayPerDay:0.00, rarity:0.22 },
+  { id:"steel_ingot", name:"Стальной слиток", unit:"шт", tier:"component", basePrice:58, bulk:1.1, decayPerDay:0.00, rarity:0.30 },
+  { id:"villadium_alloy", name:"Вилладиумный сплав", unit:"шт", tier:"component", basePrice:420, bulk:0.2, decayPerDay:0.00, rarity:0.92 },
+  { id:"forged_parts", name:"Кованые детали", unit:"компл.", tier:"component", basePrice:60, bulk:0.9, decayPerDay:0.00, rarity:0.20 },
+  { id:"precision_blanks", name:"Высокоточные заготовки", unit:"компл.", tier:"component", basePrice:135, bulk:0.6, decayPerDay:0.00, rarity:0.55 },
+  { id:"stamped_frames", name:"Штампованные рамы", unit:"компл.", tier:"component", basePrice:88, bulk:1.0, decayPerDay:0.00, rarity:0.32 },
+  { id:"power_module", name:"Силовой модуль", unit:"шт", tier:"component", basePrice:210, bulk:0.5, decayPerDay:0.00, rarity:0.70 },
+  { id:"basic_electronics", name:"Комплект базовой электроники", unit:"шт", tier:"component", basePrice:140, bulk:0.3, decayPerDay:0.00, rarity:0.55 },
+  { id:"adv_controller", name:"Контроллер продвинутой электроники", unit:"шт", tier:"component", basePrice:290, bulk:0.25, decayPerDay:0.00, rarity:0.85 },
+  { id:"villadium_filter_ind", name:"Вилладиумный фильтр промышленный", unit:"шт", tier:"component", basePrice:520, bulk:0.4, decayPerDay:0.00, rarity:0.95 },
+  { id:"electrolyte_ind", name:"Промышленный электролит", unit:"л", tier:"component", basePrice:45, bulk:1.0, decayPerDay:0.00, rarity:0.35 },
+  { id:"life_module", name:"Модуль жизнеобеспечения", unit:"шт", tier:"component", basePrice:680, bulk:0.9, decayPerDay:0.00, rarity:0.95 },
+  { id:"motor_small", name:"Малый электродвигатель", unit:"шт", tier:"component", basePrice:220, bulk:0.9, decayPerDay:0.00, rarity:0.60 },
+  { id:"motor_medium", name:"Средний электродвигатель", unit:"шт", tier:"component", basePrice:360, bulk:1.2, decayPerDay:0.00, rarity:0.72 },
+  { id:"motor_heavy", name:"Тяжёлый электродвигатель", unit:"шт", tier:"component", basePrice:520, bulk:1.7, decayPerDay:0.00, rarity:0.82 },
+  { id:"villadium_filter_personal", name:"Вилладиумный фильтр личный", unit:"шт", tier:"component", basePrice:190, bulk:0.2, decayPerDay:0.00, rarity:0.80 },
+  { id:"villadium_life_system", name:"Вилладиумная система жизнеобеспечения", unit:"шт", tier:"component", basePrice:1400, bulk:1.0, decayPerDay:0.00, rarity:0.98 },
+  { id:"leather_tanned", name:"Кожа выделанная", unit:"м", tier:"component", basePrice:22, bulk:0.6, decayPerDay:0.00, rarity:0.12 },
+  { id:"cloth_peasant", name:"Ткань простецкая", unit:"м", tier:"component", basePrice:14, bulk:0.5, decayPerDay:0.00, rarity:0.10 },
+  { id:"cloth_city", name:"Ткань городская", unit:"м", tier:"component", basePrice:28, bulk:0.5, decayPerDay:0.00, rarity:0.18 },
+  { id:"cloth_noble", name:"Ткань дворянская", unit:"м", tier:"component", basePrice:55, bulk:0.5, decayPerDay:0.00, rarity:0.35 },
+  { id:"wheel_moto", name:"Колесо для мототехники", unit:"шт", tier:"component", basePrice:65, bulk:1.0, decayPerDay:0.00, rarity:0.30 },
+  { id:"wheel_car", name:"Колесо для легковой техники", unit:"шт", tier:"component", basePrice:90, bulk:1.2, decayPerDay:0.00, rarity:0.35 },
+  { id:"wheel_truck", name:"Колесо для грузовой техники", unit:"шт", tier:"component", basePrice:140, bulk:1.6, decayPerDay:0.00, rarity:0.45 },
+
+  // PRODUCTS
+  { id:"armor_militia", name:"Доспехи ополчения", unit:"шт", tier:"product", basePrice:220, bulk:1.6, decayPerDay:0.00, rarity:0.00 },
+  { id:"armor_aux", name:"Доспехи ауксилий", unit:"шт", tier:"product", basePrice:420, bulk:1.8, decayPerDay:0.00, rarity:0.00 },
+  { id:"armor_preventor", name:"Доспехи превенторов", unit:"шт", tier:"product", basePrice:920, bulk:2.2, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"rifle_ep", name:"Электропневматическая винтовка", unit:"шт", tier:"product", basePrice:560, bulk:1.1, decayPerDay:0.00, rarity:0.00 },
+  { id:"rifle_gauss", name:"Винтовка Гаусса", unit:"шт", tier:"product", basePrice:980, bulk:1.2, decayPerDay:0.00, rarity:0.00 },
+  { id:"spear_e", name:"Электрокопьё", unit:"шт", tier:"product", basePrice:320, bulk:1.1, decayPerDay:0.00, rarity:0.00 },
+  { id:"railgun", name:"Рельсотрон", unit:"шт", tier:"product", basePrice:3200, bulk:2.0, decayPerDay:0.00, rarity:0.00 },
+  { id:"assault_gun", name:"Штурмовое орудие", unit:"шт", tier:"product", basePrice:5200, bulk:3.0, decayPerDay:0.00, rarity:0.00 },
+  { id:"pistol_e", name:"Электропистолет", unit:"шт", tier:"product", basePrice:420, bulk:0.5, decayPerDay:0.00, rarity:0.00 },
+  { id:"sword_tac", name:"Тактический меч", unit:"шт", tier:"product", basePrice:260, bulk:0.9, decayPerDay:0.00, rarity:0.00 },
+  { id:"gasmask", name:"Противогаз", unit:"шт", tier:"product", basePrice:180, bulk:0.4, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"motorcycle", name:"Мотоцикл", unit:"шт", tier:"product", basePrice:1100, bulk:2.2, decayPerDay:0.00, rarity:0.00 },
+  { id:"jeep_raider", name:"Джип-рейдер", unit:"шт", tier:"product", basePrice:2600, bulk:3.2, decayPerDay:0.00, rarity:0.00 },
+  { id:"boat_river", name:"Речной катер", unit:"шт", tier:"product", basePrice:3400, bulk:4.0, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"batt_ind", name:"Промышленные аккумуляторы", unit:"шт", tier:"product", basePrice:520, bulk:1.6, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"clothes_peasant", name:"Крестьянская одежда", unit:"шт", tier:"product", basePrice:35, bulk:0.6, decayPerDay:0.00, rarity:0.00 },
+  { id:"clothes_city", name:"Городская одежда", unit:"шт", tier:"product", basePrice:80, bulk:0.6, decayPerDay:0.00, rarity:0.00 },
+  { id:"clothes_noble", name:"Дворянская одежда", unit:"шт", tier:"product", basePrice:190, bulk:0.6, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"dishes_set", name:"Посуда (10 компл.)", unit:"компл.", tier:"product", basePrice:90, bulk:1.2, decayPerDay:0.00, rarity:0.00 },
+  { id:"agri_tools", name:"Сельскохозяйственный инструмент", unit:"компл.", tier:"product", basePrice:140, bulk:1.4, decayPerDay:0.00, rarity:0.00 },
+  { id:"motoblock", name:"Мотоблок", unit:"шт", tier:"product", basePrice:820, bulk:2.3, decayPerDay:0.00, rarity:0.00 },
+  { id:"tricycle_truck", name:"Грузовой трицикл", unit:"шт", tier:"product", basePrice:1400, bulk:2.8, decayPerDay:0.00, rarity:0.00 },
+  { id:"jeep_civil", name:"Гражданский джип", unit:"шт", tier:"product", basePrice:2100, bulk:3.0, decayPerDay:0.00, rarity:0.00 },
+  { id:"truck_civil", name:"Гражданский грузовик", unit:"шт", tier:"product", basePrice:3200, bulk:4.2, decayPerDay:0.00, rarity:0.00 },
+  { id:"barge_river", name:"Речная баржа", unit:"шт", tier:"product", basePrice:7800, bulk:7.0, decayPerDay:0.00, rarity:0.00 },
+
+  { id:"fertilizer_mineral", name:"Минеральные удобрения (100 кг)", unit:"парт.", tier:"product", basePrice:160, bulk:2.0, decayPerDay:0.00, rarity:0.00 },
+  { id:"air_purifier_home", name:"Личный домашний очиститель воздуха", unit:"шт", tier:"product", basePrice:620, bulk:1.6, decayPerDay:0.00, rarity:0.00 },
+
+  // ANIMALS
+  { id:"field_cat", name:"Полевой кот", unit:"шт", tier:"animal", basePrice:40, bulk:0.8, decayPerDay:0.00, rarity:0.15 },
+];
+
+/** Быстрый доступ: id -> индекс */
+export const COM_INDEX = Object.fromEntries(COMMODITIES.map((c, i) => [c.id, i]));
+
+/** Утилита: список индексов сырья */
+export const RAW_IDX = COMMODITIES.map((c, i) => [c.tier, i]).filter(([t]) => t === "raw").map(([,i]) => i);
+
+/**
+ * Описание производственных зданий.
+ * output/input — словари commodityId -> qtyPerDay при базовой мощности.
+ * labor: требуемая рабочая сила (условные единицы) на 1 здание при 100% загрузке.
+ * cap: множитель мощности (можно потом расширять уровнями).
+ */
+export const BUILDINGS = {
+  // Манууфактуры (переработка)
+  sawmill: {
+    name: "Деревообрабатывающая мануфактура",
+    labor: 80,
+    cap: 1.0,
+    input: { wood_raw: 12 },
+    output: { wood_processed: 10 },
+  },
+  textile: {
+    name: "Текстильная мануфактура",
+    labor: 90,
+    cap: 1.0,
+    input: { fiber_raw: 20 },
+    output: { cloth_peasant: 18, cloth_city: 3 },
+  },
+  tannery: {
+    name: "Кожевенная мануфактура",
+    labor: 70,
+    cap: 1.0,
+    input: { hides_raw: 14 },
+    output: { leather_tanned: 18, leather_reinforced: 4 },
+  },
+  rubber_works: {
+    name: "Мануфактура резины",
+    labor: 95,
+    cap: 1.0,
+    input: { rubber_raw: 10, petrochem_raw: 6 },
+    output: { rubber_industrial: 12 },
+  },
+  plastics: {
+    name: "Мануфактура пластиков",
+    labor: 110,
+    cap: 1.0,
+    input: { petrochem_raw: 16 },
+    output: { poly_housings: 14 },
+  },
+  smithy: {
+    name: "Кузница",
+    labor: 85,
+    cap: 1.0,
+    input: { iron: 6 },
+    output: { forged_parts: 8 },
+  },
+  adv_smithy: {
+    name: "Продвинутая кузница",
+    labor: 120,
+    cap: 1.0,
+    input: { steel: 5, forged_parts: 2 },
+    output: { precision_blanks: 4 },
+  },
+  stamping: {
+    name: "Штамповочная мануфактура",
+    labor: 130,
+    cap: 1.0,
+    input: { rolled_steel: 10 },
+    output: { stamped_frames: 8 },
+  },
+  engine_assembly: {
+    name: "Мануфактура по сборке движков",
+    labor: 160,
+    cap: 1.0,
+    input: { forged_parts: 4, stamped_frames: 4, rubber_industrial: 2, poly_housings: 2, basic_electronics: 1 },
+    output: { engine_kit: 2 },
+  },
+  smelter: {
+    name: "Металлургический цех",
+    labor: 140,
+    cap: 1.0,
+    input: { iron_ore: 12, coke: 8 },
+    output: { iron: 10, steel_ingot: 2 },
+  },
+  adv_smelter: {
+    name: "Продвинутый металлургический цех",
+    labor: 190,
+    cap: 1.0,
+    input: { iron: 8, tin: 1, copper: 1, lead: 1, coke: 4 },
+    output: { steel: 8, rolled_steel: 4, precision_steel: 1 },
+  },
+  filters: {
+    name: "Мануфактура по производству фильтров",
+    labor: 120,
+    cap: 1.0,
+    input: { filter_substrate: 8, villadium: 120 },
+    output: { villadium_filter_personal: 18, villadium_filter_ind: 2 },
+  },
+  electrolyte: {
+    name: "Мануфактура по производству электролита",
+    labor: 90,
+    cap: 1.0,
+    input: { electrolyte_chems: 10, distilled_water: 20 },
+    output: { electrolyte_ind: 24 },
+  },
+  electronics_basic: {
+    name: "Мануфактура базовой электроники",
+    labor: 150,
+    cap: 1.0,
+    input: { copper: 2, lead: 1, tin: 1, poly_housings: 2 },
+    output: { e_parts: 6, basic_electronics: 2 },
+  },
+  electronics_adv: {
+    name: "Мануфактура продвинутой электроники",
+    labor: 190,
+    cap: 1.0,
+    input: { e_parts: 4, mcu_set: 1, precision_blanks: 1 },
+    output: { adv_controller: 1, power_module: 1 },
+  },
+  life_support: {
+    name: "Производство систем жизнеобеспечения",
+    labor: 220,
+    cap: 1.0,
+    input: { life_core: 1, villadium_filter_ind: 1, electrolyte_ind: 10, poly_housings: 3, adv_controller: 1 },
+    output: { life_module: 1, villadium_life_system: 0.1 },
+  },
+
+  // Агро-узлы
+  farm_mutabryukva: {
+    name: "Тепличные поля (мутабрюква)",
+    labor: 120,
+    cap: 1.0,
+    input: { fertilizer_mineral: 0.1 },
+    output: { mutabryukva: 140 },
+  },
+  poultry_mutachicken: {
+    name: "Птичники (мутакурицы)",
+    labor: 90,
+    cap: 1.0,
+    input: { mutabryukva: 30 },
+    output: { mutachicken: 25, meat: 40, hides_raw: 1 },
+  },
+  bakery: {
+    name: "Пекарни",
+    labor: 60,
+    cap: 1.0,
+    input: { mutabryukva: 80, distilled_water: 20 },
+    output: { bread: 90 },
+  },
+  canning: {
+    name: "Консервные цеха",
+    labor: 70,
+    cap: 1.0,
+    input: { meat: 60, steel: 1 },
+    output: { meat_cans: 55 },
+  },
+
+  // Производственные линии (итоговые изделия)
+  line_gasmasks: {
+    name: "Линия противогазов",
+    labor: 120,
+    cap: 1.0,
+    input: { villadium_filter_personal: 6, poly_housings: 2, cloth_peasant: 12, rubber_industrial: 1 },
+    output: { gasmask: 6 },
+  },
+  line_swords: {
+    name: "Линия мечей",
+    labor: 80,
+    cap: 1.0,
+    input: { forged_parts: 3, steel: 1, leather_tanned: 4 },
+    output: { sword_tac: 5 },
+  },
+  line_spears: {
+    name: "Линия электрокопий",
+    labor: 90,
+    cap: 1.0,
+    input: { forged_parts: 3, basic_electronics: 1, power_module: 1, rubber_industrial: 1 },
+    output: { spear_e: 4 },
+  },
+  line_rifle_ep: {
+    name: "Линия электропневматических винтовок",
+    labor: 140,
+    cap: 1.0,
+    input: { forged_parts: 3, basic_electronics: 1, rolled_steel: 2, rubber_industrial: 1 },
+    output: { rifle_ep: 2 },
+  },
+  line_rifle_gauss: {
+    name: "Линия винтовок Гаусса",
+    labor: 180,
+    cap: 1.0,
+    input: { precision_steel: 2, adv_controller: 1, power_module: 1, batt_ind: 1, precision_blanks: 2 },
+    output: { rifle_gauss: 1 },
+  },
+  line_pistols: {
+    name: "Линия электропистолетов",
+    labor: 110,
+    cap: 1.0,
+    input: { forged_parts: 2, basic_electronics: 1, rubber_industrial: 1 },
+    output: { pistol_e: 3 },
+  },
+  line_batteries: {
+    name: "Линия аккумуляторов",
+    labor: 120,
+    cap: 1.0,
+    input: { electrolyte_ind: 20, poly_housings: 2, lead: 1, copper: 1 },
+    output: { batt_ind: 2 },
+  },
+  line_motor_small: {
+    name: "Линия малых электродвигателей",
+    labor: 120,
+    cap: 1.0,
+    input: { forged_parts: 2, rolled_steel: 2, basic_electronics: 1 },
+    output: { motor_small: 2 },
+  },
+  line_motor_medium: {
+    name: "Линия средних электродвигателей",
+    labor: 160,
+    cap: 1.0,
+    input: { forged_parts: 3, rolled_steel: 3, basic_electronics: 1, power_module: 1 },
+    output: { motor_medium: 1 },
+  },
+  line_motor_heavy: {
+    name: "Линия тяжёлых электродвигателей",
+    labor: 200,
+    cap: 1.0,
+    input: { forged_parts: 4, precision_steel: 3, adv_controller: 1, power_module: 2 },
+    output: { motor_heavy: 0.6 },
+  },
+  line_motorcycles: {
+    name: "Линия мотоциклов",
+    labor: 180,
+    cap: 1.0,
+    input: { engine_kit: 1, stamped_frames: 1, wheel_moto: 2, rubber_industrial: 1, basic_electronics: 1, batt_ind: 1 },
+    output: { motorcycle: 0.8 },
+  },
+  line_jeeps: {
+    name: "Линия джипов-рейдеров",
+    labor: 260,
+    cap: 1.0,
+    input: { engine_kit: 2, stamped_frames: 2, wheel_car: 4, rubber_industrial: 2, adv_controller: 1, batt_ind: 2, steel: 2 },
+    output: { jeep_raider: 0.25 },
+  },
+
+  // Одежда
+  line_clothes_peasant: {
+    name: "Линия крестьянской одежды",
+    labor: 70,
+    cap: 1.0,
+    input: { cloth_peasant: 30, leather_tanned: 5 },
+    output: { clothes_peasant: 25 },
+  },
+  line_clothes_city: {
+    name: "Линия городской одежды",
+    labor: 90,
+    cap: 1.0,
+    input: { cloth_city: 25, leather_tanned: 6 },
+    output: { clothes_city: 12 },
+  },
+  line_clothes_noble: {
+    name: "Линия дворянской одежды",
+    labor: 120,
+    cap: 1.0,
+    input: { cloth_noble: 20, leather_reinforced: 3, armotextile: 2 },
+    output: { clothes_noble: 4 },
+  },
+};
+
+/** Простейшие улучшения (пока только мультипликаторы эффективности) */
+export const UPGRADES = {
+  "Точная сборка": { efficiencyMul: 1.1, laborMul: 0.95 },
+};

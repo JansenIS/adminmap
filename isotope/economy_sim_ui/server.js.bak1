@@ -1,0 +1,335 @@
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { EconomyEngine } from "./engine.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function parseArgs(argv) {
+  const out = { _: [] };
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--")) {
+      const k = a.slice(2);
+      const v = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : "true";
+      out[k] = v;
+    } else out._.push(a);
+  }
+  return out;
+}
+
+function loadProvinces(filePath) {
+  const raw = fs.readFileSync(filePath, "utf-8");
+  const data = JSON.parse(raw);
+
+  const provincesObj = data.provinces || {};
+  const provinces = Object.values(provincesObj).map((p) => ({
+    pid: Number(p.pid),
+    name: p.name || String(p.pid),
+    terrain: p.terrain || "",
+    centroid: Array.isArray(p.centroid) ? p.centroid : [0, 0],
+    neighbors: Array.isArray(p.neighbors) ? p.neighbors : [],
+    hex_count: Number(p.hex_count || 100),
+    area_px: Number(p.area_px || 1000),
+    free_city_id: p.free_city_id || "",
+  }));
+
+  for (const p of provinces) {
+    p.neighbors = (p.neighbors || []).map((n) => ({
+      pid: Number(n.pid),
+      shared_sides: Number(n.shared_sides || 1),
+    }));
+  }
+
+  return { provinces, rawData: data };
+}
+
+function contentTypeByExt(ext) {
+  switch (ext) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+function sendJson(res, statusCode, obj) {
+  const body = JSON.stringify(obj);
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(body);
+}
+
+function sendText(res, statusCode, text, contentType = "text/plain; charset=utf-8") {
+  res.writeHead(statusCode, {
+    "Content-Type": contentType,
+    "Cache-Control": "no-store",
+  });
+  res.end(text);
+}
+
+const args = parseArgs(process.argv);
+const dataFile = args._[0] || path.resolve(__dirname, "../province_routing_data.json");
+const port = Number.parseInt(args.port || "8787", 10);
+
+let baseConfig = {
+  seed: Number.parseInt(args.seed || "1", 10),
+  transportUnitCost: Number.parseFloat(args.transportUnitCost || args.transport || "0.35"),
+  tradeFriction: Number.parseFloat(args.tradeFriction || args.friction || "0.05"),
+  smoothSteps: Number.parseInt(args.smoothSteps || args.smooth || "8", 10),
+};
+
+let provinces = [];
+try {
+  provinces = loadProvinces(dataFile).provinces;
+} catch (e) {
+  console.error("[server] failed to load province data:", e?.message || e);
+  console.error("[server] dataFile:", dataFile);
+  process.exit(1);
+}
+
+let engine = null;
+
+function makeEngine(cfg) {
+  const e = new EconomyEngine({
+    provinces,
+    seed: cfg.seed,
+    transportUnitCost: cfg.transportUnitCost,
+    tradeFriction: cfg.tradeFriction,
+    smoothSteps: cfg.smoothSteps,
+  });
+  e.precomputeDistances();
+  return e;
+}
+
+engine = makeEngine(baseConfig);
+
+function targetStockFor(st, cidx) {
+  const cid = engine.exportSnapshot().commodities[cidx].id;
+  const pop = st.pop;
+  // синхронизировано с engine.js
+  if (cid === "bread") return pop * 0.0009 * 10;
+  if (cid === "meat_cans") return pop * 0.00025 * 10;
+  if (cid === "villadium_filter_personal") return Math.max(30, pop / 2000 * 15);
+  const tier = engine.exportSnapshot().commodities[cidx].tier;
+  if (tier === "raw") return 60;
+  if (tier === "component") return st.isCity ? 40 : 15;
+  if (tier === "product") return st.isCity ? 10 : 2;
+  return 10;
+}
+
+function getProvinceIndexByPid(pid) {
+  const i = engine.pidToIndex.get(Number(pid));
+  return typeof i === "number" ? i : -1;
+}
+
+function allowCors(req, res) {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    });
+    res.end();
+    return true;
+  }
+  return false;
+}
+
+const server = http.createServer((req, res) => {
+  try {
+    if (allowCors(req, res)) return;
+
+    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    const pathname = url.pathname;
+
+    // API
+    if (pathname.startsWith("/api/")) {
+      if (pathname === "/api/meta") {
+        const snap = engine.exportSnapshot();
+        const provMeta = provinces.map((p) => {
+          const idx = engine.pidToIndex.get(p.pid);
+          const st = engine.states[idx];
+          return {
+            pid: p.pid,
+            name: p.name,
+            terrain: p.terrain,
+            centroid: p.centroid,
+            hex_count: p.hex_count,
+            isCity: st.isCity,
+            pop: st.pop,
+            infra: st.infra,
+          };
+        });
+
+        return sendJson(res, 200, {
+          day: engine.day,
+          config: { ...baseConfig },
+          provinces: provMeta,
+          commodities: snap.commodities.map((c) => ({
+            id: c.id,
+            name: c.name,
+            unit: c.unit,
+            tier: c.tier,
+            basePrice: c.basePrice,
+            bulk: c.bulk,
+            decayPerDay: c.decayPerDay,
+            rarity: c.rarity,
+          })),
+        });
+      }
+
+      if (pathname === "/api/summary") {
+        const r = engine.report();
+        return sendJson(res, 200, { ...r, config: { ...baseConfig } });
+      }
+
+      if (pathname === "/api/province") {
+        const pid = Number(url.searchParams.get("pid") || "0");
+        const idx = getProvinceIndexByPid(pid);
+        if (idx < 0) return sendJson(res, 404, { error: "province_not_found", pid });
+
+        const st = engine.states[idx];
+        const p = provinces[idx];
+        const snap = engine.exportSnapshot();
+        const commodities = snap.commodities;
+
+        const tier = (url.searchParams.get("tier") || "all").toLowerCase();
+        const sort = (url.searchParams.get("sort") || "value").toLowerCase();
+        const limit = Math.max(10, Math.min(300, Number.parseInt(url.searchParams.get("limit") || "80", 10)));
+
+        let rows = commodities.map((c, cidx) => {
+          const stock = st.stock[cidx];
+          const price = st.price[cidx];
+          const tgt = targetStockFor(st, cidx);
+          const ratio = tgt > 0 ? stock / tgt : 1;
+          const value = stock * price;
+          return {
+            cidx,
+            id: c.id,
+            name: c.name,
+            unit: c.unit,
+            tier: c.tier,
+            stock: +stock,
+            price: +price,
+            basePrice: c.basePrice,
+            target: +tgt,
+            ratio: +ratio,
+            value: +value,
+          };
+        });
+
+        if (tier !== "all") rows = rows.filter((r) => r.tier === tier);
+
+        if (sort === "ratio") rows.sort((a, b) => a.ratio - b.ratio);
+        else if (sort === "stock") rows.sort((a, b) => b.stock - a.stock);
+        else if (sort === "price") rows.sort((a, b) => b.price - a.price);
+        else rows.sort((a, b) => b.value - a.value);
+
+        rows = rows.slice(0, limit);
+
+        return sendJson(res, 200, {
+          day: engine.day,
+          pid: st.pid,
+          name: p.name,
+          terrain: p.terrain,
+          centroid: p.centroid,
+          isCity: st.isCity,
+          pop: st.pop,
+          infra: st.infra,
+          transportCap: st.transportCap,
+          transportUsed: st.transportUsed,
+          gdpTurnover: st.gdpTurnover,
+          buildings: st.buildings,
+          commodities: rows,
+        });
+      }
+
+      if (pathname === "/api/tick") {
+        const n = Math.max(1, Math.min(365, Number.parseInt(url.searchParams.get("n") || "1", 10)));
+        for (let i = 0; i < n; i++) engine.tick();
+        const r = engine.report();
+        return sendJson(res, 200, { ...r, ticked: n, day: engine.day });
+      }
+
+      if (pathname === "/api/reset") {
+        const seed = url.searchParams.get("seed");
+        const tuc = url.searchParams.get("transportUnitCost") || url.searchParams.get("transport");
+        const fr = url.searchParams.get("tradeFriction") || url.searchParams.get("friction");
+        const sm = url.searchParams.get("smoothSteps") || url.searchParams.get("smooth");
+
+        baseConfig = {
+          ...baseConfig,
+          seed: seed != null ? Number.parseInt(seed, 10) : baseConfig.seed,
+          transportUnitCost: tuc != null ? Number.parseFloat(tuc) : baseConfig.transportUnitCost,
+          tradeFriction: fr != null ? Number.parseFloat(fr) : baseConfig.tradeFriction,
+          smoothSteps: sm != null ? Number.parseInt(sm, 10) : baseConfig.smoothSteps,
+        };
+
+        engine = makeEngine(baseConfig);
+        const r = engine.report();
+        return sendJson(res, 200, { ok: true, ...r, config: { ...baseConfig } });
+      }
+
+      if (pathname === "/api/snapshot") {
+        return sendJson(res, 200, engine.exportSnapshot());
+      }
+
+      return sendJson(res, 404, { error: "unknown_api", path: pathname });
+    }
+
+    // Static
+    let filePath;
+    if (pathname === "/" || pathname === "/index.html") {
+      filePath = path.join(__dirname, "public", "index.html");
+    } else {
+      const safe = pathname.replace(/\\/g, "/").replace(/\.+/g, ".");
+      filePath = path.join(__dirname, "public", safe);
+    }
+
+    // запрет выхода из public
+    const publicDir = path.join(__dirname, "public");
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(publicDir))) {
+      return sendText(res, 403, "Forbidden");
+    }
+
+    if (!fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
+      return sendText(res, 404, "Not Found");
+    }
+
+    const ext = path.extname(resolved).toLowerCase();
+    const ct = contentTypeByExt(ext);
+    const buf = fs.readFileSync(resolved);
+    res.writeHead(200, { "Content-Type": ct, "Cache-Control": "no-store" });
+    res.end(buf);
+  } catch (e) {
+    console.error("[server] error:", e);
+    sendJson(res, 500, { error: "server_error", message: String(e?.message || e) });
+  }
+});
+
+server.listen(port, "127.0.0.1", () => {
+  console.log(`[economy-ui] loaded provinces=${provinces.length} from: ${dataFile}`);
+  console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps}`);
+  console.log(`[economy-ui] open: http://localhost:${port}`);
+});
