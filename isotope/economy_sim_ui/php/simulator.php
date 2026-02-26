@@ -112,10 +112,16 @@ final class EconomySimulator
             side TEXT NOT NULL,
             scope TEXT NOT NULL,
             qty REAL NOT NULL,
+            remaining_qty REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT "open",
             price_limit REAL NOT NULL,
+            expires_year INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         )');
         $this->db->exec('CREATE INDEX IF NOT EXISTS idx_trade_orders_year ON sim_trade_orders(year,commodity_id,pid)');
+        try { $this->db->exec('ALTER TABLE sim_trade_orders ADD COLUMN remaining_qty REAL NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $this->db->exec('ALTER TABLE sim_trade_orders ADD COLUMN status TEXT NOT NULL DEFAULT "open"'); } catch (Throwable $e) {}
+        try { $this->db->exec('ALTER TABLE sim_trade_orders ADD COLUMN expires_year INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
         $this->db->exec('CREATE TABLE IF NOT EXISTS sim_trade_deals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             year INTEGER NOT NULL,
@@ -374,7 +380,7 @@ final class EconomySimulator
 
     private function stepOneYear(int $year): void
     {
-        $this->db->prepare('DELETE FROM sim_trade_orders WHERE year=?')->execute([$year]);
+        $this->expireTradeOrders($year);
         $this->db->prepare('DELETE FROM sim_trade_deals WHERE year=?')->execute([$year]);
 
         $rows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_prod,s.yearly_cons,c.base_price,c.decay
@@ -419,6 +425,7 @@ final class EconomySimulator
         $afterRows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_cons FROM sim_state s ORDER BY s.pid,s.commodity_id')->fetchAll();
         $this->applyNeighborTrade($afterRows, $year);
         $this->applyExternalTrade($year);
+        $this->matchOpenInternalOrders($year);
     }
 
     public function provinceReport(int $pid, string $tier = 'all', string $sort = 'value', int $limit = 80, bool $activeOnly = false): ?array
@@ -533,7 +540,7 @@ final class EconomySimulator
         $limit = max(1, min(2000, $limit));
         $year = $year ?? (int)$this->metaGet('year', '0');
 
-        $ordersSt = $this->db->prepare('SELECT year,pid,commodity_id,side,scope,qty,price_limit,created_at
+        $ordersSt = $this->db->prepare('SELECT year,pid,commodity_id,side,scope,qty,remaining_qty,status,price_limit,expires_year,created_at
             FROM sim_trade_orders WHERE year=? ORDER BY created_at DESC LIMIT ?');
         $ordersSt->bindValue(1, $year, PDO::PARAM_INT);
         $ordersSt->bindValue(2, $limit, PDO::PARAM_INT);
@@ -1216,12 +1223,9 @@ final class EconomySimulator
                 $bNeed = max(0.0, $bRef['target'] - $bRef['stock']);
                 if ($aSur > 0.01 && $bNeed > 0.01 && $aRef['price'] <= $bRef['price']) {
                     $flow = min($capacity, $aSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $bNeed * 0.5);
-                    $aRef['stock'] -= $flow;
-                    $bRef['stock'] += $flow;
                     if ($flow > 0.0) {
-                        $this->recordTradeOrder($year, $a, (string)$cid, 'sell', 'internal', $flow, (float)$aRef['price']);
-                        $this->recordTradeOrder($year, $b, (string)$cid, 'buy', 'internal', $flow, (float)$bRef['price']);
-                        $this->recordTradeDeal($year, (string)$cid, $a, $b, 'internal', $flow, (float)$aRef['price'], 0.0, 1.0);
+                        $this->recordTradeOrder($year, $a, (string)$cid, 'sell', 'internal', $flow, (float)$aRef['price'], 1);
+                        $this->recordTradeOrder($year, $b, (string)$cid, 'buy', 'internal', $flow, (float)$bRef['price'], 1);
                     }
                 }
 
@@ -1229,22 +1233,12 @@ final class EconomySimulator
                 $aNeed = max(0.0, $aRef['target'] - $aRef['stock']);
                 if ($bSur > 0.01 && $aNeed > 0.01 && $bRef['price'] <= $aRef['price']) {
                     $flow = min($capacity, $bSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $aNeed * 0.5);
-                    $bRef['stock'] -= $flow;
-                    $aRef['stock'] += $flow;
                     if ($flow > 0.0) {
-                        $this->recordTradeOrder($year, $b, (string)$cid, 'sell', 'internal', $flow, (float)$bRef['price']);
-                        $this->recordTradeOrder($year, $a, (string)$cid, 'buy', 'internal', $flow, (float)$aRef['price']);
-                        $this->recordTradeDeal($year, (string)$cid, $b, $a, 'internal', $flow, (float)$bRef['price'], 0.0, 1.0);
+                        $this->recordTradeOrder($year, $b, (string)$cid, 'sell', 'internal', $flow, (float)$bRef['price'], 1);
+                        $this->recordTradeOrder($year, $a, (string)$cid, 'buy', 'internal', $flow, (float)$aRef['price'], 1);
                     }
                 }
                 unset($aRef, $bRef);
-            }
-        }
-
-        $upd = $this->db->prepare('UPDATE sim_state SET stock=? WHERE pid=? AND commodity_id=?');
-        foreach ($book as $pid => $coms) {
-            foreach ($coms as $cid => $vals) {
-                $upd->execute([round($vals['stock'], 6), $pid, $cid]);
             }
         }
     }
@@ -1278,11 +1272,11 @@ final class EconomySimulator
                 $price = max(0.5, min($avgPrice * 2.5, $price * (1.0 + (($need - $outflow) / $target) * 0.04)));
 
                 if ($inflow > 0.01) {
-                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'buy', 'external', $inflow, $price);
+                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'buy', 'external', $inflow, $price, 0);
                     $this->recordTradeDeal($year, (string)$cid, 0, (int)$it['pid'], 'external', $inflow, $price, 0.0, 0.0);
                 }
                 if ($outflow > 0.01) {
-                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'sell', 'external', $outflow, $price);
+                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'sell', 'external', $outflow, $price, 0);
                     $this->recordTradeDeal($year, (string)$cid, (int)$it['pid'], 0, 'external', $outflow, $price, 0.0, 0.0);
                 }
 
@@ -1291,11 +1285,114 @@ final class EconomySimulator
         }
     }
 
-    private function recordTradeOrder(int $year, int $pid, string $cid, string $side, string $scope, float $qty, float $priceLimit): void
+    private function recordTradeOrder(int $year, int $pid, string $cid, string $side, string $scope, float $qty, float $priceLimit, int $ttlYears = 1): void
     {
-        $st = $this->db->prepare('INSERT INTO sim_trade_orders(year,pid,commodity_id,side,scope,qty,price_limit,created_at)
-            VALUES(?,?,?,?,?,?,?,?)');
-        $st->execute([$year, $pid, $cid, $side, $scope, round($qty, 6), round($priceLimit, 6), gmdate('c')]);
+        $qty = round($qty, 6);
+        if ($qty <= 0.0) {
+            return;
+        }
+        $expiresYear = $ttlYears > 0 ? ($year + $ttlYears) : $year;
+        $st = $this->db->prepare('INSERT INTO sim_trade_orders(year,pid,commodity_id,side,scope,qty,remaining_qty,status,price_limit,expires_year,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+        $st->execute([$year, $pid, $cid, $side, $scope, $qty, $qty, 'open', round($priceLimit, 6), $expiresYear, gmdate('c')]);
+    }
+
+    private function expireTradeOrders(int $year): void
+    {
+        $st = $this->db->prepare('UPDATE sim_trade_orders
+            SET status="expired", remaining_qty=0
+            WHERE status="open" AND remaining_qty>0 AND expires_year < ?');
+        $st->execute([$year]);
+    }
+
+    private function matchOpenInternalOrders(int $year): void
+    {
+        $rows = $this->db->prepare('SELECT id,pid,commodity_id,side,remaining_qty,price_limit,created_at
+            FROM sim_trade_orders
+            WHERE scope="internal" AND status="open" AND remaining_qty>0
+            ORDER BY commodity_id, created_at ASC, id ASC');
+        $rows->execute();
+        $orders = $rows->fetchAll();
+        if (!$orders) {
+            return;
+        }
+
+        $sells = [];
+        $buys = [];
+        foreach ($orders as $o) {
+            $cid = (string)$o['commodity_id'];
+            if ((string)$o['side'] === 'sell') {
+                $sells[$cid][] = $o;
+            } else {
+                $buys[$cid][] = $o;
+            }
+        }
+
+        $dist = $this->distanceMatrix();
+        $updStock = $this->db->prepare('UPDATE sim_state SET stock = stock - ? WHERE pid=? AND commodity_id=?');
+        $updStockIn = $this->db->prepare('UPDATE sim_state SET stock = stock + ? WHERE pid=? AND commodity_id=?');
+        $updOrder = $this->db->prepare('UPDATE sim_trade_orders SET remaining_qty=?, status=? WHERE id=?');
+
+        foreach ($sells as $cid => $sellList) {
+            $buyList = $buys[$cid] ?? [];
+            if (!$buyList) continue;
+
+            usort($sellList, static function (array $a, array $b): int {
+                $pc = (float)$a['price_limit'] <=> (float)$b['price_limit'];
+                if ($pc !== 0) return $pc;
+                $tc = strcmp((string)$a['created_at'], (string)$b['created_at']);
+                if ($tc !== 0) return $tc;
+                return (int)$a['id'] <=> (int)$b['id'];
+            });
+            usort($buyList, static function (array $a, array $b): int {
+                $pc = (float)$b['price_limit'] <=> (float)$a['price_limit'];
+                if ($pc !== 0) return $pc;
+                $tc = strcmp((string)$a['created_at'], (string)$b['created_at']);
+                if ($tc !== 0) return $tc;
+                return (int)$a['id'] <=> (int)$b['id'];
+            });
+
+            foreach ($sellList as &$sell) {
+                $sellRem = (float)$sell['remaining_qty'];
+                if ($sellRem <= 0.0) continue;
+                foreach ($buyList as &$buy) {
+                    $buyRem = (float)$buy['remaining_qty'];
+                    if ($buyRem <= 0.0) continue;
+                    if ((float)$buy['price_limit'] + 1e-9 < (float)$sell['price_limit']) continue;
+
+                    $qty = min($sellRem, $buyRem);
+                    if ($qty <= 0.0) continue;
+
+                    $seller = (int)$sell['pid'];
+                    $buyer = (int)$buy['pid'];
+                    $distance = (float)($dist[$buyer][$seller] ?? INF);
+                    if (!is_finite($distance)) continue;
+                    $transportCost = $distance * $this->transportUnitCost();
+                    $unitPrice = ((float)$sell['price_limit'] + (float)$buy['price_limit']) / 2.0;
+
+                    $updStock->execute([$qty, $seller, $cid]);
+                    $updStockIn->execute([$qty, $buyer, $cid]);
+                    $this->recordTradeDeal($year, $cid, $seller, $buyer, 'internal', $qty, $unitPrice, $transportCost, $distance);
+
+                    $sellRem -= $qty;
+                    $buyRem -= $qty;
+                    $sell['remaining_qty'] = $sellRem;
+                    $buy['remaining_qty'] = $buyRem;
+                    if ($sellRem <= 0.0) break;
+                }
+                unset($buy);
+            }
+            unset($sell);
+
+            foreach ($sellList as $s) {
+                $rem = max(0.0, (float)$s['remaining_qty']);
+                $updOrder->execute([round($rem, 6), $rem > 0.0 ? 'open' : 'filled', (int)$s['id']]);
+            }
+            foreach ($buyList as $b) {
+                $rem = max(0.0, (float)$b['remaining_qty']);
+                $updOrder->execute([round($rem, 6), $rem > 0.0 ? 'open' : 'filled', (int)$b['id']]);
+            }
+        }
     }
 
     private function recordTradeDeal(int $year, string $cid, int $sellerPid, int $buyerPid, string $scope, float $qty, float $unitPrice, float $transportCost, float $distance): void
