@@ -32,35 +32,8 @@ final class EconomySimulator
         ['id' => 'air_purifier_home', 'name' => 'Личный очиститель воздуха', 'unit' => 'шт', 'tier' => 'product', 'base_price' => 800.0, 'demand' => 0.05, 'decay' => 0.00, 'rarity' => 0.65],
         ['id' => 'field_cat', 'name' => 'Полевой кот', 'unit' => 'шт', 'tier' => 'animal', 'base_price' => 2560.0, 'demand' => 0.01, 'decay' => 0.00, 'rarity' => 0.15],
     ];
-
-    /** @var array<string,array{input:array<string,float>,output:array<string,float>,base_rate:float}> */
-    private array $industrialGraph = [
-        'bakery' => [
-            'input' => ['mutabryukva' => 1.2],
-            'output' => ['bread' => 1.0],
-            'base_rate' => 6.0,
-        ],
-        'metalworks' => [
-            'input' => ['iron_ore' => 1.3, 'stone' => 0.2],
-            'output' => ['steel' => 0.8],
-            'base_rate' => 2.0,
-        ],
-        'electronics' => [
-            'input' => ['steel' => 0.3, 'petrochem_raw' => 0.4],
-            'output' => ['e_parts' => 0.7],
-            'base_rate' => 1.2,
-        ],
-        'engine_factory' => [
-            'input' => ['steel' => 0.5, 'e_parts' => 0.4, 'rubber_raw' => 0.3],
-            'output' => ['engine_kit' => 0.6],
-            'base_rate' => 0.8,
-        ],
-        'vehicle_factory' => [
-            'input' => ['engine_kit' => 0.4, 'steel' => 0.7, 'wood_processed' => 0.2],
-            'output' => ['truck_civil' => 0.18],
-            'base_rate' => 0.35,
-        ],
-    ];
+    /** @var array<string,array{name:string,labor:float,cap:float,input:array<string,float>,output:array<string,float>}> */
+    private array $industrialGraph;
 
     /** @var array<int,array<int,float>>|null */
     private ?array $distanceCache = null;
@@ -68,6 +41,7 @@ final class EconomySimulator
     public function __construct()
     {
         $this->db = db();
+        $this->industrialGraph = require __DIR__ . '/industrial_graph.php';
     }
 
     public function ensureReady(): void
@@ -737,48 +711,77 @@ final class EconomySimulator
     private function applyIndustrialGraph(array $rows): array
     {
         $state = [];
+        $knownCommodity = [];
         foreach ($rows as $r) {
             $pid = (int)$r['pid'];
             $cid = (string)$r['commodity_id'];
             $state[$pid][$cid] = $r;
+            $knownCommodity[$cid] = true;
         }
 
         foreach ($state as $pid => $commodityRows) {
             $buildings = $this->provinceBuildings((int)$pid);
-            $buildingPower = 0.0;
+            $effByType = [];
             foreach ($buildings as $b) {
-                $buildingPower += max(0.0, (float)$b['count']) * max(0.0, (float)$b['efficiency']);
+                $effByType[(string)$b['type']] = (max(0.0, (float)$b['count']) * max(0.0, (float)$b['efficiency']));
             }
-            $powerFactor = max(0.2, 0.6 + min(4.0, $buildingPower) * 0.18);
 
-            foreach ($this->industrialGraph as $recipe) {
-                $maxCycles = INF;
-                foreach ($recipe['input'] as $inCid => $inQty) {
-                    $stock = (float)($state[$pid][$inCid]['stock'] ?? 0.0);
-                    $maxCycles = min($maxCycles, $stock / max(1e-6, $inQty));
-                }
-                if (!is_finite($maxCycles) || $maxCycles <= 0.0) {
+            foreach ($this->industrialGraph as $type => $recipe) {
+                if (!isset($effByType[$type]) || $effByType[$type] <= 0.0) {
                     continue;
                 }
 
-                $cycles = min($recipe['base_rate'] * $powerFactor, $maxCycles * 0.22);
+                // применяем только рецепты, которые работают с уже известными в текущей модели товарами
+                $hasAnyKnownOutput = false;
+                foreach (($recipe['output'] ?? []) as $outCid => $q) {
+                    if (isset($knownCommodity[(string)$outCid])) {
+                        $hasAnyKnownOutput = true;
+                        break;
+                    }
+                }
+                if (!$hasAnyKnownOutput) {
+                    continue;
+                }
+
+                $cap = max(0.05, (float)($recipe['cap'] ?? 1.0));
+                $baseRate = 0.35 + (max(10.0, (float)($recipe['labor'] ?? 60.0)) / 240.0);
+                $cyclesTarget = $effByType[$type] * $cap * $baseRate;
+
+                $maxCycles = INF;
+                foreach (($recipe['input'] ?? []) as $inCid => $inQty) {
+                    if (!isset($knownCommodity[(string)$inCid])) {
+                        continue;
+                    }
+                    $stock = (float)($state[$pid][(string)$inCid]['stock'] ?? 0.0);
+                    $maxCycles = min($maxCycles, $stock / max(1e-6, (float)$inQty));
+                }
+
+                if (!is_finite($maxCycles)) {
+                    continue;
+                }
+                $cycles = min($cyclesTarget, $maxCycles * 0.25);
                 if ($cycles <= 0.0) {
                     continue;
                 }
 
-                foreach ($recipe['input'] as $inCid => $inQty) {
+                foreach (($recipe['input'] ?? []) as $inCid => $inQty) {
+                    $inCid = (string)$inCid;
                     if (!isset($state[$pid][$inCid])) {
                         continue;
                     }
-                    $state[$pid][$inCid]['stock'] = max(0.0, (float)$state[$pid][$inCid]['stock'] - ($inQty * $cycles));
-                    $state[$pid][$inCid]['yearly_cons'] = (float)$state[$pid][$inCid]['yearly_cons'] + ($inQty * $cycles * 0.65);
+                    $consume = (float)$inQty * $cycles;
+                    $state[$pid][$inCid]['stock'] = max(0.0, (float)$state[$pid][$inCid]['stock'] - $consume);
+                    $state[$pid][$inCid]['yearly_cons'] = (float)$state[$pid][$inCid]['yearly_cons'] + ($consume * 0.7);
                 }
-                foreach ($recipe['output'] as $outCid => $outQty) {
+
+                foreach (($recipe['output'] ?? []) as $outCid => $outQty) {
+                    $outCid = (string)$outCid;
                     if (!isset($state[$pid][$outCid])) {
                         continue;
                     }
-                    $state[$pid][$outCid]['stock'] = (float)$state[$pid][$outCid]['stock'] + ($outQty * $cycles);
-                    $state[$pid][$outCid]['yearly_prod'] = (float)$state[$pid][$outCid]['yearly_prod'] + ($outQty * $cycles * 0.8);
+                    $produce = (float)$outQty * $cycles;
+                    $state[$pid][$outCid]['stock'] = (float)$state[$pid][$outCid]['stock'] + $produce;
+                    $state[$pid][$outCid]['yearly_prod'] = (float)$state[$pid][$outCid]['yearly_prod'] + ($produce * 0.8);
                 }
             }
         }
