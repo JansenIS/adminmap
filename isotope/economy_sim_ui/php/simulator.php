@@ -28,6 +28,7 @@ final class EconomySimulator
         $this->migrate();
         $this->syncMapData();
         $this->seedEconomyIfNeeded();
+        $this->ensureProvinceFinanceRows();
     }
 
     private function migrate(): void
@@ -136,6 +137,14 @@ final class EconomySimulator
             created_at TEXT NOT NULL
         )');
         $this->db->exec('CREATE INDEX IF NOT EXISTS idx_trade_deals_year ON sim_trade_deals(year,commodity_id,seller_pid,buyer_pid)');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS sim_province_finance (
+            pid INTEGER PRIMARY KEY,
+            treasury REAL NOT NULL,
+            last_income REAL NOT NULL DEFAULT 0,
+            last_expense REAL NOT NULL DEFAULT 0,
+            last_delta REAL NOT NULL DEFAULT 0,
+            updated_year INTEGER NOT NULL DEFAULT 0
+        )');
 
         $stmt = $this->db->prepare('INSERT OR REPLACE INTO commodities(id,name,unit,tier,base_price,demand,decay,rarity) VALUES(?,?,?,?,?,?,?,?)');
         foreach ($this->commodities as $c) {
@@ -259,9 +268,27 @@ final class EconomySimulator
                 $price = $c['base_price'];
                 $ins->execute([$pid, $c['id'], $stock, $price, $prod, $cons]);
             }
+
+            $seedTreasury = max(120.0, (float)$this->provinceDerived($pid, (int)$p['hex_count'], '', '')['gdpTurnover'] * 0.06);
+            $fin = $this->db->prepare('INSERT INTO sim_province_finance(pid,treasury,last_income,last_expense,last_delta,updated_year)
+                VALUES(?,?,?,?,?,?) ON CONFLICT(pid) DO NOTHING');
+            $fin->execute([$pid, round($seedTreasury, 6), 0.0, 0.0, 0.0, 0]);
         }
 
         $this->metaSet('year', '0');
+    }
+
+    private function ensureProvinceFinanceRows(): void
+    {
+        $provinces = $this->db->query('SELECT pid,hex_count,owner,free_city_id FROM provinces ORDER BY pid')->fetchAll();
+        $ins = $this->db->prepare('INSERT INTO sim_province_finance(pid,treasury,last_income,last_expense,last_delta,updated_year)
+            VALUES(?,?,?,?,?,?) ON CONFLICT(pid) DO NOTHING');
+        foreach ($provinces as $p) {
+            $pid = (int)$p['pid'];
+            $derived = $this->provinceDerived($pid, (int)$p['hex_count'], (string)$p['owner'], (string)$p['free_city_id']);
+            $seedTreasury = max(120.0, (float)$derived['gdpTurnover'] * 0.06);
+            $ins->execute([$pid, round($seedTreasury, 6), 0.0, 0.0, 0.0, (int)$this->metaGet('year', '0')]);
+        }
     }
 
     public function getSummary(): array
@@ -298,6 +325,7 @@ final class EconomySimulator
             ];
         }
         usort($gdpRows, static fn(array $a, array $b): int => $b['gdp'] <=> $a['gdp']);
+        $finRows = $this->db->query('SELECT SUM(treasury) AS total_treasury, AVG(last_delta) AS avg_delta FROM sim_province_finance')->fetch();
 
         return [
             'year' => $year,
@@ -305,6 +333,8 @@ final class EconomySimulator
             'popTotal' => $totalPop,
             'province_count' => count($provinces),
             'hex_count' => (int)$this->db->query('SELECT COUNT(*) FROM hexes')->fetchColumn(),
+            'treasuryTotal' => round((float)($finRows['total_treasury'] ?? 0.0), 2),
+            'avgTreasuryDelta' => round((float)($finRows['avg_delta'] ?? 0.0), 4),
             'topGDP' => array_slice($gdpRows, 0, 8),
             'scarce' => $scarce,
             'cheap' => $cheap,
@@ -426,6 +456,7 @@ final class EconomySimulator
         $this->applyNeighborTrade($afterRows, $year);
         $this->applyExternalTrade($year);
         $this->matchOpenInternalOrders($year);
+        $this->applyProvinceFinanceYear($year);
     }
 
     public function provinceReport(int $pid, string $tier = 'all', string $sort = 'value', int $limit = 80, bool $activeOnly = false): ?array
@@ -493,6 +524,7 @@ final class EconomySimulator
             'transportCap' => $derived['transportCap'],
             'transportUsed' => $derived['transportUsed'],
             'gdpTurnover' => $derived['gdpTurnover'],
+            'treasury' => $this->provinceFinance((int)$prov['pid']),
             'buildings' => $this->provinceBuildings((int)$prov['pid']),
             'commodities' => array_slice($items, 0, max(10, min(300, $limit))),
             'neighbors' => $neighborsStmt->fetchAll(),
@@ -583,9 +615,83 @@ final class EconomySimulator
         $this->db->exec('DELETE FROM sim_state');
         $this->db->exec('DELETE FROM sim_trade_orders');
         $this->db->exec('DELETE FROM sim_trade_deals');
+        $this->db->exec('DELETE FROM sim_province_finance');
         $this->metaSet('year', '0');
         $this->seedEconomyIfNeeded();
         return $this->getSummary();
+    }
+
+    private function provinceFinance(int $pid): array
+    {
+        $st = $this->db->prepare('SELECT treasury,last_income,last_expense,last_delta,updated_year FROM sim_province_finance WHERE pid=?');
+        $st->execute([$pid]);
+        $r = $st->fetch();
+        if (!$r) {
+            return ['treasury' => 0.0, 'income' => 0.0, 'expense' => 0.0, 'delta' => 0.0, 'year' => 0];
+        }
+        return [
+            'treasury' => round((float)$r['treasury'], 4),
+            'income' => round((float)$r['last_income'], 4),
+            'expense' => round((float)$r['last_expense'], 4),
+            'delta' => round((float)$r['last_delta'], 4),
+            'year' => (int)$r['updated_year'],
+        ];
+    }
+
+    private function applyProvinceFinanceYear(int $year): void
+    {
+        $provRows = $this->db->query('SELECT pid,hex_count,owner,free_city_id FROM provinces ORDER BY pid')->fetchAll();
+        $tradeByPid = [];
+        $dealRows = $this->db->prepare('SELECT seller_pid,buyer_pid,scope,qty,unit_price,transport_cost FROM sim_trade_deals WHERE year=?');
+        $dealRows->execute([$year]);
+        foreach ($dealRows->fetchAll() as $d) {
+            $value = (float)$d['qty'] * (float)$d['unit_price'];
+            $logisticsValue = (float)$d['qty'] * (float)$d['transport_cost'];
+            $seller = (int)$d['seller_pid'];
+            $buyer = (int)$d['buyer_pid'];
+            $scope = (string)$d['scope'];
+            if ($seller > 0) {
+                $tradeByPid[$seller]['exportValue'] = ($tradeByPid[$seller]['exportValue'] ?? 0.0) + $value;
+            }
+            if ($buyer > 0) {
+                $tradeByPid[$buyer]['importValue'] = ($tradeByPid[$buyer]['importValue'] ?? 0.0) + $value;
+            }
+            if ($scope === 'internal' && $seller > 0 && $buyer > 0) {
+                $tax = max(0.0, $logisticsValue * 0.18);
+                $tradeByPid[$seller]['transitTax'] = ($tradeByPid[$seller]['transitTax'] ?? 0.0) + ($tax * 0.5);
+                $tradeByPid[$buyer]['transitTax'] = ($tradeByPid[$buyer]['transitTax'] ?? 0.0) + ($tax * 0.5);
+            }
+        }
+
+        $selFin = $this->db->prepare('SELECT treasury FROM sim_province_finance WHERE pid=?');
+        $upFin = $this->db->prepare('INSERT INTO sim_province_finance(pid,treasury,last_income,last_expense,last_delta,updated_year)
+            VALUES(?,?,?,?,?,?)
+            ON CONFLICT(pid) DO UPDATE SET treasury=excluded.treasury,last_income=excluded.last_income,last_expense=excluded.last_expense,last_delta=excluded.last_delta,updated_year=excluded.updated_year');
+
+        foreach ($provRows as $p) {
+            $pid = (int)$p['pid'];
+            $derived = $this->provinceDerived($pid, (int)$p['hex_count'], (string)$p['owner'], (string)$p['free_city_id']);
+            $selFin->execute([$pid]);
+            $oldTreasury = (float)($selFin->fetchColumn() ?: 0.0);
+
+            $gdp = (float)$derived['gdpTurnover'];
+            $pop = (float)$derived['pop'];
+            $infra = max(0.1, (float)$derived['infra']);
+            $turnover = (float)($tradeByPid[$pid]['importValue'] ?? 0.0) + (float)($tradeByPid[$pid]['exportValue'] ?? 0.0);
+
+            $settlementTax = $gdp * (0.010 + min(0.006, $infra * 0.0015));
+            $tradeTax = $turnover * 0.008;
+            $transitTax = (float)($tradeByPid[$pid]['transitTax'] ?? 0.0);
+            $income = $settlementTax + $tradeTax + $transitTax;
+
+            $adminExpense = ($pop * 0.045) + ($gdp * 0.005);
+            $antiSnowball = max(0.0, $oldTreasury) * 0.006;
+            $expense = $adminExpense + $antiSnowball;
+
+            $delta = $income - $expense;
+            $newTreasury = max(0.0, $oldTreasury + $delta);
+            $upFin->execute([$pid, round($newTreasury, 6), round($income, 6), round($expense, 6), round($delta, 6), $year]);
+        }
     }
 
     private function provinceDerived(int $pid, int $hexCount, string $owner, string $freeCityId): array
@@ -725,6 +831,7 @@ final class EconomySimulator
                 'isCity' => $derived['isCity'],
                 'pop' => $derived['pop'],
                 'infra' => $derived['infra'],
+                'treasury' => $this->provinceFinance((int)$r['pid'])['treasury'],
             ];
         }, $rows);
     }
