@@ -787,41 +787,15 @@ final class EconomySimulator
             $state[(int)$r['pid']][(string)$r['commodity_id']] = $r;
         }
 
-        foreach ($state as $pid => $comRows) {
-            foreach ($comRows as $cid => $row) {
-                $target = max(1.0, (float)$row['yearly_cons'] * 1.2);
-                $need = max(0.0, $target - (float)$row['stock']);
-                if ($need < 0.01) continue;
-
-                $candidates = [];
-                foreach ($state as $spid => $srows) {
-                    if ($spid === $pid || !isset($srows[$cid])) continue;
-                    $s = $srows[$cid];
-                    $ssurplus = max(0.0, (float)$s['stock'] - max(1.0, (float)$s['yearly_cons'] * 1.2));
-                    if ($ssurplus < 0.01) continue;
-                    $d = $dist[$pid][$spid] ?? INF;
-                    if (!is_finite($d)) continue;
-                    $score = ((float)$s['price']) + ($d * $this->transportUnitCost());
-                    $candidates[] = ['pid' => $spid, 'dist' => $d, 'surplus' => $ssurplus, 'score' => $score];
-                }
-
-                usort($candidates, static fn(array $a, array $b): int => $a['score'] <=> $b['score']);
-                $remainingNeed = $need * 0.45;
-                foreach ($candidates as $cand) {
-                    if ($remainingNeed <= 0.01) break;
-                    $spid = (int)$cand['pid'];
-                    $d = (float)$cand['dist'];
-                    $available = max(0.0, (float)$state[$spid][$cid]['stock'] - max(1.0, (float)$state[$spid][$cid]['yearly_cons'] * 1.2));
-                    if ($available <= 0.01) continue;
-                    $cap = max(0.0, (1.0 - $this->tradeFriction()) * 8.0 / (1.0 + $d * 0.25));
-                    $moved = min($remainingNeed, $available * 0.35, $cap);
-                    if ($moved > 0.0) {
-                        $state[$spid][$cid]['stock'] = (float)$state[$spid][$cid]['stock'] - $moved;
-                        $state[$pid][$cid]['stock'] = (float)$state[$pid][$cid]['stock'] + $moved;
-                        $remainingNeed -= $moved;
-                    }
-                }
+        $allCommodityIds = [];
+        foreach ($state as $commodityRows) {
+            foreach ($commodityRows as $cid => $_) {
+                $allCommodityIds[$cid] = true;
             }
+        }
+
+        foreach (array_keys($allCommodityIds) as $cid) {
+            $this->balanceCommodityMinCostFlow($state, (string)$cid, $dist);
         }
 
         $out = [];
@@ -832,6 +806,201 @@ final class EconomySimulator
         }
         usort($out, static fn(array $a, array $b): int => ((int)$a['pid'] <=> (int)$b['pid']) ?: strcmp((string)$a['commodity_id'], (string)$b['commodity_id']));
         return $out;
+    }
+
+    /**
+     * @param array<int,array<string,array<string,mixed>>> $state
+     * @param array<int,array<int,float>> $dist
+     */
+    private function balanceCommodityMinCostFlow(array &$state, string $cid, array $dist): void
+    {
+        $eps = 0.01;
+        $supplies = [];
+        $demands = [];
+
+        foreach ($state as $pid => $rowsByCid) {
+            if (!isset($rowsByCid[$cid])) {
+                continue;
+            }
+            $row = $rowsByCid[$cid];
+            $target = max(1.0, (float)$row['yearly_cons'] * 1.2);
+            $stock = (float)$row['stock'];
+            $surplus = max(0.0, $stock - $target);
+            $need = max(0.0, $target - $stock);
+            if ($surplus > $eps) {
+                $supplies[] = ['pid' => (int)$pid, 'amount' => $surplus, 'price' => (float)$row['price']];
+            }
+            if ($need > $eps) {
+                $demands[] = ['pid' => (int)$pid, 'amount' => $need];
+            }
+        }
+
+        if (!$supplies || !$demands) {
+            return;
+        }
+
+        $nSup = count($supplies);
+        $nDem = count($demands);
+        $src = 0;
+        $supOffset = 1;
+        $demOffset = $supOffset + $nSup;
+        $sink = $demOffset + $nDem;
+        $n = $sink + 1;
+        $g = array_fill(0, $n, []);
+
+        for ($i = 0; $i < $nSup; $i++) {
+            $this->mcfAddEdge($g, $src, $supOffset + $i, (float)$supplies[$i]['amount'], 0.0);
+        }
+        for ($j = 0; $j < $nDem; $j++) {
+            $this->mcfAddEdge($g, $demOffset + $j, $sink, (float)$demands[$j]['amount'], 0.0);
+        }
+
+        $tradeMultiplier = max(0.05, 1.0 - $this->tradeFriction());
+        $transportCost = $this->transportUnitCost() / $tradeMultiplier;
+        $edgeRefs = [];
+        $maxSuppliersPerDemand = 12;
+        for ($j = 0; $j < $nDem; $j++) {
+            $dpid = (int)$demands[$j]['pid'];
+            $demandAmount = (float)$demands[$j]['amount'];
+            $cands = [];
+            for ($i = 0; $i < $nSup; $i++) {
+                $spid = (int)$supplies[$i]['pid'];
+                if ($spid === $dpid) {
+                    continue;
+                }
+                $d = $dist[$dpid][$spid] ?? INF;
+                if (!is_finite($d)) {
+                    continue;
+                }
+                $cost = max(0.01, (float)$supplies[$i]['price']) + ($d * $transportCost);
+                $cands[] = ['i' => $i, 'cost' => $cost];
+            }
+
+            if (!$cands) {
+                continue;
+            }
+
+            usort($cands, static fn(array $a, array $b): int => $a['cost'] <=> $b['cost']);
+            $cumSupply = 0.0;
+            $usedSuppliers = 0;
+            foreach ($cands as $cand) {
+                $i = (int)$cand['i'];
+                $from = $supOffset + $i;
+                $to = $demOffset + $j;
+                $cap = (float)$supplies[$i]['amount'];
+                $idx = $this->mcfAddEdge($g, $from, $to, $cap, (float)$cand['cost']);
+                $edgeRefs[] = ['i' => $i, 'j' => $j, 'from' => $from, 'edge_idx' => $idx];
+                $cumSupply += $cap;
+                $usedSuppliers++;
+                if ($cumSupply >= ($demandAmount * 1.25) || $usedSuppliers >= $maxSuppliersPerDemand) {
+                    break;
+                }
+            }
+        }
+
+        if (!$edgeRefs) {
+            return;
+        }
+
+        $this->runMinCostMaxFlow($g, $src, $sink);
+
+        foreach ($edgeRefs as $ref) {
+            $e = $g[$ref['from']][$ref['edge_idx']];
+            $used = (float)$e['orig_cap'] - (float)$e['cap'];
+            if ($used <= $eps) {
+                continue;
+            }
+            $spid = (int)$supplies[$ref['i']]['pid'];
+            $dpid = (int)$demands[$ref['j']]['pid'];
+            $state[$spid][$cid]['stock'] = max(0.0, (float)$state[$spid][$cid]['stock'] - $used);
+            $state[$dpid][$cid]['stock'] = (float)$state[$dpid][$cid]['stock'] + $used;
+        }
+    }
+
+    /**
+     * @param array<int,array<int,array{to:int,rev:int,cap:float,cost:float,orig_cap:float}>> $g
+     */
+    private function runMinCostMaxFlow(array &$g, int $src, int $sink): void
+    {
+        $n = count($g);
+        $pot = array_fill(0, $n, 0.0);
+        $eps = 1e-9;
+
+        while (true) {
+            $dist = array_fill(0, $n, INF);
+            $prevNode = array_fill(0, $n, -1);
+            $prevEdge = array_fill(0, $n, -1);
+            $used = array_fill(0, $n, false);
+            $dist[$src] = 0.0;
+
+            for ($iter = 0; $iter < $n; $iter++) {
+                $v = -1;
+                $best = INF;
+                for ($i = 0; $i < $n; $i++) {
+                    if (!$used[$i] && $dist[$i] < $best) {
+                        $best = $dist[$i];
+                        $v = $i;
+                    }
+                }
+                if ($v < 0) {
+                    break;
+                }
+                $used[$v] = true;
+                foreach ($g[$v] as $ei => $e) {
+                    if ((float)$e['cap'] <= $eps) {
+                        continue;
+                    }
+                    $to = (int)$e['to'];
+                    $rcost = (float)$e['cost'] + $pot[$v] - $pot[$to];
+                    $nd = $dist[$v] + $rcost;
+                    if ($nd + $eps < $dist[$to]) {
+                        $dist[$to] = $nd;
+                        $prevNode[$to] = $v;
+                        $prevEdge[$to] = $ei;
+                    }
+                }
+            }
+
+            if ($prevNode[$sink] < 0) {
+                break;
+            }
+
+            for ($i = 0; $i < $n; $i++) {
+                if ($dist[$i] < INF) {
+                    $pot[$i] += $dist[$i];
+                }
+            }
+
+            $add = INF;
+            for ($v = $sink; $v !== $src; $v = $prevNode[$v]) {
+                $u = $prevNode[$v];
+                $ei = $prevEdge[$v];
+                $add = min($add, (float)$g[$u][$ei]['cap']);
+            }
+            if (!is_finite($add) || $add <= $eps) {
+                break;
+            }
+
+            for ($v = $sink; $v !== $src; $v = $prevNode[$v]) {
+                $u = $prevNode[$v];
+                $ei = $prevEdge[$v];
+                $rev = (int)$g[$u][$ei]['rev'];
+                $g[$u][$ei]['cap'] = (float)$g[$u][$ei]['cap'] - $add;
+                $g[$v][$rev]['cap'] = (float)$g[$v][$rev]['cap'] + $add;
+            }
+        }
+    }
+
+    /**
+     * @param array<int,array<int,array{to:int,rev:int,cap:float,cost:float,orig_cap:float}>> $g
+     */
+    private function mcfAddEdge(array &$g, int $from, int $to, float $cap, float $cost): int
+    {
+        $fwd = ['to' => $to, 'rev' => count($g[$to]), 'cap' => $cap, 'cost' => $cost, 'orig_cap' => $cap];
+        $rev = ['to' => $from, 'rev' => count($g[$from]), 'cap' => 0.0, 'cost' => -$cost, 'orig_cap' => 0.0];
+        $g[$from][] = $fwd;
+        $g[$to][] = $rev;
+        return count($g[$from]) - 1;
     }
 
     /** @return array<int,array<int,float>> */
