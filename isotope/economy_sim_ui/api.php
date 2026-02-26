@@ -40,6 +40,12 @@ try {
         respond_json(['ok' => true, 'data' => $sim->globalTradeBalance()]);
     }
 
+    if ($action === 'trade-history') {
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 200;
+        $year = isset($_GET['year']) ? (int)$_GET['year'] : null;
+        respond_json(['ok' => true, 'data' => $sim->tradeHistory($limit, $year)]);
+    }
+
     if ($action === 'snapshot') {
         respond_json(['ok' => true, 'data' => $sim->exportSnapshot()]);
     }

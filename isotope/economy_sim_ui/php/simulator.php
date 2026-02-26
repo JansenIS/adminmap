@@ -104,6 +104,32 @@ final class EconomySimulator
             efficiency REAL NOT NULL,
             PRIMARY KEY (pid, type)
         )');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS sim_trade_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year INTEGER NOT NULL,
+            pid INTEGER NOT NULL,
+            commodity_id TEXT NOT NULL,
+            side TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            qty REAL NOT NULL,
+            price_limit REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )');
+        $this->db->exec('CREATE INDEX IF NOT EXISTS idx_trade_orders_year ON sim_trade_orders(year,commodity_id,pid)');
+        $this->db->exec('CREATE TABLE IF NOT EXISTS sim_trade_deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year INTEGER NOT NULL,
+            commodity_id TEXT NOT NULL,
+            seller_pid INTEGER NOT NULL,
+            buyer_pid INTEGER NOT NULL,
+            scope TEXT NOT NULL,
+            qty REAL NOT NULL,
+            unit_price REAL NOT NULL,
+            transport_cost REAL NOT NULL,
+            distance REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )');
+        $this->db->exec('CREATE INDEX IF NOT EXISTS idx_trade_deals_year ON sim_trade_deals(year,commodity_id,seller_pid,buyer_pid)');
 
         $stmt = $this->db->prepare('INSERT OR REPLACE INTO commodities(id,name,unit,tier,base_price,demand,decay,rarity) VALUES(?,?,?,?,?,?,?,?)');
         foreach ($this->commodities as $c) {
@@ -336,18 +362,21 @@ final class EconomySimulator
     public function stepYear(int $years = 1): array
     {
         $years = max(1, min(50, $years));
+        $year = (int)$this->metaGet('year', '0');
         for ($i = 0; $i < $years; $i++) {
-            $this->stepOneYear();
+            $year++;
+            $this->stepOneYear($year);
+            $this->metaSet('year', (string)$year);
         }
-
-        $year = (int)$this->metaGet('year', '0') + $years;
-        $this->metaSet('year', (string)$year);
 
         return $this->getSummary();
     }
 
-    private function stepOneYear(): void
+    private function stepOneYear(int $year): void
     {
+        $this->db->prepare('DELETE FROM sim_trade_orders WHERE year=?')->execute([$year]);
+        $this->db->prepare('DELETE FROM sim_trade_deals WHERE year=?')->execute([$year]);
+
         $rows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_prod,s.yearly_cons,c.base_price,c.decay
             FROM sim_state s JOIN commodities c ON c.id=s.commodity_id ORDER BY s.pid,s.commodity_id')->fetchAll();
 
@@ -388,8 +417,8 @@ final class EconomySimulator
         }
 
         $afterRows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_cons FROM sim_state s ORDER BY s.pid,s.commodity_id')->fetchAll();
-        $this->applyNeighborTrade($afterRows);
-        $this->applyExternalTrade();
+        $this->applyNeighborTrade($afterRows, $year);
+        $this->applyExternalTrade($year);
     }
 
     public function provinceReport(int $pid, string $tier = 'all', string $sort = 'value', int $limit = 80, bool $activeOnly = false): ?array
@@ -467,9 +496,22 @@ final class EconomySimulator
     {
         $rows = $this->db->query('SELECT c.id,c.name,c.tier,SUM(s.yearly_prod) AS produced,SUM(s.yearly_cons) AS sold,SUM(s.stock) AS stock
             FROM sim_state s JOIN commodities c ON c.id=s.commodity_id GROUP BY c.id,c.name,c.tier ORDER BY c.id')->fetchAll();
+        $tradeYear = (int)$this->metaGet('year', '0');
+        $dealRows = $this->db->prepare('SELECT commodity_id,
+                SUM(CASE WHEN scope="internal" AND buyer_pid>0 THEN qty ELSE 0 END) AS internal_import,
+                SUM(CASE WHEN scope="internal" AND seller_pid>0 THEN qty ELSE 0 END) AS internal_export,
+                SUM(CASE WHEN scope="external" AND buyer_pid>0 THEN qty ELSE 0 END) AS external_import,
+                SUM(CASE WHEN scope="external" AND seller_pid>0 THEN qty ELSE 0 END) AS external_export
+            FROM sim_trade_deals WHERE year=? GROUP BY commodity_id');
+        $dealRows->execute([$tradeYear]);
+        $dealsByCommodity = [];
+        foreach ($dealRows->fetchAll() as $d) {
+            $dealsByCommodity[(string)$d['commodity_id']] = $d;
+        }
 
         return [
             'periodDays' => 365,
+            'tradeYear' => $tradeYear,
             'rows' => array_map(static fn(array $r): array => [
                 'id' => $r['id'],
                 'name' => $r['name'],
@@ -478,7 +520,35 @@ final class EconomySimulator
                 'sold' => round((float)$r['sold'], 2),
                 'saldo' => round((float)$r['produced'] - (float)$r['sold'], 2),
                 'stock' => round((float)$r['stock'], 2),
+                'internalImport' => round((float)($dealsByCommodity[(string)$r['id']]['internal_import'] ?? 0.0), 2),
+                'internalExport' => round((float)($dealsByCommodity[(string)$r['id']]['internal_export'] ?? 0.0), 2),
+                'externalImport' => round((float)($dealsByCommodity[(string)$r['id']]['external_import'] ?? 0.0), 2),
+                'externalExport' => round((float)($dealsByCommodity[(string)$r['id']]['external_export'] ?? 0.0), 2),
             ], $rows),
+        ];
+    }
+
+    public function tradeHistory(int $limit = 200, ?int $year = null): array
+    {
+        $limit = max(1, min(2000, $limit));
+        $year = $year ?? (int)$this->metaGet('year', '0');
+
+        $ordersSt = $this->db->prepare('SELECT year,pid,commodity_id,side,scope,qty,price_limit,created_at
+            FROM sim_trade_orders WHERE year=? ORDER BY created_at DESC LIMIT ?');
+        $ordersSt->bindValue(1, $year, PDO::PARAM_INT);
+        $ordersSt->bindValue(2, $limit, PDO::PARAM_INT);
+        $ordersSt->execute();
+
+        $dealsSt = $this->db->prepare('SELECT year,commodity_id,seller_pid,buyer_pid,scope,qty,unit_price,transport_cost,distance,created_at
+            FROM sim_trade_deals WHERE year=? ORDER BY created_at DESC LIMIT ?');
+        $dealsSt->bindValue(1, $year, PDO::PARAM_INT);
+        $dealsSt->bindValue(2, $limit, PDO::PARAM_INT);
+        $dealsSt->execute();
+
+        return [
+            'year' => $year,
+            'orders' => $ordersSt->fetchAll(),
+            'deals' => $dealsSt->fetchAll(),
         ];
     }
 
@@ -504,6 +574,8 @@ final class EconomySimulator
         }
 
         $this->db->exec('DELETE FROM sim_state');
+        $this->db->exec('DELETE FROM sim_trade_orders');
+        $this->db->exec('DELETE FROM sim_trade_deals');
         $this->metaSet('year', '0');
         $this->seedEconomyIfNeeded();
         return $this->getSummary();
@@ -1115,7 +1187,7 @@ final class EconomySimulator
         return $rows;
     }
 
-    private function applyNeighborTrade(array $rows): void
+    private function applyNeighborTrade(array $rows, int $year): void
     {
         $neighbors = $this->db->query('SELECT pid,neighbor_pid,shared_sides FROM province_neighbors')->fetchAll();
         $book = [];
@@ -1146,6 +1218,11 @@ final class EconomySimulator
                     $flow = min($capacity, $aSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $bNeed * 0.5);
                     $aRef['stock'] -= $flow;
                     $bRef['stock'] += $flow;
+                    if ($flow > 0.0) {
+                        $this->recordTradeOrder($year, $a, (string)$cid, 'sell', 'internal', $flow, (float)$aRef['price']);
+                        $this->recordTradeOrder($year, $b, (string)$cid, 'buy', 'internal', $flow, (float)$bRef['price']);
+                        $this->recordTradeDeal($year, (string)$cid, $a, $b, 'internal', $flow, (float)$aRef['price'], 0.0, 1.0);
+                    }
                 }
 
                 $bSur = max(0.0, $bRef['stock'] - $bRef['target']);
@@ -1154,6 +1231,11 @@ final class EconomySimulator
                     $flow = min($capacity, $bSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $aNeed * 0.5);
                     $bRef['stock'] -= $flow;
                     $aRef['stock'] += $flow;
+                    if ($flow > 0.0) {
+                        $this->recordTradeOrder($year, $b, (string)$cid, 'sell', 'internal', $flow, (float)$bRef['price']);
+                        $this->recordTradeOrder($year, $a, (string)$cid, 'buy', 'internal', $flow, (float)$aRef['price']);
+                        $this->recordTradeDeal($year, (string)$cid, $b, $a, 'internal', $flow, (float)$bRef['price'], 0.0, 1.0);
+                    }
                 }
                 unset($aRef, $bRef);
             }
@@ -1169,7 +1251,7 @@ final class EconomySimulator
 
 
 
-    private function applyExternalTrade(): void
+    private function applyExternalTrade(int $year): void
     {
         $rows = $this->db->query('SELECT pid,commodity_id,stock,price,yearly_cons FROM sim_state ORDER BY commodity_id,pid')->fetchAll();
         $by = [];
@@ -1195,9 +1277,32 @@ final class EconomySimulator
                 $stock = max(0.0, $stock + $inflow - $outflow);
                 $price = max(0.5, min($avgPrice * 2.5, $price * (1.0 + (($need - $outflow) / $target) * 0.04)));
 
+                if ($inflow > 0.01) {
+                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'buy', 'external', $inflow, $price);
+                    $this->recordTradeDeal($year, (string)$cid, 0, (int)$it['pid'], 'external', $inflow, $price, 0.0, 0.0);
+                }
+                if ($outflow > 0.01) {
+                    $this->recordTradeOrder($year, (int)$it['pid'], (string)$cid, 'sell', 'external', $outflow, $price);
+                    $this->recordTradeDeal($year, (string)$cid, (int)$it['pid'], 0, 'external', $outflow, $price, 0.0, 0.0);
+                }
+
                 $upd->execute([round($stock, 6), round($price, 6), (int)$it['pid'], $cid]);
             }
         }
+    }
+
+    private function recordTradeOrder(int $year, int $pid, string $cid, string $side, string $scope, float $qty, float $priceLimit): void
+    {
+        $st = $this->db->prepare('INSERT INTO sim_trade_orders(year,pid,commodity_id,side,scope,qty,price_limit,created_at)
+            VALUES(?,?,?,?,?,?,?,?)');
+        $st->execute([$year, $pid, $cid, $side, $scope, round($qty, 6), round($priceLimit, 6), gmdate('c')]);
+    }
+
+    private function recordTradeDeal(int $year, string $cid, int $sellerPid, int $buyerPid, string $scope, float $qty, float $unitPrice, float $transportCost, float $distance): void
+    {
+        $st = $this->db->prepare('INSERT INTO sim_trade_deals(year,commodity_id,seller_pid,buyer_pid,scope,qty,unit_price,transport_cost,distance,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?)');
+        $st->execute([$year, $cid, $sellerPid, $buyerPid, $scope, round($qty, 6), round($unitPrice, 6), round($transportCost, 6), round($distance, 6), gmdate('c')]);
     }
 
     private function transportUnitCost(): float
