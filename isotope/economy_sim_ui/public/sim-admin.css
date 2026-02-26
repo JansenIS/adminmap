@@ -1,0 +1,15 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #07101b; color: #e7f3ff; }
+.layout { display: grid; grid-template-columns: 360px 1fr; min-height: 100vh; }
+.panel { padding: 16px; border-right: 1px solid #1f3347; background: linear-gradient(180deg,#09121e,#0d1826); }
+h1 { margin: 0 0 10px; font-size: 20px; }
+.muted { color: #9db6cc; font-size: 13px; }
+.block { margin-top: 14px; padding: 12px; border: 1px solid #1b3147; border-radius: 12px; background: #0a1320; }
+label { display:block; font-size: 12px; color: #8eb0cf; margin: 8px 0 4px; }
+input, select, button { width: 100%; border-radius: 10px; border: 1px solid #2e4d69; background: #0d1d2e; color: #e9f7ff; padding: 9px 10px; }
+button { margin-top: 10px; background: linear-gradient(180deg,#0f7ac9,#0b5c99); border-color:#3ca8f2; font-weight: 700; cursor: pointer; }
+.kvs div { margin: 4px 0; font-size: 13px; }
+.mapWrap { padding: 12px; overflow: auto; position: relative; }
+#mapCanvas { width: min(100%, 1400px); height: auto; background: #02070d; border: 1px solid #1e3650; border-radius: 12px; box-shadow: 0 0 50px rgba(72,180,255,.1) inset; }
+.tooltip { position: fixed; pointer-events: none; display:none; padding: 8px 10px; border-radius:10px; background: rgba(4,9,14,.95); border:1px solid #2f5578; font-size:12px; max-width:260px; }

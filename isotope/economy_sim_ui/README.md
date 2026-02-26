@@ -1,5 +1,7 @@
 # Economy Simulator (Isotope / Lurra) — движок + локальный интерфейс
 
+> Для развёртывания **всего monorepo adminmap** (основная карта + симулятор единым проектом) см. корневой `README.md` репозитория.
+
 Это стартовый экономический симулятор под твою карту провинций (граф соседей/центроиды) и список товаров/производств из `Биржа.txt`.
 
 Важно: это не «готовая игра», а базовый экономический слой, который:
@@ -19,6 +21,7 @@
 
 Дополнительно:
 - `server.js` + `public/` — локальный web-интерфейс (просмотр по провинциям: товары, запасы, цены, дефицит).
+- `public/sim-admin.html` — отдельная админка симулятора с картой из adminmap (неоновые контуры + точки по метрикам).
 - `START_VIEWER.bat` — быстрый запуск на Windows.
 
 ## 1) Быстрый запуск интерфейса (Windows)
@@ -76,3 +79,44 @@ node .\run_node.js ..\province_routing_data.json --days 60 --seed 42 --snapshot 
 - `engine.js`: транспорт (стоимость/ёмкость), правила торгового мэтчинга, модель спроса/резервов.
 - стартовая индустрия: распределение зданий/уровней по провинциям (сейчас это «скелет», чтобы экономика не умерла).
 
+
+Дополнительно для админки симулятора:
+- `GET /api/admin/map-sync` — объединённые данные adminmap + текущие сим-метрики по провинциям.
+- `POST /api/admin/province` — сохранить оверрайды province-параметров (`pop`, `infra`, `gdpWeight`) в `data/sim_admin_overrides.json`.
+- URL: `http://localhost:8787/sim-admin`
+
+## 4) Установка всего репозитория на Linux-сервер
+
+Ниже минимальная схема развёртывания **всего репозитория** `adminmap` + симулятора:
+
+```bash
+# 1) системные пакеты
+sudo apt update
+sudo apt install -y git curl
+
+# 2) Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 3) клонирование репозитория
+cd /opt
+sudo git clone <URL_ВАШЕГО_РЕПО> adminmap
+sudo chown -R $USER:$USER /opt/adminmap
+cd /opt/adminmap/isotope/economy_sim_ui
+
+# 4) запуск симулятора
+node ./server.js ../province_routing_data.json --port 8787
+```
+
+Проверка:
+
+```bash
+curl -s http://127.0.0.1:8787/api/summary
+curl -s http://127.0.0.1:8787/api/admin/map-sync
+```
+
+Открыть в браузере:
+- Viewer: `http://<SERVER_IP>:8787/`
+- Админка симулятора: `http://<SERVER_IP>:8787/sim-admin`
+
+Если нужен фоновый запуск после перезагрузки, добавь systemd unit для `node server.js ...`.

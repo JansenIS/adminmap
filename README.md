@@ -1,0 +1,64 @@
+# adminmap — единый проект карты и экономического симулятора
+
+Этот репозиторий ставится **целиком**, а не по отдельным кускам:
+- `adminmap` (основная карта/админка): `admin.html`, `index.html`, `data/`, `map.png`, `provinces_id.png`;
+- `isotope/economy_sim_ui` (Node.js-симулятор + отдельная sim-admin).
+
+## Быстрая установка на Linux (Ubuntu/Debian)
+
+```bash
+# 1) системные пакеты
+sudo apt update
+sudo apt install -y git curl php-cli php-mbstring
+
+# 2) Node.js 20 LTS (для симулятора)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# 3) клонируем ВЕСЬ проект
+cd /opt
+sudo git clone <URL_ВАШЕГО_РЕПО> adminmap
+sudo chown -R $USER:$USER /opt/adminmap
+cd /opt/adminmap
+```
+
+## Запуск всего проекта
+
+Открой два терминала.
+
+### Терминал A: основная карта/adminmap
+
+```bash
+cd /opt/adminmap
+php -S 0.0.0.0:8080
+```
+
+### Терминал B: экономический симулятор (Node.js)
+
+```bash
+cd /opt/adminmap/isotope/economy_sim_ui
+node ./server.js ../province_routing_data.json --port 8787
+```
+
+## Что где доступно
+
+- Основная админка карты: `http://<SERVER_IP>:8080/admin.html`
+- Публичная карта: `http://<SERVER_IP>:8080/index.html`
+- Симулятор-обзор: `http://<SERVER_IP>:8787/`
+- Sim-admin (редактор параметров провинций): `http://<SERVER_IP>:8787/sim-admin`
+
+## Проверка после установки
+
+```bash
+# основная карта
+curl -I http://127.0.0.1:8080/admin.html
+
+# симулятор API
+curl -s http://127.0.0.1:8787/api/summary
+curl -s http://127.0.0.1:8787/api/admin/map-sync
+```
+
+## Важно
+
+`sim-admin` читает названия/terrain провинций напрямую из `data/map_state.json` внутри этого же репозитория,
+поэтому проект должен деплоиться как единый каталог (`/opt/adminmap`), без разрыва на отдельные репозитории.
