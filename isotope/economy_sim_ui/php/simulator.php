@@ -366,6 +366,8 @@ final class EconomySimulator
         $rows = $this->db->query('SELECT s.pid,s.commodity_id,s.stock,s.price,s.yearly_prod,s.yearly_cons,c.base_price,c.decay
             FROM sim_state s JOIN commodities c ON c.id=s.commodity_id ORDER BY s.pid,s.commodity_id')->fetchAll();
 
+        $rows = $this->applyProvinceProductionDemand($rows);
+
         $byCommodity = [];
         foreach ($rows as $row) {
             $cid = $row['commodity_id'];
@@ -690,6 +692,73 @@ final class EconomySimulator
     public function loadProvinceSettings(int $pid): ?array
     {
         return $this->provinceReport($pid);
+    }
+
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function applyProvinceProductionDemand(array $rows): array
+    {
+        $prov = $this->db->query('SELECT pid,hex_count,owner,free_city_id FROM provinces ORDER BY pid')->fetchAll();
+        $pMeta = [];
+        foreach ($prov as $p) {
+            $d = $this->provinceDerived((int)$p['pid'], (int)$p['hex_count'], (string)$p['owner'], (string)$p['free_city_id']);
+            $pMeta[(int)$p['pid']] = $d;
+        }
+
+        $byPidBuildings = [];
+        $brows = $this->db->query('SELECT pid,type,count,efficiency FROM sim_province_buildings')->fetchAll();
+        foreach ($brows as $b) {
+            $byPidBuildings[(int)$b['pid']][] = $b;
+        }
+
+        foreach ($rows as &$r) {
+            $pid = (int)$r['pid'];
+            $cid = (string)$r['commodity_id'];
+            $meta = $pMeta[$pid] ?? ['isCity'=>false,'infra'=>1.0,'pop'=>5000];
+            $prod = (float)$r['yearly_prod'];
+            $cons = (float)$r['yearly_cons'];
+
+            $infraBoost = 1.0 + (max(0.0, (float)$meta['infra']) - 1.0) * 0.08;
+            $cityDemand = (!empty($meta['isCity']) ? 1.12 : 1.0);
+            $popDemand = 1.0 + min(0.35, ((float)$meta['pop']) / 250000.0);
+
+            if (in_array($cid, ['mutabryukva','bread','meat_cans','mutachicken'], true)) {
+                $cons *= $cityDemand * $popDemand;
+            }
+            if (in_array($cid, ['e_parts','engine_kit','steel','truck_civil','air_purifier_home'], true)) {
+                $cons *= $cityDemand;
+            }
+            $prod *= $infraBoost;
+
+            foreach (($byPidBuildings[$pid] ?? []) as $b) {
+                $eff = max(0.0, (float)$b['efficiency']);
+                $count = max(0, (int)$b['count']);
+                $power = $count * $eff;
+                $type = (string)$b['type'];
+
+                if ($type === 'farm_cluster' && in_array($cid, ['mutabryukva','mutachicken','bread'], true)) {
+                    $prod *= 1.0 + ($power * 0.025);
+                }
+                if ($type === 'artisan_workshop' && in_array($cid, ['wood_processed','steel','e_parts'], true)) {
+                    $prod *= 1.0 + ($power * 0.02);
+                }
+                if ($type === 'dockyard' && in_array($cid, ['truck_civil','engine_kit','steel'], true)) {
+                    $prod *= 1.0 + ($power * 0.03);
+                }
+                if (in_array($type, ['warehouse','test_factory'], true) && in_array($cid, ['wood_raw','stone','iron_ore','petrochem_raw'], true)) {
+                    $cons *= max(0.85, 1.0 - ($power * 0.01));
+                }
+            }
+
+            $r['yearly_prod'] = $prod;
+            $r['yearly_cons'] = $cons;
+        }
+        unset($r);
+
+        return $rows;
     }
 
     private function applyNeighborTrade(array $rows): void
