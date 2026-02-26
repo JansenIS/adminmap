@@ -54,7 +54,34 @@
     </aside>
 
     <main class="mapWrap">
-      <canvas id="mapCanvas" width="1898" height="2048"></canvas>
+      <div class="tabs" role="tablist" aria-label="Просмотры sim-admin">
+        <button id="tabBtnMap" class="tabBtn active" type="button" data-tab="map" role="tab" aria-selected="true">Карта</button>
+        <button id="tabBtnTreasury" class="tabBtn" type="button" data-tab="treasury" role="tab" aria-selected="false">Казна провинций</button>
+      </div>
+
+      <section id="tabMap" class="tabPanel active" role="tabpanel">
+        <canvas id="mapCanvas" width="1898" height="2048"></canvas>
+      </section>
+
+      <section id="tabTreasury" class="tabPanel" role="tabpanel" hidden>
+        <div class="tableWrap">
+          <table class="treasuryTable">
+            <thead>
+              <tr>
+                <th><button type="button" class="sortBtn" data-sort-key="pid">PID</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="name">Провинция</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="treasury">Казна</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="treasuryNetYear">Чистый баланс/год</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="treasuryTradeTaxYear">Торговые налоги/год</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="treasuryTransitYear">Транзит/год</button></th>
+                <th><button type="button" class="sortBtn" data-sort-key="treasuryExpenseYear">Расходы/год</button></th>
+              </tr>
+            </thead>
+            <tbody id="treasuryTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <div id="tooltip" class="tooltip"></div>
     </main>
   </div>

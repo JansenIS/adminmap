@@ -8,6 +8,9 @@
 /** @typedef {"raw"|"component"|"product"|"animal"} CommodityTier */
 /** @typedef {{id:string,name:string,unit:string,tier:CommodityTier,basePrice:number,bulk:number,decayPerDay:number,rarity:number,harvestable?:boolean}} Commodity */
 
+export const MONEY_SCALE = 0.01;
+
+
 /**
  * bulk: относительная "крупность/тяжесть" для стоимости перевозки (1 = базовая).
  * decayPerDay: доля потери в пути/на складе (0..1). Для большинства 0.
@@ -15,7 +18,7 @@
  */
 
 /** @type {Commodity[]} */
-export const COMMODITIES = [
+const COMMODITIES_RAW = [
   // RAW
   { id:"wood_raw", name:"Древесина", unit:"м³", tier:"raw", basePrice:8, bulk:1.2, decayPerDay:0.00, rarity:0.05 },
   { id:"fiber_raw", name:"Прядильное волокно", unit:"кг", tier:"raw", basePrice:6, bulk:0.8, decayPerDay:0.01, rarity:0.08 },
@@ -117,7 +120,12 @@ export const COMMODITIES = [
 
   // ANIMALS
   { id:"field_cat", name:"Полевой кот", unit:"шт", tier:"animal", basePrice: 2560, bulk:0.8, decayPerDay:0.00, rarity:0.15 },
-];
+ ];
+
+export const COMMODITIES = COMMODITIES_RAW.map((c) => ({
+  ...c,
+  basePrice: c.basePrice * MONEY_SCALE,
+}));
 
 /** Быстрый доступ: id -> индекс */
 export const COM_INDEX = Object.fromEntries(COMMODITIES.map((c, i) => [c.id, i]));

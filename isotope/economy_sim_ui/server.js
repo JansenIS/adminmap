@@ -164,6 +164,7 @@ let baseConfig = {
   transportUnitCost: Number.parseFloat(args.transportUnitCost || args.transport || "0.35"),
   tradeFriction: Number.parseFloat(args.tradeFriction || args.friction || "0.05"),
   smoothSteps: Number.parseInt(args.smoothSteps || args.smooth || "8", 10),
+  expenseScale: Number.parseFloat(args.expenseScale || "30"),
 };
 
 let provinces = [];
@@ -206,6 +207,7 @@ function makeEngine(cfg) {
     transportUnitCost: cfg.transportUnitCost,
     tradeFriction: cfg.tradeFriction,
     smoothSteps: cfg.smoothSteps,
+    expenseScale: cfg.expenseScale,
   });
   e.precomputeDistances();
   return e;
@@ -314,6 +316,11 @@ const server = http.createServer((req, res) => {
             gdpTurnover: st?.gdpYear ?? 0,
             gdpWeight: stats?.gdpWeight ?? 1,
             effectiveGDP: stats?.effectiveGDP ?? (st?.gdpYear ?? 0),
+            treasury: st?.treasury ?? 0,
+            treasuryTradeTaxYear: st?.treasuryTradeTaxYear ?? 0,
+            treasuryTransitYear: st?.treasuryTransitYear ?? 0,
+            treasuryExpenseYear: st?.treasuryExpenseYear ?? 0,
+            treasuryNetYear: st?.treasuryNetYear ?? 0,
           };
         });
 
@@ -494,6 +501,7 @@ const server = http.createServer((req, res) => {
         const tuc = url.searchParams.get("transportUnitCost") || url.searchParams.get("transport");
         const fr = url.searchParams.get("tradeFriction") || url.searchParams.get("friction");
         const sm = url.searchParams.get("smoothSteps") || url.searchParams.get("smooth");
+        const es = url.searchParams.get("expenseScale");
 
         baseConfig = {
           ...baseConfig,
@@ -501,6 +509,7 @@ const server = http.createServer((req, res) => {
           transportUnitCost: tuc != null ? Number.parseFloat(tuc) : baseConfig.transportUnitCost,
           tradeFriction: fr != null ? Number.parseFloat(fr) : baseConfig.tradeFriction,
           smoothSteps: sm != null ? Number.parseInt(sm, 10) : baseConfig.smoothSteps,
+          expenseScale: es != null ? Number.parseFloat(es) : baseConfig.expenseScale,
         };
 
         engine = makeEngine(baseConfig);
@@ -562,6 +571,6 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`[economy-ui] loaded provinces=${provinces.length} from: ${dataFile}`);
-  console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps}`);
+  console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps} expenseScale=${baseConfig.expenseScale}`);
   console.log(`[economy-ui] open: http://localhost:${port}`);
 });

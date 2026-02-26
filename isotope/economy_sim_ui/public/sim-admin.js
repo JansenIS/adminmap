@@ -4,6 +4,8 @@ const state = {
   byKey: new Map(),
   selectedPid: null,
   metric: "effectiveGDP",
+  activeTab: "map",
+  treasurySort: { key: "treasury", dir: "desc" },
   mapImg: null,
   maskImg: null,
   keyPixels: null,
@@ -31,6 +33,12 @@ const UI = {
   btnSave: document.getElementById("btnSave"),
   saveStatus: document.getElementById("saveStatus"),
   tooltip: document.getElementById("tooltip"),
+  tabBtnMap: document.getElementById("tabBtnMap"),
+  tabBtnTreasury: document.getElementById("tabBtnTreasury"),
+  tabMap: document.getElementById("tabMap"),
+  tabTreasury: document.getElementById("tabTreasury"),
+  treasuryTableBody: document.getElementById("treasuryTableBody"),
+  sortBtns: Array.from(document.querySelectorAll(".sortBtn")),
 };
 const ctx = UI.canvas.getContext("2d", { willReadFrequently: true });
 
@@ -38,6 +46,12 @@ async function api(path, opts) {
   const res = await fetch(path, opts);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
+}
+
+function fmtMoney(v) {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("ru-RU");
 }
 
 function metricValue(row) {
@@ -68,7 +82,6 @@ function pickPidFromCanvasEvent(evt) {
   return state.byKey.get(key)?.pid ?? null;
 }
 
-
 function computeKeyCentroids() {
   const sums = new Map();
   const w = state.width;
@@ -96,9 +109,6 @@ function computeKeyCentroids() {
     if (v.n > 0) state.centroidByKey.set(key, [v.sx / v.n, v.sy / v.n]);
   }
 
-  // Representative in-mask anchor per province:
-  // choose an actual province pixel closest to the centroid,
-  // so the dot is guaranteed to be inside province boundaries.
   const best = new Map();
   for (const [key, c] of state.centroidByKey.entries()) {
     best.set(key, { x: c[0], y: c[1], d2: Number.POSITIVE_INFINITY });
@@ -128,7 +138,6 @@ function computeKeyCentroids() {
     state.anchorByKey.set(key, [b.x, b.y]);
   }
 }
-
 
 function resolveRowKey(rowKey) {
   const k = rowKey >>> 0;
@@ -195,6 +204,20 @@ function render() {
   }
 }
 
+function setActiveTab(tab) {
+  state.activeTab = tab;
+  const isMap = tab === "map";
+  UI.tabBtnMap.classList.toggle("active", isMap);
+  UI.tabBtnMap.setAttribute("aria-selected", isMap ? "true" : "false");
+  UI.tabMap.classList.toggle("active", isMap);
+  UI.tabMap.hidden = !isMap;
+
+  UI.tabBtnTreasury.classList.toggle("active", !isMap);
+  UI.tabBtnTreasury.setAttribute("aria-selected", isMap ? "false" : "true");
+  UI.tabTreasury.classList.toggle("active", !isMap);
+  UI.tabTreasury.hidden = isMap;
+}
+
 function bindSelection(pid) {
   state.selectedPid = pid;
   const row = state.byPid.get(pid);
@@ -212,6 +235,7 @@ function bindSelection(pid) {
   }));
   renderBuildingsEditor();
   UI.editor.hidden = false;
+  renderTreasuryTable();
   render();
 }
 
@@ -282,6 +306,48 @@ function renderBuildingsEditor() {
   });
 }
 
+function sortedTreasuryRows() {
+  const { key, dir } = state.treasurySort;
+  const mul = dir === "asc" ? 1 : -1;
+  return [...state.rows].sort((a, b) => {
+    if (key === "name") return a.name.localeCompare(b.name, "ru") * mul;
+    const av = Number(a[key] ?? 0);
+    const bv = Number(b[key] ?? 0);
+    return (av - bv) * mul;
+  });
+}
+
+function renderTreasuryTable() {
+  if (!UI.treasuryTableBody) return;
+  UI.treasuryTableBody.innerHTML = "";
+
+  for (const row of sortedTreasuryRows()) {
+    const tr = document.createElement("tr");
+    if (row.pid === state.selectedPid) tr.style.background = "rgba(224, 174, 43, 0.18)";
+    tr.innerHTML = `
+      <td>${row.pid}</td>
+      <td>${row.name}</td>
+      <td>${fmtMoney(row.treasury)}</td>
+      <td>${fmtMoney(row.treasuryNetYear)}</td>
+      <td>${fmtMoney(row.treasuryTradeTaxYear)}</td>
+      <td>${fmtMoney(row.treasuryTransitYear)}</td>
+      <td>${fmtMoney(row.treasuryExpenseYear)}</td>
+    `;
+    tr.addEventListener("click", () => {
+      setActiveTab("map");
+      bindSelection(row.pid);
+    });
+    UI.treasuryTableBody.appendChild(tr);
+  }
+
+  for (const btn of UI.sortBtns) {
+    const isActive = btn.dataset.sortKey === state.treasurySort.key;
+    btn.classList.toggle("active", isActive);
+    btn.classList.toggle("asc", isActive && state.treasurySort.dir === "asc");
+    btn.classList.toggle("desc", isActive && state.treasurySort.dir === "desc");
+  }
+}
+
 function setTooltip(evt, pid) {
   if (!pid) {
     UI.tooltip.style.display = "none";
@@ -292,7 +358,7 @@ function setTooltip(evt, pid) {
   UI.tooltip.style.display = "block";
   UI.tooltip.style.left = `${evt.clientX + 16}px`;
   UI.tooltip.style.top = `${evt.clientY + 16}px`;
-  UI.tooltip.innerHTML = `<b>${row.name}</b><br>PID: ${row.pid}<br>Pop: ${Math.round(row.population)}<br>GDP: ${Math.round(row.effectiveGDP)}`;
+  UI.tooltip.innerHTML = `<b>${row.name}</b><br>PID: ${row.pid}<br>Pop: ${Math.round(row.population)}<br>GDP: ${Math.round(row.effectiveGDP)}<br>Казна: ${fmtMoney(row.treasury)}`;
 }
 
 async function loadImages(imageUrl, maskUrl) {
@@ -340,8 +406,29 @@ async function loadAll() {
   state.byPid = new Map(state.rows.map((r) => [r.pid, r]));
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
 
+  renderTreasuryTable();
   render();
 }
+
+UI.tabBtnMap.addEventListener("click", () => setActiveTab("map"));
+UI.tabBtnTreasury.addEventListener("click", () => {
+  setActiveTab("treasury");
+  renderTreasuryTable();
+});
+
+UI.sortBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.sortKey;
+    if (!key) return;
+    if (state.treasurySort.key === key) {
+      state.treasurySort.dir = state.treasurySort.dir === "asc" ? "desc" : "asc";
+    } else {
+      state.treasurySort.key = key;
+      state.treasurySort.dir = key === "name" ? "asc" : "desc";
+    }
+    renderTreasuryTable();
+  });
+});
 
 UI.metricSelect.addEventListener("change", () => {
   state.metric = UI.metricSelect.value;
@@ -395,6 +482,7 @@ UI.btnAddBuilding.addEventListener("click", () => {
   renderBuildingsEditor();
 });
 
+setActiveTab("map");
 loadAll().catch((e) => {
   UI.saveStatus.textContent = `Ошибка: ${e.message}`;
 });
