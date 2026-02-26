@@ -18,5 +18,17 @@ button { margin-top: 10px; background: linear-gradient(180deg,#0f7ac9,#0b5c99); 
 .buildingAddRow button { margin-top: 0; }
 .kvs div { margin: 4px 0; font-size: 13px; }
 .mapWrap { padding: 12px; overflow: auto; position: relative; }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabBtn { width: auto; margin: 0; padding: 8px 14px; border-radius: 999px; background: #0b1a2a; border: 1px solid #2a4764; color: #b9d5eb; }
+.tabBtn.active { background: linear-gradient(180deg,#0f7ac9,#0b5c99); border-color: #3ca8f2; color: #fff; }
+.tabPanel { display: block; }
 #mapCanvas { width: min(100%, 1400px); height: auto; background: #02070d; border: 1px solid #1e3650; border-radius: 12px; box-shadow: 0 0 50px rgba(72,180,255,.1) inset; }
+.tableWrap { border: 1px solid #1e3650; border-radius: 12px; overflow: auto; background: #040b14; max-height: calc(100vh - 96px); }
+.treasuryTable { width: 100%; border-collapse: collapse; min-width: 980px; }
+.treasuryTable th, .treasuryTable td { padding: 8px 10px; border-bottom: 1px solid #183146; text-align: left; font-size: 13px; }
+.treasuryTable tbody tr:hover { background: rgba(51, 126, 181, 0.12); }
+.sortBtn { margin: 0; padding: 0; width: auto; border: 0; background: transparent; color: #9fcbec; font-size: 12px; }
+.sortBtn.active { color: #e7f3ff; text-decoration: underline; }
+.sortBtn.desc::after { content: " ↓"; }
+.sortBtn.asc::after { content: " ↑"; }
 .tooltip { position: fixed; pointer-events: none; display:none; padding: 8px 10px; border-radius:10px; background: rgba(4,9,14,.95); border:1px solid #2f5578; font-size:12px; max-width:260px; }

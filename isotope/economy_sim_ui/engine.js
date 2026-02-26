@@ -1,4 +1,4 @@
-import { COMMODITIES, COM_INDEX, HARVEST_RAW_IDX, BUILDINGS } from "./resources.js";
+import { COMMODITIES, COM_INDEX, HARVEST_RAW_IDX, BUILDINGS, MONEY_SCALE } from "./resources.js";
 import { XorShift32, dijkstra, clamp } from "./utils.js";
 
 /**
@@ -67,6 +67,7 @@ export class EconomyEngine {
  *   infraExpenseMul?: number,
  *   buildingExpenseMul?: number,
  *   expenseVolatility?: number
+ *   expenseScale?: number
  * }} cfg
    */
   constructor(cfg) {
@@ -76,7 +77,9 @@ export class EconomyEngine {
     this.provinces = cfg.provinces;
     this.n = this.provinces.length;
 
-    this.transportUnitCost = cfg.transportUnitCost ?? 0.35;
+    this.moneyScale = MONEY_SCALE;
+
+    this.transportUnitCost = (cfg.transportUnitCost ?? 0.35) * this.moneyScale;
     this.tradeFriction = cfg.tradeFriction ?? 0.07;
     this.smoothSteps = cfg.smoothSteps ?? 8;
 
@@ -84,18 +87,20 @@ export class EconomyEngine {
     this.world = {
       importMarkup: cfg.worldImportMarkup ?? 0.18,
       exportMarkdown: cfg.worldExportMarkdown ?? 0.12,
-      portFee: cfg.worldPortFee ?? 0.45,
+      portFee: (cfg.worldPortFee ?? 0.45) * this.moneyScale,
       hubCount: cfg.hubCount ?? 6,
     };
+
+    const expenseScale = clamp(cfg.expenseScale ?? 30, 1.0, 200.0);
 
     this.fiscal = {
       dealTaxRate: clamp(cfg.dealTaxRate ?? 0.012, 0.0, 0.08),
       importTaxRate: clamp(cfg.importTaxRate ?? 0.016, 0.0, 0.12),
       exportTaxRate: clamp(cfg.exportTaxRate ?? 0.012, 0.0, 0.12),
       transitFeePerBulkDist: clamp(cfg.transitFeePerBulkDist ?? 0.022, 0.0, 0.5),
-      baseExpensePerPop: clamp(cfg.baseExpensePerPop ?? 0.0013, 0.0, 0.2),
-      infraExpenseMul: clamp(cfg.infraExpenseMul ?? 0.42, 0.0, 4.0),
-      buildingExpenseMul: clamp(cfg.buildingExpenseMul ?? 0.0024, 0.0, 0.1),
+      baseExpensePerPop: clamp((cfg.baseExpensePerPop ?? 0.0013) * this.moneyScale * expenseScale, 0.0, 0.2),
+      infraExpenseMul: clamp((cfg.infraExpenseMul ?? 0.42) * this.moneyScale * expenseScale, 0.0, 4.0),
+      buildingExpenseMul: clamp((cfg.buildingExpenseMul ?? 0.0024) * this.moneyScale * expenseScale, 0.0, 0.1),
       expenseVolatility: clamp(cfg.expenseVolatility ?? 0.18, 0.0, 1.0),
     };
 
