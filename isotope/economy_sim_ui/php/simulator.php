@@ -33,6 +33,38 @@ final class EconomySimulator
         ['id' => 'field_cat', 'name' => 'Полевой кот', 'unit' => 'шт', 'tier' => 'animal', 'base_price' => 2560.0, 'demand' => 0.01, 'decay' => 0.00, 'rarity' => 0.15],
     ];
 
+    /** @var array<string,array{input:array<string,float>,output:array<string,float>,base_rate:float}> */
+    private array $industrialGraph = [
+        'bakery' => [
+            'input' => ['mutabryukva' => 1.2],
+            'output' => ['bread' => 1.0],
+            'base_rate' => 6.0,
+        ],
+        'metalworks' => [
+            'input' => ['iron_ore' => 1.3, 'stone' => 0.2],
+            'output' => ['steel' => 0.8],
+            'base_rate' => 2.0,
+        ],
+        'electronics' => [
+            'input' => ['steel' => 0.3, 'petrochem_raw' => 0.4],
+            'output' => ['e_parts' => 0.7],
+            'base_rate' => 1.2,
+        ],
+        'engine_factory' => [
+            'input' => ['steel' => 0.5, 'e_parts' => 0.4, 'rubber_raw' => 0.3],
+            'output' => ['engine_kit' => 0.6],
+            'base_rate' => 0.8,
+        ],
+        'vehicle_factory' => [
+            'input' => ['engine_kit' => 0.4, 'steel' => 0.7, 'wood_processed' => 0.2],
+            'output' => ['truck_civil' => 0.18],
+            'base_rate' => 0.35,
+        ],
+    ];
+
+    /** @var array<int,array<int,float>>|null */
+    private ?array $distanceCache = null;
+
     public function __construct()
     {
         $this->db = db();
@@ -367,6 +399,8 @@ final class EconomySimulator
             FROM sim_state s JOIN commodities c ON c.id=s.commodity_id ORDER BY s.pid,s.commodity_id')->fetchAll();
 
         $rows = $this->applyProvinceProductionDemand($rows);
+        $rows = $this->applyIndustrialGraph($rows);
+        $rows = $this->applyLogisticsByDistance($rows);
 
         $byCommodity = [];
         foreach ($rows as $row) {
@@ -694,6 +728,173 @@ final class EconomySimulator
         return $this->provinceReport($pid);
     }
 
+
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function applyIndustrialGraph(array $rows): array
+    {
+        $state = [];
+        foreach ($rows as $r) {
+            $pid = (int)$r['pid'];
+            $cid = (string)$r['commodity_id'];
+            $state[$pid][$cid] = $r;
+        }
+
+        foreach ($state as $pid => $commodityRows) {
+            $buildings = $this->provinceBuildings((int)$pid);
+            $buildingPower = 0.0;
+            foreach ($buildings as $b) {
+                $buildingPower += max(0.0, (float)$b['count']) * max(0.0, (float)$b['efficiency']);
+            }
+            $powerFactor = max(0.2, 0.6 + min(4.0, $buildingPower) * 0.18);
+
+            foreach ($this->industrialGraph as $recipe) {
+                $maxCycles = INF;
+                foreach ($recipe['input'] as $inCid => $inQty) {
+                    $stock = (float)($state[$pid][$inCid]['stock'] ?? 0.0);
+                    $maxCycles = min($maxCycles, $stock / max(1e-6, $inQty));
+                }
+                if (!is_finite($maxCycles) || $maxCycles <= 0.0) {
+                    continue;
+                }
+
+                $cycles = min($recipe['base_rate'] * $powerFactor, $maxCycles * 0.22);
+                if ($cycles <= 0.0) {
+                    continue;
+                }
+
+                foreach ($recipe['input'] as $inCid => $inQty) {
+                    if (!isset($state[$pid][$inCid])) {
+                        continue;
+                    }
+                    $state[$pid][$inCid]['stock'] = max(0.0, (float)$state[$pid][$inCid]['stock'] - ($inQty * $cycles));
+                    $state[$pid][$inCid]['yearly_cons'] = (float)$state[$pid][$inCid]['yearly_cons'] + ($inQty * $cycles * 0.65);
+                }
+                foreach ($recipe['output'] as $outCid => $outQty) {
+                    if (!isset($state[$pid][$outCid])) {
+                        continue;
+                    }
+                    $state[$pid][$outCid]['stock'] = (float)$state[$pid][$outCid]['stock'] + ($outQty * $cycles);
+                    $state[$pid][$outCid]['yearly_prod'] = (float)$state[$pid][$outCid]['yearly_prod'] + ($outQty * $cycles * 0.8);
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($state as $rowsByCom) {
+            foreach ($rowsByCom as $r) {
+                $out[] = $r;
+            }
+        }
+        usort($out, static fn(array $a, array $b): int => ((int)$a['pid'] <=> (int)$b['pid']) ?: strcmp((string)$a['commodity_id'], (string)$b['commodity_id']));
+        return $out;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function applyLogisticsByDistance(array $rows): array
+    {
+        $dist = $this->distanceMatrix();
+        $state = [];
+        foreach ($rows as $r) {
+            $state[(int)$r['pid']][(string)$r['commodity_id']] = $r;
+        }
+
+        foreach ($state as $pid => $comRows) {
+            foreach ($comRows as $cid => $row) {
+                $target = max(1.0, (float)$row['yearly_cons'] * 1.2);
+                $need = max(0.0, $target - (float)$row['stock']);
+                if ($need < 0.01) continue;
+
+                $bestSource = null;
+                $bestScore = INF;
+                foreach ($state as $spid => $srows) {
+                    if ($spid === $pid || !isset($srows[$cid])) continue;
+                    $s = $srows[$cid];
+                    $ssurplus = max(0.0, (float)$s['stock'] - max(1.0, (float)$s['yearly_cons'] * 1.2));
+                    if ($ssurplus < 0.01) continue;
+                    $d = $dist[$pid][$spid] ?? INF;
+                    if (!is_finite($d)) continue;
+                    $score = ((float)$s['price']) + ($d * $this->transportUnitCost());
+                    if ($score < $bestScore) {
+                        $bestScore = $score;
+                        $bestSource = $spid;
+                    }
+                }
+
+                if ($bestSource !== null) {
+                    $d = $dist[$pid][$bestSource] ?? 0.0;
+                    $available = max(0.0, (float)$state[$bestSource][$cid]['stock'] - max(1.0, (float)$state[$bestSource][$cid]['yearly_cons'] * 1.2));
+                    $cap = max(0.0, (1.0 - $this->tradeFriction()) * 8.0 / (1.0 + $d * 0.25));
+                    $moved = min($need * 0.35, $available * 0.25, $cap);
+                    if ($moved > 0.0) {
+                        $state[$bestSource][$cid]['stock'] = (float)$state[$bestSource][$cid]['stock'] - $moved;
+                        $state[$pid][$cid]['stock'] = (float)$state[$pid][$cid]['stock'] + $moved;
+                    }
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($state as $rowsByCom) {
+            foreach ($rowsByCom as $r) {
+                $out[] = $r;
+            }
+        }
+        usort($out, static fn(array $a, array $b): int => ((int)$a['pid'] <=> (int)$b['pid']) ?: strcmp((string)$a['commodity_id'], (string)$b['commodity_id']));
+        return $out;
+    }
+
+    /** @return array<int,array<int,float>> */
+    private function distanceMatrix(): array
+    {
+        if ($this->distanceCache !== null) {
+            return $this->distanceCache;
+        }
+
+        $neighbors = $this->db->query('SELECT pid,neighbor_pid,shared_sides FROM province_neighbors')->fetchAll();
+        $graph = [];
+        $nodes = [];
+        foreach ($neighbors as $n) {
+            $a = (int)$n['pid'];
+            $b = (int)$n['neighbor_pid'];
+            $w = 1.0 / max(1.0, (float)$n['shared_sides']);
+            $graph[$a][$b] = min($graph[$a][$b] ?? INF, $w);
+            $nodes[$a] = true;
+            $nodes[$b] = true;
+        }
+
+        $dAll = [];
+        foreach (array_keys($nodes) as $src) {
+            $dist = [$src => 0.0];
+            $visited = [];
+            while (true) {
+                $u = null;
+                $best = INF;
+                foreach ($dist as $node => $d) {
+                    if (isset($visited[$node])) continue;
+                    if ($d < $best) { $best = $d; $u = (int)$node; }
+                }
+                if ($u === null) break;
+                $visited[$u] = true;
+                foreach (($graph[$u] ?? []) as $v => $w) {
+                    $nd = $dist[$u] + $w;
+                    if (!isset($dist[$v]) || $nd < $dist[$v]) {
+                        $dist[$v] = $nd;
+                    }
+                }
+            }
+            $dAll[$src] = $dist;
+        }
+
+        $this->distanceCache = $dAll;
+        return $this->distanceCache;
+    }
 
     /**
      * @param array<int,array<string,mixed>> $rows
