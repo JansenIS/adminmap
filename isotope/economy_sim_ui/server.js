@@ -467,6 +467,11 @@ const server = http.createServer((req, res) => {
           transportCap: st.transportCap,
           transportUsed: st.transportUsed,
           gdpTurnover: st.gdpYear,
+          treasury: st.treasury,
+          treasuryTradeTaxYear: st.treasuryTradeTaxYear,
+          treasuryTransitYear: st.treasuryTransitYear,
+          treasuryExpenseYear: st.treasuryExpenseYear,
+          treasuryNetYear: st.treasuryNetYear,
           buildings: st.buildings,
           commodities: rows,
         });
