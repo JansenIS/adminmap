@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Isotope Economy Simulator — Portal</title>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 36px; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { color: #94a3b8; }
+    .card { background: #111827; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-top: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 18px; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 8px 0; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .hint { margin-top: 14px; font-size: 13px; color: #93c5fd; }
+    code { background: #1e293b; color: #cbd5e1; padding: 1px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Isotope Economy Simulator</h1>
+    <p>Единая стартовая страница в корне проекта. Отсюда можно открыть viewer, админку и API.</p>
+
+    <section class="card">
+      <h2>Основные страницы</h2>
+      <ul>
+        <li><a href="./isotope/economy_sim_ui/index.php">Viewer (index.php)</a></li>
+        <li><a href="./isotope/economy_sim_ui/admin_sim.php">Admin map (admin_sim.php)</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=summary">API summary</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=meta">API meta</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=trade-balance">API trade-balance</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=trade-history&limit=100">API trade-history</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=snapshot">API snapshot</a></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Файлы данных и код</h2>
+      <ul>
+        <li><a href="./isotope/province_routing_data.json">Routing data</a></li>
+        <li><a href="./data/map_state.json">Map state</a></li>
+        <li><a href="./hexmap/data.js">Hex map data</a></li>
+        <li><a href="./isotope/economy_sim_ui/README.md">Simulator README</a></li>
+        <li><a href="./isotope/economy_sim_ui/php/simulator.php">Simulator core (PHP)</a></li>
+      </ul>
+    </section>
+
+    <div class="hint">
+      Если видишь ошибку загрузки API, проверь что сайт развернут целиком (включая <code>data/</code>, <code>hexmap/</code>, <code>isotope/</code>)
+      и что у PHP есть права на <code>isotope/economy_sim_ui/storage/</code>.
+    </div>
+  </main>
+</body>
+</html>
