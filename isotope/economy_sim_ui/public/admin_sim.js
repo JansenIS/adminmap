@@ -11,6 +11,7 @@ let provinces = [];
 let provinceByPid = new Map();
 let hexes = [];
 let selected = null;
+let viewport = { minX: 0, minY: 0, maxX: 1, maxY: 1, scale: 1, pad: 30 };
 
 async function api(action, params = {}, method = 'GET', body = null) {
   const url = new URL('api.php', location.href);
@@ -52,6 +53,69 @@ function circleRadius(p, minV, maxV) {
   return 3 + t * 16;
 }
 
+function fitHexesToProvinceSpace() {
+  if (!hexes.length || !provinces.length) return;
+
+  const hx = hexes.map((h) => h.cx);
+  const hy = hexes.map((h) => h.cy);
+  const px = provinces.map((p) => p.centroid[0]);
+  const py = provinces.map((p) => p.centroid[1]);
+
+  const hMinX = Math.min(...hx), hMaxX = Math.max(...hx), hMinY = Math.min(...hy), hMaxY = Math.max(...hy);
+  const pMinX = Math.min(...px), pMaxX = Math.max(...px), pMinY = Math.min(...py), pMaxY = Math.max(...py);
+
+  const hW = Math.max(1e-6, hMaxX - hMinX);
+  const hH = Math.max(1e-6, hMaxY - hMinY);
+  const pW = Math.max(1e-6, pMaxX - pMinX);
+  const pH = Math.max(1e-6, pMaxY - pMinY);
+
+  // Если гексы в «другом масштабе» (как сейчас), приводим их к масштабу центроидов провинций.
+  if (hW < pW * 0.8 || hH < pH * 0.8 || hW > pW * 1.25 || hH > pH * 1.25) {
+    const sx = pW / hW;
+    const sy = pH / hH;
+    for (const h of hexes) {
+      h.cx = pMinX + (h.cx - hMinX) * sx;
+      h.cy = pMinY + (h.cy - hMinY) * sy;
+    }
+  }
+}
+
+function computeViewport() {
+  const xs = [];
+  const ys = [];
+  for (const p of provinces) {
+    xs.push(p.centroid[0]);
+    ys.push(p.centroid[1]);
+  }
+  for (const h of hexes) {
+    xs.push(h.cx);
+    ys.push(h.cy);
+  }
+
+  viewport.minX = Math.min(...xs);
+  viewport.maxX = Math.max(...xs);
+  viewport.minY = Math.min(...ys);
+  viewport.maxY = Math.max(...ys);
+
+  const w = Math.max(1e-6, viewport.maxX - viewport.minX);
+  const h = Math.max(1e-6, viewport.maxY - viewport.minY);
+  const availW = Math.max(1, els.canvas.width - viewport.pad * 2);
+  const availH = Math.max(1, els.canvas.height - viewport.pad * 2);
+  viewport.scale = Math.min(availW / w, availH / h);
+}
+
+function project(wx, wy) {
+  const x = viewport.pad + (wx - viewport.minX) * viewport.scale;
+  const y = viewport.pad + (wy - viewport.minY) * viewport.scale;
+  return [x, y];
+}
+
+function unproject(cx, cy) {
+  const x = viewport.minX + (cx - viewport.pad) / viewport.scale;
+  const y = viewport.minY + (cy - viewport.pad) / viewport.scale;
+  return [x, y];
+}
+
 function drawMap() {
   const contours = els.showContours.checked;
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
@@ -62,17 +126,18 @@ function drawMap() {
     const maxV = Math.max(...values);
 
     for (const p of provinces) {
+      const [x, y] = project(p.centroid[0], p.centroid[1]);
       const radius = circleRadius(p, minV, maxV);
       ctx.fillStyle = provinceColor(p, 0.55);
       ctx.beginPath();
-      ctx.arc(p.centroid[0], p.centroid[1], radius, 0, Math.PI * 2);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
       if (p.free_city_id) {
         ctx.strokeStyle = 'rgba(255,90,150,0.95)';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(p.centroid[0], p.centroid[1], radius + 2.5, 0, Math.PI * 2);
+        ctx.arc(x, y, radius + 2.5, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -80,11 +145,12 @@ function drawMap() {
     for (const h of hexes) {
       const p = provinceByPid.get(h.pid);
       if (!p) continue;
+      const [x, y] = project(h.cx, h.cy);
       ctx.fillStyle = provinceColor(p, 0.9);
-      ctx.fillRect(h.cx - 0.9, h.cy - 0.9, 1.8, 1.8);
+      ctx.fillRect(x - 0.9, y - 0.9, 1.8, 1.8);
       if (p.free_city_id) {
         ctx.fillStyle = 'rgba(255,90,150,0.9)';
-        ctx.fillRect(h.cx - 0.35, h.cy - 0.35, 0.7, 0.7);
+        ctx.fillRect(x - 0.35, y - 0.35, 0.7, 0.7);
       }
     }
   }
@@ -92,18 +158,20 @@ function drawMap() {
   if (contours) {
     for (const h of hexes) {
       if (!h.border) continue;
+      const [x, y] = project(h.cx, h.cy);
       ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillRect(h.cx - 0.6, h.cy - 0.6, 1.2, 1.2);
+      ctx.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
     }
   }
 
   if (selected) {
     const p = provinceByPid.get(selected.pid);
     if (p) {
+      const [x, y] = project(p.centroid[0], p.centroid[1]);
       ctx.strokeStyle = '#ffd166';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.centroid[0], p.centroid[1], 16, 0, Math.PI * 2);
+      ctx.arc(x, y, 16, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -136,12 +204,12 @@ async function selectProvince(pid) {
   drawMap();
 }
 
-function nearestProvincePid(x, y) {
+function nearestProvincePid(worldX, worldY) {
   let best = null;
   let bestD = Infinity;
   for (const p of provinces) {
-    const dx = p.centroid[0] - x;
-    const dy = p.centroid[1] - y;
+    const dx = p.centroid[0] - worldX;
+    const dy = p.centroid[1] - worldY;
     const d = dx * dx + dy * dy;
     if (d < bestD) { bestD = d; best = p.pid; }
   }
@@ -184,14 +252,17 @@ async function init() {
   hexes = mapData.hexes;
   provinceByPid = new Map(provinces.map((p) => [p.pid, p]));
 
+  fitHexesToProvinceSpace();
+  computeViewport();
   drawMap();
   if (provinces[0]) selectProvince(provinces[0].pid);
 
   els.canvas.addEventListener('click', (e) => {
     const rect = els.canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * els.canvas.width;
-    const y = ((e.clientY - rect.top) / rect.height) * els.canvas.height;
-    const pid = nearestProvincePid(x, y);
+    const cx = ((e.clientX - rect.left) / rect.width) * els.canvas.width;
+    const cy = ((e.clientY - rect.top) / rect.height) * els.canvas.height;
+    const [worldX, worldY] = unproject(cx, cy);
+    const pid = nearestProvincePid(worldX, worldY);
     if (pid) selectProvince(pid);
   });
 }
