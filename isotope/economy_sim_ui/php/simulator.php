@@ -254,7 +254,13 @@ final class EconomySimulator
             return;
         }
 
-        $ins = $this->db->prepare('INSERT INTO sim_state(pid,commodity_id,stock,price,yearly_prod,yearly_cons) VALUES(?,?,?,?,?,?)');
+        $ins = $this->db->prepare('INSERT INTO sim_state(pid,commodity_id,stock,price,yearly_prod,yearly_cons)
+            VALUES(?,?,?,?,?,?)
+            ON CONFLICT(pid,commodity_id) DO UPDATE SET
+                stock=excluded.stock,
+                price=excluded.price,
+                yearly_prod=excluded.yearly_prod,
+                yearly_cons=excluded.yearly_cons');
 
         foreach ($provinces as $p) {
             $pid = (int)$p['pid'];
