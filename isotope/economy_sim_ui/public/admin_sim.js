@@ -32,7 +32,6 @@ function hashColor(str, alpha = 1) {
 }
 
 function provinceColor(p, alpha) {
-  if (p.free_city_id) return `rgba(255,90,150,${Math.max(alpha,0.85)})`;
   const mode = els.paintMode.value;
   if (mode === 'kingdom') return hashColor(p.kingdom_id || 'no_kingdom', alpha);
   if (mode === 'great_house') return hashColor(p.great_house_id || 'no_great_house', alpha);
@@ -40,16 +39,46 @@ function provinceColor(p, alpha) {
 }
 
 function drawMap() {
-  const alpha = els.transparentMode.checked ? 0.25 : 0.9;
   const contours = els.showContours.checked;
   ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
 
-  for (const h of hexes) {
-    const p = provinceByPid.get(h.pid);
-    if (!p) continue;
-    ctx.fillStyle = provinceColor(p, alpha);
-    ctx.fillRect(h.cx - 0.9, h.cy - 0.9, 1.8, 1.8);
-    if (contours && h.border) {
+  if (els.transparentMode.checked) {
+    // Прозрачный режим: кружки-центры + контуры провинций (без сплошной заливки)
+    for (const p of provinces) {
+      const radius = Math.max(2.5, Math.min(14, Math.sqrt((p.hex_count || 1) / 10)));
+      const base = provinceColor(p, 0.45);
+      ctx.fillStyle = base;
+      ctx.beginPath();
+      ctx.arc(p.centroid[0], p.centroid[1], radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (p.free_city_id) {
+        ctx.strokeStyle = 'rgba(255,90,150,0.95)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(p.centroid[0], p.centroid[1], radius + 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  } else {
+    const alpha = 0.9;
+    for (const h of hexes) {
+      const p = provinceByPid.get(h.pid);
+      if (!p) continue;
+      ctx.fillStyle = provinceColor(p, alpha);
+      ctx.fillRect(h.cx - 0.9, h.cy - 0.9, 1.8, 1.8);
+
+      // спец-территории отмечаем только контуром точки, а не отдельной заливкой
+      if (p.free_city_id) {
+        ctx.fillStyle = 'rgba(255,90,150,0.9)';
+        ctx.fillRect(h.cx - 0.35, h.cy - 0.35, 0.7, 0.7);
+      }
+    }
+  }
+
+  if (contours) {
+    for (const h of hexes) {
+      if (!h.border) continue;
       ctx.fillStyle = 'rgba(0,0,0,0.85)';
       ctx.fillRect(h.cx - 0.6, h.cy - 0.6, 1.2, 1.2);
     }

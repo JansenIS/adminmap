@@ -21,7 +21,7 @@
       </label>
       <label><input id="showContours" type="checkbox" checked> Контуры провинций</label>
       <label><input id="transparentMode" type="checkbox"> Прозрачный режим</label>
-      <span class="hint">Особые территории (free city) всегда подсвечены.</span>
+      <span class="hint">Особые территории (free city) помечаются тонкой маркировкой без ломания выбранной покраски.</span>
     </div>
     <canvas id="mapCanvas" width="1900" height="2050"></canvas>
   </section>

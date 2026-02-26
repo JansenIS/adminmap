@@ -703,7 +703,7 @@ final class EconomySimulator
         foreach ($neighbors as $n) {
             $a = (int)$n['pid'];
             $b = (int)$n['neighbor_pid'];
-            $capacity = max(0.0, (float)$n['shared_sides']) * 3.0;
+            $capacity = max(0.0, (float)$n['shared_sides']) * (1.0 / $this->transportUnitCost()) * (1.0 - $this->tradeFriction()) * 1.2;
             if (!isset($book[$a]) || !isset($book[$b])) continue;
             foreach ($book[$a] as $cid => $_) {
                 if (!isset($book[$b][$cid])) continue;
@@ -713,7 +713,7 @@ final class EconomySimulator
                 $aSur = max(0.0, $aRef['stock'] - $aRef['target']);
                 $bNeed = max(0.0, $bRef['target'] - $bRef['stock']);
                 if ($aSur > 0.01 && $bNeed > 0.01 && $aRef['price'] <= $bRef['price']) {
-                    $flow = min($capacity, $aSur * 0.3, $bNeed * 0.5);
+                    $flow = min($capacity, $aSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $bNeed * 0.5);
                     $aRef['stock'] -= $flow;
                     $bRef['stock'] += $flow;
                 }
@@ -721,7 +721,7 @@ final class EconomySimulator
                 $bSur = max(0.0, $bRef['stock'] - $bRef['target']);
                 $aNeed = max(0.0, $aRef['target'] - $aRef['stock']);
                 if ($bSur > 0.01 && $aNeed > 0.01 && $bRef['price'] <= $aRef['price']) {
-                    $flow = min($capacity, $bSur * 0.3, $aNeed * 0.5);
+                    $flow = min($capacity, $bSur * (0.25 + (1.0 - $this->tradeFriction()) * 0.25), $aNeed * 0.5);
                     $bRef['stock'] -= $flow;
                     $aRef['stock'] += $flow;
                 }
@@ -735,6 +735,17 @@ final class EconomySimulator
                 $upd->execute([round($vals['stock'], 6), $pid, $cid]);
             }
         }
+    }
+
+
+    private function transportUnitCost(): float
+    {
+        return max(0.01, (float)$this->metaGet('transportUnitCost', '0.35'));
+    }
+
+    private function tradeFriction(): float
+    {
+        return max(0.0, min(0.95, (float)$this->metaGet('tradeFriction', '0.05')));
     }
 
     private function metaGet(string $key, ?string $default = null): ?string
