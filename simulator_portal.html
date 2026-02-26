@@ -29,6 +29,7 @@
       <ul>
         <li><a href="./isotope/economy_sim_ui/index.php">Viewer (index.php)</a></li>
         <li><a href="./isotope/economy_sim_ui/admin_sim.php">Admin map (admin_sim.php)</a></li>
+        <li><a href="./isotope/economy_sim_ui/api.php?action=meta" target="_blank" rel="noopener">Проверка API (meta)</a></li>
         <li><a href="./isotope/economy_sim_ui/api.php?action=summary">API summary</a></li>
         <li><a href="./isotope/economy_sim_ui/api.php?action=meta">API meta</a></li>
         <li><a href="./isotope/economy_sim_ui/api.php?action=trade-balance">API trade-balance</a></li>
@@ -50,7 +51,8 @@
 
     <div class="hint">
       Если видишь ошибку загрузки API, проверь что сайт развернут целиком (включая <code>data/</code>, <code>hexmap/</code>, <code>isotope/</code>)
-      и что у PHP есть права на <code>isotope/economy_sim_ui/storage/</code>.
+      и что у PHP есть права на <code>isotope/economy_sim_ui/storage/</code>. Если структура сайта нестандартная — укажи переменную окружения
+      <code>ISOTOPE_PROJECT_ROOT</code> на корень проекта (где лежат <code>data/</code>, <code>hexmap/</code>, <code>isotope/</code>).
     </div>
   </main>
 </body>

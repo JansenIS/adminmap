@@ -9,6 +9,33 @@ function economy_root_path(): string
 
 function project_root_path(): string
 {
+    $env = getenv('ISOTOPE_PROJECT_ROOT');
+    if (is_string($env) && $env !== '' && is_dir($env)) {
+        return rtrim($env, '/');
+    }
+
+    $start = economy_root_path();
+    $candidates = [$start];
+    $cur = $start;
+    for ($i = 0; $i < 8; $i++) {
+        $parent = dirname($cur);
+        if ($parent === $cur) {
+            break;
+        }
+        $candidates[] = $parent;
+        $cur = $parent;
+    }
+
+    foreach ($candidates as $base) {
+        if (
+            is_file($base . '/isotope/province_routing_data.json') &&
+            is_file($base . '/data/map_state.json') &&
+            is_file($base . '/hexmap/data.js')
+        ) {
+            return $base;
+        }
+    }
+
     return dirname(__DIR__, 3);
 }
 
