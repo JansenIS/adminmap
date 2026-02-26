@@ -814,8 +814,7 @@ final class EconomySimulator
                 $need = max(0.0, $target - (float)$row['stock']);
                 if ($need < 0.01) continue;
 
-                $bestSource = null;
-                $bestScore = INF;
+                $candidates = [];
                 foreach ($state as $spid => $srows) {
                     if ($spid === $pid || !isset($srows[$cid])) continue;
                     $s = $srows[$cid];
@@ -824,20 +823,23 @@ final class EconomySimulator
                     $d = $dist[$pid][$spid] ?? INF;
                     if (!is_finite($d)) continue;
                     $score = ((float)$s['price']) + ($d * $this->transportUnitCost());
-                    if ($score < $bestScore) {
-                        $bestScore = $score;
-                        $bestSource = $spid;
-                    }
+                    $candidates[] = ['pid' => $spid, 'dist' => $d, 'surplus' => $ssurplus, 'score' => $score];
                 }
 
-                if ($bestSource !== null) {
-                    $d = $dist[$pid][$bestSource] ?? 0.0;
-                    $available = max(0.0, (float)$state[$bestSource][$cid]['stock'] - max(1.0, (float)$state[$bestSource][$cid]['yearly_cons'] * 1.2));
+                usort($candidates, static fn(array $a, array $b): int => $a['score'] <=> $b['score']);
+                $remainingNeed = $need * 0.45;
+                foreach ($candidates as $cand) {
+                    if ($remainingNeed <= 0.01) break;
+                    $spid = (int)$cand['pid'];
+                    $d = (float)$cand['dist'];
+                    $available = max(0.0, (float)$state[$spid][$cid]['stock'] - max(1.0, (float)$state[$spid][$cid]['yearly_cons'] * 1.2));
+                    if ($available <= 0.01) continue;
                     $cap = max(0.0, (1.0 - $this->tradeFriction()) * 8.0 / (1.0 + $d * 0.25));
-                    $moved = min($need * 0.35, $available * 0.25, $cap);
+                    $moved = min($remainingNeed, $available * 0.35, $cap);
                     if ($moved > 0.0) {
-                        $state[$bestSource][$cid]['stock'] = (float)$state[$bestSource][$cid]['stock'] - $moved;
+                        $state[$spid][$cid]['stock'] = (float)$state[$spid][$cid]['stock'] - $moved;
                         $state[$pid][$cid]['stock'] = (float)$state[$pid][$cid]['stock'] + $moved;
+                        $remainingNeed -= $moved;
                     }
                 }
             }

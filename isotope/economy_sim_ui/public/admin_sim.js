@@ -53,30 +53,48 @@ function circleRadius(p, minV, maxV) {
   return 3 + t * 16;
 }
 
+function linearFit(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return { a: 1, b: 0, ok: false };
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) {
+    const x = xs[i], y = ys[i];
+    sx += x; sy += y; sxx += x * x; sxy += x * y;
+  }
+  const den = (n * sxx - sx * sx);
+  if (Math.abs(den) < 1e-9) return { a: 1, b: 0, ok: false };
+  const a = (n * sxy - sx * sy) / den;
+  const b = (sy - a * sx) / n;
+  return { a, b, ok: Number.isFinite(a) && Number.isFinite(b) };
+}
+
 function fitHexesToProvinceSpace() {
   if (!hexes.length || !provinces.length) return;
 
-  const hx = hexes.map((h) => h.cx);
-  const hy = hexes.map((h) => h.cy);
-  const px = provinces.map((p) => p.centroid[0]);
-  const py = provinces.map((p) => p.centroid[1]);
+  const byPid = new Map();
+  for (const h of hexes) {
+    if (!byPid.has(h.pid)) byPid.set(h.pid, { sx: 0, sy: 0, n: 0 });
+    const a = byPid.get(h.pid);
+    a.sx += h.cx; a.sy += h.cy; a.n += 1;
+  }
 
-  const hMinX = Math.min(...hx), hMaxX = Math.max(...hx), hMinY = Math.min(...hy), hMaxY = Math.max(...hy);
-  const pMinX = Math.min(...px), pMaxX = Math.max(...px), pMinY = Math.min(...py), pMaxY = Math.max(...py);
+  const xh = [], yh = [], xp = [], yp = [];
+  for (const p of provinces) {
+    const a = byPid.get(p.pid);
+    if (!a || a.n === 0) continue;
+    xh.push(a.sx / a.n);
+    yh.push(a.sy / a.n);
+    xp.push(p.centroid[0]);
+    yp.push(p.centroid[1]);
+  }
 
-  const hW = Math.max(1e-6, hMaxX - hMinX);
-  const hH = Math.max(1e-6, hMaxY - hMinY);
-  const pW = Math.max(1e-6, pMaxX - pMinX);
-  const pH = Math.max(1e-6, pMaxY - pMinY);
+  const fx = linearFit(xh, xp);
+  const fy = linearFit(yh, yp);
+  if (!fx.ok || !fy.ok) return;
 
-  // Если гексы в «другом масштабе» (как сейчас), приводим их к масштабу центроидов провинций.
-  if (hW < pW * 0.8 || hH < pH * 0.8 || hW > pW * 1.25 || hH > pH * 1.25) {
-    const sx = pW / hW;
-    const sy = pH / hH;
-    for (const h of hexes) {
-      h.cx = pMinX + (h.cx - hMinX) * sx;
-      h.cy = pMinY + (h.cy - hMinY) * sy;
-    }
+  for (const h of hexes) {
+    h.cx = fx.a * h.cx + fx.b;
+    h.cy = fy.a * h.cy + fy.b;
   }
 }
 
