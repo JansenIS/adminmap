@@ -9,6 +9,8 @@ const state = {
   keyPixels: null,
   centroidByKey: new Map(),
   anchorByKey: new Map(),
+  buildingCatalog: [],
+  draftBuildings: [],
   width: 0,
   height: 0,
 };
@@ -23,6 +25,9 @@ const UI = {
   inputPop: document.getElementById("inputPop"),
   inputInfra: document.getElementById("inputInfra"),
   inputGdpWeight: document.getElementById("inputGdpWeight"),
+  buildingRows: document.getElementById("buildingRows"),
+  buildingTypeSelect: document.getElementById("buildingTypeSelect"),
+  btnAddBuilding: document.getElementById("btnAddBuilding"),
   btnSave: document.getElementById("btnSave"),
   saveStatus: document.getElementById("saveStatus"),
   tooltip: document.getElementById("tooltip"),
@@ -200,8 +205,81 @@ function bindSelection(pid) {
   UI.inputPop.value = String(Math.round(row.population || 1));
   UI.inputInfra.value = String(Number(row.infra || 0.5).toFixed(2));
   UI.inputGdpWeight.value = String(Number(row.gdpWeight || 1).toFixed(2));
+  state.draftBuildings = (row.buildings || []).map((b) => ({
+    type: b.type,
+    count: Math.max(1, Math.floor(Number(b.count) || 1)),
+    efficiency: Number.isFinite(Number(b.efficiency)) ? Number(b.efficiency) : 1,
+  }));
+  renderBuildingsEditor();
   UI.editor.hidden = false;
   render();
+}
+
+function buildingNameByType(type) {
+  return state.buildingCatalog.find((b) => b.type === type)?.name || type;
+}
+
+function renderBuildingCatalogSelect() {
+  UI.buildingTypeSelect.innerHTML = "";
+  const sorted = [...state.buildingCatalog].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  for (const b of sorted) {
+    const opt = document.createElement("option");
+    opt.value = b.type;
+    opt.textContent = b.name;
+    UI.buildingTypeSelect.appendChild(opt);
+  }
+}
+
+function renderBuildingsEditor() {
+  UI.buildingRows.innerHTML = "";
+  if (!state.draftBuildings.length) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "Нет заданных зданий. Добавь нужные производства ниже.";
+    UI.buildingRows.appendChild(empty);
+    return;
+  }
+
+  state.draftBuildings.forEach((b, index) => {
+    const row = document.createElement("div");
+    row.className = "buildingRow";
+
+    const name = document.createElement("div");
+    name.className = "buildingRowName";
+    name.textContent = buildingNameByType(b.type);
+
+    const countInput = document.createElement("input");
+    countInput.type = "number";
+    countInput.min = "1";
+    countInput.step = "1";
+    countInput.value = String(Math.max(1, Math.floor(Number(b.count) || 1)));
+    countInput.addEventListener("input", () => {
+      b.count = Math.max(1, Math.floor(Number(countInput.value) || 1));
+    });
+
+    const effInput = document.createElement("input");
+    effInput.type = "number";
+    effInput.min = "0.25";
+    effInput.max = "2.5";
+    effInput.step = "0.01";
+    effInput.value = String((Number.isFinite(Number(b.efficiency)) ? Number(b.efficiency) : 1).toFixed(2));
+    effInput.addEventListener("input", () => {
+      b.efficiency = Math.max(0.25, Math.min(2.5, Number(effInput.value) || 1));
+    });
+
+    const btnRemove = document.createElement("button");
+    btnRemove.type = "button";
+    btnRemove.className = "btnRemoveBuilding";
+    btnRemove.textContent = "×";
+    btnRemove.title = "Удалить";
+    btnRemove.addEventListener("click", () => {
+      state.draftBuildings.splice(index, 1);
+      renderBuildingsEditor();
+    });
+
+    row.append(name, countInput, effInput, btnRemove);
+    UI.buildingRows.appendChild(row);
+  });
 }
 
 function setTooltip(evt, pid) {
@@ -248,6 +326,8 @@ async function loadImages(imageUrl, maskUrl) {
 
 async function loadAll() {
   const payload = await api("/api/admin/map-sync");
+  state.buildingCatalog = Array.isArray(payload.buildingCatalog) ? payload.buildingCatalog : [];
+  renderBuildingCatalogSelect();
   state.rows = payload.provinces || [];
   state.byPid = new Map(state.rows.map((r) => [r.pid, r]));
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
@@ -286,6 +366,11 @@ UI.btnSave.addEventListener("click", async () => {
     pop: Number(UI.inputPop.value),
     infra: Number(UI.inputInfra.value),
     gdpWeight: Number(UI.inputGdpWeight.value),
+    buildings: state.draftBuildings.map((b) => ({
+      type: b.type,
+      count: Math.max(1, Math.floor(Number(b.count) || 1)),
+      efficiency: Math.max(0.25, Math.min(2.5, Number(b.efficiency) || 1)),
+    })),
   };
   UI.saveStatus.textContent = "Сохраняю...";
   await api("/api/admin/province", {
@@ -296,6 +381,18 @@ UI.btnSave.addEventListener("click", async () => {
   await loadAll();
   bindSelection(state.selectedPid);
   UI.saveStatus.textContent = "Сохранено";
+});
+
+UI.btnAddBuilding.addEventListener("click", () => {
+  const type = UI.buildingTypeSelect.value;
+  if (!type) return;
+  const existing = state.draftBuildings.find((b) => b.type === type);
+  if (existing) {
+    existing.count = Math.max(1, Math.floor(Number(existing.count) || 1) + 1);
+  } else {
+    state.draftBuildings.push({ type, count: 1, efficiency: 1 });
+  }
+  renderBuildingsEditor();
 });
 
 loadAll().catch((e) => {
