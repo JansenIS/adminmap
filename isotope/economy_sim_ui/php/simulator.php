@@ -9,29 +9,7 @@ final class EconomySimulator
     private PDO $db;
 
     /** @var array<int,array{id:string,name:string,unit:string,tier:string,base_price:float,demand:float,decay:float,rarity:float}> */
-    private array $commodities = [
-        ['id' => 'wood_raw', 'name' => 'Древесина', 'unit' => 'м³', 'tier' => 'raw', 'base_price' => 8.0, 'demand' => 0.45, 'decay' => 0.01, 'rarity' => 0.05],
-        ['id' => 'fiber_raw', 'name' => 'Прядильное волокно', 'unit' => 'кг', 'tier' => 'raw', 'base_price' => 6.0, 'demand' => 0.42, 'decay' => 0.015, 'rarity' => 0.08],
-        ['id' => 'hides_raw', 'name' => 'Необработанные шкуры', 'unit' => 'шт', 'tier' => 'raw', 'base_price' => 10.0, 'demand' => 0.18, 'decay' => 0.00, 'rarity' => 0.10],
-        ['id' => 'rubber_raw', 'name' => 'Сырьевой каучук', 'unit' => 'кг', 'tier' => 'raw', 'base_price' => 14.0, 'demand' => 0.20, 'decay' => 0.00, 'rarity' => 0.20],
-        ['id' => 'petrochem_raw', 'name' => 'Нефтехимическое сырьё', 'unit' => 'кг', 'tier' => 'raw', 'base_price' => 18.0, 'demand' => 0.22, 'decay' => 0.00, 'rarity' => 0.25],
-        ['id' => 'stone', 'name' => 'Камень', 'unit' => 'т', 'tier' => 'raw', 'base_price' => 30.0, 'demand' => 0.26, 'decay' => 0.00, 'rarity' => 0.20],
-        ['id' => 'iron_ore', 'name' => 'Железная руда', 'unit' => 'т', 'tier' => 'raw', 'base_price' => 20.0, 'demand' => 0.28, 'decay' => 0.00, 'rarity' => 0.18],
-        ['id' => 'mutabryukva', 'name' => 'Мутабрюква', 'unit' => 'кг', 'tier' => 'raw', 'base_price' => 0.35, 'demand' => 1.10, 'decay' => 0.05, 'rarity' => 0.03],
-        ['id' => 'mutachicken', 'name' => 'Мутакурицы', 'unit' => 'шт', 'tier' => 'raw', 'base_price' => 9.0, 'demand' => 0.30, 'decay' => 0.03, 'rarity' => 0.06],
-        ['id' => 'gold', 'name' => 'Золото', 'unit' => 'г', 'tier' => 'raw', 'base_price' => 70.0, 'demand' => 0.04, 'decay' => 0.00, 'rarity' => 0.90],
-        ['id' => 'silver', 'name' => 'Серебро', 'unit' => 'кг', 'tier' => 'raw', 'base_price' => 25.0, 'demand' => 0.07, 'decay' => 0.00, 'rarity' => 0.75],
-        ['id' => 'villadium', 'name' => 'Вилладиум', 'unit' => 'г', 'tier' => 'raw', 'base_price' => 50.0, 'demand' => 0.03, 'decay' => 0.00, 'rarity' => 0.98],
-        ['id' => 'bread', 'name' => 'Хлеб', 'unit' => 'кг', 'tier' => 'component', 'base_price' => 1.0, 'demand' => 0.85, 'decay' => 0.04, 'rarity' => 0.05],
-        ['id' => 'meat_cans', 'name' => 'Мясные консервы', 'unit' => 'кг', 'tier' => 'component', 'base_price' => 20.0, 'demand' => 0.12, 'decay' => 0.00, 'rarity' => 0.08],
-        ['id' => 'steel', 'name' => 'Сталь', 'unit' => 'т', 'tier' => 'component', 'base_price' => 1000.0, 'demand' => 0.10, 'decay' => 0.00, 'rarity' => 0.30],
-        ['id' => 'wood_processed', 'name' => 'Обработанная древесина', 'unit' => 'м³', 'tier' => 'component', 'base_price' => 18.0, 'demand' => 0.28, 'decay' => 0.00, 'rarity' => 0.06],
-        ['id' => 'e_parts', 'name' => 'Электронные компоненты', 'unit' => 'наб.', 'tier' => 'component', 'base_price' => 85.0, 'demand' => 0.10, 'decay' => 0.00, 'rarity' => 0.70],
-        ['id' => 'engine_kit', 'name' => 'Комплект движка', 'unit' => 'шт', 'tier' => 'component', 'base_price' => 260.0, 'demand' => 0.08, 'decay' => 0.00, 'rarity' => 0.55],
-        ['id' => 'truck_civil', 'name' => 'Гражданский грузовик', 'unit' => 'шт', 'tier' => 'product', 'base_price' => 7000.0, 'demand' => 0.02, 'decay' => 0.00, 'rarity' => 0.95],
-        ['id' => 'air_purifier_home', 'name' => 'Личный очиститель воздуха', 'unit' => 'шт', 'tier' => 'product', 'base_price' => 800.0, 'demand' => 0.05, 'decay' => 0.00, 'rarity' => 0.65],
-        ['id' => 'field_cat', 'name' => 'Полевой кот', 'unit' => 'шт', 'tier' => 'animal', 'base_price' => 2560.0, 'demand' => 0.01, 'decay' => 0.00, 'rarity' => 0.15],
-    ];
+    private array $commodities;
     /** @var array<string,array{name:string,labor:float,cap:float,input:array<string,float>,output:array<string,float>}> */
     private array $industrialGraph;
 
@@ -41,6 +19,7 @@ final class EconomySimulator
     public function __construct()
     {
         $this->db = db();
+        $this->commodities = require __DIR__ . '/commodities.php';
         $this->industrialGraph = require __DIR__ . '/industrial_graph.php';
     }
 
