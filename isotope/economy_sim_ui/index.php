@@ -1,0 +1,182 @@
+<?php declare(strict_types=1); ?>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Isotope Economy — Viewer (PHP)</title>
+  <link rel="stylesheet" href="./public/style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="title">Isotope Economy</div>
+      <div class="subtitle">PHP просмотрщик симуляции (годовые шаги)</div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Seed</label>
+        <input id="seed" type="number" value="1" step="1" />
+      </div>
+      <div class="ctrl">
+        <label>Шаг (лет)</label>
+        <select id="stepYears">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label>Transport cost</label>
+        <input id="transport" type="number" value="0.35" step="0.05" />
+      </div>
+      <div class="ctrl">
+        <label>Trade friction</label>
+        <input id="friction" type="number" value="0.05" step="0.01" />
+      </div>
+
+      <div class="buttons">
+        <button id="btnReset" class="btn">Сброс</button>
+        <button id="btnTick" class="btn primary">Шаг</button>
+        <a id="btnSnapshot" class="btn" href="./api.php?action=snapshot" target="_blank" rel="noopener">Снапшот JSON</a>
+      </div>
+
+      <div class="status">
+        <div>Day: <span id="day">0</span></div>
+        <div>Population: <span id="popTotal">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="panelHeader">
+        <div class="panelTitle">Провинции</div>
+        <div class="panelTools">
+          <input id="search" type="text" placeholder="поиск…" />
+          <select id="sort">
+            <option value="name" selected>по названию</option>
+            <option value="pop">по населению</option>
+            <option value="infra">по инфраструктуре</option>
+            <option value="city">сначала города</option>
+          </select>
+        </div>
+      </div>
+      <div id="provList" class="list"></div>
+    </div>
+
+    <div class="right">
+      <div class="tabs">
+        <button id="tabMarket" class="tabBtn active">Рынок</button>
+        <button id="tabTradeBalance" class="tabBtn">Глобальный торговый баланс</button>
+      </div>
+
+      <div class="grid">
+        <div class="card tabPanel" id="summaryCard" data-tab="market">
+          <div class="cardTitle">Сводка рынка</div>
+          <div class="cardBody">
+            <div class="twoCols">
+              <div>
+                <div class="h">Top GDP turnover</div>
+                <div id="topGDP" class="mono small"></div>
+              </div>
+              <div>
+                <div class="h">Scarce / Overstocked</div>
+                <div id="scarce" class="mono small"></div>
+                <div id="cheap" class="mono small" style="margin-top:8px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card tabPanel" id="provinceCard" data-tab="market">
+          <div class="cardTitle">Провинция</div>
+          <div class="cardBody">
+            <div id="provHeader" class="provHeader">Выбери провинцию слева.</div>
+
+            <div class="provMeta">
+              <div>pid: <span id="p_pid" class="mono"></span></div>
+              <div>terrain: <span id="p_terrain" class="mono"></span></div>
+              <div>city: <span id="p_city" class="mono"></span></div>
+              <div>pop: <span id="p_pop" class="mono"></span></div>
+              <div>infra: <span id="p_infra" class="mono"></span></div>
+              <div>transport: <span id="p_transport" class="mono"></span></div>
+              <div>GDP turnover: <span id="p_gdp" class="mono"></span></div>
+            </div>
+
+            <div class="subControls">
+              <select id="tier">
+                <option value="all" selected>все товары</option>
+                <option value="raw">сырьё</option>
+                <option value="component">компоненты</option>
+                <option value="product">изделия</option>
+                <option value="animal">животные</option>
+              </select>
+              <label class="chk"><input id="onlyActive" type="checkbox" checked /> только значимые</label>
+              <select id="sortGoods">
+                <option value="value" selected>по стоимости запасов</option>
+                <option value="ratio">по дефициту (ratio)</option>
+                <option value="stock">по количеству</option>
+                <option value="price">по цене</option>
+              </select>
+              <select id="limit">
+                <option value="30">30</option>
+                <option value="60" selected>60</option>
+                <option value="120">120</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+
+            <div class="tableWrap">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Товар</th>
+                    <th class="r">Stock</th>
+                    <th class="r">Target</th>
+                    <th class="r">Ratio</th>
+                    <th class="r">Price</th>
+                    <th class="r">Value</th>
+                    <th>Tier</th>
+                  </tr>
+                </thead>
+                <tbody id="goods"></tbody>
+              </table>
+            </div>
+
+            <div class="h" style="margin-top:10px">Buildings</div>
+            <div id="buildings" class="mono small"></div>
+          </div>
+        </div>
+
+        <div class="card tabPanel" id="tradeBalanceCard" data-tab="trade">
+          <div class="cardTitle">Глобальный торговый баланс (за прошлый год)</div>
+          <div class="cardBody">
+            <div class="h">Период: <span id="tbPeriod" class="mono">0</span> дней</div>
+            <div class="tableWrap" style="max-height:680px">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Товар</th>
+                    <th class="r">Произведено</th>
+                    <th class="r">Продано</th>
+                    <th class="r">Сальдо</th>
+                    <th class="r">Остатки</th>
+                    <th>Tier</th>
+                  </tr>
+                </thead>
+                <tbody id="tradeBalance"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="./public/app.js"></script>
+</body>
+</html>
