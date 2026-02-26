@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { EconomyEngine } from "./engine.js";
+import { BUILDINGS } from "./resources.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +78,21 @@ function normalizeProvinceOverride(raw) {
   if (Number.isFinite(Number(raw.pop))) out.pop = Math.max(1, Math.round(Number(raw.pop)));
   if (Number.isFinite(Number(raw.infra))) out.infra = Math.max(0.1, Math.min(2.5, Number(raw.infra)));
   if (Number.isFinite(Number(raw.gdpWeight))) out.gdpWeight = Math.max(0.05, Math.min(8, Number(raw.gdpWeight)));
+  if (Array.isArray(raw.buildings)) {
+    out.buildings = raw.buildings
+      .map((b) => {
+        const type = typeof b?.type === "string" ? b.type.trim() : "";
+        const count = Math.floor(Number(b?.count));
+        const efficiency = Number(b?.efficiency);
+        if (!type || !BUILDINGS[type] || !Number.isFinite(count) || count < 0) return null;
+        const outEntry = { type, count };
+        if (Number.isFinite(efficiency)) {
+          outEntry.efficiency = Math.max(0.25, Math.min(2.5, efficiency));
+        }
+        return outEntry;
+      })
+      .filter((b) => b && b.count > 0);
+  }
   return out;
 }
 
@@ -205,6 +221,13 @@ function applySimAdminOverridesToEngine() {
     const n = normalizeProvinceOverride(ov);
     if (typeof n.pop === "number") st.pop = n.pop;
     if (typeof n.infra === "number") st.infra = n.infra;
+    if (Array.isArray(n.buildings)) {
+      st.buildings = n.buildings.map((b) => ({
+        type: b.type,
+        count: b.count,
+        efficiency: Number.isFinite(Number(b.efficiency)) ? Math.max(0.25, Math.min(2.5, Number(b.efficiency))) : 1,
+      }));
+    }
     const infraForCap = Math.max(0.1, st.infra);
     st.transportCap = st.pop * infraForCap * 0.018;
     st.worldTransportCap = st.transportCap * 3 + (st.isCity ? 900 : 350);
@@ -225,7 +248,13 @@ function computeProvinceAdminStats(pid) {
     pop: st.pop,
     infra: st.infra,
     gdpWeight,
-    effectiveGDP: st.gdpTurnover * gdpWeight,
+    effectiveGDP: st.gdpYear * gdpWeight,
+    buildings: (st.buildings || []).map((b) => ({
+      type: b.type,
+      count: Number(b.count || 0),
+      efficiency: Number.isFinite(Number(b.efficiency)) ? Number(b.efficiency) : 1,
+      name: BUILDINGS[b.type]?.name || b.type,
+    })),
   };
 }
 
@@ -282,9 +311,9 @@ const server = http.createServer((req, res) => {
             area_px: Number(meta.area_px || 0),
             population: stats?.pop ?? st?.pop ?? 0,
             infra: stats?.infra ?? st?.infra ?? 0,
-            gdpTurnover: st?.gdpTurnover ?? 0,
+            gdpTurnover: st?.gdpYear ?? 0,
             gdpWeight: stats?.gdpWeight ?? 1,
-            effectiveGDP: stats?.effectiveGDP ?? (st?.gdpTurnover ?? 0),
+            effectiveGDP: stats?.effectiveGDP ?? (st?.gdpYear ?? 0),
           };
         });
 
@@ -296,6 +325,10 @@ const server = http.createServer((req, res) => {
             height: Number((readPngSize(mapImagePath)?.height) || adminMapProvinceMeta.image?.height || 0),
           },
           provinces: rows,
+          buildingCatalog: Object.entries(BUILDINGS).map(([type, def]) => ({
+            type,
+            name: def?.name || type,
+          })),
         });
       }
 
@@ -433,7 +466,7 @@ const server = http.createServer((req, res) => {
           infra: st.infra,
           transportCap: st.transportCap,
           transportUsed: st.transportUsed,
-          gdpTurnover: st.gdpTurnover,
+          gdpTurnover: st.gdpYear,
           buildings: st.buildings,
           commodities: rows,
         });

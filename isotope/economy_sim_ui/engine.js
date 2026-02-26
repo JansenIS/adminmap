@@ -55,11 +55,19 @@ export class EconomyEngine {
    *   transportUnitCost?: number,
    *   tradeFriction?: number,
    *   smoothSteps?: number,
-   *   worldImportMarkup?: number,
-   *   worldExportMarkdown?: number,
-   *   worldPortFee?: number,
-   *   hubCount?: number
-   * }} cfg
+ *   worldImportMarkup?: number,
+ *   worldExportMarkdown?: number,
+ *   worldPortFee?: number,
+ *   hubCount?: number,
+ *   dealTaxRate?: number,
+ *   importTaxRate?: number,
+ *   exportTaxRate?: number,
+ *   transitFeePerBulkDist?: number,
+ *   baseExpensePerPop?: number,
+ *   infraExpenseMul?: number,
+ *   buildingExpenseMul?: number,
+ *   expenseVolatility?: number
+ * }} cfg
    */
   constructor(cfg) {
     this.seed = cfg.seed ?? 1;
@@ -80,11 +88,23 @@ export class EconomyEngine {
       hubCount: cfg.hubCount ?? 6,
     };
 
+    this.fiscal = {
+      dealTaxRate: clamp(cfg.dealTaxRate ?? 0.012, 0.0, 0.08),
+      importTaxRate: clamp(cfg.importTaxRate ?? 0.016, 0.0, 0.12),
+      exportTaxRate: clamp(cfg.exportTaxRate ?? 0.012, 0.0, 0.12),
+      transitFeePerBulkDist: clamp(cfg.transitFeePerBulkDist ?? 0.022, 0.0, 0.5),
+      baseExpensePerPop: clamp(cfg.baseExpensePerPop ?? 0.0013, 0.0, 0.2),
+      infraExpenseMul: clamp(cfg.infraExpenseMul ?? 0.42, 0.0, 4.0),
+      buildingExpenseMul: clamp(cfg.buildingExpenseMul ?? 0.0024, 0.0, 0.1),
+      expenseVolatility: clamp(cfg.expenseVolatility ?? 0.18, 0.0, 1.0),
+    };
+
     this.comCount = COMMODITIES.length;
     this.pidToIndex = new Map(this.provinces.map((p, i) => [p.pid, i]));
 
     this.edges = this._buildGraphEdges();
     this.distMatrix = null;
+    this.routeCache = new Map();
 
     /** @type {number[]} */
     this.hubIndices = [];
@@ -112,6 +132,15 @@ export class EconomyEngine {
     this.daySoldHistory = [];
     this._dayProduced = new Float64Array(this.comCount);
     this._daySold = new Float64Array(this.comCount);
+    this.provYearHistory = {
+      gdp: [],
+      imports: [],
+      exports: [],
+      tradeTax: [],
+      transitTax: [],
+      expense: [],
+      net: [],
+    };
   }
 
   _recordProduced(cidx, qty) {
@@ -141,6 +170,55 @@ export class EconomyEngine {
       for (let i = 0; i < this.comCount; i++) {
         this.yearProduced[i] -= oldProd[i];
         this.yearSold[i] -= oldSold[i];
+      }
+    }
+  }
+
+  _rollProvinceYearStats() {
+    const n = this.n;
+    const day = {
+      gdp: new Float64Array(n),
+      imports: new Float64Array(n),
+      exports: new Float64Array(n),
+      tradeTax: new Float64Array(n),
+      transitTax: new Float64Array(n),
+      expense: new Float64Array(n),
+      net: new Float64Array(n),
+    };
+
+    for (let i = 0; i < n; i++) {
+      const st = this.states[i];
+      day.gdp[i] = st.gdpTurnover;
+      day.imports[i] = st.importsValue;
+      day.exports[i] = st.exportsValue;
+      day.tradeTax[i] = st.treasuryTradeTaxDaily;
+      day.transitTax[i] = st.treasuryTransitDaily;
+      day.expense[i] = st.treasuryExpenseDaily;
+      day.net[i] = st.treasuryNetDaily;
+
+      st.gdpYear += day.gdp[i];
+      st.importsYear += day.imports[i];
+      st.exportsYear += day.exports[i];
+      st.treasuryTradeTaxYear += day.tradeTax[i];
+      st.treasuryTransitYear += day.transitTax[i];
+      st.treasuryExpenseYear += day.expense[i];
+      st.treasuryNetYear += day.net[i];
+    }
+
+    for (const k of Object.keys(day)) this.provYearHistory[k].push(day[k]);
+
+    if (this.provYearHistory.gdp.length > this.yearWindow) {
+      const old = {};
+      for (const k of Object.keys(this.provYearHistory)) old[k] = this.provYearHistory[k].shift();
+      for (let i = 0; i < n; i++) {
+        const st = this.states[i];
+        st.gdpYear -= old.gdp[i];
+        st.importsYear -= old.imports[i];
+        st.exportsYear -= old.exports[i];
+        st.treasuryTradeTaxYear -= old.tradeTax[i];
+        st.treasuryTransitYear -= old.transitTax[i];
+        st.treasuryExpenseYear -= old.expense[i];
+        st.treasuryNetYear -= old.net[i];
       }
     }
   }
@@ -290,6 +368,19 @@ export class EconomyEngine {
         gdpTurnover: 0,
         importsValue: 0,
         exportsValue: 0,
+        treasury: 0,
+        treasuryDaily: 0,
+        treasuryTradeTaxDaily: 0,
+        treasuryTransitDaily: 0,
+        treasuryExpenseDaily: 0,
+        treasuryNetDaily: 0,
+        gdpYear: 0,
+        importsYear: 0,
+        exportsYear: 0,
+        treasuryTradeTaxYear: 0,
+        treasuryTransitYear: 0,
+        treasuryExpenseYear: 0,
+        treasuryNetYear: 0,
       });
     }
 
@@ -708,6 +799,7 @@ export class EconomyEngine {
           st.worldTransportUsed += ship2 * bulk * 0.35;
           st.importsValue += ship2 * impPrice;
           st.gdpTurnover += ship2 * impPrice;
+          this._collectTradeTax(st, ship2 * impPrice, "import");
           budgetValue = 0;
           break;
         }
@@ -716,11 +808,125 @@ export class EconomyEngine {
         st.worldTransportUsed += ship * bulk * 0.35;
         st.importsValue += value;
         st.gdpTurnover += value;
+        this._collectTradeTax(st, value, "import");
         budgetValue -= value;
 
         if (budgetValue <= 0) break;
       }
     }
+  }
+
+  _collectTradeTax(st, dealValue, mode = "deal") {
+    if (!Number.isFinite(dealValue) || dealValue <= 0) return;
+    let rate = this.fiscal.dealTaxRate;
+    if (mode === "import") rate = this.fiscal.importTaxRate;
+    else if (mode === "export") rate = this.fiscal.exportTaxRate;
+    const tax = dealValue * Math.max(0, rate);
+    if (tax <= 0) return;
+    st.treasury += tax;
+    st.treasuryDaily += tax;
+    st.treasuryTradeTaxDaily += tax;
+  }
+
+  _collectTransitTax(fromIdx, toIdx, movedQty, bulk) {
+    if (!Number.isFinite(movedQty) || movedQty <= 0 || !Number.isFinite(bulk) || bulk <= 0) return;
+    const route = this._shortestPathNodes(fromIdx, toIdx);
+    if (!route || route.length <= 2) return;
+
+    const caravanLoad = movedQty * bulk;
+    const d = this.dist(fromIdx, toIdx);
+    if (!Number.isFinite(d) || d <= 0) return;
+
+    const totalFee = caravanLoad * d * this.fiscal.transitFeePerBulkDist;
+    if (!Number.isFinite(totalFee) || totalFee <= 0) return;
+
+    const mids = route.length - 2;
+    const share = totalFee / mids;
+    for (let r = 1; r < route.length - 1; r++) {
+      const st = this.states[route[r]];
+      st.treasury += share;
+      st.treasuryDaily += share;
+      st.treasuryTransitDaily += share;
+    }
+  }
+
+  _applyTreasuryExpenses() {
+    for (const st of this.states) {
+      const popCost = st.pop * this.fiscal.baseExpensePerPop;
+      const infraCost = st.pop * Math.max(0, st.infra) * this.fiscal.infraExpenseMul * 0.001;
+
+      let buildingLoad = 0;
+      for (const b of (st.buildings || [])) {
+        const count = Math.max(0, Number(b.count) || 0);
+        const eff = Math.max(0.25, Number(b.efficiency) || 1);
+        buildingLoad += count * (0.7 + 0.3 * eff);
+      }
+      const buildingCost = buildingLoad * st.pop * this.fiscal.buildingExpenseMul * 0.001;
+
+      const cycle = 1 + Math.sin((this.day + st.idx * 17) / 31) * (this.fiscal.expenseVolatility * 0.45);
+      const noise = 1 + this.rng.nextNorm() * (this.fiscal.expenseVolatility * 0.18);
+      const factor = clamp(cycle * noise, 0.72, 1.35);
+
+      const expense = Math.max(0, (popCost + infraCost + buildingCost) * factor);
+      st.treasury -= expense;
+      st.treasuryDaily -= expense;
+      st.treasuryExpenseDaily += expense;
+      st.treasuryNetDaily = st.treasuryDaily;
+    }
+  }
+
+  _shortestPathNodes(fromIdx, toIdx) {
+    const key = `${fromIdx}:${toIdx}`;
+    if (this.routeCache.has(key)) return this.routeCache.get(key);
+
+    const n = this.n;
+    const dist = new Float64Array(n);
+    const used = new Uint8Array(n);
+    const prev = new Int32Array(n);
+    dist.fill(Number.POSITIVE_INFINITY);
+    prev.fill(-1);
+    dist[fromIdx] = 0;
+
+    for (let step = 0; step < n; step++) {
+      let u = -1;
+      let best = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < n; i++) {
+        if (!used[i] && dist[i] < best) {
+          best = dist[i];
+          u = i;
+        }
+      }
+      if (u < 0 || u === toIdx) break;
+      used[u] = 1;
+
+      for (const e of this.edges[u]) {
+        const v = e.to;
+        const nd = dist[u] + e.w;
+        if (nd < dist[v]) {
+          dist[v] = nd;
+          prev[v] = u;
+        }
+      }
+    }
+
+    if (!Number.isFinite(dist[toIdx])) {
+      this.routeCache.set(key, null);
+      return null;
+    }
+
+    const path = [];
+    for (let cur = toIdx; cur >= 0; cur = prev[cur]) {
+      path.push(cur);
+      if (cur === fromIdx) break;
+    }
+    if (path[path.length - 1] !== fromIdx) {
+      this.routeCache.set(key, null);
+      return null;
+    }
+
+    path.reverse();
+    this.routeCache.set(key, path);
+    return path;
   }
 
   _ensureGlobalCoverage() {
@@ -952,6 +1158,11 @@ export class EconomyEngine {
       st.gdpTurnover = 0;
       st.importsValue = 0;
       st.exportsValue = 0;
+      st.treasuryDaily = 0;
+      st.treasuryTradeTaxDaily = 0;
+      st.treasuryTransitDaily = 0;
+      st.treasuryExpenseDaily = 0;
+      st.treasuryNetDaily = 0;
     }
 
     // цели зависят от производства/населения (и меняют торговлю)
@@ -971,8 +1182,10 @@ export class EconomyEngine {
 
     // POST-TRADE: окончательное выравнивание + экспорт
     this._tradeAll({ phase: "post" });
+    this._applyTreasuryExpenses();
     this._updatePrices();
     this._rollYearStats();
+    this._rollProvinceYearStats();
   }
 
   _harvestRaw() {
@@ -1374,6 +1587,9 @@ export class EconomyEngine {
             const money = qty * bestDelivered;
             from.gdpTurnover += money;
             to.gdpTurnover += money;
+            this._collectTradeTax(from, money, "deal");
+            this._collectTradeTax(to, money, "deal");
+            this._collectTransitTax(sel.i, b.i, qty, bulk);
 
             sel.qty -= qty;
             need -= qty;
@@ -1400,6 +1616,7 @@ export class EconomyEngine {
               const money = need * impPrice;
               st.gdpTurnover += money;
               st.importsValue += money;
+              this._collectTradeTax(st, money, "import");
             }
           }
         }
@@ -1417,6 +1634,7 @@ export class EconomyEngine {
             const money = surplus * expPrice;
             st.gdpTurnover += money;
             st.exportsValue += money;
+            this._collectTradeTax(st, money, "export");
           }
         }
       }
@@ -1471,16 +1689,21 @@ export class EconomyEngine {
     for (const st of this.states) popTotal += st.pop;
 
     const topGDP = [...this.states]
-      .sort((a, b) => b.gdpTurnover - a.gdpTurnover)
+      .sort((a, b) => b.gdpYear - a.gdpYear)
       .slice(0, 10)
       .map((st) => ({
         pid: st.pid,
         name: this.provinces[st.idx].name,
-        gdp: Math.round(st.gdpTurnover),
+        gdp: Math.round(st.gdpYear),
         pop: st.pop,
         infra: +st.infra.toFixed(2),
-        imp: Math.round(st.importsValue),
-        exp: Math.round(st.exportsValue),
+        imp: Math.round(st.importsYear),
+        exp: Math.round(st.exportsYear),
+        treasury: Math.round(st.treasury),
+        treasuryTradeTaxYear: Math.round(st.treasuryTradeTaxYear),
+        treasuryTransitYear: Math.round(st.treasuryTransitYear),
+        treasuryExpenseYear: Math.round(st.treasuryExpenseYear),
+        treasuryNetYear: Math.round(st.treasuryNetYear),
       }));
 
     const ratios = [];
@@ -1559,9 +1782,14 @@ export class EconomyEngine {
         buildings: st.buildings,
         transportCap: st.transportCap,
         transportUsed: st.transportUsed,
-        gdpTurnover: st.gdpTurnover,
-        importsValue: st.importsValue,
-        exportsValue: st.exportsValue,
+        gdpTurnover: st.gdpYear,
+        importsValue: st.importsYear,
+        exportsValue: st.exportsYear,
+        treasury: st.treasury,
+        treasuryTradeTaxYear: st.treasuryTradeTaxYear,
+        treasuryTransitYear: st.treasuryTransitYear,
+        treasuryExpenseYear: st.treasuryExpenseYear,
+        treasuryNetYear: st.treasuryNetYear,
       })),
       commodities: COMMODITIES,
     };

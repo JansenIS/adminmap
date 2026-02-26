@@ -40,6 +40,13 @@
         <label>Коэффициент ВВП</label>
         <input id="inputGdpWeight" type="number" min="0.05" max="8" step="0.01" />
 
+        <label>Здания в провинции</label>
+        <div id="buildingRows" class="buildingRows"></div>
+        <div class="buildingAddRow">
+          <select id="buildingTypeSelect"></select>
+          <button id="btnAddBuilding" type="button">Добавить здание</button>
+        </div>
+
         <button id="btnSave" type="button">Сохранить в симулятор</button>
       </div>
 
