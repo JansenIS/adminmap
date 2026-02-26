@@ -6,6 +6,13 @@ import { EconomyEngine } from "./engine.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "../..");
+const adminMapStatePath = path.join(projectRoot, "data", "map_state.json");
+const adminMapProvincesPath = path.join(projectRoot, "provinces.json");
+const simAdminDataDir = path.join(__dirname, "data");
+const simAdminOverridesPath = path.join(simAdminDataDir, "sim_admin_overrides.json");
+const mapImagePath = path.join(projectRoot, "map.png");
+const provincesMaskPath = path.join(projectRoot, "provinces_id.png");
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -44,6 +51,52 @@ function loadProvinces(filePath) {
   }
 
   return { provinces, rawData: data };
+}
+
+function loadJsonSafe(filePath, fallbackValue) {
+  try {
+    if (!fs.existsSync(filePath)) return fallbackValue;
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function saveJsonAtomic(filePath, data) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
+
+function normalizeProvinceOverride(raw) {
+  const out = {};
+  if (raw == null || typeof raw !== "object") return out;
+
+  if (Number.isFinite(Number(raw.pop))) out.pop = Math.max(1, Math.round(Number(raw.pop)));
+  if (Number.isFinite(Number(raw.infra))) out.infra = Math.max(0.1, Math.min(2.5, Number(raw.infra)));
+  if (Number.isFinite(Number(raw.gdpWeight))) out.gdpWeight = Math.max(0.05, Math.min(8, Number(raw.gdpWeight)));
+  return out;
+}
+
+
+function readPngSize(filePath) {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(24);
+    fs.readSync(fd, buf, 0, 24, 0);
+    fs.closeSync(fd);
+    const sig = buf.subarray(0, 8).toString("hex");
+    if (sig !== "89504e470d0a1a0a") return null;
+    const ihdr = buf.subarray(12, 16).toString("ascii");
+    if (ihdr !== "IHDR") return null;
+    const w = buf.readUInt32BE(16);
+    const h = buf.readUInt32BE(20);
+    return { width: w, height: h };
+  } catch {
+    return null;
+  }
 }
 
 function contentTypeByExt(ext) {
@@ -106,6 +159,28 @@ try {
   process.exit(1);
 }
 
+const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
+const adminMapProvinceMeta = loadJsonSafe(adminMapProvincesPath, { provinces: [] });
+const adminStateByPid = new Map(
+  Object.values(adminMapState.provinces || {}).map((p) => [Number(p.pid), p])
+);
+
+for (const p of provinces) {
+  const a = adminStateByPid.get(p.pid);
+  if (!a) continue;
+  if (typeof a.name === "string" && a.name.trim()) p.name = a.name.trim();
+  if (typeof a.terrain === "string") p.terrain = a.terrain;
+  if (typeof a.free_city_id === "string") p.free_city_id = a.free_city_id;
+}
+
+let simAdminOverrides = loadJsonSafe(simAdminOverridesPath, { schema_version: 1, provinces: {} });
+if (!simAdminOverrides || typeof simAdminOverrides !== "object") {
+  simAdminOverrides = { schema_version: 1, provinces: {} };
+}
+if (!simAdminOverrides.provinces || typeof simAdminOverrides.provinces !== "object") {
+  simAdminOverrides.provinces = {};
+}
+
 let engine = null;
 
 function makeEngine(cfg) {
@@ -120,7 +195,42 @@ function makeEngine(cfg) {
   return e;
 }
 
+function applySimAdminOverridesToEngine() {
+  for (const [pidRaw, ov] of Object.entries(simAdminOverrides.provinces || {})) {
+    const pid = Number(pidRaw);
+    const idx = engine.pidToIndex.get(pid);
+    if (typeof idx !== "number") continue;
+
+    const st = engine.states[idx];
+    const n = normalizeProvinceOverride(ov);
+    if (typeof n.pop === "number") st.pop = n.pop;
+    if (typeof n.infra === "number") st.infra = n.infra;
+    const infraForCap = Math.max(0.1, st.infra);
+    st.transportCap = st.pop * infraForCap * 0.018;
+    st.worldTransportCap = st.transportCap * 3 + (st.isCity ? 900 : 350);
+  }
+
+  if (typeof engine._updateTargets === "function") {
+    engine._updateTargets();
+  }
+}
+
+function computeProvinceAdminStats(pid) {
+  const idx = engine.pidToIndex.get(Number(pid));
+  if (typeof idx !== "number") return null;
+  const st = engine.states[idx];
+  const ov = normalizeProvinceOverride((simAdminOverrides.provinces || {})[String(pid)] || {});
+  const gdpWeight = typeof ov.gdpWeight === "number" ? ov.gdpWeight : 1;
+  return {
+    pop: st.pop,
+    infra: st.infra,
+    gdpWeight,
+    effectiveGDP: st.gdpTurnover * gdpWeight,
+  };
+}
+
 engine = makeEngine(baseConfig);
+applySimAdminOverridesToEngine();
 
 
 function getProvinceIndexByPid(pid) {
@@ -151,6 +261,80 @@ const server = http.createServer((req, res) => {
 
     // API
     if (pathname.startsWith("/api/")) {
+      if (pathname === "/api/admin/map-sync") {
+        const provincesMeta = Array.isArray(adminMapProvinceMeta.provinces)
+          ? adminMapProvinceMeta.provinces
+          : [];
+
+        const rows = provincesMeta.map((meta) => {
+          const pid = Number(meta.pid);
+          const idx = engine.pidToIndex.get(pid);
+          const p = typeof idx === "number" ? provinces[idx] : null;
+          const st = typeof idx === "number" ? engine.states[idx] : null;
+          const stats = computeProvinceAdminStats(pid);
+          return {
+            pid,
+            key: Number(meta.key),
+            name: p?.name || meta.name || `PID ${pid}`,
+            terrain: p?.terrain || "",
+            centroid: Array.isArray(meta.centroid) ? meta.centroid : [0, 0],
+            bbox: Array.isArray(meta.bbox) ? meta.bbox : null,
+            area_px: Number(meta.area_px || 0),
+            population: stats?.pop ?? st?.pop ?? 0,
+            infra: stats?.infra ?? st?.infra ?? 0,
+            gdpTurnover: st?.gdpTurnover ?? 0,
+            gdpWeight: stats?.gdpWeight ?? 1,
+            effectiveGDP: stats?.effectiveGDP ?? (st?.gdpTurnover ?? 0),
+          };
+        });
+
+        return sendJson(res, 200, {
+          map: {
+            image: "/admin-assets/map.png",
+            mask: "/admin-assets/provinces_id.png",
+            width: Number((readPngSize(mapImagePath)?.width) || adminMapProvinceMeta.image?.width || 0),
+            height: Number((readPngSize(mapImagePath)?.height) || adminMapProvinceMeta.image?.height || 0),
+          },
+          provinces: rows,
+        });
+      }
+
+      if (pathname === "/api/admin/province" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk;
+          if (body.length > 1_000_000) req.destroy();
+        });
+        req.on("end", () => {
+          try {
+            const payload = JSON.parse(body || "{}");
+            const pid = Number(payload.pid);
+            if (!Number.isFinite(pid) || !engine.pidToIndex.has(pid)) {
+              return sendJson(res, 400, { error: "invalid_pid" });
+            }
+
+            const next = normalizeProvinceOverride(payload);
+            simAdminOverrides.provinces[String(pid)] = {
+              ...(simAdminOverrides.provinces[String(pid)] || {}),
+              ...next,
+            };
+            simAdminOverrides.updated_utc = new Date().toISOString();
+
+            saveJsonAtomic(simAdminOverridesPath, simAdminOverrides);
+            applySimAdminOverridesToEngine();
+
+            return sendJson(res, 200, {
+              ok: true,
+              pid,
+              admin: computeProvinceAdminStats(pid),
+            });
+          } catch (e) {
+            return sendJson(res, 400, { error: "invalid_json", message: String(e?.message || e) });
+          }
+        });
+        return;
+      }
+
       if (pathname === "/api/meta") {
         const snap = engine.exportSnapshot();
         const provMeta = provinces.map((p) => {
@@ -282,6 +466,7 @@ const server = http.createServer((req, res) => {
         };
 
         engine = makeEngine(baseConfig);
+        applySimAdminOverridesToEngine();
         const r = engine.report();
         return sendJson(res, 200, { ok: true, ...r, config: { ...baseConfig } });
       }
@@ -301,6 +486,12 @@ const server = http.createServer((req, res) => {
     let filePath;
     if (pathname === "/" || pathname === "/index.html") {
       filePath = path.join(__dirname, "public", "index.html");
+    } else if (pathname === "/sim-admin" || pathname === "/sim-admin.html") {
+      filePath = path.join(__dirname, "public", "sim-admin.html");
+    } else if (pathname === "/admin-assets/map.png") {
+      filePath = mapImagePath;
+    } else if (pathname === "/admin-assets/provinces_id.png") {
+      filePath = provincesMaskPath;
     } else {
       const safe = pathname.replace(/\\/g, "/").replace(/\.+/g, ".");
       filePath = path.join(__dirname, "public", safe);
@@ -308,8 +499,11 @@ const server = http.createServer((req, res) => {
 
     // запрет выхода из public
     const publicDir = path.join(__dirname, "public");
+    const rootDir = path.resolve(projectRoot);
     const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(publicDir))) {
+    const inPublic = resolved.startsWith(path.resolve(publicDir));
+    const inRootAssets = (pathname === "/admin-assets/map.png" || pathname === "/admin-assets/provinces_id.png") && resolved.startsWith(rootDir);
+    if (!inPublic && !inRootAssets) {
       return sendText(res, 403, "Forbidden");
     }
 
@@ -328,7 +522,7 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
+server.listen(port, "0.0.0.0", () => {
   console.log(`[economy-ui] loaded provinces=${provinces.length} from: ${dataFile}`);
   console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps}`);
   console.log(`[economy-ui] open: http://localhost:${port}`);
