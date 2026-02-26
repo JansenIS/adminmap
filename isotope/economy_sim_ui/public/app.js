@@ -30,6 +30,11 @@ const UI = {
   p_infra: el("p_infra"),
   p_transport: el("p_transport"),
   p_gdp: el("p_gdp"),
+  p_treasury: el("p_treasury"),
+  p_treasury_trade_tax: el("p_treasury_trade_tax"),
+  p_treasury_transit: el("p_treasury_transit"),
+  p_treasury_expense: el("p_treasury_expense"),
+  p_treasury_net: el("p_treasury_net"),
   goods: el("goods"),
   buildings: el("buildings"),
   tbPeriod: el("tbPeriod"),
@@ -237,6 +242,11 @@ function renderProvinceDetail(p) {
   UI.p_infra.textContent = fmtNum(p.infra, 2);
   UI.p_transport.textContent = `${fmtNum(p.transportUsed, 1)} / ${fmtNum(p.transportCap, 1)}`;
   UI.p_gdp.textContent = fmtInt(p.gdpTurnover);
+  UI.p_treasury.textContent = fmtInt(p.treasury);
+  UI.p_treasury_trade_tax.textContent = fmtInt(p.treasuryTradeTaxYear);
+  UI.p_treasury_transit.textContent = fmtInt(p.treasuryTransitYear);
+  UI.p_treasury_expense.textContent = fmtInt(p.treasuryExpenseYear);
+  UI.p_treasury_net.textContent = fmtInt(p.treasuryNetYear);
 
   UI.goods.innerHTML = "";
   const frag = document.createDocumentFragment();
