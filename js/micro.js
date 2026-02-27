@@ -398,7 +398,7 @@
   function edgeKey(ax, ay, bx, by) {
     // Lower quantization precision prevents false "different edge" splits
     // from tiny floating-point drifts in vertex coordinates.
-    const scale = 100;
+    const scale = 10;
     const a = `${Math.round(ax * scale)},${Math.round(ay * scale)}`;
     const b = `${Math.round(bx * scale)},${Math.round(by * scale)}`;
     return a < b ? `${a}|${b}` : `${b}|${a}`;
