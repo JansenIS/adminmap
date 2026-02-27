@@ -71,7 +71,9 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/map/bootstrap/`
 - `GET /api/provinces/?offset=0&limit=100`
 - `GET /api/provinces/show/?pid=123`
+- `GET /api/provinces/{pid}` (canonical path alias через Apache rewrite)
 - `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities`
+- `GET /api/realms/{type}/{id}` (canonical path alias через Apache rewrite)
 - `PATCH /api/realms/patch/`
 - `POST /api/changes/apply/`
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
@@ -130,6 +132,15 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 
 
 Подробный backlog следующих шагов: `docs/migration-next-steps.md`.
+
+
+## Что ещё не сделано (backend-first migration)
+
+- Canonical path aliases `/api/provinces/{pid}` и `/api/realms/{type}/{id}` добавлены только через `.htaccess` (на `php -S` без rewrite остаются query-style endpoint'ы).
+- Нет full schema validation для всех endpoint'ов записи и нет optimistic locking (`If-Match`).
+- Worker `tools/job_worker.php` пока transitional: без process supervisor/systemd, retry policy и health checks.
+- Tiles pipeline `/api/tiles/` работает в transitional виде (file-cache), но без production CDN/object-storage стратегии и eviction policy.
+- Не закрыты e2e сценарии для двух режимов (legacy и backend-first flags), а также production runbook/метрики.
 
 
 `POST /api/changes/apply/` поддерживает atomic batch changeset (`province`/`realm`) и используется как следующий шаг к server-side write без giant full-state POST.

@@ -10,7 +10,7 @@
 ## Что осталось сделать
 
 ### Этап 1 (закрыть API-контракты чтения)
-- [ ] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (сохранить текущие как совместимые алиасы).
+- [~] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (добавлены Apache rewrite-алиасы; требуется унификация роутинга для окружений без rewrite).
 - [ ] Ввести schema/version metadata в каждом ответе API.
 - [ ] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили.
 
@@ -51,5 +51,5 @@
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [~] Строгая schema validation для всех PATCH/batch payloads. (базовая strict validation для province/realm PATCH добавлена; требуется полная схема для всех endpoints)
 - [ ] Concurrency control (`If-Match` / optimistic locking) для write API.
-- [ ] e2e сценарии для двух режимов: legacy и backend-first flags.
+- [ ] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases).
 - [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.
