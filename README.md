@@ -79,6 +79,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/render/layer/?mode=provinces|kingdoms|great_houses|free_cities&version=`
 - `POST /api/jobs/rebuild-layers/`
 - `GET /api/jobs/show/?id=<job_id>`
+- `GET /api/jobs/list/?offset=&limit=`
 - `POST /api/jobs/run-once/`
 
 Feature flags для фронта:
@@ -141,3 +142,6 @@ bash tools/smoke_backend_first.sh
 
 
 Текущая минимальная очередь jobs хранится в `data/jobs.json` (transitional режим до выделенного worker сервиса).
+
+
+Transitional tiles endpoint (JSON tile payload): `GET /api/tiles/?z=0&x=0&y=0&mode=kingdoms` (for `z>0` currently returns `501 tile_not_ready`).

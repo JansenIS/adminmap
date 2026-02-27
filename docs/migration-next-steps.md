@@ -45,9 +45,9 @@
 
 
 ## Что не сделано (текущее состояние)
-- [ ] Отдельный worker-процесс для jobs (сейчас только `run-once` API-триггер).
+- [ ] Отдельный worker-процесс для jobs (сейчас есть только `run-once` API-триггер и file-backed queue).
 - [ ] Статусы/прогресс jobs по шагам и retry policy.
-- [ ] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище.
+- [ ] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (сейчас только transitional JSON-тайл для z=0,x=0,y=0)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [ ] Строгая schema validation для всех PATCH/batch payloads.
 - [ ] Concurrency control (`If-Match` / optimistic locking) для write API.
