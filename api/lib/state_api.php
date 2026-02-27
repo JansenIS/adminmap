@@ -202,6 +202,95 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
   ];
 }
 
+
+function api_patch_province(array $state, int $pid, array $changes): array {
+  $key = (string)$pid;
+  if (!isset($state['provinces']) || !is_array($state['provinces']) || !isset($state['provinces'][$key]) || !is_array($state['provinces'][$key])) {
+    return ['ok' => false, 'error' => 'not_found'];
+  }
+
+  $allowed = [
+    'name', 'owner', 'suzerain', 'senior', 'terrain',
+    'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
+    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
+    'province_card_image',
+  ];
+
+  $updated = 0;
+  foreach ($changes as $field => $value) {
+    if (!in_array((string)$field, $allowed, true)) continue;
+
+    if ($field === 'vassals') {
+      if (!is_array($value)) continue;
+      $value = array_values(array_filter(array_map(static fn($v) => trim((string)$v), $value), static fn($v) => $v !== ''));
+    }
+
+    if ($field === 'fill_rgba') {
+      if ($value === null) {
+        $state['provinces'][$key]['fill_rgba'] = null;
+        $updated++;
+        continue;
+      }
+      if (!is_array($value) || count($value) !== 4) continue;
+      $value = [
+        max(0, min(255, (int)$value[0])),
+        max(0, min(255, (int)$value[1])),
+        max(0, min(255, (int)$value[2])),
+        max(0, min(255, (int)$value[3])),
+      ];
+    }
+
+    if ($field === 'emblem_box') {
+      if ($value === null) {
+        $state['provinces'][$key]['emblem_box'] = null;
+        $updated++;
+        continue;
+      }
+      if (!is_array($value) || count($value) !== 2) continue;
+      $value = [(float)$value[0], (float)$value[1]];
+    }
+
+    if (is_string($value)) $value = trim($value);
+    $state['provinces'][$key][$field] = $value;
+    $updated++;
+  }
+
+  $state['generated_utc'] = gmdate('c');
+  return ['ok' => true, 'state' => $state, 'updated_fields' => $updated];
+}
+
+function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array {
+  $root = api_repo_root();
+  $dataDir = $root . '/data';
+  $mapPath = $dataDir . '/map_state.json';
+  $mapMigratedPath = $dataDir . '/map_state.migrated.json';
+  $assetsPath = $dataDir . '/emblem_assets.json';
+  $refsPath = $dataDir . '/emblem_refs.json';
+
+  $ok = true;
+  $ok = $ok && api_atomic_write_json($assetsPath, ['generated_at' => gmdate('c'), 'assets' => $bundle['emblem_assets'] ?? []]);
+  $ok = $ok && api_atomic_write_json($refsPath, ['generated_at' => gmdate('c'), 'refs' => $bundle['emblem_refs'] ?? []]);
+  $ok = $ok && api_atomic_write_json($mapMigratedPath, $bundle['migrated_state'] ?? []);
+
+  $backupPath = null;
+  if ($ok && $replaceMapState) {
+    $backupPath = $dataDir . '/map_state.backup.' . gmdate('Ymd_His') . '.json';
+    $ok = $ok && @copy($mapPath, $backupPath);
+    $ok = $ok && api_atomic_write_json($mapPath, $bundle['migrated_state'] ?? []);
+  }
+
+  return [
+    'ok' => $ok,
+    'paths' => [
+      'map_migrated' => 'data/map_state.migrated.json',
+      'assets' => 'data/emblem_assets.json',
+      'refs' => 'data/emblem_refs.json',
+      'map_backup' => $backupPath ? str_replace($root . '/', '', $backupPath) : null,
+      'map_replaced' => $replaceMapState,
+    ],
+  ];
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);

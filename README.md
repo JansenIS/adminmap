@@ -89,3 +89,26 @@ Feature flags для фронта:
 Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
 
 - В `admin.html` доступна кнопка **"Скачать migrated bundle"**: она отправляет текущий загруженный legacy state на `/api/migration/export/` и получает полный мигрированный bundle (`migrated_state` + `emblem_assets` + `emblem_refs`) для перехода в новый формат.
+
+
+### Миграция map_state в новый формат (assets + refs)
+
+API:
+- `POST /api/migration/apply/` c телом:
+  - `state` (опционально)
+  - `replace_map_state` (опционально, bool)
+  - `include_legacy_svg` (опционально, bool)
+
+CLI:
+```bash
+php tools/migrate_map_state.php
+# с заменой data/map_state.json на migrated_state:
+php tools/migrate_map_state.php --replace-map-state
+# оставить legacy emblem_svg в migrated_state:
+php tools/migrate_map_state.php --keep-legacy-svg
+```
+
+По умолчанию результат записывается в:
+- `data/map_state.migrated.json`
+- `data/emblem_assets.json`
+- `data/emblem_refs.json`
