@@ -311,6 +311,61 @@ function api_validate_jobs_rebuild_payload(array $payload): array {
   return ['ok' => true];
 }
 
+function api_validate_province_changes_schema(array $changes, string $prefix = 'changes'): array {
+  $allowed = [
+    'name', 'owner', 'suzerain', 'senior', 'terrain',
+    'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
+    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
+    'province_card_image',
+  ];
+  foreach ($changes as $field => $value) {
+    $f = (string)$field;
+    if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
+    if (in_array($f, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image'], true) && !is_string($value)) {
+      return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    }
+    if ($f === 'vassals') {
+      if (!is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.vassals'];
+      foreach ($value as $i => $v) {
+        if (!is_scalar($v)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.vassals.' . (string)$i];
+      }
+    }
+    if ($f === 'fill_rgba') {
+      if (!($value === null || (is_array($value) && count($value) === 4))) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.fill_rgba'];
+      if (is_array($value)) {
+        foreach ($value as $i => $c) if (!is_numeric($c)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.fill_rgba.' . (string)$i];
+      }
+    }
+    if ($f === 'emblem_box') {
+      if (!($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_box'];
+      if (is_array($value)) {
+        foreach ($value as $i => $c) if (!is_numeric($c)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_box.' . (string)$i];
+      }
+    }
+  }
+  return ['ok' => true];
+}
+
+function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
+  $allowed = ['name', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  foreach ($changes as $field => $value) {
+    $f = (string)$field;
+    if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
+    if (in_array($f, ['name','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
+    if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
+    if ($f === 'emblem_box') {
+      if (!($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_box'];
+      if (is_array($value)) foreach ($value as $i => $c) if (!is_numeric($c)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_box.' . (string)$i];
+    }
+    if ($f === 'province_pids') {
+      if (!is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.province_pids'];
+      foreach ($value as $i => $pid) if (!is_numeric($pid)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.province_pids.' . (string)$i];
+    }
+  }
+  return ['ok' => true];
+}
+
 function api_validate_province_patch_payload(array $payload): array {
   $allowedTop = ['pid', 'changes', 'if_match'];
   foreach ($payload as $k => $_v) {
@@ -321,6 +376,8 @@ function api_validate_province_patch_payload(array $payload): array {
   if ($pid <= 0 || !is_array($changes)) {
     return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['pid:int', 'changes:object', 'if_match:string(header or body)']];
   }
+  $schema = api_validate_province_changes_schema($changes, 'changes');
+  if (!$schema['ok']) return $schema;
   return ['ok' => true, 'pid' => $pid, 'changes' => $changes];
 }
 
@@ -335,6 +392,8 @@ function api_validate_realm_patch_payload(array $payload): array {
   if ($type === '' || $id === '' || !is_array($changes)) {
     return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['type:string', 'id:string', 'changes:object', 'if_match:string(header or body)']];
   }
+  $schema = api_validate_realm_changes_schema($changes, 'changes');
+  if (!$schema['ok']) return $schema;
   return ['ok' => true, 'type' => $type, 'id' => $id, 'changes' => $changes];
 }
 
@@ -352,9 +411,15 @@ function api_validate_changes_apply_payload(array $payload): array {
     $kind = (string)($entry['kind'] ?? '');
     if (!in_array($kind, ['province', 'realm'], true)) return ['ok' => false, 'error' => 'invalid_change_kind', 'index' => $idx];
     if (!is_array($entry['changes'] ?? null)) return ['ok' => false, 'error' => 'invalid_change_changes', 'index' => $idx];
-    if ($kind === 'province' && (int)($entry['pid'] ?? 0) <= 0) return ['ok' => false, 'error' => 'invalid_change_pid', 'index' => $idx];
+    if ($kind === 'province') {
+      if ((int)($entry['pid'] ?? 0) <= 0) return ['ok' => false, 'error' => 'invalid_change_pid', 'index' => $idx];
+      $schema = api_validate_province_changes_schema((array)$entry['changes'], 'changes.' . (string)$idx . '.changes');
+      if (!$schema['ok']) return ['ok' => false, 'error' => (string)$schema['error'], 'index' => $idx, 'field' => (string)($schema['field'] ?? '')];
+    }
     if ($kind === 'realm') {
       if (trim((string)($entry['type'] ?? '')) === '' || trim((string)($entry['id'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_change_realm_identity', 'index' => $idx];
+      $schema = api_validate_realm_changes_schema((array)$entry['changes'], 'changes.' . (string)$idx . '.changes');
+      if (!$schema['ok']) return ['ok' => false, 'error' => (string)$schema['error'], 'index' => $idx, 'field' => (string)($schema['field'] ?? '')];
     }
   }
   return ['ok' => true, 'changes' => $changes];

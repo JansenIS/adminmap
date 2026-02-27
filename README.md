@@ -143,7 +143,7 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 
 - Canonical path aliases теперь работают и в `php -S` через `tools/php_router.php`, но нужна унификация на уровне production-роутера/веб-сервера конфигураций.
 - `If-Match` policy унифицирована для ключевых write endpoint'ов (включая `migration/apply` при `replace_map_state=true` и `assets/emblems` persist), но остаётся незакрытым расширенное edge-case покрытие и консистентное применение policy на всех будущих write путях.
-- Schema-validation write API усилена для patch/changes apply + migration/jobs + assets persist payload shape, но остаётся незакрытой полная валидация всех write endpoint'ов и nested-структур.
+- Schema-validation write API усилена для patch/changes apply + migration/jobs + assets persist payload shape, включая базовые nested checks (`fill_rgba`/`emblem_box`/`province_pids`/state shape), но остаётся незакрытой полная валидация всех write endpoint'ов и глубоких nested-структур.
 - Worker `tools/job_worker.php` пока transitional: добавлены базовые attempts/progress поля в jobs, но всё ещё нет process supervisor/systemd, health checks и полноценной retry orchestration.
 - Tiles pipeline `/api/tiles/` работает в transitional виде (file-cache), но без production CDN/object-storage стратегии и eviction policy.
 - Contract-tests для `meta` добавлены, но полноценные e2e сценарии для двух режимов (legacy/backend-first flags), а также production runbook/метрики всё ещё не закрыты.

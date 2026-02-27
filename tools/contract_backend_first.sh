@@ -79,4 +79,14 @@ PYC
 V=$(curl -fsS 'http://127.0.0.1:8001/api/map/version/' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
 curl -fsS -X PATCH 'http://127.0.0.1:8001/api/provinces/patch/' -H 'Content-Type: application/json' -H "If-Match: "${V}"" --data '{"pid":1,"changes":{"terrain":"contract-quoted-if-match"}}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True'
 
+
+# contract_nested_schema
+curl -sS -o /tmp/adminmap_contract_nested_schema.json -w '%{http_code}' -X POST 'http://127.0.0.1:8001/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"changes":[{"kind":"province","pid":1,"changes":{"fill_rgba":[1,2,"bad",4]}}]}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_contract_nested_schema.json').read_text())
+assert d.get('error') in ('invalid_type','invalid_field')
+PYC
+
 echo "contract_backend_first: OK"
