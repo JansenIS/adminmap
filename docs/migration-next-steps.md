@@ -10,9 +10,9 @@
 ## Что осталось сделать
 
 ### Этап 1 (закрыть API-контракты чтения)
-- [~] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (добавлены Apache rewrite-алиасы; требуется унификация роутинга для окружений без rewrite).
-- [~] Ввести schema/version metadata в каждом ответе API. (базовый `meta` добавлен в core response; требуется зафиксировать contract-tests)
-- [~] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили. (добавлен `profile=compact` для `/api/provinces` и `/api/realms`; нужно расширить на остальные endpoint'ы)
+- [~] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (добавлены Apache rewrite-алиасы + `php -S` router; требуется унификация production-роутинга).
+- [~] Ввести schema/version metadata в каждом ответе API. (базовый `meta` добавлен в core response; добавлены contract-tests; требуется расширить покрытие на edge-cases/ошибки)
+- [~] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили. (добавлен `profile=compact` для `/api/provinces`, `/api/provinces/show`, `/api/realms`, `/api/realms/show`, `/api/map/bootstrap`, `/api/assets/emblems`; нужно расширить на остальные endpoint'ы)
 
 ### Этап 2 (гербы/assets)
 - [ ] Перевести выдачу гербов на постоянное хранилище с индексом по `asset_id` (без on-the-fly сканирования state).
@@ -32,7 +32,7 @@
 ### Этап 5 (запись без giant POST)
 - [~] PATCH для realms и batched operations. (PATCH realms + base batch endpoint уже добавлены; осталось покрыть остальной UI/операции)
 - [ ] Schema validation и строгая ошибка по invalid payload.
-- [ ] Конфликт-детекция через `If-Match`/version checks.
+- [~] Конфликт-детекция через `If-Match`/version checks. (базовая проверка добавлена в write endpoint'ы; требуется унификация политики strict/required)
 
 ### Этап 6 (фоновые задачи)
 - [ ] Очередь задач для предрендера и массовой миграции эмблем.
@@ -50,6 +50,6 @@
 - [~] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (добавлен PNG endpoint + file cache; требуется production-grade pipeline и object storage)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [~] Строгая schema validation для всех PATCH/batch payloads. (базовая strict validation для province/realm PATCH добавлена; требуется полная схема для всех endpoints)
-- [ ] Concurrency control (`If-Match` / optimistic locking) для write API.
+- [~] Concurrency control (`If-Match` / optimistic locking) для write API. (базовая `If-Match` поддержка добавлена; нужно закрепить стратегию обязательности и coverage)
 - [ ] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases).
 - [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.

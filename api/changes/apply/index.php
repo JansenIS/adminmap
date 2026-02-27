@@ -17,6 +17,10 @@ if (!is_array($changes)) {
 }
 
 $state = api_load_state();
+$ifMatch = api_check_if_match($state, $payload);
+if (!$ifMatch['ok']) {
+  api_json_response(['error' => 'version_conflict', 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], 412, api_state_mtime());
+}
 $applied = api_apply_changeset($state, $changes);
 if (!empty($applied['errors'])) {
   api_json_response(['error' => 'changeset_failed', 'applied' => (int)$applied['applied'], 'errors' => $applied['errors']], 400, api_state_mtime());

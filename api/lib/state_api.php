@@ -364,6 +364,24 @@ function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array 
 
 
 
+
+function api_request_if_match(array $payload = []): string {
+  $h = trim((string)($_SERVER['HTTP_IF_MATCH'] ?? ''));
+  if ($h !== '') return trim($h, '" ');
+  $b = trim((string)($payload['if_match'] ?? ''));
+  return trim($b, '" ');
+}
+
+function api_check_if_match(array $state, array $payload = []): array {
+  $provided = api_request_if_match($payload);
+  if ($provided === '') return ['ok' => true, 'required' => false, 'expected' => api_state_version_hash($state), 'provided' => ''];
+  $expected = api_state_version_hash($state);
+  if (!hash_equals($expected, $provided)) {
+    return ['ok' => false, 'required' => true, 'expected' => $expected, 'provided' => $provided];
+  }
+  return ['ok' => true, 'required' => true, 'expected' => $expected, 'provided' => $provided];
+}
+
 function api_state_version_hash(array $state): string {
   return hash('sha256', (string)api_state_mtime() . ':' . (string)filesize(api_state_path()));
 }

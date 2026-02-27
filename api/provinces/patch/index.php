@@ -18,6 +18,10 @@ if ($pid <= 0 || !is_array($changes)) {
 }
 
 $state = api_load_state();
+$ifMatch = api_check_if_match($state, $payload);
+if (!$ifMatch['ok']) {
+  api_json_response(['error' => 'version_conflict', 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], 412, api_state_mtime());
+}
 $patched = api_patch_province($state, $pid, $changes);
 if (!$patched['ok']) {
   $e = (string)($patched['error'] ?? 'patch_failed');

@@ -18,9 +18,13 @@ if ($shouldPersist) {
 
 $offset = api_limit_int('offset', 0, 0, 1_000_000);
 $limit = api_limit_int('limit', 100, 1, 1000);
+$profile = (string)($_GET['profile'] ?? 'full');
 $withPayload = (($_GET['with_payload'] ?? '0') === '1');
 $assetsSlice = array_slice($migration['assets'], $offset, $limit);
 
+if ($profile === 'compact') {
+  $withPayload = false;
+}
 if (!$withPayload) {
   foreach ($assetsSlice as &$asset) unset($asset['svg']);
   unset($asset);
@@ -29,6 +33,7 @@ if (!$withPayload) {
 api_json_response([
   'draft' => true,
   'legacy_supported' => ['plain_svg', 'data_image_svg_base64'],
+  'profile' => $profile,
   'with_payload' => $withPayload,
   'assets_total' => count($migration['assets']),
   'refs_total' => count($migration['refs']),
