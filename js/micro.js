@@ -451,12 +451,7 @@
 
     const boundary = [];
     for (const rec of edgeStats.values()) {
-      if (rec.count !== 1) continue;
-      const mx = (rec.a[0] + rec.b[0]) * 0.5;
-      const my = (rec.a[1] + rec.b[1]) * 0.5;
-      const nearest = findHexAt({ x: mx, y: my });
-      if (!nearest) continue;
-      if (effectivePidForHex(nearest) !== pid) boundary.push(rec);
+      if (rec.count === 1) boundary.push(rec);
     }
     return boundary;
   }
