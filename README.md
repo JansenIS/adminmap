@@ -68,8 +68,12 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 Добавлены первые backend-first endpoint'ы (без отключения legacy):
 
 - `GET /api/map/version/`
+- `GET /api/map/bootstrap/`
 - `GET /api/provinces/?offset=0&limit=100`
+- `GET /api/provinces/show/?pid=123`
+- `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities`
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
+- `GET /api/assets/emblems/show/?id=<asset_id>`
 
 Feature flags для фронта:
 

@@ -136,7 +136,9 @@ function api_emblem_migration_from_state(array $state): array {
       if ($normalized === null) continue;
       $box = isset($realm['emblem_box']) && is_array($realm['emblem_box']) ? $realm['emblem_box'] : null;
       $scale = isset($realm['emblem_scale']) ? (float)$realm['emblem_scale'] : null;
-      $storeAsset('realm_emblem', rtrim($realmType, 's'), (string)$realmId, $normalized, $box, $scale);
+            $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city'];
+      $ownerType = $ownerTypeMap[$realmType] ?? $realmType;
+      $storeAsset('realm_emblem', $ownerType, (string)$realmId, $normalized, $box, $scale);
     }
   }
 

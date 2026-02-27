@@ -20,8 +20,8 @@ ksort($rows, SORT_NUMERIC);
 $total = count($rows);
 $slice = array_slice($rows, $offset, $limit, true);
 
-$refsPath = api_repo_root() . '/data/emblem_refs.json';
 $refs = [];
+$refsPath = api_repo_root() . '/data/emblem_refs.json';
 if (is_file($refsPath)) {
   $decodedRefs = json_decode((string)file_get_contents($refsPath), true);
   if (is_array($decodedRefs)) {
@@ -29,6 +29,12 @@ if (is_file($refsPath)) {
       if (!is_array($ref)) continue;
       $refs[$ref['owner_type'] . ':' . $ref['owner_id']] = (string)($ref['asset_id'] ?? '');
     }
+  }
+} else {
+  $migration = api_emblem_migration_from_state($state);
+  foreach (($migration['refs'] ?? []) as $ref) {
+    if (!is_array($ref)) continue;
+    $refs[$ref['owner_type'] . ':' . $ref['owner_id']] = (string)($ref['asset_id'] ?? '');
   }
 }
 

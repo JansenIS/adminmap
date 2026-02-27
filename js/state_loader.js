@@ -6,6 +6,8 @@
     USE_EMBLEM_ASSETS: false,
   };
 
+  const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+
   function parseBool(v) {
     if (v === true || v === "1" || v === "true") return true;
     if (v === false || v === "0" || v === "false") return false;
@@ -32,17 +34,13 @@
   }
 
   async function loadChunkedProvinces() {
-    const version = await fetchJson("api/map/version.php");
-    const total = Math.max(0, Number(version && version.state_size_bytes ? version.state_size_bytes : 0));
-    void total; // version endpoint smoke usage for migration phase.
-
     const chunkSize = 150;
     let offset = 0;
     let expectedTotal = null;
     const byPid = {};
 
     while (true) {
-      const page = await fetchJson(`api/provinces/index.php?offset=${offset}&limit=${chunkSize}`);
+      const page = await fetchJson(`/api/provinces/?offset=${offset}&limit=${chunkSize}`);
       if (expectedTotal == null) expectedTotal = Number(page.total || 0);
       const items = Array.isArray(page.items) ? page.items : [];
       for (const pd of items) {
@@ -58,32 +56,67 @@
     return byPid;
   }
 
-  async function loadEmblemAssets() {
-    const data = await fetchJson("api/assets/emblems.php?offset=0&limit=2000");
+  async function loadRealms() {
+    const out = {};
+    for (const type of REALM_TYPES) {
+      const data = await fetchJson(`/api/realms/?type=${encodeURIComponent(type)}`);
+      const bucket = {};
+      for (const item of (data.items || [])) {
+        if (!item || typeof item !== "object") continue;
+        const id = String(item.id || "").trim();
+        if (!id) continue;
+        const copy = Object.assign({}, item);
+        delete copy.id;
+        bucket[id] = copy;
+      }
+      out[type] = bucket;
+    }
+    return out;
+  }
+
+  async function loadEmblemAssetsById(assetIds) {
     const map = new Map();
-    for (const item of (data.items || [])) {
+    for (const id of assetIds) {
+      if (!id || map.has(id)) continue;
+      const data = await fetchJson(`/api/assets/emblems/show/?id=${encodeURIComponent(id)}`);
+      const item = data && data.item ? data.item : null;
       if (!item || !item.id) continue;
       map.set(String(item.id), String(item.svg || ""));
     }
     return map;
   }
 
+  async function loadStateLegacy(stateUrl) {
+    return fetchJson(stateUrl);
+  }
+
+  async function loadStateChunked() {
+    const boot = await fetchJson("/api/map/bootstrap/");
+    const realms = await loadRealms();
+    const provinces = await loadChunkedProvinces();
+    return Object.assign({ provinces }, realms, {
+      schema_version: boot.schema_version,
+      generated_utc: boot.generated_utc,
+      people: Array.isArray(boot.people) ? boot.people : [],
+      terrain_types: Array.isArray(boot.terrain_types) ? boot.terrain_types : [],
+    });
+  }
+
   async function loadState(stateUrl) {
     const flags = getFlags();
-    const legacy = await fetchJson(stateUrl);
-
-    if (flags.USE_CHUNKED_API) {
-      try {
-        legacy.provinces = await loadChunkedProvinces();
-      } catch (err) {
-        console.warn("[state-loader] chunked api failed, fallback to legacy state", err);
-      }
-    }
+    const state = flags.USE_CHUNKED_API ? await loadStateChunked() : await loadStateLegacy(stateUrl);
 
     if (flags.USE_EMBLEM_ASSETS) {
       try {
-        const assets = await loadEmblemAssets();
-        for (const pd of Object.values(legacy.provinces || {})) {
+        const ids = new Set();
+        for (const pd of Object.values(state.provinces || {})) {
+          if (!pd || typeof pd !== "object") continue;
+          if (pd.emblem_svg) continue;
+          const aid = String(pd.emblem_asset_id || "").trim();
+          if (aid) ids.add(aid);
+        }
+        const assets = await loadEmblemAssetsById(Array.from(ids));
+        for (const pd of Object.values(state.provinces || {})) {
           if (!pd || typeof pd !== "object") continue;
           if (pd.emblem_svg) continue;
           const aid = String(pd.emblem_asset_id || "").trim();
@@ -94,7 +127,7 @@
       }
     }
 
-    return { state: legacy, flags };
+    return { state, flags };
   }
 
   window.AdminMapStateLoader = {
