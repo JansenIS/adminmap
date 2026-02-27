@@ -6,7 +6,7 @@
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
-  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap");
+  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap"); const toggleLegacyModeBtn = el("toggleLegacyMode");
   const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
   const modalProvinceMapImage = el("modalProvinceMapImage"); const modalKingdomHerald = el("modalKingdomHerald"); const modalKingdomName = el("modalKingdomName");
   const modalGreatHouseHerald = el("modalGreatHouseHerald"); const modalGreatHouseName = el("modalGreatHouseName"); const modalMinorHouseHerald = el("modalMinorHouseHerald");
@@ -21,6 +21,25 @@
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
 
+  function isLegacyMode(flags) {
+    return !(flags && flags.USE_CHUNKED_API && flags.USE_EMBLEM_ASSETS && flags.USE_PARTIAL_SAVE && flags.USE_SERVER_RENDER);
+  }
+
+  function navigateWithLegacyMode(enabled) {
+    const u = new URL(window.location.href);
+    const v = enabled ? "0" : "1";
+    u.searchParams.set("use_chunked_api", v);
+    u.searchParams.set("use_emblem_assets", v);
+    u.searchParams.set("use_partial_save", v);
+    u.searchParams.set("use_server_render", v);
+    window.location.href = u.toString();
+  }
+
+  function syncLegacyModeButton(flags) {
+    if (!toggleLegacyModeBtn) return;
+    toggleLegacyModeBtn.textContent = isLegacyMode(flags) ? "Вернуться в backend-режим" : "Включить legacy-режим";
+  }
+
   function updateFlagsStatusText(flags) {
     if (!flagsStatusEl) return;
     const active = [];
@@ -28,6 +47,7 @@
     if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
     if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
     flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
+    syncLegacyModeButton(flags || {});
   }
 
   function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
@@ -63,12 +83,49 @@
   }
   function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; selectedMicroTarget = getMicroTargetByPid(pid); updateMicroMapButton(); }
 
+  function sanitizeSvgText(svgText) { return String(svgText || "").replace(/<script[\s\S]*?<\/script\s*>/gi, ""); }
+  function svgTextToDataUri(svgText) { return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(sanitizeSvgText(svgText)); }
+  function dataUriSvgToText(src) {
+    const s = String(src || "").trim();
+    if (!s.startsWith("data:image/svg+xml")) return "";
+    const commaIdx = s.indexOf(",");
+    if (commaIdx < 0) return "";
+    const meta = s.slice(0, commaIdx).toLowerCase();
+    const body = s.slice(commaIdx + 1);
+    try {
+      if (meta.includes(";base64")) {
+        const bin = atob(body);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder("utf-8").decode(bytes);
+      }
+      return decodeURIComponent(body);
+    } catch (_) {
+      return "";
+    }
+  }
   function emblemSourceToDataUri(src) {
     const s = String(src || "").trim();
     if (!s) return "";
     if (s.startsWith("data:")) return s;
-    if (/<svg[\s>]/i.test(s)) return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(String(s).replace(/<script[\s\S]*?<\/script\s*>/gi, ""));
+    if (/<svg[\s>]/i.test(s)) return svgTextToDataUri(s);
     return s;
+  }
+  function normalizeStoredEmblems(obj) {
+    for (const pd of Object.values(obj.provinces || {})) {
+      if (!pd || typeof pd !== "object") continue;
+      const src = String(pd.emblem_svg || "");
+      const decoded = dataUriSvgToText(src);
+      if (decoded) pd.emblem_svg = sanitizeSvgText(decoded);
+    }
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+      for (const realm of Object.values(obj[type] || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        const src = String(realm.emblem_svg || "");
+        const decoded = dataUriSvgToText(src);
+        if (decoded) realm.emblem_svg = sanitizeSvgText(decoded);
+      }
+    }
   }
 
   function ensureFeudalSchema(obj) {
@@ -374,6 +431,7 @@
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
+    normalizeStoredEmblems(obj);
     return obj;
   }
 
@@ -517,6 +575,10 @@
         window.open(url, "_blank", "noopener");
       });
       updateMicroMapButton();
+    }
+    if (toggleLegacyModeBtn) {
+      toggleLegacyModeBtn.addEventListener("click", () => navigateWithLegacyMode(!isLegacyMode(APP_FLAGS)));
+      syncLegacyModeButton(APP_FLAGS || {});
     }
     if (toggleProvEmblemsBtn) {
       toggleProvEmblemsBtn.addEventListener("click", () => {

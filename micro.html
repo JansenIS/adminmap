@@ -26,6 +26,15 @@
     <h1>Микрокарта</h1>
     <div class="muted" id="microTitle">Загрузка…</div>
 
+
+    <div class="card">
+      <div class="muted">Режим миграции</div>
+      <div id="flagsStatus" class="small">Флаги: legacy</div>
+      <div class="row">
+        <button id="toggleLegacyMode" type="button">Включить legacy-режим</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="muted">Режим наведения</div>
       <div class="row">
@@ -48,6 +57,8 @@
   <main id="wrap"><canvas id="mapCanvas"></canvas></main>
 </div>
 
+<script src="js/feature_flags.js"></script>
+<script src="js/state_loader.js"></script>
 <script src="hexmap/data.js"></script>
 <script src="js/micro.js"></script>
 </body>
