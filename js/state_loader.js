@@ -4,6 +4,7 @@
   const DEFAULT_FLAGS = {
     USE_CHUNKED_API: false,
     USE_EMBLEM_ASSETS: false,
+    USE_PARTIAL_SAVE: false,
   };
 
   const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
@@ -23,6 +24,9 @@
 
     const emblems = parseBool(params.get("use_emblem_assets"));
     if (emblems !== null) base.USE_EMBLEM_ASSETS = emblems;
+
+    const partialSave = parseBool(params.get("use_partial_save"));
+    if (partialSave !== null) base.USE_PARTIAL_SAVE = partialSave;
 
     return base;
   }

@@ -79,12 +79,14 @@ Feature flags для фронта:
 
 - `USE_CHUNKED_API` — подгрузка провинций чанками из `/api/provinces`.
 - `USE_EMBLEM_ASSETS` — резолв гербов через `/api/assets/emblems` и `emblem_asset_id`.
+- `USE_PARTIAL_SAVE` — сохранять выбранную провинцию через `PATCH /api/provinces/patch/` при кнопке "Сохранить провинцию" (legacy full-save остаётся).
 
 Включение на переходный период через query params:
 
 - `index.html?use_chunked_api=1`
 - `index.html?use_chunked_api=1&use_emblem_assets=1`
 - `admin.html?use_chunked_api=1&use_emblem_assets=1`
+- `admin.html?use_partial_save=1`
 
 Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
 
@@ -112,3 +114,6 @@ php tools/migrate_map_state.php --keep-legacy-svg
 - `data/map_state.migrated.json`
 - `data/emblem_assets.json`
 - `data/emblem_refs.json`
+
+
+Подробный backlog следующих шагов: `docs/migration-next-steps.md`.
