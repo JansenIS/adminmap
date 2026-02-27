@@ -337,6 +337,63 @@ function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array 
   ];
 }
 
+
+function api_apply_changeset(array $state, array $changes): array {
+  $applied = 0;
+  $errors = [];
+
+  foreach ($changes as $idx => $entry) {
+    if (!is_array($entry)) {
+      $errors[] = ['index' => $idx, 'error' => 'invalid_entry'];
+      continue;
+    }
+
+    $kind = (string)($entry['kind'] ?? '');
+    $delta = $entry['changes'] ?? null;
+    if (!is_array($delta)) {
+      $errors[] = ['index' => $idx, 'error' => 'invalid_changes'];
+      continue;
+    }
+
+    if ($kind === 'province') {
+      $pid = (int)($entry['pid'] ?? 0);
+      if ($pid <= 0) {
+        $errors[] = ['index' => $idx, 'error' => 'invalid_pid'];
+        continue;
+      }
+      $res = api_patch_province($state, $pid, $delta);
+      if (!$res['ok']) {
+        $errors[] = ['index' => $idx, 'error' => (string)($res['error'] ?? 'patch_failed')];
+        continue;
+      }
+      $state = $res['state'];
+      $applied++;
+      continue;
+    }
+
+    if ($kind === 'realm') {
+      $type = trim((string)($entry['type'] ?? ''));
+      $id = trim((string)($entry['id'] ?? ''));
+      if ($type === '' || $id === '') {
+        $errors[] = ['index' => $idx, 'error' => 'invalid_realm_identity'];
+        continue;
+      }
+      $res = api_patch_realm($state, $type, $id, $delta);
+      if (!$res['ok']) {
+        $errors[] = ['index' => $idx, 'error' => (string)($res['error'] ?? 'patch_failed')];
+        continue;
+      }
+      $state = $res['state'];
+      $applied++;
+      continue;
+    }
+
+    $errors[] = ['index' => $idx, 'error' => 'unknown_kind'];
+  }
+
+  return ['state' => $state, 'applied' => $applied, 'errors' => $errors];
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);

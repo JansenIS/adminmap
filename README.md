@@ -73,6 +73,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/provinces/show/?pid=123`
 - `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities`
 - `PATCH /api/realms/patch/`
+- `POST /api/changes/apply/`
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
 - `GET /api/assets/emblems/show/?id=<asset_id>`
 
@@ -122,3 +123,6 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 
 
 Подробный backlog следующих шагов: `docs/migration-next-steps.md`.
+
+
+`POST /api/changes/apply/` поддерживает atomic batch changeset (`province`/`realm`) и используется как следующий шаг к server-side write без giant full-state POST.

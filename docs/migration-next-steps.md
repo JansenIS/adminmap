@@ -30,7 +30,7 @@
 - [ ] Переключить public/admin на приоритет серверных слоёв.
 
 ### Этап 5 (запись без giant POST)
-- [ ] PATCH для realms и batched operations.
+- [~] PATCH для realms и batched operations. (PATCH realms + base batch endpoint уже добавлены; осталось покрыть остальной UI/операции)
 - [ ] Schema validation и строгая ошибка по invalid payload.
 - [ ] Конфликт-детекция через `If-Match`/version checks.
 
