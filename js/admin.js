@@ -337,8 +337,33 @@
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  function normalizeStateForBackendSave(rawState) {
+    const stateForSave = JSON.parse(JSON.stringify(rawState || {}));
+    if (Array.isArray(stateForSave.people)) {
+      const out = [];
+      const seen = new Set();
+      for (const person of stateForSave.people) {
+        const name = (typeof person === "string") ? person.trim() : String((person && person.name) || "").trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+      }
+      stateForSave.people = out;
+    }
+    if (stateForSave.provinces && typeof stateForSave.provinces === "object") {
+      for (const pd of Object.values(stateForSave.provinces)) {
+        if (!pd || typeof pd !== "object") continue;
+        if (typeof pd.province_card_image === "string" && pd.province_card_image.startsWith("data:")) pd.province_card_image = "";
+        if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = "";
+      }
+    }
+    return stateForSave;
+  }
+
   async function saveStateAsBackendVariant(serializedState) {
-    const parsedState = JSON.parse(serializedState);
+    const parsedState = normalizeStateForBackendSave(JSON.parse(serializedState));
     const versionRes = await fetch("/api/map/version/", { cache: "no-store" });
     if (!versionRes.ok) throw new Error("Не удалось получить версию карты: HTTP " + versionRes.status);
     const versionPayload = await versionRes.json();

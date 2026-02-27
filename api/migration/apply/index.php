@@ -14,7 +14,7 @@ $valid = api_validate_migration_apply_payload($payload);
 if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null], 400, api_state_mtime());
 
 $currentState = api_load_state();
-$state = (isset($payload['state']) && is_array($payload['state'])) ? $payload['state'] : $currentState;
+$state = (isset($payload['state']) && is_array($payload['state'])) ? api_normalize_state_snapshot_for_backend($payload['state']) : $currentState;
 $replace = !empty($payload['replace_map_state']);
 $includeLegacy = !empty($payload['include_legacy_svg']);
 if ($replace) {

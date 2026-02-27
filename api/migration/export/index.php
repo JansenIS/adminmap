@@ -19,7 +19,7 @@ $state = null;
 $includeLegacy = false;
 
 if (is_array($payload) && isset($payload['state']) && is_array($payload['state'])) {
-  $state = $payload['state'];
+  $state = api_normalize_state_snapshot_for_backend($payload['state']);
   $includeLegacy = !empty($payload['include_legacy_svg']);
 } else {
   $state = api_load_state();
