@@ -31,7 +31,7 @@
 
 ### Этап 5 (запись без giant POST)
 - [~] PATCH для realms и batched operations. (PATCH realms + base batch endpoint уже добавлены; осталось покрыть остальной UI/операции)
-- [~] Schema validation и строгая ошибка по invalid payload. (расширена для patch/changes apply + payload shape checks; требуется полное покрытие всех write endpoint'ов и nested схем)
+- [~] Schema validation и строгая ошибка по invalid payload. (расширена для patch/changes apply + migration/jobs payload shape checks; требуется полное покрытие всех write endpoint'ов и nested схем)
 - [~] Конфликт-детекция через `If-Match`/version checks. (унифицирована policy `428 if_match_required` / `412 version_conflict` для ключевых write endpoint'ов; требуется edge-case coverage и распространение на все write пути)
 
 ### Этап 6 (фоновые задачи)
@@ -50,6 +50,6 @@
 - [~] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (добавлен PNG endpoint + file cache; требуется production-grade pipeline и object storage)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [~] Строгая schema validation для всех PATCH/batch payloads. (добавлены strict checks для province/realm PATCH и changes/apply; требуется полная схема для всех write endpoints)
-- [~] Concurrency control (`If-Match` / optimistic locking) для write API. (для ключевых write endpoint'ов policy уже strict-required; нужно расширить edge-case coverage и распространить policy на весь write surface)
+- [~] Concurrency control (`If-Match` / optimistic locking) для write API. (для ключевых write endpoint'ов policy уже strict-required (включая migration/apply replace-map-state); нужно расширить edge-case coverage и распространить policy на весь write surface)
 - [ ] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases).
 - [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.

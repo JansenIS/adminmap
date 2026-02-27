@@ -216,6 +216,47 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
 }
 
 
+function api_validate_migration_apply_payload(array $payload): array {
+  $allowedTop = ['state', 'replace_map_state', 'include_legacy_svg', 'if_match'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('state', $payload) && !is_array($payload['state'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'state'];
+  }
+  foreach (['replace_map_state', 'include_legacy_svg'] as $bf) {
+    if (array_key_exists($bf, $payload) && !is_bool($payload[$bf])) {
+      return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => $bf];
+    }
+  }
+  return ['ok' => true];
+}
+
+function api_validate_migration_export_payload(array $payload): array {
+  $allowedTop = ['state', 'include_legacy_svg'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('state', $payload) && !is_array($payload['state'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'state'];
+  }
+  if (array_key_exists('include_legacy_svg', $payload) && !is_bool($payload['include_legacy_svg'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'include_legacy_svg'];
+  }
+  return ['ok' => true];
+}
+
+function api_validate_jobs_rebuild_payload(array $payload): array {
+  $allowedTop = ['mode'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('mode', $payload) && !is_string($payload['mode'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'mode'];
+  }
+  return ['ok' => true];
+}
+
 function api_validate_province_patch_payload(array $payload): array {
   $allowedTop = ['pid', 'changes', 'if_match'];
   foreach ($payload as $k => $_v) {
@@ -428,12 +469,13 @@ function api_if_match_policy(): array {
   ];
 }
 
-function api_check_if_match(array $state, array $payload = []): array {
+function api_check_if_match(array $state, array $payload = [], ?bool $requiredOverride = null): array {
   $policy = api_if_match_policy();
   $provided = api_request_if_match($payload);
   $expected = api_state_version_hash($state);
+  $required = ($requiredOverride === null) ? (bool)($policy['required_for_write'] ?? false) : $requiredOverride;
   if ($provided === '') {
-    if (!($policy['required_for_write'] ?? false)) {
+    if (!$required) {
       return ['ok' => true, 'required' => false, 'expected' => $expected, 'provided' => ''];
     }
     return ['ok' => false, 'error' => 'if_match_required', 'required' => true, 'expected' => $expected, 'provided' => ''];

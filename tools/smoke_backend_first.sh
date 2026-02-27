@@ -58,9 +58,31 @@ from pathlib import Path
 d=json.loads(Path('/tmp/adminmap_invalid_change.json').read_text())
 assert d.get('error')=='invalid_change_kind'
 PYC
+curl -sS -o /tmp/adminmap_migration_apply_required.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' --data '{"replace_map_state":true}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_migration_apply_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
+curl -sS -o /tmp/adminmap_migration_apply_bad.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' --data '{"replace_map_state":"yes"}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_migration_apply_bad.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+PYC
+curl -fsS -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"replace_map_state":false,"include_legacy_svg":false}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert isinstance(d.get("paths"),dict)'
 php tools/migrate_map_state.php --dry-run >/tmp/adminmap_smoke_migrate.log
 
-JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"kingdoms"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["job"]["id"])')
+curl -sS -o /tmp/adminmap_jobs_invalid.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":123}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_jobs_invalid.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+PYC
+JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"minor_houses"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["job"]["id"])')
 curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/run-once/' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("processed") is True'
 curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("job",{}).get("type")=="rebuild_layers";assert d.get("job",{}).get("status") in ("succeeded","failed")'
 curl -fsS 'http://127.0.0.1:8000/api/jobs/list/?offset=0&limit=5' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d.get("items"),list)'

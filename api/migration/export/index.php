@@ -3,8 +3,17 @@
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/state_api.php';
 
+if (!in_array(strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')), ['GET','POST'], true)) {
+  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['GET','POST']], 405, api_state_mtime());
+}
+
 $raw = file_get_contents('php://input');
 $payload = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : null;
+if ($payload !== null && !is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
+if (is_array($payload)) {
+  $valid = api_validate_migration_export_payload($payload);
+  if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null], 400, api_state_mtime());
+}
 
 $state = null;
 $includeLegacy = false;
