@@ -123,12 +123,28 @@
           const aid = String(pd.emblem_asset_id || "").trim();
           if (aid) ids.add(aid);
         }
+        for (const type of REALM_TYPES) {
+          for (const realm of Object.values(state[type] || {})) {
+            if (!realm || typeof realm !== "object") continue;
+            if (realm.emblem_svg) continue;
+            const aid = String(realm.emblem_asset_id || "").trim();
+            if (aid) ids.add(aid);
+          }
+        }
         const assets = await loadEmblemAssetsById(Array.from(ids));
         for (const pd of Object.values(state.provinces || {})) {
           if (!pd || typeof pd !== "object") continue;
           if (pd.emblem_svg) continue;
           const aid = String(pd.emblem_asset_id || "").trim();
           if (aid && assets.has(aid)) pd.emblem_svg = assets.get(aid);
+        }
+        for (const type of REALM_TYPES) {
+          for (const realm of Object.values(state[type] || {})) {
+            if (!realm || typeof realm !== "object") continue;
+            if (realm.emblem_svg) continue;
+            const aid = String(realm.emblem_asset_id || "").trim();
+            if (aid && assets.has(aid)) realm.emblem_svg = assets.get(aid);
+          }
         }
       } catch (err) {
         console.warn("[state-loader] emblem assets failed, fallback to legacy emblem_svg", err);

@@ -67,6 +67,7 @@
   const importFile = el("importFile");
 
   const btnSaveServer = el("saveServer");
+  const btnSaveImportedBackend = el("saveImportedBackend");
   const stateTA = el("state");
   const btnExportProvincesPng = el("exportProvincesPng");
   const btnExportKingdomsPng = el("exportKingdomsPng");
@@ -336,6 +337,33 @@
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  async function saveStateAsBackendVariant(serializedState) {
+    const parsedState = JSON.parse(serializedState);
+    const versionRes = await fetch("/api/map/version/", { cache: "no-store" });
+    if (!versionRes.ok) throw new Error("Не удалось получить версию карты: HTTP " + versionRes.status);
+    const versionPayload = await versionRes.json();
+    const ifMatch = String(versionPayload && versionPayload.map_version || "").trim();
+    if (!ifMatch) throw new Error("Пустая версия карты (map_version)");
+
+    const saveRes = await fetch("/api/migration/apply/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json;charset=utf-8",
+        "If-Match": ifMatch,
+      },
+      body: JSON.stringify({
+        state: parsedState,
+        include_legacy_svg: false,
+        replace_map_state: true,
+      }),
+    });
+
+    if (!saveRes.ok) {
+      const errText = await saveRes.text();
+      throw new Error("HTTP " + saveRes.status + (errText ? (" — " + errText.slice(0, 300)) : ""));
+    }
+    return saveRes.json();
+  }
   function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), suzerain: String(pd.suzerain || ""), senior: String(pd.senior || ""), terrain: String(pd.terrain || ""), vassals: Array.isArray(pd.vassals) ? pd.vassals.map(v => String(v || "").trim()).filter(Boolean) : [], fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
   async function persistChangesBatch(changes) { const payload = { changes: Array.isArray(changes) ? changes : [] }; const res = await fetch(CHANGES_APPLY_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "province", pid: payload.pid, changes: payload.changes }]); const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
@@ -986,6 +1014,17 @@
     btnImport.addEventListener("click", () => importFile.click());
     importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
     btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
+    if (btnSaveImportedBackend) btnSaveImportedBackend.addEventListener("click", async () => {
+      try {
+        exportStateToTextarea();
+        const result = await saveStateAsBackendVariant(stateTA.value);
+        const stats = result && result.stats ? result.stats : null;
+        const summary = stats ? ("\nassets: " + (stats.assets || 0) + ", refs: " + (stats.refs || 0) + ", provinces: " + (stats.provinces || 0)) : "";
+        alert("Сохранено в backend-варианте (без legacy emblem_svg)." + summary);
+      } catch (err) {
+        alert("Не удалось сохранить backend-вариант: " + (err && err.message ? err.message : err));
+      }
+    });
 
     uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
     emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const safeSvg = sanitizeSvgText(text); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = safeSvg; pd.emblem_box = extractSvgBox(safeSvg); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
