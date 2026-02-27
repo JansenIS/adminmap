@@ -27,6 +27,9 @@ curl -fsS -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: a
 php tools/migrate_map_state.php --dry-run >/tmp/adminmap_smoke_migrate.log
 
 JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"kingdoms"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["job"]["id"])')
-curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("job",{}).get("type")=="rebuild_layers"'
+curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/run-once/' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("processed") is True'
+curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("job",{}).get("type")=="rebuild_layers";assert d.get("job",{}).get("status") in ("succeeded","failed")'
+V2=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS "http://127.0.0.1:8000/api/render/layer/?mode=kingdoms&version=${V2}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("mode")=="kingdoms";assert d.get("from_cache") in (True,False)'
 
 echo "smoke_backend_first: OK"

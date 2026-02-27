@@ -42,3 +42,14 @@
 - [ ] Runbook rollback (включая `map_state.backup.*`).
 - [ ] Мониторинг latency/size/memory KPI до/после флагов.
 - [ ] Обновление production-инструкций запуска.
+
+
+## Что не сделано (текущее состояние)
+- [ ] Отдельный worker-процесс для jobs (сейчас только `run-once` API-триггер).
+- [ ] Статусы/прогресс jobs по шагам и retry policy.
+- [ ] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище.
+- [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
+- [ ] Строгая schema validation для всех PATCH/batch payloads.
+- [ ] Concurrency control (`If-Match` / optimistic locking) для write API.
+- [ ] e2e сценарии для двух режимов: legacy и backend-first flags.
+- [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.

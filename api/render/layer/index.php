@@ -21,4 +21,16 @@ if ($requestedVersion !== '' && $requestedVersion !== (string)$payload['version'
   ], 409, $mtime);
 }
 
+$cacheDir = api_repo_root() . '/data/render_cache';
+$cacheVersion = $requestedVersion !== '' ? $requestedVersion : (string)$payload['version'];
+$cachePath = $cacheDir . '/' . $mode . '_' . $cacheVersion . '.json';
+if (is_file($cachePath)) {
+  $cached = json_decode((string)file_get_contents($cachePath), true);
+  if (is_array($cached) && ($cached['mode'] ?? '') === $mode) {
+    $cached['from_cache'] = true;
+    api_json_response($cached, 200, $mtime);
+  }
+}
+
+$payload['from_cache'] = false;
 api_json_response($payload, 200, $mtime);

@@ -79,6 +79,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/render/layer/?mode=provinces|kingdoms|great_houses|free_cities&version=`
 - `POST /api/jobs/rebuild-layers/`
 - `GET /api/jobs/show/?id=<job_id>`
+- `POST /api/jobs/run-once/`
 
 Feature flags для фронта:
 
@@ -137,3 +138,6 @@ Smoke-проверка backend-first API:
 ```bash
 bash tools/smoke_backend_first.sh
 ```
+
+
+Текущая минимальная очередь jobs хранится в `data/jobs.json` (transitional режим до выделенного worker сервиса).

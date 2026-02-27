@@ -491,6 +491,71 @@ function api_find_job(string $id): ?array {
   return null;
 }
 
+
+function api_write_render_cache(array $state, string $mode): bool {
+  $dir = api_repo_root() . '/data/render_cache';
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return false;
+  $payload = api_build_layer_payload($state, $mode);
+  $path = $dir . '/' . $mode . '_' . $payload['version'] . '.json';
+  return api_atomic_write_json($path, $payload);
+}
+
+function api_update_job(array $job): bool {
+  $jobsPayload = api_load_jobs();
+  $jobs = $jobsPayload['jobs'] ?? [];
+  $updated = false;
+  foreach ($jobs as $idx => $row) {
+    if (!is_array($row)) continue;
+    if ((string)($row['id'] ?? '') !== (string)($job['id'] ?? '')) continue;
+    $jobs[$idx] = $job;
+    $updated = true;
+    break;
+  }
+  if (!$updated) return false;
+  $jobsPayload['jobs'] = $jobs;
+  return api_save_jobs($jobsPayload);
+}
+
+function api_run_next_job(array $state): array {
+  $jobsPayload = api_load_jobs();
+  $jobs = $jobsPayload['jobs'] ?? [];
+  $targetIdx = -1;
+  $job = null;
+  foreach ($jobs as $idx => $row) {
+    if (!is_array($row)) continue;
+    if ((string)($row['status'] ?? '') !== 'queued') continue;
+    $targetIdx = $idx;
+    $job = $row;
+    break;
+  }
+  if (!is_array($job)) return ['ok' => true, 'processed' => false];
+
+  $job['status'] = 'running';
+  $job['updated_at'] = gmdate('c');
+  $jobs[$targetIdx] = $job;
+  $jobsPayload['jobs'] = $jobs;
+  if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+
+  $type = (string)($job['type'] ?? '');
+  if ($type === 'rebuild_layers') {
+    $mode = (string)($job['payload']['mode'] ?? 'all');
+    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','free_cities'] : [$mode];
+    $allOk = true;
+    foreach ($modes as $m) {
+      $allOk = $allOk && api_write_render_cache($state, $m);
+    }
+    $job['status'] = $allOk ? 'succeeded' : 'failed';
+    $job['result'] = ['modes' => $modes, 'ok' => $allOk];
+  } else {
+    $job['status'] = 'failed';
+    $job['result'] = ['error' => 'unsupported_job_type'];
+  }
+
+  $job['updated_at'] = gmdate('c');
+  if (!api_update_job($job)) return ['ok' => false, 'error' => 'write_failed'];
+  return ['ok' => true, 'processed' => true, 'job' => $job];
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
