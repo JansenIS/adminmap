@@ -46,7 +46,7 @@
 
 ## Что не сделано (текущее состояние)
 - [~] Отдельный worker-процесс для jobs (добавлен `tools/job_worker.php`; требуется запуск как постоянный сервис/systemd и health-monitoring).
-- [ ] Статусы/прогресс jobs по шагам и retry policy.
+- [~] Статусы/прогресс jobs по шагам и retry policy. (добавлены базовые `attempts/max_attempts/progress`; требуется production retry policy, backoff и observability)
 - [~] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (добавлен PNG endpoint + file cache; требуется production-grade pipeline и object storage)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [~] Строгая schema validation для всех PATCH/batch payloads. (добавлены strict checks для province/realm PATCH и changes/apply; требуется полная схема для всех write endpoints)

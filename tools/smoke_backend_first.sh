@@ -82,9 +82,9 @@ from pathlib import Path
 d=json.loads(Path('/tmp/adminmap_jobs_invalid.json').read_text())
 assert d.get('error')=='invalid_payload_type'
 PYC
-JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"minor_houses"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["job"]["id"])')
+JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"minor_houses","max_attempts":2}' | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d["job"];assert j.get("max_attempts")==2;assert j.get("attempts")==0;print(j["id"])')
 curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/run-once/' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("processed") is True'
-curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("job",{}).get("type")=="rebuild_layers";assert d.get("job",{}).get("status") in ("succeeded","failed")'
+curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d.get("job",{});assert d.get("ok") is True;assert j.get("type")=="rebuild_layers";assert j.get("status") in ("succeeded","failed","queued");assert isinstance(j.get("progress"),dict)'
 curl -fsS 'http://127.0.0.1:8000/api/jobs/list/?offset=0&limit=5' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d.get("items"),list)'
 /bin/bash -lc "curl -fsS 'http://127.0.0.1:8000/api/tiles/0/0/0?mode=kingdoms' -o /tmp/adminmap_tile_0_0_0.png"
 python3 - <<'PYT'

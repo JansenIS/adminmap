@@ -14,6 +14,7 @@ $valid = api_validate_jobs_rebuild_payload($payload);
 if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null], 400, api_state_mtime());
 
 $mode = trim((string)($payload['mode'] ?? 'all'));
+$maxAttempts = (int)($payload['max_attempts'] ?? 1);
 $allowedModes = ['all', 'provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
 if (!in_array($mode, $allowedModes, true)) {
   api_json_response(['error' => 'invalid_mode', 'allowed' => $allowedModes], 400, api_state_mtime());
@@ -21,6 +22,7 @@ if (!in_array($mode, $allowedModes, true)) {
 
 $created = api_create_job('rebuild_layers', [
   'mode' => $mode,
+  'max_attempts' => $maxAttempts,
   'requested_by' => 'api/jobs/rebuild-layers',
 ]);
 if (!$created['ok']) api_json_response(['error' => (string)($created['error'] ?? 'create_failed')], 500, api_state_mtime());

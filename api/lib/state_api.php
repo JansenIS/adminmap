@@ -265,12 +265,15 @@ function api_validate_migration_export_payload(array $payload): array {
 }
 
 function api_validate_jobs_rebuild_payload(array $payload): array {
-  $allowedTop = ['mode'];
+  $allowedTop = ['mode', 'max_attempts'];
   foreach ($payload as $k => $_v) {
     if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
   }
   if (array_key_exists('mode', $payload) && !is_string($payload['mode'])) {
     return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'mode'];
+  }
+  if (array_key_exists('max_attempts', $payload) && (!is_int($payload['max_attempts']) || $payload['max_attempts'] < 1 || $payload['max_attempts'] > 10)) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'max_attempts'];
   }
   return ['ok' => true];
 }
@@ -639,6 +642,9 @@ function api_create_job(string $type, array $payload): array {
     'type' => $type,
     'status' => 'queued',
     'payload' => $payload,
+    'attempts' => 0,
+    'max_attempts' => (int)($payload['max_attempts'] ?? 1),
+    'progress' => ['current' => 0, 'total' => 0, 'percent' => 0],
     'created_at' => gmdate('c'),
     'updated_at' => gmdate('c'),
   ];
@@ -697,6 +703,8 @@ function api_run_next_job(array $state): array {
   if (!is_array($job)) return ['ok' => true, 'processed' => false];
 
   $job['status'] = 'running';
+  $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
+  $job['progress'] = ['current' => 0, 'total' => 0, 'percent' => 0];
   $job['updated_at'] = gmdate('c');
   $jobs[$targetIdx] = $job;
   $jobsPayload['jobs'] = $jobs;
@@ -705,15 +713,26 @@ function api_run_next_job(array $state): array {
   $type = (string)($job['type'] ?? '');
   if ($type === 'rebuild_layers') {
     $mode = (string)($job['payload']['mode'] ?? 'all');
-    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','free_cities'] : [$mode];
+    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','minor_houses','free_cities'] : [$mode];
     $allOk = true;
+    $total = count($modes);
+    $done = 0;
     foreach ($modes as $m) {
-      $allOk = $allOk && api_write_render_cache($state, $m);
+      $okMode = api_write_render_cache($state, $m);
+      $allOk = $allOk && $okMode;
+      $done++;
+      $job['progress'] = ['current' => $done, 'total' => $total, 'percent' => (int)floor(($done / max(1, $total)) * 100)];
     }
-    $job['status'] = $allOk ? 'succeeded' : 'failed';
+    if ($allOk) {
+      $job['status'] = 'succeeded';
+    } else {
+      $maxAttempts = max(1, (int)($job['max_attempts'] ?? 1));
+      $job['status'] = ((int)$job['attempts'] < $maxAttempts) ? 'queued' : 'failed';
+    }
     $job['result'] = ['modes' => $modes, 'ok' => $allOk];
   } else {
-    $job['status'] = 'failed';
+    $maxAttempts = max(1, (int)($job['max_attempts'] ?? 1));
+    $job['status'] = ((int)$job['attempts'] < $maxAttempts) ? 'queued' : 'failed';
     $job['result'] = ['error' => 'unsupported_job_type'];
   }
 

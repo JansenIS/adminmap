@@ -41,6 +41,11 @@ AID=$(curl -fsS 'http://127.0.0.1:8001/api/assets/emblems/?offset=0&limit=1' | p
 check_meta "http://127.0.0.1:8001/api/assets/emblems/show/?id=${AID}"
 check_meta 'http://127.0.0.1:8001/api/migration/export/'
 
+
+# contract-jobs schema basics
+JID=$(curl -fsS -X POST 'http://127.0.0.1:8001/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"provinces","max_attempts":2}' | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d["job"];assert j.get("attempts")==0;assert j.get("max_attempts")==2;print(j["id"])')
+curl -fsS "http://127.0.0.1:8001/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d["job"];assert isinstance(j.get("progress"),dict)'
+
 # write-contract edge cases for If-Match policy
 curl -sS -o /tmp/adminmap_contract_ifmatch_required.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8001/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"changes":{"terrain":"contract"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
 python3 - <<'PYC'
