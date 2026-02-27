@@ -51,5 +51,5 @@
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
 - [~] Строгая schema validation для всех PATCH/batch payloads. (добавлены strict checks для province/realm PATCH и changes/apply; требуется полная схема для всех write endpoints)
 - [~] Concurrency control (`If-Match` / optimistic locking) для write API. (для ключевых write endpoint'ов policy уже strict-required (включая migration/apply replace-map-state); нужно расширить edge-case coverage и распространить policy на весь write surface)
-- [ ] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases).
-- [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.
+- [~] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases). (добавлены базовые HTTP-level e2e smoke scripts; требуется browser-level end-to-end)
+- [~] Production runbook: деплой, rollback, мониторинг latency/size/error-rate. (добавлен draft runbook; требуется инфраструктурная детализация и автоалерты)

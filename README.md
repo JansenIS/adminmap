@@ -136,6 +136,7 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 
 
 Подробный backlog следующих шагов: `docs/migration-next-steps.md`.
+Черновой runbook: `docs/production-runbook-draft.md`.
 
 
 ## Что ещё не сделано (backend-first migration)
@@ -159,6 +160,12 @@ bash tools/smoke_backend_first.sh
 Contract-проверка метаданных (`meta.api_version`/`meta.schema_version`) по основным endpoint'ам:
 ```bash
 bash tools/contract_backend_first.sh
+```
+
+Базовые e2e smoke сценарии (без headless browser, HTTP-level):
+```bash
+bash tools/e2e_legacy_flags.sh
+bash tools/e2e_backend_first_flags.sh
 ```
 
 Для локального `php -S` добавлен роутер `tools/php_router.php`, чтобы canonical path aliases (`/api/provinces/{pid}`, `/api/realms/{type}/{id}`, `/api/tiles/{z}/{x}/{y}`) работали и без `.htaccess`.

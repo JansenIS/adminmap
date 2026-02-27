@@ -4,9 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+cp data/map_state.json /tmp/adminmap_contract_map_state_backup.json
+
 php -S 127.0.0.1:8001 -t "$ROOT" tools/php_router.php >/tmp/adminmap_contract_php.log 2>&1 &
 PID=$!
 cleanup(){
+  cp /tmp/adminmap_contract_map_state_backup.json data/map_state.json 2>/dev/null || true
   kill "$PID" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -57,5 +60,9 @@ d=json.loads(Path('/tmp/adminmap_contract_migration_ifmatch_required.json').read
 assert d.get('error')=='if_match_required'
 assert d.get('meta',{}).get('schema_version')==1
 PYC
+
+
+V=$(curl -fsS 'http://127.0.0.1:8001/api/map/version/' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS -X PATCH 'http://127.0.0.1:8001/api/provinces/patch/' -H 'Content-Type: application/json' -H "If-Match: "${V}"" --data '{"pid":1,"changes":{"terrain":"contract-quoted-if-match"}}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True'
 
 echo "contract_backend_first: OK"
