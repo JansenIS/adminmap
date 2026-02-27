@@ -254,12 +254,52 @@ function api_validate_state_snapshot_shape(array $state): array {
 
   if (isset($state['people']) && is_array($state['people'])) {
     foreach ($state['people'] as $i => $p) {
-      if (!is_array($p)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i];
-      if (isset($p['name']) && !is_string($p['name'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i . '.name'];
+      if (is_string($p)) continue;
+      if (is_array($p)) {
+        if (isset($p['name']) && !is_string($p['name'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i . '.name'];
+        continue;
+      }
+      return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i];
     }
   }
 
   return ['ok' => true];
+}
+
+function api_normalize_state_snapshot_for_backend(array $state): array {
+  if (isset($state['people']) && is_array($state['people'])) {
+    $out = [];
+    $seen = [];
+    foreach ($state['people'] as $person) {
+      $name = '';
+      if (is_string($person)) {
+        $name = trim($person);
+      } elseif (is_array($person)) {
+        $name = trim((string)($person['name'] ?? ''));
+      }
+      if ($name === '') continue;
+      $key = mb_strtolower($name, 'UTF-8');
+      if (isset($seen[$key])) continue;
+      $seen[$key] = true;
+      $out[] = $name;
+    }
+    $state['people'] = $out;
+  }
+
+  if (isset($state['provinces']) && is_array($state['provinces'])) {
+    foreach ($state['provinces'] as $pid => $province) {
+      if (!is_array($province)) continue;
+      if (isset($province['province_card_image']) && is_string($province['province_card_image']) && str_starts_with($province['province_card_image'], 'data:')) {
+        unset($province['province_card_image']);
+      }
+      if (isset($province['province_card_base_image']) && is_string($province['province_card_base_image']) && str_starts_with($province['province_card_base_image'], 'data:')) {
+        unset($province['province_card_base_image']);
+      }
+      $state['provinces'][$pid] = $province;
+    }
+  }
+
+  return $state;
 }
 
 function api_validate_migration_apply_payload(array $payload): array {
