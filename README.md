@@ -60,8 +60,62 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 ## Важно
 
-`sim-admin` читает названия/terrain провинций напрямую из `data/map_state.json` внутри этого же репозитория,
-поэтому проект должен деплоиться как единый каталог (`/opt/adminmap`), без разрыва на отдельные репозитории.
+`sim-admin` теперь сначала пытается читать провинции из backend API (`/api/provinces`) через `--adminApiBase` или `ADMINMAP_API_BASE`,
+и только если API недоступен — откатывается на локальный `data/map_state.json`.
+Это позволяет экономическому симулятору автоматически перейти на новый backend-источник, как только данные будут храниться там.
+
+
+## Применение production-конфига веб-сервера (gzip/br + canonical API routes)
+
+Ниже команды, чтобы применить конфиги из репозитория (`deploy/`) на сервере.
+
+### Вариант A: Nginx + PHP-FPM
+
+```bash
+cd /opt/adminmap
+
+# 1) установить конфиг сайта
+sudo cp deploy/nginx/adminmap.conf /etc/nginx/sites-available/adminmap.conf
+sudo ln -sf /etc/nginx/sites-available/adminmap.conf /etc/nginx/sites-enabled/adminmap.conf
+
+# 2) (опционально) включить brotli snippet, если модуль ngx_brotli доступен
+sudo mkdir -p /etc/nginx/snippets
+sudo cp deploy/nginx/snippets/adminmap-brotli.conf /etc/nginx/snippets/adminmap-brotli.conf
+# затем раскомментировать строку include в /etc/nginx/sites-available/adminmap.conf:
+# include /etc/nginx/snippets/adminmap-brotli.conf;
+
+# 3) проверить и перезагрузить
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Вариант B: Apache
+
+```bash
+cd /opt/adminmap
+
+# 1) включить модули
+sudo a2enmod rewrite headers deflate
+# brotli опционально (если доступен)
+sudo a2enmod brotli || true
+
+# 2) установить сайт
+sudo cp deploy/apache/adminmap.conf /etc/apache2/sites-available/adminmap.conf
+sudo a2ensite adminmap.conf
+
+# 3) проверить и перезагрузить
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+### Проверка, что сжатие реально работает
+
+```bash
+curl -I -H 'Accept-Encoding: gzip' http://127.0.0.1/api/provinces/
+curl -I -H 'Accept-Encoding: br'   http://127.0.0.1/api/provinces/
+```
+
+Ожидаемо в ответах: `Content-Encoding: gzip`/`br` и `Vary: Accept-Encoding`.
 
 ## Migration flags и новые API (черновой этап)
 

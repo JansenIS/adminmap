@@ -105,7 +105,7 @@ sudo chown -R $USER:$USER /opt/adminmap
 cd /opt/adminmap/isotope/economy_sim_ui
 
 # 4) запуск симулятора
-node ./server.js ../province_routing_data.json --port 8787
+node ./server.js ../province_routing_data.json --port 8787 --adminApiBase http://127.0.0.1:8080
 ```
 
 Проверка:
@@ -120,3 +120,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - Админка симулятора: `http://<SERVER_IP>:8787/sim-admin`
 
 Если нужен фоновый запуск после перезагрузки, добавь systemd unit для `node server.js ...`.
+
+Источник провинций для симулятора:
+- при наличии `--adminApiBase` (или `ADMINMAP_API_BASE`) сервер читает провинции из `<base>/api/provinces` (новый backend),
+- при недоступности API автоматически использует fallback `data/map_state.json`.

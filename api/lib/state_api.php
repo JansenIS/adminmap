@@ -53,6 +53,10 @@ function api_state_path(): string {
   return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'map_state.json';
 }
 
+function api_provinces_index_path(): string {
+  return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'provinces_index.json';
+}
+
 function api_load_state(): array {
   $path = api_state_path();
   $raw = @file_get_contents($path);
@@ -70,6 +74,96 @@ function api_load_state(): array {
 
 function api_state_mtime(): int {
   return (int)@filemtime(api_state_path()) ?: time();
+}
+
+function api_build_provinces_index(array $state, array $refsByOwner = []): array {
+  $rows = [];
+  foreach (($state['provinces'] ?? []) as $pid => $pd) {
+    if (!is_array($pd)) continue;
+    $pidNum = (int)($pd['pid'] ?? $pid);
+    if ($pidNum <= 0) continue;
+
+    $item = [
+      'pid' => $pidNum,
+      'name' => (string)($pd['name'] ?? ''),
+      'owner' => (string)($pd['owner'] ?? ''),
+      'suzerain' => (string)($pd['suzerain'] ?? ''),
+      'senior' => (string)($pd['senior'] ?? ''),
+      'terrain' => (string)($pd['terrain'] ?? ''),
+      'kingdom_id' => (string)($pd['kingdom_id'] ?? ''),
+      'great_house_id' => (string)($pd['great_house_id'] ?? ''),
+      'minor_house_id' => (string)($pd['minor_house_id'] ?? ''),
+      'free_city_id' => (string)($pd['free_city_id'] ?? ''),
+      'fill_rgba' => (is_array($pd['fill_rgba'] ?? null) && count($pd['fill_rgba']) === 4) ? array_values($pd['fill_rgba']) : null,
+      'province_card_image' => (string)($pd['province_card_image'] ?? ''),
+    ];
+
+    if (isset($pd['emblem_asset_id']) && is_string($pd['emblem_asset_id']) && trim($pd['emblem_asset_id']) !== '') {
+      $item['emblem_asset_id'] = trim($pd['emblem_asset_id']);
+    } else {
+      $key = 'province:' . $pidNum;
+      if (isset($refsByOwner[$key]) && $refsByOwner[$key] !== '') {
+        $item['emblem_asset_id'] = $refsByOwner[$key];
+      }
+    }
+
+    $rows[$pidNum] = $item;
+  }
+
+  ksort($rows, SORT_NUMERIC);
+  return [
+    'generated_at' => gmdate('c'),
+    'version' => api_state_version_hash($state),
+    'items' => array_values($rows),
+    'total' => count($rows),
+  ];
+}
+
+function api_build_refs_by_owner_from_file_or_state(?array $state = null): array {
+  $refs = [];
+  $refsPath = api_repo_root() . '/data/emblem_refs.json';
+  if (is_file($refsPath)) {
+    $decodedRefs = json_decode((string)file_get_contents($refsPath), true);
+    if (is_array($decodedRefs)) {
+      foreach (($decodedRefs['refs'] ?? []) as $ref) {
+        if (!is_array($ref)) continue;
+        $refs[$ref['owner_type'] . ':' . $ref['owner_id']] = (string)($ref['asset_id'] ?? '');
+      }
+      return $refs;
+    }
+  }
+
+  if (is_array($state)) {
+    $migration = api_emblem_migration_from_state($state);
+    foreach (($migration['refs'] ?? []) as $ref) {
+      if (!is_array($ref)) continue;
+      $refs[$ref['owner_type'] . ':' . $ref['owner_id']] = (string)($ref['asset_id'] ?? '');
+    }
+  }
+  return $refs;
+}
+
+function api_get_or_build_provinces_index(?array $state = null): array {
+  $indexPath = api_provinces_index_path();
+  $statePath = api_state_path();
+  $stateMtime = (int)@filemtime($statePath);
+  $indexMtime = (int)@filemtime($indexPath);
+
+  if ($indexMtime > 0 && $indexMtime >= $stateMtime) {
+    $raw = @file_get_contents($indexPath);
+    if (is_string($raw) && trim($raw) !== '') {
+      $decoded = json_decode($raw, true);
+      if (is_array($decoded) && is_array($decoded['items'] ?? null)) {
+        return $decoded;
+      }
+    }
+  }
+
+  $state = $state ?? api_load_state();
+  $refs = api_build_refs_by_owner_from_file_or_state($state);
+  $index = api_build_provinces_index($state, $refs);
+  api_atomic_write_json($indexPath, $index);
+  return $index;
 }
 
 function api_limit_int(string $name, int $default, int $min, int $max): int {
