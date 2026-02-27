@@ -20,7 +20,9 @@ if ($pid <= 0 || !is_array($changes)) {
 $state = api_load_state();
 $patched = api_patch_province($state, $pid, $changes);
 if (!$patched['ok']) {
-  api_json_response(['error' => (string)($patched['error'] ?? 'patch_failed')], 404, api_state_mtime());
+  $e = (string)($patched['error'] ?? 'patch_failed');
+  $status = in_array($e, ['invalid_field','invalid_type'], true) ? 400 : 404;
+  api_json_response(['error' => $e, 'field' => $patched['field'] ?? null], $status, api_state_mtime());
 }
 
 $ok = api_atomic_write_json(api_state_path(), $patched['state']);

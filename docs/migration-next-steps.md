@@ -45,11 +45,11 @@
 
 
 ## Что не сделано (текущее состояние)
-- [ ] Отдельный worker-процесс для jobs (сейчас есть только `run-once` API-триггер и file-backed queue).
+- [~] Отдельный worker-процесс для jobs (добавлен `tools/job_worker.php`; требуется запуск как постоянный сервис/systemd и health-monitoring).
 - [ ] Статусы/прогресс jobs по шагам и retry policy.
-- [ ] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (сейчас только transitional JSON-тайл для z=0,x=0,y=0)
+- [~] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (добавлен PNG endpoint + file cache; требуется production-grade pipeline и object storage)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
-- [ ] Строгая schema validation для всех PATCH/batch payloads.
+- [~] Строгая schema validation для всех PATCH/batch payloads. (базовая strict validation для province/realm PATCH добавлена; требуется полная схема для всех endpoints)
 - [ ] Concurrency control (`If-Match` / optimistic locking) для write API.
 - [ ] e2e сценарии для двух режимов: legacy и backend-first flags.
 - [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.

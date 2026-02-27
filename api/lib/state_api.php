@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+@ini_set('memory_limit', '768M');
+
 function api_json_response(array $payload, int $status = 200, ?int $sourceMtime = null): void {
   $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
   if ($body === false) {
@@ -216,12 +218,21 @@ function api_patch_province(array $state, int $pid, array $changes): array {
     'province_card_image',
   ];
 
+  foreach ($changes as $field => $value) {
+    if (!in_array((string)$field, $allowed, true)) {
+      return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
+    }
+    if (in_array((string)$field, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image'], true) && !is_string($value)) {
+      return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    }
+    if ($field === 'vassals' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassals'];
+    if ($field === 'fill_rgba' && !($value === null || (is_array($value) && count($value) === 4))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'fill_rgba'];
+    if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
+  }
+
   $updated = 0;
   foreach ($changes as $field => $value) {
-    if (!in_array((string)$field, $allowed, true)) continue;
-
     if ($field === 'vassals') {
-      if (!is_array($value)) continue;
       $value = array_values(array_filter(array_map(static fn($v) => trim((string)$v), $value), static fn($v) => $v !== ''));
     }
 
@@ -231,7 +242,6 @@ function api_patch_province(array $state, int $pid, array $changes): array {
         $updated++;
         continue;
       }
-      if (!is_array($value) || count($value) !== 4) continue;
       $value = [
         max(0, min(255, (int)$value[0])),
         max(0, min(255, (int)$value[1])),
@@ -246,7 +256,6 @@ function api_patch_province(array $state, int $pid, array $changes): array {
         $updated++;
         continue;
       }
-      if (!is_array($value) || count($value) !== 2) continue;
       $value = [(float)$value[0], (float)$value[1]];
     }
 
@@ -268,10 +277,17 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
   }
 
   $allowed = ['name', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  foreach ($changes as $field => $value) {
+    if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
+    if (in_array((string)$field, ['name','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
+    if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];
+    if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
+    if ($field === 'province_pids' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'province_pids'];
+  }
+
   $updated = 0;
   foreach ($changes as $field => $value) {
-    if (!in_array((string)$field, $allowed, true)) continue;
-
     if ($field === 'capital_pid') {
       $value = max(0, (int)$value);
     }
@@ -286,12 +302,10 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
         $updated++;
         continue;
       }
-      if (!is_array($value) || count($value) !== 2) continue;
       $value = [(float)$value[0], (float)$value[1]];
     }
 
     if ($field === 'province_pids') {
-      if (!is_array($value)) continue;
       $value = array_values(array_unique(array_map(static fn($v) => max(0, (int)$v), $value)));
       $value = array_values(array_filter($value, static fn($v) => $v > 0));
     }
@@ -355,6 +369,7 @@ function api_layer_color_for_province(array $state, array $pd, string $mode): ?a
   $modeMap = [
     'kingdoms' => ['field' => 'kingdom_id', 'bucket' => 'kingdoms', 'fallback' => '#ff3b30'],
     'great_houses' => ['field' => 'great_house_id', 'bucket' => 'great_houses', 'fallback' => '#ff3b30'],
+    'minor_houses' => ['field' => 'minor_house_id', 'bucket' => 'minor_houses', 'fallback' => '#ffd166'],
     'free_cities' => ['field' => 'free_city_id', 'bucket' => 'free_cities', 'fallback' => '#ff7a1a'],
   ];
   if (!isset($modeMap[$mode])) return null;

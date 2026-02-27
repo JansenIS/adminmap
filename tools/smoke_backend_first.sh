@@ -38,8 +38,18 @@ JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Con
 curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/run-once/' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("processed") is True'
 curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("job",{}).get("type")=="rebuild_layers";assert d.get("job",{}).get("status") in ("succeeded","failed")'
 curl -fsS 'http://127.0.0.1:8000/api/jobs/list/?offset=0&limit=5' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d.get("items"),list)'
-curl -fsS 'http://127.0.0.1:8000/api/tiles/?z=0&x=0&y=0&mode=kingdoms' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("tile_kind")=="json-province-rgba"'
-code=$(curl -sS -o /tmp/adminmap_tile_not_ready.json -w '%{http_code}' 'http://127.0.0.1:8000/api/tiles/?z=1&x=0&y=0&mode=kingdoms'); test "$code" = "501"
+/bin/bash -lc "curl -fsS 'http://127.0.0.1:8000/api/tiles/?z=0&x=0&y=0&mode=kingdoms' -o /tmp/adminmap_tile_0_0_0.png"
+python3 - <<'PYT'
+from pathlib import Path
+b=Path('/tmp/adminmap_tile_0_0_0.png').read_bytes()
+assert b.startswith(b'\x89PNG\r\n\x1a\n')
+PYT
+/bin/bash -lc "curl -fsS 'http://127.0.0.1:8000/api/tiles/?z=1&x=0&y=0&mode=kingdoms' -o /tmp/adminmap_tile_1_0_0.png"
+python3 - <<'PYT'
+from pathlib import Path
+b=Path('/tmp/adminmap_tile_1_0_0.png').read_bytes()
+assert b.startswith(b'\x89PNG\r\n\x1a\n')
+PYT
 V2=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
 curl -fsS "http://127.0.0.1:8000/api/render/layer/?mode=kingdoms&version=${V2}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("mode")=="kingdoms";assert d.get("from_cache") in (True,False)'
 

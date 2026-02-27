@@ -144,4 +144,12 @@ bash tools/smoke_backend_first.sh
 Текущая минимальная очередь jobs хранится в `data/jobs.json` (transitional режим до выделенного worker сервиса).
 
 
-Transitional tiles endpoint (JSON tile payload): `GET /api/tiles/?z=0&x=0&y=0&mode=kingdoms` (for `z>0` currently returns `501 tile_not_ready`).
+PNG tiles endpoint: `GET /api/tiles/?z=0&x=0&y=0&mode=kingdoms` (also supports `z>0` via scale/crop cache; transitional quality before production tile pipeline).
+
+
+Минимальный worker для очереди jobs:
+```bash
+php tools/job_worker.php --once
+# или как long-running loop:
+php tools/job_worker.php --interval-ms=1500
+```

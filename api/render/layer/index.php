@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 2) . '/lib/state_api.php';
 $state = api_load_state();
 $mtime = api_state_mtime();
 $mode = trim((string)($_GET['mode'] ?? 'provinces'));
-$allowed = ['provinces', 'kingdoms', 'great_houses', 'free_cities'];
+$allowed = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
 if (!in_array($mode, $allowed, true)) {
   api_json_response(['error' => 'invalid_mode', 'allowed' => $allowed], 400, $mtime);
 }
