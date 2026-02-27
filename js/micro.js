@@ -396,7 +396,9 @@
   }
 
   function edgeKey(ax, ay, bx, by) {
-    const scale = 1000;
+    // Lower quantization precision prevents false "different edge" splits
+    // from tiny floating-point drifts in vertex coordinates.
+    const scale = 100;
     const a = `${Math.round(ax * scale)},${Math.round(ay * scale)}`;
     const b = `${Math.round(bx * scale)},${Math.round(by * scale)}`;
     return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -429,6 +431,36 @@
     return { internalEdges, externalEdges };
   }
 
+  function collectProvinceBoundaryEdges(pid) {
+    const list = effectiveProvinceHexes.get(pid) || [];
+    if (!list.length) return [];
+
+    const edgeStats = new Map();
+    for (const h of list) {
+      const verts = verticesByHexId.get(h.id);
+      if (!verts || verts.length < 6) continue;
+      for (let i = 0; i < 6; i++) {
+        const a = verts[i];
+        const b = verts[(i + 1) % 6];
+        const key = edgeKey(a[0], a[1], b[0], b[1]);
+        const rec = edgeStats.get(key);
+        if (rec) rec.count += 1;
+        else edgeStats.set(key, { count: 1, a, b });
+      }
+    }
+
+    const boundary = [];
+    for (const rec of edgeStats.values()) {
+      if (rec.count !== 1) continue;
+      const mx = (rec.a[0] + rec.b[0]) * 0.5;
+      const my = (rec.a[1] + rec.b[1]) * 0.5;
+      const nearest = findHexAt({ x: mx, y: my });
+      if (!nearest) continue;
+      if (effectivePidForHex(nearest) !== pid) boundary.push(rec);
+    }
+    return boundary;
+  }
+
   function render() {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -458,7 +490,8 @@
 
     for (const pid of visibleProvincePids) {
       const list = effectiveProvinceHexes.get(pid) || [];
-      const { internalEdges, externalEdges } = collectProvinceEdges(list);
+      const { internalEdges } = collectProvinceEdges(list);
+      const externalEdges = collectProvinceBoundaryEdges(pid);
 
       ctx.strokeStyle = "rgba(0,0,0,0.38)";
       ctx.lineWidth = 0.12;
@@ -482,11 +515,16 @@
     drawMutedOwnerEmblems(window.__MICRO_STATE__);
 
     if (mode === "province" && hoverProvId && visibleProvincePids.has(hoverProvId)) {
-      for (const h of (effectiveProvinceHexes.get(hoverProvId) || [])) {
-        const path = pathByHexId.get(h.id);
+      const boundaryEdges = collectProvinceBoundaryEdges(hoverProvId);
+      if (boundaryEdges.length) {
         ctx.strokeStyle = "rgba(255,255,255,0.95)";
         ctx.lineWidth = 0.45;
-        ctx.stroke(path);
+        ctx.beginPath();
+        for (const edge of boundaryEdges) {
+          ctx.moveTo(edge.a[0], edge.a[1]);
+          ctx.lineTo(edge.b[0], edge.b[1]);
+        }
+        ctx.stroke();
       }
     } else if (hoverHex && visibleProvincePids.has(effectivePidForHex(hoverHex))) {
       const path = pathByHexId.get(hoverHex.id);

@@ -107,7 +107,9 @@
 
   async function loadStateChunked(flags) {
     const boot = await fetchJson("/api/map/bootstrap/");
-    const realms = await loadRealms(flags && flags.USE_EMBLEM_ASSETS ? "compact" : "full");
+    // Keep full realm payload even in backend-first mode so emblem_svg remains
+    // available when a realm has not been migrated to emblem_asset_id yet.
+    const realms = await loadRealms("full");
     const provinces = await loadChunkedProvinces();
     return Object.assign({ provinces }, realms, {
       schema_version: boot.schema_version,
