@@ -6,6 +6,7 @@
   const el = (id) => document.getElementById(id);
 
   const tooltip = el("tooltip");
+  const flagsStatusEl = el("flagsStatus");
 
   const selName = el("selName");
   const selPid = el("selPid");
@@ -93,6 +94,7 @@
   const REALM_PATCH_ENDPOINT = "/api/realms/patch/";
   const CHANGES_APPLY_ENDPOINT = "/api/changes/apply/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
+  updateFlagsStatusText(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
@@ -134,6 +136,17 @@
   }
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
+
+  function updateFlagsStatusText(flags) {
+    if (!flagsStatusEl) return;
+    const active = [];
+    if (flags && flags.USE_CHUNKED_API) active.push('USE_CHUNKED_API');
+    if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
+    if (flags && flags.USE_PARTIAL_SAVE) active.push('USE_PARTIAL_SAVE');
+    if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
+    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
+  }
+
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
   function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } return s; }
   function rebuildPidKeyMaps(map) {

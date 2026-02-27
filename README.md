@@ -129,3 +129,9 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 
 
 `POST /api/changes/apply/` поддерживает atomic batch changeset (`province`/`realm`) и используется как следующий шаг к server-side write без giant full-state POST.
+
+
+Smoke-проверка backend-first API:
+```bash
+bash tools/smoke_backend_first.sh
+```

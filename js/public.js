@@ -4,6 +4,7 @@
   "use strict";
   const el = (id) => document.getElementById(id);
   const tooltip = el("tooltip");
+  const flagsStatusEl = el("flagsStatus");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
   const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap");
   const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
@@ -19,6 +20,16 @@
   let selectedMicroTarget = null;
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
+
+  function updateFlagsStatusText(flags) {
+    if (!flagsStatusEl) return;
+    const active = [];
+    if (flags && flags.USE_CHUNKED_API) active.push('USE_CHUNKED_API');
+    if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
+    if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
+    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
+  }
+
   function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
   function updateMicroMapButton() {
     if (!openMicroMapBtn) return;
@@ -359,6 +370,7 @@
     if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[public] USE_CHUNKED_API enabled");
     if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[public] USE_EMBLEM_ASSETS enabled");
     if (loaded.flags && loaded.flags.USE_SERVER_RENDER) console.info("[public] USE_SERVER_RENDER enabled");
+    updateFlagsStatusText(loaded.flags || {});
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
