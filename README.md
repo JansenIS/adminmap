@@ -72,6 +72,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/provinces/?offset=0&limit=100`
 - `GET /api/provinces/show/?pid=123`
 - `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities`
+- `PATCH /api/realms/patch/`
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
 - `GET /api/assets/emblems/show/?id=<asset_id>`
 
@@ -108,6 +109,10 @@ php tools/migrate_map_state.php
 php tools/migrate_map_state.php --replace-map-state
 # оставить legacy emblem_svg в migrated_state:
 php tools/migrate_map_state.php --keep-legacy-svg
+# прогон без записи файлов:
+php tools/migrate_map_state.php --dry-run
+# миграция произвольного snapshot JSON:
+php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 ```
 
 По умолчанию результат записывается в:

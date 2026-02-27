@@ -90,6 +90,7 @@
   const SAVE_ENDPOINT = "save_state.php";
   const SAVE_TOKEN = "";
   const PROVINCE_PATCH_ENDPOINT = "/api/provinces/patch/";
+  const REALM_PATCH_ENDPOINT = "/api/realms/patch/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
@@ -313,6 +314,8 @@
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
   function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), suzerain: String(pd.suzerain || ""), senior: String(pd.senior || ""), terrain: String(pd.terrain || ""), vassals: Array.isArray(pd.vassals) ? pd.vassals.map(v => String(v || "").trim()).filter(Boolean) : [], fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
+  function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [] }; }
+  async function persistRealmPatch(type, id, realm) { const payload = { type: String(type || ""), id: String(id || ""), changes: buildRealmPatchFromState(realm) }; const res = await fetch(REALM_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
 
 
   function rgbToHsl(r, g, b) {
@@ -822,7 +825,7 @@
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
     btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });
-    btnSaveRealm.addEventListener("click", () => {
+    btnSaveRealm.addEventListener("click", async () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       const realm = ensureRealm(type, id);
       realm.name = String(realmNameInput.value || id).trim() || id;
@@ -830,6 +833,10 @@
       realm.capital_pid = Number(realmCapitalInput.value) >>> 0;
       realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
       rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); exportStateToTextarea();
+      if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) {
+        try { await persistRealmPatch(type, id, realm); }
+        catch (err) { alert("PATCH сохранение сущности не удалось: " + (err && err.message ? err.message : err)); }
+      }
     });
     btnAddSelectedToRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;

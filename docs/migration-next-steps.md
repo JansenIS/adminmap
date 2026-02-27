@@ -20,7 +20,7 @@
 - [ ] Поддержать cleanup orphan refs/assets и dry-run отчёт.
 
 ### Этап 3 (фронт-флаги и переход)
-- [ ] Перевести сохранение админки на patch-first сценарий (провинции/realm), оставить full-save как fallback.
+- [~] Перевести сохранение админки на patch-first сценарий (провинции/realm), оставить full-save как fallback. (провинции+save realm уже частично на PATCH, требуется покрыть остальные операции realm)
 - [ ] Добавить UI-индикатор активных флагов (`USE_CHUNKED_API`, `USE_EMBLEM_ASSETS`, `USE_PARTIAL_SAVE`).
 - [ ] Добавить smoke e2e для legacy и API-режимов.
 

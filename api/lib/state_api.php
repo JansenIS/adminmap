@@ -259,6 +259,52 @@ function api_patch_province(array $state, int $pid, array $changes): array {
   return ['ok' => true, 'state' => $state, 'updated_fields' => $updated];
 }
 
+
+function api_patch_realm(array $state, string $type, string $id, array $changes): array {
+  $allowedTypes = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+  if (!in_array($type, $allowedTypes, true)) return ['ok' => false, 'error' => 'invalid_type'];
+  if (!isset($state[$type]) || !is_array($state[$type]) || !isset($state[$type][$id]) || !is_array($state[$type][$id])) {
+    return ['ok' => false, 'error' => 'not_found'];
+  }
+
+  $allowed = ['name', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  $updated = 0;
+  foreach ($changes as $field => $value) {
+    if (!in_array((string)$field, $allowed, true)) continue;
+
+    if ($field === 'capital_pid') {
+      $value = max(0, (int)$value);
+    }
+
+    if ($field === 'emblem_scale') {
+      $value = max(0.2, min(3.0, (float)$value));
+    }
+
+    if ($field === 'emblem_box') {
+      if ($value === null) {
+        $state[$type][$id]['emblem_box'] = null;
+        $updated++;
+        continue;
+      }
+      if (!is_array($value) || count($value) !== 2) continue;
+      $value = [(float)$value[0], (float)$value[1]];
+    }
+
+    if ($field === 'province_pids') {
+      if (!is_array($value)) continue;
+      $value = array_values(array_unique(array_map(static fn($v) => max(0, (int)$v), $value)));
+      $value = array_values(array_filter($value, static fn($v) => $v > 0));
+    }
+
+    if (is_string($value)) $value = trim($value);
+    $state[$type][$id][$field] = $value;
+    $updated++;
+  }
+
+  $state['generated_utc'] = gmdate('c');
+  return ['ok' => true, 'state' => $state, 'updated_fields' => $updated];
+}
+
 function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array {
   $root = api_repo_root();
   $dataDir = $root . '/data';
