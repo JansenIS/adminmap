@@ -3,15 +3,40 @@
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/state_api.php';
 
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if (!in_array($method, ['GET', 'POST'], true)) {
+  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['GET','POST']], 405, api_state_mtime());
+}
+
+$payload = [];
+if ($method === 'POST') {
+  $raw = file_get_contents('php://input');
+  $payload = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : [];
+  if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
+  $valid = api_validate_emblems_persist_payload($payload);
+  if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null], 400, api_state_mtime());
+}
+
 $state = api_load_state();
 $mtime = api_state_mtime();
 $migration = api_emblem_migration_from_state($state);
 
-$shouldPersist = (($_GET['migrate'] ?? '0') === '1');
+$shouldPersist = false;
+if ($method === 'POST') {
+  $shouldPersist = !empty($payload['migrate']);
+} else {
+  $shouldPersist = (($_GET['migrate'] ?? '0') === '1');
+}
+
 $assetPath = api_repo_root() . '/data/emblem_assets.json';
 $refsPath = api_repo_root() . '/data/emblem_refs.json';
 $persisted = false;
 if ($shouldPersist) {
+  $ifMatch = api_check_if_match($state, $payload, true);
+  if (!$ifMatch['ok']) {
+    $status = (($ifMatch['error'] ?? '') === 'if_match_required') ? 428 : 412;
+    api_json_response(['error' => ($ifMatch['error'] ?? 'version_conflict'), 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], $status, $mtime);
+  }
   $persisted = api_atomic_write_json($assetPath, ['generated_at' => gmdate('c'), 'assets' => $migration['assets']])
     && api_atomic_write_json($refsPath, ['generated_at' => gmdate('c'), 'refs' => $migration['refs']]);
 }

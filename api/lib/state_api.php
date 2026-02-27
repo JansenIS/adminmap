@@ -223,6 +223,28 @@ function api_validate_state_snapshot_shape(array $state): array {
       return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $k];
     }
   }
+
+  if (isset($state['provinces']) && is_array($state['provinces'])) {
+    foreach ($state['provinces'] as $pid => $pd) {
+      if (!is_array($pd)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'provinces.' . (string)$pid];
+      if (isset($pd['pid']) && !is_numeric($pd['pid'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'provinces.' . (string)$pid . '.pid'];
+      if (isset($pd['vassals']) && !is_array($pd['vassals'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'provinces.' . (string)$pid . '.vassals'];
+      if (isset($pd['fill_rgba']) && !($pd['fill_rgba'] === null || (is_array($pd['fill_rgba']) && count($pd['fill_rgba']) === 4))) {
+        return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'provinces.' . (string)$pid . '.fill_rgba'];
+      }
+      if (isset($pd['emblem_box']) && !($pd['emblem_box'] === null || (is_array($pd['emblem_box']) && count($pd['emblem_box']) === 2))) {
+        return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'provinces.' . (string)$pid . '.emblem_box'];
+      }
+    }
+  }
+
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+    if (!isset($state[$bucket]) || !is_array($state[$bucket])) continue;
+    foreach ($state[$bucket] as $id => $item) {
+      if (!is_array($item)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id];
+    }
+  }
+
   return ['ok' => true];
 }
 
@@ -262,6 +284,17 @@ function api_validate_migration_export_payload(array $payload): array {
     return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'include_legacy_svg'];
   }
   return ['ok' => true];
+}
+
+function api_validate_emblems_persist_payload(array $payload): array {
+  $allowedTop = ['migrate', 'if_match'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('migrate', $payload) && !is_bool($payload['migrate'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'migrate'];
+  }
+  return ['ok' => true, 'migrate' => (bool)($payload['migrate'] ?? false)];
 }
 
 function api_validate_jobs_rebuild_payload(array $payload): array {

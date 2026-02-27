@@ -72,7 +72,17 @@ from pathlib import Path
 d=json.loads(Path('/tmp/adminmap_migration_apply_bad.json').read_text())
 assert d.get('error')=='invalid_payload_type'
 PYC
-curl -fsS -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"replace_map_state":false,"include_legacy_svg":false}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert isinstance(d.get("paths"),dict)'
+V3=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V3}" --data '{"replace_map_state":false,"include_legacy_svg":false}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert isinstance(d.get("paths"),dict)'
+V4=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -sS -o /tmp/adminmap_emblems_persist_required.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/assets/emblems/' -H 'Content-Type: application/json' --data '{"migrate":true}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_emblems_persist_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
+curl -fsS -X POST 'http://127.0.0.1:8000/api/assets/emblems/' -H 'Content-Type: application/json' -H "If-Match: ${V4}" --data '{"migrate":true}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("persisted") is True'
 php tools/migrate_map_state.php --dry-run >/tmp/adminmap_smoke_migrate.log
 
 curl -sS -o /tmp/adminmap_jobs_invalid.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":123}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
