@@ -32,9 +32,16 @@ RID=$(curl -fsS 'http://127.0.0.1:8000/api/realms/?type=kingdoms&profile=compact
 curl -fsS "http://127.0.0.1:8000/api/realms/kingdoms/${RID}?profile=compact" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("type")=="kingdoms";assert d.get("profile")=="compact";assert d.get("id")'
 curl -fsS 'http://127.0.0.1:8000/api/provinces/1?profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";assert isinstance(d.get("item"),dict);assert "emblem_svg" not in d["item"]'
 curl -fsS 'http://127.0.0.1:8000/api/provinces/?offset=0&limit=1&profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";i=d["items"][0];assert "emblem_svg" not in i'
-curl -fsS -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' \
+curl -fsS -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" \
   --data "{\"changes\":[{\"kind\":\"province\",\"pid\":1,\"changes\":{\"terrain\":\"smoke-test\"}},{\"kind\":\"realm\",\"type\":\"kingdoms\",\"id\":\"$RID\",\"changes\":{\"capital_pid\":7}}]}" \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("applied")==2'
+curl -sS -o /tmp/adminmap_ifmatch_required.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"changes":{"terrain":"missing-if-match"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_ifmatch_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
 curl -sS -o /tmp/adminmap_ifmatch_conflict.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' -H 'If-Match: deadbeef' --data '{"pid":1,"changes":{"terrain":"conflict"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="412"'
 python3 - <<'PYC'
 import json
@@ -44,6 +51,13 @@ assert d.get('error')=='version_conflict'
 assert d.get('meta',{}).get('schema_version')==1
 PYC
 
+curl -sS -o /tmp/adminmap_invalid_change.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"changes":[{"kind":"bad","changes":{}}]}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_change.json').read_text())
+assert d.get('error')=='invalid_change_kind'
+PYC
 php tools/migrate_map_state.php --dry-run >/tmp/adminmap_smoke_migrate.log
 
 JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"kingdoms"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["job"]["id"])')

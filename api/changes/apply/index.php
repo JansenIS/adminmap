@@ -11,15 +11,17 @@ $raw = file_get_contents('php://input');
 $payload = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : null;
 if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
 
-$changes = $payload['changes'] ?? null;
-if (!is_array($changes)) {
-  api_json_response(['error' => 'invalid_payload', 'required' => ['changes:list']], 400, api_state_mtime());
+$valid = api_validate_changes_apply_payload($payload);
+if (!$valid['ok']) {
+  api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null, 'index' => $valid['index'] ?? null, 'required' => $valid['required'] ?? null], 400, api_state_mtime());
 }
+$changes = $valid['changes'];
 
 $state = api_load_state();
 $ifMatch = api_check_if_match($state, $payload);
 if (!$ifMatch['ok']) {
-  api_json_response(['error' => 'version_conflict', 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], 412, api_state_mtime());
+  $status = (($ifMatch['error'] ?? '') === 'if_match_required') ? 428 : 412;
+  api_json_response(['error' => ($ifMatch['error'] ?? 'version_conflict'), 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], $status, api_state_mtime());
 }
 $applied = api_apply_changeset($state, $changes);
 if (!empty($applied['errors'])) {

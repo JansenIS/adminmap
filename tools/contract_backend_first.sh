@@ -37,4 +37,15 @@ check_meta 'http://127.0.0.1:8001/api/assets/emblems/?offset=0&limit=1&profile=c
 AID=$(curl -fsS 'http://127.0.0.1:8001/api/assets/emblems/?offset=0&limit=1' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["items"][0]["id"])')
 check_meta "http://127.0.0.1:8001/api/assets/emblems/show/?id=${AID}"
 
+# write-contract edge cases for If-Match policy
+curl -sS -o /tmp/adminmap_contract_ifmatch_required.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8001/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"changes":{"terrain":"contract"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_contract_ifmatch_required.json').read_text())
+assert d.get('error')=='if_match_required'
+m=d.get('meta',{})
+assert m.get('api_version') and m.get('schema_version')==1
+PYC
+
 echo "contract_backend_first: OK"

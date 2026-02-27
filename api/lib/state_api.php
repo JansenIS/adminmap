@@ -216,6 +216,55 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
 }
 
 
+function api_validate_province_patch_payload(array $payload): array {
+  $allowedTop = ['pid', 'changes', 'if_match'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  $pid = (int)($payload['pid'] ?? 0);
+  $changes = $payload['changes'] ?? null;
+  if ($pid <= 0 || !is_array($changes)) {
+    return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['pid:int', 'changes:object', 'if_match:string(header or body)']];
+  }
+  return ['ok' => true, 'pid' => $pid, 'changes' => $changes];
+}
+
+function api_validate_realm_patch_payload(array $payload): array {
+  $allowedTop = ['type', 'id', 'changes', 'if_match'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  $type = trim((string)($payload['type'] ?? ''));
+  $id = trim((string)($payload['id'] ?? ''));
+  $changes = $payload['changes'] ?? null;
+  if ($type === '' || $id === '' || !is_array($changes)) {
+    return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['type:string', 'id:string', 'changes:object', 'if_match:string(header or body)']];
+  }
+  return ['ok' => true, 'type' => $type, 'id' => $id, 'changes' => $changes];
+}
+
+function api_validate_changes_apply_payload(array $payload): array {
+  $allowedTop = ['changes', 'if_match'];
+  foreach ($payload as $k => $_v) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  $changes = $payload['changes'] ?? null;
+  if (!is_array($changes)) {
+    return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['changes:list', 'if_match:string(header or body)']];
+  }
+  foreach ($changes as $idx => $entry) {
+    if (!is_array($entry)) return ['ok' => false, 'error' => 'invalid_change_entry', 'index' => $idx];
+    $kind = (string)($entry['kind'] ?? '');
+    if (!in_array($kind, ['province', 'realm'], true)) return ['ok' => false, 'error' => 'invalid_change_kind', 'index' => $idx];
+    if (!is_array($entry['changes'] ?? null)) return ['ok' => false, 'error' => 'invalid_change_changes', 'index' => $idx];
+    if ($kind === 'province' && (int)($entry['pid'] ?? 0) <= 0) return ['ok' => false, 'error' => 'invalid_change_pid', 'index' => $idx];
+    if ($kind === 'realm') {
+      if (trim((string)($entry['type'] ?? '')) === '' || trim((string)($entry['id'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_change_realm_identity', 'index' => $idx];
+    }
+  }
+  return ['ok' => true, 'changes' => $changes];
+}
+
 function api_patch_province(array $state, int $pid, array $changes): array {
   $key = (string)$pid;
   if (!isset($state['provinces']) || !is_array($state['provinces']) || !isset($state['provinces'][$key]) || !is_array($state['provinces'][$key])) {
@@ -372,12 +421,25 @@ function api_request_if_match(array $payload = []): string {
   return trim($b, '" ');
 }
 
+function api_if_match_policy(): array {
+  return [
+    'required_for_write' => true,
+    'accept_payload_fallback' => true,
+  ];
+}
+
 function api_check_if_match(array $state, array $payload = []): array {
+  $policy = api_if_match_policy();
   $provided = api_request_if_match($payload);
-  if ($provided === '') return ['ok' => true, 'required' => false, 'expected' => api_state_version_hash($state), 'provided' => ''];
   $expected = api_state_version_hash($state);
+  if ($provided === '') {
+    if (!($policy['required_for_write'] ?? false)) {
+      return ['ok' => true, 'required' => false, 'expected' => $expected, 'provided' => ''];
+    }
+    return ['ok' => false, 'error' => 'if_match_required', 'required' => true, 'expected' => $expected, 'provided' => ''];
+  }
   if (!hash_equals($expected, $provided)) {
-    return ['ok' => false, 'required' => true, 'expected' => $expected, 'provided' => $provided];
+    return ['ok' => false, 'error' => 'version_conflict', 'required' => true, 'expected' => $expected, 'provided' => $provided];
   }
   return ['ok' => true, 'required' => true, 'expected' => $expected, 'provided' => $provided];
 }

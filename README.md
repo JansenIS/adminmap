@@ -86,6 +86,8 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 Каждый JSON-ответ новых API теперь включает `meta` (`api_version`, `schema_version`) для договорённости контракта на период миграции.
 
+If-Match policy (current): write endpoint'ы (`PATCH /api/provinces/patch/`, `PATCH /api/realms/patch/`, `POST /api/changes/apply/`) требуют актуальный `If-Match` (или `if_match` в body fallback). При отсутствии — `428 if_match_required`, при рассинхроне — `412 version_conflict`.
+
 Feature flags для фронта:
 
 - `USE_CHUNKED_API` — подгрузка провинций чанками из `/api/provinces`.
@@ -139,7 +141,8 @@ php tools/migrate_map_state.php --from-file=/path/to/map_state.json --dry-run
 ## Что ещё не сделано (backend-first migration)
 
 - Canonical path aliases теперь работают и в `php -S` через `tools/php_router.php`, но нужна унификация на уровне production-роутера/веб-сервера конфигураций.
-- `If-Match` проверка добавлена для write endpoint'ов (`PATCH`/`changes/apply`), но остаётся незакрытой полная schema-validation write API.
+- `If-Match` policy унифицирована для ключевых write endpoint'ов, но остаётся незакрытым расширенное edge-case покрытие и консистентное применение policy на всех будущих write путях.
+- Schema-validation write API усилена для patch/changes apply, но остаётся незакрытой полная валидация всех write endpoint'ов и nested-структур.
 - Worker `tools/job_worker.php` пока transitional: без process supervisor/systemd, retry policy и health checks.
 - Tiles pipeline `/api/tiles/` работает в transitional виде (file-cache), но без production CDN/object-storage стратегии и eviction policy.
 - Contract-tests для `meta` добавлены, но полноценные e2e сценарии для двух режимов (legacy/backend-first flags), а также production runbook/метрики всё ещё не закрыты.

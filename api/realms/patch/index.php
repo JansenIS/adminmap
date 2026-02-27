@@ -11,17 +11,19 @@ $raw = file_get_contents('php://input');
 $payload = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : null;
 if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
 
-$type = trim((string)($payload['type'] ?? ''));
-$id = trim((string)($payload['id'] ?? ''));
-$changes = $payload['changes'] ?? null;
-if ($type === '' || $id === '' || !is_array($changes)) {
-  api_json_response(['error' => 'invalid_payload', 'required' => ['type:string', 'id:string', 'changes:object']], 400, api_state_mtime());
+$valid = api_validate_realm_patch_payload($payload);
+if (!$valid['ok']) {
+  api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null, 'required' => $valid['required'] ?? null], 400, api_state_mtime());
 }
+$type = (string)$valid['type'];
+$id = (string)$valid['id'];
+$changes = $valid['changes'];
 
 $state = api_load_state();
 $ifMatch = api_check_if_match($state, $payload);
 if (!$ifMatch['ok']) {
-  api_json_response(['error' => 'version_conflict', 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], 412, api_state_mtime());
+  $status = (($ifMatch['error'] ?? '') === 'if_match_required') ? 428 : 412;
+  api_json_response(['error' => ($ifMatch['error'] ?? 'version_conflict'), 'expected_version' => $ifMatch['expected'], 'provided_if_match' => $ifMatch['provided']], $status, api_state_mtime());
 }
 $patched = api_patch_realm($state, $type, $id, $changes);
 if (!$patched['ok']) {

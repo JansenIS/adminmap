@@ -31,8 +31,8 @@
 
 ### Этап 5 (запись без giant POST)
 - [~] PATCH для realms и batched operations. (PATCH realms + base batch endpoint уже добавлены; осталось покрыть остальной UI/операции)
-- [ ] Schema validation и строгая ошибка по invalid payload.
-- [~] Конфликт-детекция через `If-Match`/version checks. (базовая проверка добавлена в write endpoint'ы; требуется унификация политики strict/required)
+- [~] Schema validation и строгая ошибка по invalid payload. (расширена для patch/changes apply + payload shape checks; требуется полное покрытие всех write endpoint'ов и nested схем)
+- [~] Конфликт-детекция через `If-Match`/version checks. (унифицирована policy `428 if_match_required` / `412 version_conflict` для ключевых write endpoint'ов; требуется edge-case coverage и распространение на все write пути)
 
 ### Этап 6 (фоновые задачи)
 - [ ] Очередь задач для предрендера и массовой миграции эмблем.
@@ -49,7 +49,7 @@
 - [ ] Статусы/прогресс jobs по шагам и retry policy.
 - [~] Реальные tiles `/api/tiles/{z}/{x}/{y}` (PNG) и кеш на файловом/объектном хранилище. (добавлен PNG endpoint + file cache; требуется production-grade pipeline и object storage)
 - [ ] Полный server-render для `minor_houses` и совместимость с текущей визуализацией.
-- [~] Строгая schema validation для всех PATCH/batch payloads. (базовая strict validation для province/realm PATCH добавлена; требуется полная схема для всех endpoints)
-- [~] Concurrency control (`If-Match` / optimistic locking) для write API. (базовая `If-Match` поддержка добавлена; нужно закрепить стратегию обязательности и coverage)
+- [~] Строгая schema validation для всех PATCH/batch payloads. (добавлены strict checks для province/realm PATCH и changes/apply; требуется полная схема для всех write endpoints)
+- [~] Concurrency control (`If-Match` / optimistic locking) для write API. (для ключевых write endpoint'ов policy уже strict-required; нужно расширить edge-case coverage и распространить policy на весь write surface)
 - [ ] e2e сценарии для двух режимов: legacy и backend-first flags (включая проверку canonical path aliases).
 - [ ] Production runbook: деплой, rollback, мониторинг latency/size/error-rate.
