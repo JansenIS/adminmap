@@ -28,6 +28,43 @@ function parseArgs(argv) {
   return out;
 }
 
+
+async function fetchAdminProvincesFromApi(apiBase) {
+  if (!apiBase) return null;
+  const normalizedBase = apiBase.replace(/\/+$/, "");
+  const limit = 500;
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+  const byPid = new Map();
+
+  while (offset < total) {
+    const url = `${normalizedBase}/api/provinces/?offset=${offset}&limit=${limit}&profile=compact`;
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) {
+      throw new Error(`api_provinces_http_${res.status}`);
+    }
+    const payload = await res.json();
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    total = Number.isFinite(Number(payload?.total)) ? Number(payload.total) : (offset + items.length);
+
+    for (const row of items) {
+      const pid = Number(row?.pid);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      byPid.set(pid, {
+        pid,
+        name: typeof row?.name === "string" ? row.name : "",
+        terrain: typeof row?.terrain === "string" ? row.terrain : "",
+        free_city_id: typeof row?.free_city_id === "string" ? row.free_city_id : "",
+      });
+    }
+
+    if (items.length === 0) break;
+    offset += items.length;
+  }
+
+  return byPid;
+}
+
 function loadProvinces(filePath) {
   const raw = fs.readFileSync(filePath, "utf-8");
   const data = JSON.parse(raw);
@@ -158,6 +195,7 @@ function sendText(res, statusCode, text, contentType = "text/plain; charset=utf-
 const args = parseArgs(process.argv);
 const dataFile = args._[0] || path.resolve(__dirname, "../province_routing_data.json");
 const port = Number.parseInt(args.port || "8787", 10);
+const adminApiBase = String(args.adminApiBase || process.env.ADMINMAP_API_BASE || "").trim();
 
 let baseConfig = {
   seed: Number.parseInt(args.seed || "1", 10),
@@ -176,11 +214,32 @@ try {
   process.exit(1);
 }
 
-const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
 const adminMapProvinceMeta = loadJsonSafe(adminMapProvincesPath, { provinces: [] });
-const adminStateByPid = new Map(
-  Object.values(adminMapState.provinces || {}).map((p) => [Number(p.pid), p])
-);
+let adminStateByPid = new Map();
+let adminStateSource = "none";
+
+async function bootstrapAdminProvinceState() {
+  if (adminApiBase) {
+    try {
+      const fromApi = await fetchAdminProvincesFromApi(adminApiBase);
+      if (fromApi && fromApi.size > 0) {
+        adminStateByPid = fromApi;
+        adminStateSource = `api:${adminApiBase}`;
+        return;
+      }
+    } catch (e) {
+      console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(e?.message || e)}; fallback to ${adminMapStatePath}`);
+    }
+  }
+
+  const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
+  adminStateByPid = new Map(
+    Object.values(adminMapState.provinces || {}).map((p) => [Number(p.pid), p])
+  );
+  adminStateSource = `file:${adminMapStatePath}`;
+}
+
+await bootstrapAdminProvinceState();
 
 for (const p of provinces) {
   const a = adminStateByPid.get(p.pid);
@@ -571,6 +630,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`[economy-ui] loaded provinces=${provinces.length} from: ${dataFile}`);
+  console.log(`[economy-ui] admin province source: ${adminStateSource}`);
   console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps} expenseScale=${baseConfig.expenseScale}`);
   console.log(`[economy-ui] open: http://localhost:${port}`);
 });

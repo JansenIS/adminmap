@@ -12,7 +12,7 @@
 ### Этап 1 (закрыть API-контракты чтения)
 - [~] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (добавлены Apache rewrite-алиасы + `php -S` router; требуется унификация production-роутинга).
 - [~] Ввести schema/version metadata в каждом ответе API. (базовый `meta` добавлен в core response; добавлены contract-tests; требуется расширить покрытие на edge-cases/ошибки)
-- [~] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили. (добавлен `profile=compact` для `/api/provinces`, `/api/provinces/show`, `/api/realms`, `/api/realms/show`, `/api/map/bootstrap`, `/api/assets/emblems`; нужно расширить на остальные endpoint'ы)
+- [~] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили. (добавлен `profile=compact` для `/api/provinces`, `/api/provinces/show`, `/api/realms`, `/api/realms/show`, `/api/map/bootstrap`, `/api/assets/emblems`; для `/api/provinces` и `/api/provinces/show` compact включён по умолчанию, листинг читает `data/provinces_index.json`, `emblem_svg` убран из province endpoint'ов в пользу `/api/assets/emblems/*`; нужно расширить подход на остальные endpoint'ы)
 
 ### Этап 2 (гербы/assets)
 - [ ] Перевести выдачу гербов на постоянное хранилище с индексом по `asset_id` (без on-the-fly сканирования state).

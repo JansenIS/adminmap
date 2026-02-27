@@ -22,3 +22,47 @@
 - Jobs: retry policy, step-progress, dead-letter handling.
 - Tiles: object storage/CDN, TTL/eviction policy, pre-warm strategy.
 - E2E: браузерные сценарии для legacy/backend-first flags.
+
+## 5) Web-server compression (gzip/br)
+
+Конфиги добавлены в репозиторий:
+- Nginx: `deploy/nginx/adminmap.conf` + optional snippet `deploy/nginx/snippets/adminmap-brotli.conf`.
+- Apache: `deploy/apache/adminmap.conf` (gzip + brotli под `IfModule`).
+
+### Nginx rollout
+```bash
+# 1) установить конфиг
+sudo cp deploy/nginx/adminmap.conf /etc/nginx/sites-available/adminmap.conf
+sudo ln -sf /etc/nginx/sites-available/adminmap.conf /etc/nginx/sites-enabled/adminmap.conf
+
+# 2) (опционально) включить brotli snippet если модуль доступен
+sudo cp deploy/nginx/snippets/adminmap-brotli.conf /etc/nginx/snippets/adminmap-brotli.conf
+# и раскомментировать include в /etc/nginx/sites-available/adminmap.conf
+
+# 3) проверить и перезагрузить
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Apache rollout
+```bash
+# 1) активировать нужные модули
+sudo a2enmod rewrite headers deflate
+# brotli опционально (если доступен в дистрибутиве)
+sudo a2enmod brotli || true
+
+# 2) установить сайт
+sudo cp deploy/apache/adminmap.conf /etc/apache2/sites-available/adminmap.conf
+sudo a2ensite adminmap.conf
+
+# 3) проверить и перезагрузить
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+### Smoke checks (compression)
+```bash
+curl -I -H 'Accept-Encoding: gzip' http://127.0.0.1/api/provinces/
+curl -I -H 'Accept-Encoding: br'   http://127.0.0.1/api/provinces/
+```
+Ожидание: `Content-Encoding: gzip`/`br` и `Vary: Accept-Encoding`.
