@@ -87,3 +87,5 @@ Feature flags для фронта:
 - `admin.html?use_chunked_api=1&use_emblem_assets=1`
 
 Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
+
+- В `admin.html` доступна кнопка **"Скачать migrated bundle"**: она отправляет текущий загруженный legacy state на `/api/migration/export/` и получает полный мигрированный bundle (`migrated_state` + `emblem_assets` + `emblem_refs`) для перехода в новый формат.

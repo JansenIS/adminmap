@@ -145,6 +145,63 @@ function api_emblem_migration_from_state(array $state): array {
   return ['assets' => array_values($assets), 'refs' => array_values($refs)];
 }
 
+
+function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false): array {
+  $migration = api_emblem_migration_from_state($state);
+  $refsByOwner = [];
+  foreach (($migration['refs'] ?? []) as $ref) {
+    if (!is_array($ref)) continue;
+    $ownerKey = (string)($ref['owner_type'] ?? '') . ':' . (string)($ref['owner_id'] ?? '');
+    if ($ownerKey === ':') continue;
+    $refsByOwner[$ownerKey] = (string)($ref['asset_id'] ?? '');
+  }
+
+  $converted = $state;
+  $strippedCount = 0;
+
+  foreach (($converted['provinces'] ?? []) as $pid => &$province) {
+    if (!is_array($province)) continue;
+    $ownerId = (string)((int)($province['pid'] ?? $pid));
+    $ownerKey = 'province:' . $ownerId;
+    if (isset($refsByOwner[$ownerKey]) && $refsByOwner[$ownerKey] !== '') {
+      $province['emblem_asset_id'] = $refsByOwner[$ownerKey];
+      if (!$includeLegacySvg && array_key_exists('emblem_svg', $province)) {
+        unset($province['emblem_svg']);
+        $strippedCount++;
+      }
+    }
+  }
+  unset($province);
+
+  $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city'];
+  foreach ($ownerTypeMap as $bucket => $ownerType) {
+    foreach (($converted[$bucket] ?? []) as $realmId => &$realm) {
+      if (!is_array($realm)) continue;
+      $ownerKey = $ownerType . ':' . (string)$realmId;
+      if (isset($refsByOwner[$ownerKey]) && $refsByOwner[$ownerKey] !== '') {
+        $realm['emblem_asset_id'] = $refsByOwner[$ownerKey];
+        if (!$includeLegacySvg && array_key_exists('emblem_svg', $realm)) {
+          unset($realm['emblem_svg']);
+          $strippedCount++;
+        }
+      }
+    }
+    unset($realm);
+  }
+
+  return [
+    'migrated_state' => $converted,
+    'emblem_assets' => $migration['assets'],
+    'emblem_refs' => $migration['refs'],
+    'stats' => [
+      'assets_total' => count($migration['assets']),
+      'refs_total' => count($migration['refs']),
+      'stripped_legacy_svg_total' => $strippedCount,
+      'include_legacy_svg' => $includeLegacySvg,
+    ],
+  ];
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);

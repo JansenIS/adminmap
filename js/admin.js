@@ -60,6 +60,7 @@
 
   const btnExport = el("export");
   const btnDownload = el("download");
+  const btnExportMigrated = el("exportMigrated");
   const btnImport = el("import");
   const importFile = el("importFile");
 
@@ -307,6 +308,7 @@
   function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
+  function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 
 
   function rgbToHsl(r, g, b) {
@@ -925,6 +927,21 @@
 
     btnExport.addEventListener("click", exportStateToTextarea);
     btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "map_state.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
+    if (btnExportMigrated) btnExportMigrated.addEventListener("click", async () => {
+      try {
+        exportStateToTextarea();
+        const res = await fetch("/api/migration/export/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json;charset=utf-8" },
+          body: JSON.stringify({ state: JSON.parse(stateTA.value), include_legacy_svg: false })
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const payload = await res.json();
+        downloadJsonFile("map_state.migrated_bundle.json", payload);
+      } catch (err) {
+        alert("Не удалось выгрузить migrated bundle: " + (err && err.message ? err.message : err));
+      }
+    });
     if (btnExportProvincesPng) btnExportProvincesPng.addEventListener("click", () => exportLayerPng(map, "provinces", "layer_provinces.png"));
     if (btnExportKingdomsPng) btnExportKingdomsPng.addEventListener("click", () => exportLayerPng(map, "kingdoms", "layer_kingdoms.png"));
     if (btnExportGreatHousesPng) btnExportGreatHousesPng.addEventListener("click", () => exportLayerPng(map, "great_houses", "layer_great_houses.png"));
