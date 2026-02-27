@@ -7,6 +7,7 @@
 
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
+  const btnEnableBackendMode = el("enableBackendMode");
 
   const selName = el("selName");
   const selPid = el("selPid");
@@ -136,6 +137,15 @@
   }
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
+
+  function navigateToBackendMode() {
+    const u = new URL(window.location.href);
+    u.searchParams.set('use_chunked_api', '1');
+    u.searchParams.set('use_emblem_assets', '1');
+    u.searchParams.set('use_partial_save', '1');
+    u.searchParams.set('use_server_render', '1');
+    window.location.href = u.toString();
+  }
 
   function updateFlagsStatusText(flags) {
     if (!flagsStatusEl) return;
@@ -824,6 +834,7 @@
   function boot(map) {
     btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
     btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
+    if (btnEnableBackendMode) btnEnableBackendMode.addEventListener("click", navigateToBackendMode);
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
 
     viewModeSelect.addEventListener("change", () => applyLayerState(map));
