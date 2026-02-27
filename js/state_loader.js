@@ -70,10 +70,11 @@
     return byPid;
   }
 
-  async function loadRealms() {
+  async function loadRealms(profile) {
     const out = {};
+    const realmProfile = profile === "compact" ? "compact" : "full";
     for (const type of REALM_TYPES) {
-      const data = await fetchJson(`/api/realms/?type=${encodeURIComponent(type)}`);
+      const data = await fetchJson(`/api/realms/?type=${encodeURIComponent(type)}&profile=${encodeURIComponent(realmProfile)}`);
       const bucket = {};
       for (const item of (data.items || [])) {
         if (!item || typeof item !== "object") continue;
@@ -104,9 +105,9 @@
     return fetchJson(stateUrl);
   }
 
-  async function loadStateChunked() {
+  async function loadStateChunked(flags) {
     const boot = await fetchJson("/api/map/bootstrap/");
-    const realms = await loadRealms();
+    const realms = await loadRealms(flags && flags.USE_EMBLEM_ASSETS ? "compact" : "full");
     const provinces = await loadChunkedProvinces();
     return Object.assign({ provinces }, realms, {
       schema_version: boot.schema_version,
@@ -120,13 +121,13 @@
     const flags = getFlags();
     let state;
     if (flags.USE_CHUNKED_API) {
-      state = await loadStateChunked();
+      state = await loadStateChunked(flags);
     } else {
       try {
         state = await loadStateLegacy(stateUrl);
       } catch (legacyErr) {
         console.warn("[state-loader] legacy map_state failed, fallback to chunked api", legacyErr);
-        state = await loadStateChunked();
+        state = await loadStateChunked(flags);
         flags.USE_CHUNKED_API = true;
       }
     }
