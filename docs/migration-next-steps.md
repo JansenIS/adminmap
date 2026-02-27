@@ -36,7 +36,7 @@
 
 ### Этап 6 (фоновые задачи)
 - [ ] Очередь задач для предрендера и массовой миграции эмблем.
-- [ ] API jobs (`POST /api/jobs/*`, `GET /api/jobs/:id`).
+- [~] API jobs (`POST /api/jobs/*`, `GET /api/jobs/:id`). (минимальные endpoints добавлены, нужен worker/executor и переход статусов)
 
 ### Этап 7 (эксплуатация)
 - [ ] Runbook rollback (включая `map_state.backup.*`).

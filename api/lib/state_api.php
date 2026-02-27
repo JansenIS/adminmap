@@ -445,6 +445,52 @@ function api_apply_changeset(array $state, array $changes): array {
   return ['state' => $state, 'applied' => $applied, 'errors' => $errors];
 }
 
+
+function api_jobs_path(): string {
+  return api_repo_root() . '/data/jobs.json';
+}
+
+function api_load_jobs(): array {
+  $path = api_jobs_path();
+  if (!is_file($path)) return ['jobs' => []];
+  $raw = @file_get_contents($path);
+  if (!is_string($raw) || trim($raw) === '') return ['jobs' => []];
+  $decoded = json_decode($raw, true);
+  if (!is_array($decoded) || !is_array($decoded['jobs'] ?? null)) return ['jobs' => []];
+  return $decoded;
+}
+
+function api_save_jobs(array $jobsPayload): bool {
+  return api_atomic_write_json(api_jobs_path(), $jobsPayload);
+}
+
+function api_create_job(string $type, array $payload): array {
+  $jobsPayload = api_load_jobs();
+  $jobs = $jobsPayload['jobs'] ?? [];
+  $id = 'job_' . substr(hash('sha256', $type . '|' . microtime(true) . '|' . random_int(1, PHP_INT_MAX)), 0, 16);
+  $job = [
+    'id' => $id,
+    'type' => $type,
+    'status' => 'queued',
+    'payload' => $payload,
+    'created_at' => gmdate('c'),
+    'updated_at' => gmdate('c'),
+  ];
+  $jobs[] = $job;
+  $jobsPayload['jobs'] = $jobs;
+  if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+  return ['ok' => true, 'job' => $job];
+}
+
+function api_find_job(string $id): ?array {
+  $jobsPayload = api_load_jobs();
+  foreach (($jobsPayload['jobs'] ?? []) as $job) {
+    if (!is_array($job)) continue;
+    if ((string)($job['id'] ?? '') === $id) return $job;
+  }
+  return null;
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);

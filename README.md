@@ -77,6 +77,8 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
 - `GET /api/assets/emblems/show/?id=<asset_id>`
 - `GET /api/render/layer/?mode=provinces|kingdoms|great_houses|free_cities&version=`
+- `POST /api/jobs/rebuild-layers/`
+- `GET /api/jobs/show/?id=<job_id>`
 
 Feature flags для фронта:
 
