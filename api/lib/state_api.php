@@ -338,6 +338,57 @@ function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array 
 }
 
 
+
+function api_state_version_hash(array $state): string {
+  return hash('sha256', (string)api_state_mtime() . ':' . (string)filesize(api_state_path()));
+}
+
+function api_layer_color_for_province(array $state, array $pd, string $mode): ?array {
+  if ($mode === 'provinces') {
+    $rgba = $pd['fill_rgba'] ?? null;
+    if (is_array($rgba) && count($rgba) === 4) {
+      return [max(0,min(255,(int)$rgba[0])), max(0,min(255,(int)$rgba[1])), max(0,min(255,(int)$rgba[2])), max(0,min(255,(int)$rgba[3]))];
+    }
+    return null;
+  }
+
+  $modeMap = [
+    'kingdoms' => ['field' => 'kingdom_id', 'bucket' => 'kingdoms', 'fallback' => '#ff3b30'],
+    'great_houses' => ['field' => 'great_house_id', 'bucket' => 'great_houses', 'fallback' => '#ff3b30'],
+    'free_cities' => ['field' => 'free_city_id', 'bucket' => 'free_cities', 'fallback' => '#ff7a1a'],
+  ];
+  if (!isset($modeMap[$mode])) return null;
+  $cfg = $modeMap[$mode];
+  $id = trim((string)($pd[$cfg['field']] ?? ''));
+  if ($id === '') return null;
+  $realm = $state[$cfg['bucket']][$id] ?? null;
+  if (!is_array($realm)) return null;
+  $hex = (string)($realm['color'] ?? $cfg['fallback']);
+  if (!preg_match('/^#?[0-9a-fA-F]{6}$/', $hex)) $hex = $cfg['fallback'];
+  if ($hex[0] !== '#') $hex = '#' . $hex;
+  $n = hexdec(substr($hex,1));
+  return [($n>>16)&255, ($n>>8)&255, $n&255, 170];
+}
+
+function api_build_layer_payload(array $state, string $mode): array {
+  $items = [];
+  foreach (($state['provinces'] ?? []) as $pid => $pd) {
+    if (!is_array($pd)) continue;
+    $pidNum = (int)($pd['pid'] ?? $pid);
+    if ($pidNum <= 0) continue;
+    $rgba = api_layer_color_for_province($state, $pd, $mode);
+    if (!is_array($rgba)) continue;
+    $items[] = ['pid' => $pidNum, 'rgba' => $rgba];
+  }
+
+  return [
+    'mode' => $mode,
+    'version' => api_state_version_hash($state),
+    'items' => $items,
+    'total' => count($items),
+  ];
+}
+
 function api_apply_changeset(array $state, array $changes): array {
   $applied = 0;
   $errors = [];

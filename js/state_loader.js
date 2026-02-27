@@ -5,6 +5,7 @@
     USE_CHUNKED_API: false,
     USE_EMBLEM_ASSETS: false,
     USE_PARTIAL_SAVE: false,
+    USE_SERVER_RENDER: false,
   };
 
   const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
@@ -27,6 +28,9 @@
 
     const partialSave = parseBool(params.get("use_partial_save"));
     if (partialSave !== null) base.USE_PARTIAL_SAVE = partialSave;
+
+    const serverRender = parseBool(params.get("use_server_render"));
+    if (serverRender !== null) base.USE_SERVER_RENDER = serverRender;
 
     return base;
   }

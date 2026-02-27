@@ -15,6 +15,7 @@
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
   let state = null; let selectedKey = 0; let hideProvinceEmblems = false;
+  const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
   let selectedMicroTarget = null;
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
@@ -357,6 +358,7 @@
     if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
     if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[public] USE_CHUNKED_API enabled");
     if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[public] USE_EMBLEM_ASSETS enabled");
+    if (loaded.flags && loaded.flags.USE_SERVER_RENDER) console.info("[public] USE_SERVER_RENDER enabled");
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);
@@ -364,15 +366,38 @@
   }
 
 
+  async function applyServerLayerIfEnabled(map, mode) {
+    if (!(APP_FLAGS && APP_FLAGS.USE_SERVER_RENDER)) return false;
+    try {
+      const verRes = await fetch('/api/map/version/', { cache: 'no-store' });
+      if (!verRes.ok) return false;
+      const ver = await verRes.json();
+      const v = String(ver.map_version || '').trim();
+      const lr = await fetch(`/api/render/layer/?mode=${encodeURIComponent(mode)}&version=${encodeURIComponent(v)}`, { cache: 'no-store' });
+      if (!lr.ok) return false;
+      const layer = await lr.json();
+      const items = Array.isArray(layer.items) ? layer.items : [];
+      for (const item of items) {
+        const key = keyForPid(map, item.pid);
+        if (!key) continue;
+        if (!Array.isArray(item.rgba) || item.rgba.length !== 4) continue;
+        map.setFill(key, item.rgba);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
 
   async function applyState(map) {
     const mode = viewModeSelect.value || "provinces";
     map.clearAllFills(); map.clearAllEmblems();
+    const serverLayerApplied = await applyServerLayerIfEnabled(map, mode);
     for (const pd of Object.values(state.provinces)) {
       const key = keyForPid(map, pd.pid);
       if (!key) continue;
-      if (mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
+      if (!serverLayerApplied && mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
       if (!hideProvinceEmblems && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -380,7 +405,7 @@
       }
     }
 
-    if (mode !== "provinces") {
+    if (!serverLayerApplied && mode !== "provinces") {
       if (mode === "minor_houses") {
         drawMinorHousesLayer(map);
       } else {

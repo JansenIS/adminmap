@@ -76,12 +76,14 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `POST /api/changes/apply/`
 - `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
 - `GET /api/assets/emblems/show/?id=<asset_id>`
+- `GET /api/render/layer/?mode=provinces|kingdoms|great_houses|free_cities&version=`
 
 Feature flags для фронта:
 
 - `USE_CHUNKED_API` — подгрузка провинций чанками из `/api/provinces`.
 - `USE_EMBLEM_ASSETS` — резолв гербов через `/api/assets/emblems` и `emblem_asset_id`.
 - `USE_PARTIAL_SAVE` — сохранять выбранную провинцию через `PATCH /api/provinces/patch/` при кнопке "Сохранить провинцию" (legacy full-save остаётся).
+- `USE_SERVER_RENDER` — применять precomputed слой от `/api/render/layer/` (fallback на legacy client-render при ошибке).
 
 Включение на переходный период через query params:
 
@@ -89,6 +91,7 @@ Feature flags для фронта:
 - `index.html?use_chunked_api=1&use_emblem_assets=1`
 - `admin.html?use_chunked_api=1&use_emblem_assets=1`
 - `admin.html?use_partial_save=1`
+- `index.html?use_server_render=1`
 
 Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
 

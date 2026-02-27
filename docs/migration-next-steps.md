@@ -25,7 +25,7 @@
 - [ ] Добавить smoke e2e для legacy и API-режимов.
 
 ### Этап 4 (серверный рендер)
-- [ ] `GET /api/render/layer?mode=&version=` с кешированием по версии.
+- [~] `GET /api/render/layer?mode=&version=` с кешированием по версии. (базовый endpoint добавлен, нужен PNG/tile рендер и stronger cache strategy)
 - [ ] Начать tiles path (`/api/tiles/{z}/{x}/{y}`) с базового zoom.
 - [ ] Переключить public/admin на приоритет серверных слоёв.
 
