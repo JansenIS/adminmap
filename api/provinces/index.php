@@ -7,6 +7,7 @@ $state = api_load_state();
 $mtime = api_state_mtime();
 $offset = api_limit_int('offset', 0, 0, 1_000_000);
 $limit = api_limit_int('limit', 100, 1, 500);
+$profile = (string)($_GET['profile'] ?? 'full');
 
 $provinces = $state['provinces'] ?? [];
 $rows = [];
@@ -40,6 +41,9 @@ if (is_file($refsPath)) {
 
 $out = [];
 foreach ($slice as $pid => $pd) {
+  if ($profile === 'compact') {
+    unset($pd['emblem_svg'], $pd['province_card_image']);
+  }
   $key = 'province:' . $pid;
   if (!isset($pd['emblem_asset_id']) && isset($refs[$key]) && $refs[$key] !== '') {
     $pd['emblem_asset_id'] = $refs[$key];
@@ -51,5 +55,6 @@ api_json_response([
   'offset' => $offset,
   'limit' => $limit,
   'total' => $total,
+  'profile' => $profile,
   'items' => $out,
 ], 200, $mtime);

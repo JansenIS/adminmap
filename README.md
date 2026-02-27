@@ -69,10 +69,10 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 - `GET /api/map/version/`
 - `GET /api/map/bootstrap/`
-- `GET /api/provinces/?offset=0&limit=100`
+- `GET /api/provinces/?offset=0&limit=100&profile=full|compact`
 - `GET /api/provinces/show/?pid=123`
 - `GET /api/provinces/{pid}` (canonical path alias через Apache rewrite)
-- `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities`
+- `GET /api/realms/?type=kingdoms|great_houses|minor_houses|free_cities&profile=full|compact`
 - `GET /api/realms/{type}/{id}` (canonical path alias через Apache rewrite)
 - `PATCH /api/realms/patch/`
 - `POST /api/changes/apply/`
@@ -83,6 +83,8 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - `GET /api/jobs/show/?id=<job_id>`
 - `GET /api/jobs/list/?offset=&limit=`
 - `POST /api/jobs/run-once/`
+
+Каждый JSON-ответ новых API теперь включает `meta` (`api_version`, `schema_version`) для договорённости контракта на период миграции.
 
 Feature flags для фронта:
 

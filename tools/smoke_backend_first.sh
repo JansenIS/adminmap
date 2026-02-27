@@ -24,12 +24,14 @@ PID=$!
 sleep 0.7
 
 curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("map_version")'
+curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);m=d.get("meta",{});assert m.get("api_version");assert m.get("schema_version")==1'
 V=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
 curl -fsS "http://127.0.0.1:8000/api/render/layer/?mode=kingdoms&version=${V}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("mode")=="kingdoms";assert isinstance(d.get("items"),list)'
 
-RID=$(curl -fsS 'http://127.0.0.1:8000/api/realms/?type=kingdoms' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["items"][0]["id"])')
+RID=$(curl -fsS 'http://127.0.0.1:8000/api/realms/?type=kingdoms&profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";assert isinstance(d.get("items"),list);i=d["items"][0];assert "emblem_svg" not in i;print(i["id"])')
 curl -fsS "http://127.0.0.1:8000/api/realms/show/?type=kingdoms&id=${RID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("type")=="kingdoms";assert d.get("id")'
 curl -fsS 'http://127.0.0.1:8000/api/provinces/show/?pid=1' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d.get("item"),dict)'
+curl -fsS 'http://127.0.0.1:8000/api/provinces/?offset=0&limit=1&profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";i=d["items"][0];assert "emblem_svg" not in i'
 curl -fsS -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' \
   --data "{\"changes\":[{\"kind\":\"province\",\"pid\":1,\"changes\":{\"terrain\":\"smoke-test\"}},{\"kind\":\"realm\",\"type\":\"kingdoms\",\"id\":\"$RID\",\"changes\":{\"capital_pid\":7}}]}" \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("applied")==2'

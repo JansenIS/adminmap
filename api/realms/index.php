@@ -7,6 +7,7 @@ $state = api_load_state();
 $mtime = api_state_mtime();
 $type = (string)($_GET['type'] ?? '');
 $allowed = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+$profile = (string)($_GET['profile'] ?? 'full');
 if (!in_array($type, $allowed, true)) {
   api_json_response(['error' => 'invalid_type', 'allowed' => $allowed], 400, $mtime);
 }
@@ -14,6 +15,9 @@ if (!in_array($type, $allowed, true)) {
 $items = [];
 foreach (($state[$type] ?? []) as $id => $realm) {
   if (!is_array($realm)) continue;
+  if ($profile === 'compact') {
+    unset($realm['emblem_svg']);
+  }
   $realm['id'] = (string)$id;
   $items[] = $realm;
 }
@@ -21,5 +25,6 @@ foreach (($state[$type] ?? []) as $id => $realm) {
 api_json_response([
   'type' => $type,
   'total' => count($items),
+  'profile' => $profile,
   'items' => $items,
 ], 200, $mtime);

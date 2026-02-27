@@ -11,8 +11,8 @@
 
 ### Этап 1 (закрыть API-контракты чтения)
 - [~] Добавить canonical path-паттерны вида `/api/provinces/{pid}` и `/api/realms/{type}/{id}` (добавлены Apache rewrite-алиасы; требуется унификация роутинга для окружений без rewrite).
-- [ ] Ввести schema/version metadata в каждом ответе API.
-- [ ] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили.
+- [~] Ввести schema/version metadata в каждом ответе API. (базовый `meta` добавлен в core response; требуется зафиксировать contract-tests)
+- [~] Добавить компактные DTO-ответы (без тяжёлых полей по умолчанию), selectable через query-профили. (добавлен `profile=compact` для `/api/provinces` и `/api/realms`; нужно расширить на остальные endpoint'ы)
 
 ### Этап 2 (гербы/assets)
 - [ ] Перевести выдачу гербов на постоянное хранилище с индексом по `asset_id` (без on-the-fly сканирования state).

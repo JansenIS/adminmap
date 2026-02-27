@@ -4,7 +4,18 @@ declare(strict_types=1);
 
 @ini_set('memory_limit', '768M');
 
+
+function api_response_meta(): array {
+  return [
+    'api_version' => '2026-02-backend-first-draft',
+    'schema_version' => 1,
+  ];
+}
+
 function api_json_response(array $payload, int $status = 200, ?int $sourceMtime = null): void {
+  if (!isset($payload['meta']) || !is_array($payload['meta'])) {
+    $payload['meta'] = api_response_meta();
+  }
   $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
   if ($body === false) {
     http_response_code(500);
