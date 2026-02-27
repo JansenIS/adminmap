@@ -996,8 +996,11 @@
   }
 
   async function loadInitialState(url) {
-    const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
-    const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
+    const loader = window.AdminMapStateLoader;
+    const loaded = loader ? await loader.loadState(url) : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} };
+    const obj = loaded.state; if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
+    if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[admin] USE_CHUNKED_API enabled");
+    if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[admin] USE_EMBLEM_ASSETS enabled");
     obj.people = normalizePeopleList(obj.people || []); if (!Array.isArray(obj.terrain_types)) obj.terrain_types = TERRAIN_TYPES_FALLBACK.slice();
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; }
     ensureFeudalSchema(obj);

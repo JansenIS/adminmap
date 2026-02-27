@@ -351,8 +351,12 @@
   }
 
   async function loadState(url) {
-    const res = await fetch(url, { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
-    const obj = await res.json(); if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
+    const loader = window.AdminMapStateLoader;
+    const loaded = loader ? await loader.loadState(url) : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} };
+    const obj = loaded.state;
+    if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
+    if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[public] USE_CHUNKED_API enabled");
+    if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[public] USE_EMBLEM_ASSETS enabled");
     for (const pd of Object.values(obj.provinces)) { if (!pd) continue; if (typeof pd.emblem_svg !== "string") pd.emblem_svg = ""; if (!Array.isArray(pd.emblem_box) || pd.emblem_box.length !== 2) pd.emblem_box = null; if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; if (typeof pd.province_card_base_image !== "string") pd.province_card_base_image = ""; }
     ensureFeudalSchema(obj);
     normalizeStateByPid(obj);

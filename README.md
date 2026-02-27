@@ -62,3 +62,24 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 `sim-admin` читает названия/terrain провинций напрямую из `data/map_state.json` внутри этого же репозитория,
 поэтому проект должен деплоиться как единый каталог (`/opt/adminmap`), без разрыва на отдельные репозитории.
+
+## Migration flags и новые API (черновой этап)
+
+Добавлены первые backend-first endpoint'ы (без отключения legacy):
+
+- `GET /api/map/version/`
+- `GET /api/provinces/?offset=0&limit=100`
+- `GET /api/assets/emblems/` (draft, legacy `emblem_svg` -> dedup assets)
+
+Feature flags для фронта:
+
+- `USE_CHUNKED_API` — подгрузка провинций чанками из `/api/provinces`.
+- `USE_EMBLEM_ASSETS` — резолв гербов через `/api/assets/emblems` и `emblem_asset_id`.
+
+Включение на переходный период через query params:
+
+- `index.html?use_chunked_api=1`
+- `index.html?use_chunked_api=1&use_emblem_assets=1`
+- `admin.html?use_chunked_api=1&use_emblem_assets=1`
+
+Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
