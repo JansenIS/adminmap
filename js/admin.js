@@ -7,7 +7,7 @@
 
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
-  const btnEnableBackendMode = el("enableBackendMode");
+  const btnToggleLegacyMode = el("toggleLegacyMode");
 
   const selName = el("selName");
   const selPid = el("selPid");
@@ -93,10 +93,12 @@
   const SAVE_ENDPOINT = "save_state.php";
   const SAVE_TOKEN = "";
   const PROVINCE_PATCH_ENDPOINT = "/api/provinces/patch/";
+  const PROVINCE_CARD_UPLOAD_ENDPOINT = "/api/provinces/card/upload/";
   const REALM_PATCH_ENDPOINT = "/api/realms/patch/";
   const CHANGES_APPLY_ENDPOINT = "/api/changes/apply/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
   updateFlagsStatusText(APP_FLAGS);
+  syncLegacyModeButton(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
@@ -139,13 +141,20 @@
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
 
-  function navigateToBackendMode() {
+  function navigateWithLegacyMode(enabled) {
     const u = new URL(window.location.href);
-    u.searchParams.set('use_chunked_api', '1');
-    u.searchParams.set('use_emblem_assets', '1');
-    u.searchParams.set('use_partial_save', '1');
-    u.searchParams.set('use_server_render', '1');
+    const v = enabled ? "0" : "1";
+    u.searchParams.set("use_chunked_api", v);
+    u.searchParams.set("use_emblem_assets", v);
+    u.searchParams.set("use_partial_save", v);
+    u.searchParams.set("use_server_render", v);
     window.location.href = u.toString();
+  }
+
+  function syncLegacyModeButton(flags) {
+    if (!btnToggleLegacyMode) return;
+    const legacy = !(flags && flags.USE_CHUNKED_API && flags.USE_EMBLEM_ASSETS && flags.USE_PARTIAL_SAVE && flags.USE_SERVER_RENDER);
+    btnToggleLegacyMode.textContent = legacy ? "Вернуться в backend-режим" : "Включить legacy-режим";
   }
 
   function updateFlagsStatusText(flags) {
@@ -394,6 +403,16 @@
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "province", pid: payload.pid, changes: payload.changes }]); const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
   function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [] }; }
   async function persistRealmPatch(type, id, realm) { const payload = { type: String(type || ""), id: String(id || ""), changes: buildRealmPatchFromState(realm) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "realm", type: payload.type, id: payload.id, changes: payload.changes }]); const res = await fetch(REALM_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
+
+  async function uploadProvinceCardImage(pid, imageDataUrl) {
+    const payload = { pid: Number(pid) >>> 0, image_data_url: String(imageDataUrl || "") };
+    const res = await fetch(PROVINCE_CARD_UPLOAD_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  }
 
 
   function rgbToHsl(r, g, b) {
@@ -887,7 +906,10 @@
   function boot(map) {
     btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
     btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
-    if (btnEnableBackendMode) btnEnableBackendMode.addEventListener("click", navigateToBackendMode);
+    if (btnToggleLegacyMode) btnToggleLegacyMode.addEventListener("click", () => {
+      const legacy = !(APP_FLAGS && APP_FLAGS.USE_CHUNKED_API && APP_FLAGS.USE_EMBLEM_ASSETS && APP_FLAGS.USE_PARTIAL_SAVE && APP_FLAGS.USE_SERVER_RENDER);
+      navigateWithLegacyMode(!legacy);
+    });
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
 
     viewModeSelect.addEventListener("change", () => applyLayerState(map));
@@ -1082,12 +1104,17 @@
         pd.province_card_base_image = "";
         setProvinceCardPreview(pd);
         exportStateToTextarea();
-        const res = await fetch(SAVE_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json;charset=utf-8" },
-          body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value), province_cards: { [String(pd.pid)]: cardDataUrl } })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await uploadProvinceCardImage(pid, cardDataUrl);
+        if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) {
+          await persistSelectedProvincePatch();
+        } else {
+          const res = await fetch(SAVE_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json;charset=utf-8" },
+            body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) })
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        }
         alert("Карточка провинции собрана и сохранена в папку provinces.");
       } catch (err) {
         alert("Не удалось собрать карточку: " + (err && err.message ? err.message : err));

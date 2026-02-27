@@ -6,6 +6,8 @@
   const ctx = canvas.getContext("2d", { alpha: false });
   const info = document.getElementById("info");
   const title = document.getElementById("microTitle");
+  const flagsStatusEl = document.getElementById("flagsStatus");
+  const toggleLegacyModeBtn = document.getElementById("toggleLegacyMode");
 
   const data = window.HEXMAP;
   const [vbX, vbY, vbW, vbH] = data.viewBox;
@@ -28,6 +30,30 @@
     free_city: "Территория",
     kingdom: "Королевство"
   };
+
+  function isLegacyMode(flags) {
+    return !(flags && flags.USE_CHUNKED_API && flags.USE_EMBLEM_ASSETS && flags.USE_PARTIAL_SAVE && flags.USE_SERVER_RENDER);
+  }
+
+  function navigateWithLegacyMode(enabled) {
+    const u = new URL(window.location.href);
+    const v = enabled ? "0" : "1";
+    u.searchParams.set("use_chunked_api", v);
+    u.searchParams.set("use_emblem_assets", v);
+    u.searchParams.set("use_partial_save", v);
+    u.searchParams.set("use_server_render", v);
+    window.location.href = u.toString();
+  }
+
+  function updateFlagsStatus(flags) {
+    const active = [];
+    if (flags && flags.USE_CHUNKED_API) active.push('USE_CHUNKED_API');
+    if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
+    if (flags && flags.USE_PARTIAL_SAVE) active.push('USE_PARTIAL_SAVE');
+    if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
+    if (flagsStatusEl) flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
+    if (toggleLegacyModeBtn) toggleLegacyModeBtn.textContent = isLegacyMode(flags) ? 'Вернуться в backend-режим' : 'Включить legacy-режим';
+  }
 
 
   let dpr = window.devicePixelRatio || 1;
@@ -484,10 +510,16 @@
       }
     }
 
-    const resp = await fetch("data/map_state.json", { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const state = await resp.json();
+    const loader = window.AdminMapStateLoader;
+    const loaded = loader
+      ? await loader.loadState("data/map_state.json")
+      : { state: await (await fetch("data/map_state.json", { cache: "no-store" })).json(), flags: {} };
+    const state = loaded.state || {};
     window.__MICRO_STATE__ = state;
+    updateFlagsStatus(loaded.flags || {});
+    if (toggleLegacyModeBtn) {
+      toggleLegacyModeBtn.onclick = () => navigateWithLegacyMode(!isLegacyMode(loaded.flags || {}));
+    }
 
     const provRecords = (Array.isArray(data.provOffsets) && typeof data.provOffsets[0] === "number")
       ? data.provinces.map((p, i) => ({ id: p.id, start: data.provOffsets[i], count: data.provOffsets[i + 1] - data.provOffsets[i] }))
