@@ -157,7 +157,7 @@
     }
   }
 
-  function drawRealmLayer(map, type, opacity, emblemOpacity) {
+  function drawRealmLayer(map, type, opacity, emblemOpacity, drawFills = true) {
     const field = MODE_TO_FIELD[type];
     const bucket = state[type] || {};
     for (const [id, realm] of Object.entries(bucket)) {
@@ -166,7 +166,7 @@
       if (!keys.length) continue;
       const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
       const cap = keyForPid(map, realm.capital_pid || realm.capital_key || realm.capital);
-      keys.forEach(key => map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]));
+      if (drawFills) keys.forEach(key => map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]));
       const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
       if (emblemSrc) {
         const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -252,9 +252,9 @@
     return pids.map(v => keyForPid(map, v)).filter(Boolean);
   }
 
-  function drawMinorHousesLayer(map) {
-    drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0);
-    drawRealmLayer(map, "free_cities", 230, 0);
+  function drawMinorHousesLayer(map, drawFills = true) {
+    drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0, drawFills);
+    drawRealmLayer(map, "free_cities", 230, 0, drawFills);
     for (const [id, realm] of Object.entries(state.great_houses || {})) {
       const baseHex = realm && realm.color ? realm.color : "#ff3b30";
       const [r, g, b] = MapUtils.hexToRgb(baseHex);
@@ -280,21 +280,21 @@
           if (!key) continue;
           vassalKeys.add(key);
           const isVassalCapital = (Number(v.capital_pid) >>> 0) === (Number(pid) >>> 0);
-          map.setFill(key, [vr, vg, vb, isVassalCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
+          if (drawFills) map.setFill(key, [vr, vg, vb, isVassalCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
         }
       }
       for (const key of allKeys) {
         if (key === capKey) continue;
         if (domainKeys.has(key)) continue;
         if (vassalKeys.has(key)) continue;
-        map.setFill(key, [r, g, b, MINOR_ALPHA.rest]);
+        if (drawFills) map.setFill(key, [r, g, b, MINOR_ALPHA.rest]);
       }
       for (const key of domainKeys) {
         if (key === capKey || vassalKeys.has(key)) continue;
-        map.setFill(key, [r, g, b, MINOR_ALPHA.domain]);
+        if (drawFills) map.setFill(key, [r, g, b, MINOR_ALPHA.domain]);
       }
       if (capKey) {
-        map.setFill(capKey, [r, g, b, MINOR_ALPHA.capital]);
+        if (drawFills) map.setFill(capKey, [r, g, b, MINOR_ALPHA.capital]);
         const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
         if (emblemSrc) {
           const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
@@ -475,12 +475,12 @@
       }
     }
 
-    if (!serverLayerApplied && mode !== "provinces") {
+    if (mode !== "provinces") {
       if (mode === "minor_houses") {
-        drawMinorHousesLayer(map);
+        drawMinorHousesLayer(map, !serverLayerApplied);
       } else {
-        drawRealmLayer(map, mode, 150, 0.6);
-        if (REALM_OVERLAY_MODES.has(mode)) drawRealmLayer(map, "free_cities", 230, 0.75);
+        drawRealmLayer(map, mode, 150, 0.6, !serverLayerApplied);
+        if (REALM_OVERLAY_MODES.has(mode)) drawRealmLayer(map, "free_cities", 230, 0.75, !serverLayerApplied);
       }
     }
     await map.repaintAllEmblems();
