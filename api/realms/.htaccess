@@ -1,0 +1,2 @@
+RewriteEngine On
+RewriteRule ^(kingdoms|great_houses|minor_houses|free_cities)/([^/]+)/?$ show/index.php?type=$1&id=$2 [L,QSA]

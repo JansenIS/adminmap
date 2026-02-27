@@ -46,6 +46,14 @@
       <div class="muted">Клик по провинции — выбор. Данные и гербы сохраняются в JSON (<code>map_state.json</code>).</div>
 
       <div class="card">
+        <div class="muted">Режим миграции</div>
+        <div id="flagsStatus" class="small" style="margin-top:6px;">Флаги: legacy</div>
+        <div class="btnrow" style="margin-top:8px;">
+          <button id="enableBackendMode" type="button">Перейти на новый бэкенд</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="kv">
           <div><b>Выбрано:</b> <span id="selName">—</span></div>
           <div><b>PID:</b> <span id="selPid">—</span></div>
@@ -236,6 +244,7 @@
         <div class="btnrow">
           <button id="export" type="button">Экспорт в поле</button>
           <button id="download" type="button">Скачать map_state.json</button>
+          <button id="exportMigrated" type="button">Скачать migrated bundle</button>
           <button id="import" type="button">Импорт из файла</button>
           <button id="saveServer" type="button">Сохранить на сервер (опц.)</button>
         </div>
@@ -257,6 +266,8 @@
     </main>
   </div>
 
+  <script src="js/feature_flags.js"></script>
+  <script src="js/state_loader.js"></script>
   <script src="js/app_core.js"></script>
   <script src="hexmap/data.js"></script>
   <script src="js/admin.js"></script>

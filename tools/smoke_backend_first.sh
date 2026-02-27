@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+cp data/map_state.json /tmp/adminmap_map_state_backup.json
+if [[ -f data/jobs.json ]]; then cp data/jobs.json /tmp/adminmap_jobs_backup.json; else rm -f /tmp/adminmap_jobs_backup.json; fi
+mkdir -p /tmp/adminmap_render_cache_backup
+rm -f /tmp/adminmap_render_cache_backup/*.json
+if [[ -d data/render_cache ]]; then cp data/render_cache/*.json /tmp/adminmap_render_cache_backup/ 2>/dev/null || true; fi
+cleanup(){
+  cp /tmp/adminmap_map_state_backup.json data/map_state.json || true
+  if [[ -f /tmp/adminmap_jobs_backup.json ]]; then cp /tmp/adminmap_jobs_backup.json data/jobs.json || true; else rm -f data/jobs.json; fi
+  mkdir -p data/render_cache
+  rm -f data/render_cache/*.json
+  cp /tmp/adminmap_render_cache_backup/*.json data/render_cache/ 2>/dev/null || true
+  if [[ -n "${PID:-}" ]]; then kill "$PID" 2>/dev/null || true; fi
+}
+trap cleanup EXIT
+
+php -S 127.0.0.1:8000 -t "$ROOT" tools/php_router.php >/tmp/adminmap_smoke_php.log 2>&1 &
+PID=$!
+sleep 0.7
+
+curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("map_version")'
+curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);m=d.get("meta",{});assert m.get("api_version");assert m.get("schema_version")==1'
+V=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS "http://127.0.0.1:8000/api/render/layer/?mode=kingdoms&version=${V}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("mode")=="kingdoms";assert isinstance(d.get("items"),list)'
+
+RID=$(curl -fsS 'http://127.0.0.1:8000/api/realms/?type=kingdoms&profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";assert isinstance(d.get("items"),list);i=d["items"][0];assert "emblem_svg" not in i;print(i["id"])')
+curl -fsS "http://127.0.0.1:8000/api/realms/kingdoms/${RID}?profile=compact" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("type")=="kingdoms";assert d.get("profile")=="compact";assert d.get("id")'
+curl -fsS 'http://127.0.0.1:8000/api/provinces/1?profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";assert isinstance(d.get("item"),dict);assert "emblem_svg" not in d["item"]'
+curl -fsS 'http://127.0.0.1:8000/api/provinces/?offset=0&limit=1&profile=compact' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("profile")=="compact";i=d["items"][0];assert "emblem_svg" not in i'
+curl -fsS -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" \
+  --data "{\"changes\":[{\"kind\":\"province\",\"pid\":1,\"changes\":{\"terrain\":\"smoke-test\"}},{\"kind\":\"realm\",\"type\":\"kingdoms\",\"id\":\"$RID\",\"changes\":{\"capital_pid\":7}}]}" \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("applied")==2'
+curl -sS -o /tmp/adminmap_ifmatch_required.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"changes":{"terrain":"missing-if-match"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_ifmatch_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
+curl -sS -o /tmp/adminmap_ifmatch_conflict.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' -H 'If-Match: deadbeef' --data '{"pid":1,"changes":{"terrain":"conflict"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="412"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_ifmatch_conflict.json').read_text())
+assert d.get('error')=='version_conflict'
+assert d.get('meta',{}).get('schema_version')==1
+PYC
+
+curl -sS -o /tmp/adminmap_invalid_change.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"changes":[{"kind":"bad","changes":{}}]}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_change.json').read_text())
+assert d.get('error')=='invalid_change_kind'
+PYC
+curl -sS -o /tmp/adminmap_invalid_ifmatch_type.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"if_match":123,"changes":{"terrain":"x"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_ifmatch_type.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+assert d.get('field')=='if_match'
+PYC
+curl -sS -o /tmp/adminmap_invalid_patch_nested.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"pid":1,"changes":{"fill_rgba":[1,2,"bad",4]}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_patch_nested.json').read_text())
+assert d.get('error') in ('invalid_type','invalid_field')
+PYC
+curl -sS -o /tmp/adminmap_invalid_realm_nested.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/changes/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data "{\"changes\":[{\"kind\":\"realm\",\"type\":\"kingdoms\",\"id\":\"${RID}\",\"changes\":{\"province_pids\":[1,\"x\"]}}]}" | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_realm_nested.json').read_text())
+assert d.get('error') in ('invalid_type','invalid_field')
+PYC
+curl -sS -o /tmp/adminmap_migration_apply_required.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' --data '{"replace_map_state":true}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_migration_apply_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
+curl -sS -o /tmp/adminmap_migration_apply_bad.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' --data '{"replace_map_state":"yes"}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_migration_apply_bad.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+PYC
+V3=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS -X POST 'http://127.0.0.1:8000/api/migration/apply/' -H 'Content-Type: application/json' -H "If-Match: ${V3}" --data '{"replace_map_state":false,"include_legacy_svg":false}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert isinstance(d.get("paths"),dict)'
+V4=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -sS -o /tmp/adminmap_emblems_persist_required.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/assets/emblems/' -H 'Content-Type: application/json' --data '{"migrate":true}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="428"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_emblems_persist_required.json').read_text())
+assert d.get('error')=='if_match_required'
+PYC
+curl -fsS -X POST 'http://127.0.0.1:8000/api/assets/emblems/' -H 'Content-Type: application/json' -H "If-Match: ${V4}" --data '{"migrate":true}' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("persisted") is True'
+php tools/migrate_map_state.php --dry-run >/tmp/adminmap_smoke_migrate.log
+
+curl -sS -o /tmp/adminmap_jobs_invalid.json -w '%{http_code}' -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":123}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_jobs_invalid.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+PYC
+JID=$(curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/rebuild-layers/' -H 'Content-Type: application/json' --data '{"mode":"minor_houses","max_attempts":2}' | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d["job"];assert j.get("max_attempts")==2;assert j.get("attempts")==0;print(j["id"])')
+curl -fsS -X POST 'http://127.0.0.1:8000/api/jobs/run-once/' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("ok") is True;assert d.get("processed") is True'
+curl -fsS "http://127.0.0.1:8000/api/jobs/show/?id=${JID}" | python3 -c 'import sys,json;d=json.load(sys.stdin);j=d.get("job",{});assert d.get("ok") is True;assert j.get("type")=="rebuild_layers";assert j.get("status") in ("succeeded","failed","queued");assert isinstance(j.get("progress"),dict)'
+curl -fsS 'http://127.0.0.1:8000/api/jobs/list/?offset=0&limit=5' | python3 -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d.get("items"),list)'
+/bin/bash -lc "curl -fsS 'http://127.0.0.1:8000/api/tiles/0/0/0?mode=kingdoms' -o /tmp/adminmap_tile_0_0_0.png"
+python3 - <<'PYT'
+from pathlib import Path
+b=Path('/tmp/adminmap_tile_0_0_0.png').read_bytes()
+assert b.startswith(b'\x89PNG\r\n\x1a\n')
+PYT
+/bin/bash -lc "curl -fsS 'http://127.0.0.1:8000/api/tiles/1/0/0?mode=kingdoms' -o /tmp/adminmap_tile_1_0_0.png"
+python3 - <<'PYT'
+from pathlib import Path
+b=Path('/tmp/adminmap_tile_1_0_0.png').read_bytes()
+assert b.startswith(b'\x89PNG\r\n\x1a\n')
+PYT
+V2=$(curl -fsS http://127.0.0.1:8000/api/map/version/ | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["map_version"])')
+curl -fsS "http://127.0.0.1:8000/api/render/layer/?mode=kingdoms&version=${V2}" | python3 -c 'import sys,json;d=json.load(sys.stdin);assert d.get("mode")=="kingdoms";assert d.get("from_cache") in (True,False)'
+
+echo "smoke_backend_first: OK"
