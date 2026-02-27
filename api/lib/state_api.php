@@ -242,6 +242,20 @@ function api_validate_state_snapshot_shape(array $state): array {
     if (!isset($state[$bucket]) || !is_array($state[$bucket])) continue;
     foreach ($state[$bucket] as $id => $item) {
       if (!is_array($item)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id];
+      if (isset($item['name']) && !is_string($item['name'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.name'];
+      if (isset($item['color']) && !is_string($item['color'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.color'];
+      if (isset($item['capital_pid']) && !is_numeric($item['capital_pid'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.capital_pid'];
+      if (isset($item['province_pids']) && !is_array($item['province_pids'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.province_pids'];
+      if (isset($item['province_pids']) && is_array($item['province_pids'])) {
+        foreach ($item['province_pids'] as $i => $pidVal) if (!is_numeric($pidVal)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.province_pids.' . (string)$i];
+      }
+    }
+  }
+
+  if (isset($state['people']) && is_array($state['people'])) {
+    foreach ($state['people'] as $i => $p) {
+      if (!is_array($p)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i];
+      if (isset($p['name']) && !is_string($p['name'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'people.' . (string)$i . '.name'];
     }
   }
 
@@ -259,6 +273,9 @@ function api_validate_migration_apply_payload(array $payload): array {
   if (array_key_exists('state', $payload) && is_array($payload['state'])) {
     $shape = api_validate_state_snapshot_shape($payload['state']);
     if (!$shape['ok']) return $shape;
+  }
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
   }
   foreach (['replace_map_state', 'include_legacy_svg'] as $bf) {
     if (array_key_exists($bf, $payload) && !is_bool($payload[$bf])) {
@@ -280,6 +297,9 @@ function api_validate_migration_export_payload(array $payload): array {
     $shape = api_validate_state_snapshot_shape($payload['state']);
     if (!$shape['ok']) return $shape;
   }
+  if (array_key_exists('if_match', $payload)) {
+    return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => 'if_match'];
+  }
   if (array_key_exists('include_legacy_svg', $payload) && !is_bool($payload['include_legacy_svg'])) {
     return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'include_legacy_svg'];
   }
@@ -291,6 +311,9 @@ function api_validate_emblems_persist_payload(array $payload): array {
   foreach ($payload as $k => $_v) {
     if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
   }
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
+  }
   if (array_key_exists('migrate', $payload) && !is_bool($payload['migrate'])) {
     return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'migrate'];
   }
@@ -301,6 +324,9 @@ function api_validate_jobs_rebuild_payload(array $payload): array {
   $allowedTop = ['mode', 'max_attempts'];
   foreach ($payload as $k => $_v) {
     if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('if_match', $payload)) {
+    return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => 'if_match'];
   }
   if (array_key_exists('mode', $payload) && !is_string($payload['mode'])) {
     return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'mode'];
@@ -371,7 +397,13 @@ function api_validate_province_patch_payload(array $payload): array {
   foreach ($payload as $k => $_v) {
     if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
   }
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
+  }
   $pid = (int)($payload['pid'] ?? 0);
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
+  }
   $changes = $payload['changes'] ?? null;
   if ($pid <= 0 || !is_array($changes)) {
     return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['pid:int', 'changes:object', 'if_match:string(header or body)']];
@@ -385,6 +417,9 @@ function api_validate_realm_patch_payload(array $payload): array {
   $allowedTop = ['type', 'id', 'changes', 'if_match'];
   foreach ($payload as $k => $_v) {
     if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
   }
   $type = trim((string)($payload['type'] ?? ''));
   $id = trim((string)($payload['id'] ?? ''));
@@ -409,6 +444,10 @@ function api_validate_changes_apply_payload(array $payload): array {
   foreach ($changes as $idx => $entry) {
     if (!is_array($entry)) return ['ok' => false, 'error' => 'invalid_change_entry', 'index' => $idx];
     $kind = (string)($entry['kind'] ?? '');
+    $allowedEntry = $kind === 'province' ? ['kind','pid','changes'] : ($kind === 'realm' ? ['kind','type','id','changes'] : ['kind','changes']);
+    foreach ($entry as $k => $_v) {
+      if (!in_array((string)$k, $allowedEntry, true)) return ['ok' => false, 'error' => 'invalid_change_field', 'index' => $idx, 'field' => 'changes.' . (string)$idx . '.' . (string)$k];
+    }
     if (!in_array($kind, ['province', 'realm'], true)) return ['ok' => false, 'error' => 'invalid_change_kind', 'index' => $idx];
     if (!is_array($entry['changes'] ?? null)) return ['ok' => false, 'error' => 'invalid_change_changes', 'index' => $idx];
     if ($kind === 'province') {

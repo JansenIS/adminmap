@@ -58,6 +58,14 @@ from pathlib import Path
 d=json.loads(Path('/tmp/adminmap_invalid_change.json').read_text())
 assert d.get('error')=='invalid_change_kind'
 PYC
+curl -sS -o /tmp/adminmap_invalid_ifmatch_type.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' --data '{"pid":1,"if_match":123,"changes":{"terrain":"x"}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
+python3 - <<'PYC'
+import json
+from pathlib import Path
+d=json.loads(Path('/tmp/adminmap_invalid_ifmatch_type.json').read_text())
+assert d.get('error')=='invalid_payload_type'
+assert d.get('field')=='if_match'
+PYC
 curl -sS -o /tmp/adminmap_invalid_patch_nested.json -w '%{http_code}' -X PATCH 'http://127.0.0.1:8000/api/provinces/patch/' -H 'Content-Type: application/json' -H "If-Match: ${V}" --data '{"pid":1,"changes":{"fill_rgba":[1,2,"bad",4]}}' | python3 -c 'import sys;assert sys.stdin.read().strip()=="400"'
 python3 - <<'PYC'
 import json
