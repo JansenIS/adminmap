@@ -2,10 +2,10 @@
   "use strict";
 
   const DEFAULT_FLAGS = {
-    USE_CHUNKED_API: false,
-    USE_EMBLEM_ASSETS: false,
-    USE_PARTIAL_SAVE: false,
-    USE_SERVER_RENDER: false,
+    USE_CHUNKED_API: true,
+    USE_EMBLEM_ASSETS: true,
+    USE_PARTIAL_SAVE: true,
+    USE_SERVER_RENDER: true,
   };
 
   const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
@@ -48,7 +48,7 @@
     const byPid = {};
 
     while (true) {
-      const page = await fetchJson(`/api/provinces/?offset=${offset}&limit=${chunkSize}`);
+      const page = await fetchJson(`/api/provinces/?offset=${offset}&limit=${chunkSize}&profile=full`);
       if (expectedTotal == null) expectedTotal = Number(page.total || 0);
       const items = Array.isArray(page.items) ? page.items : [];
       for (const pd of items) {
