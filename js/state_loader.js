@@ -38,7 +38,13 @@
   async function fetchJson(url) {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    return res.json();
+    const raw = await res.text();
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      const preview = String(raw || "").slice(0, 180).replace(/\s+/g, " ");
+      throw new Error(`Invalid JSON from ${url}: ${err && err.message ? err.message : err}. preview=${preview}`);
+    }
   }
 
   async function loadChunkedProvinces() {
@@ -112,7 +118,18 @@
 
   async function loadState(stateUrl) {
     const flags = getFlags();
-    const state = flags.USE_CHUNKED_API ? await loadStateChunked() : await loadStateLegacy(stateUrl);
+    let state;
+    if (flags.USE_CHUNKED_API) {
+      state = await loadStateChunked();
+    } else {
+      try {
+        state = await loadStateLegacy(stateUrl);
+      } catch (legacyErr) {
+        console.warn("[state-loader] legacy map_state failed, fallback to chunked api", legacyErr);
+        state = await loadStateChunked();
+        flags.USE_CHUNKED_API = true;
+      }
+    }
 
     if (flags.USE_EMBLEM_ASSETS) {
       try {
