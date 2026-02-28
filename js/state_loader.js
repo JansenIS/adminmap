@@ -91,8 +91,33 @@
 
   async function loadEmblemAssetsById(assetIds) {
     const map = new Map();
-    for (const id of assetIds) {
-      if (!id || map.has(id)) continue;
+    const wanted = new Set((assetIds || []).map(v => String(v || "").trim()).filter(Boolean));
+    if (!wanted.size) return map;
+
+    // Prefer paged bulk endpoint first to avoid N-per-id requests on cold start.
+    try {
+      const limit = 200;
+      let offset = 0;
+      let total = null;
+      while (total == null || offset < total) {
+        const page = await fetchJson(`/api/assets/emblems/?offset=${offset}&limit=${limit}&profile=full`);
+        const items = Array.isArray(page && page.items) ? page.items : [];
+        total = Number(page && page.total || 0);
+        for (const item of items) {
+          if (!item || typeof item !== "object") continue;
+          const id = String(item.id || "").trim();
+          if (!id || !wanted.has(id) || map.has(id)) continue;
+          map.set(id, String(item.svg || ""));
+        }
+        offset += items.length;
+        if (!items.length || map.size >= wanted.size) break;
+      }
+    } catch (err) {
+      console.warn("[state-loader] bulk assets fetch failed, fallback to item-by-item", err);
+    }
+
+    for (const id of wanted) {
+      if (map.has(id)) continue;
       const data = await fetchJson(`/api/assets/emblems/show/?id=${encodeURIComponent(id)}`);
       const item = data && data.item ? data.item : null;
       if (!item || !item.id) continue;
@@ -107,9 +132,9 @@
 
   async function loadStateChunked(flags) {
     const boot = await fetchJson("/api/map/bootstrap/");
-    // Keep full realm payload even in backend-first mode so emblem_svg remains
-    // available when a realm has not been migrated to emblem_asset_id yet.
-    const realms = await loadRealms("full");
+    // Compact profile avoids heavyweight inline emblem_svg payload in realm lists.
+    // Emblems are then resolved via /api/assets/emblems/* using emblem_asset_id.
+    const realms = await loadRealms("compact");
     const provinces = await loadChunkedProvinces();
     return Object.assign({ provinces }, realms, {
       schema_version: boot.schema_version,
@@ -117,6 +142,45 @@
       people: Array.isArray(boot.people) ? boot.people : [],
       terrain_types: Array.isArray(boot.terrain_types) ? boot.terrain_types : [],
     });
+  }
+
+  async function hydrateEmblemsIfNeeded(state, flags) {
+    if (!(flags && flags.USE_EMBLEM_ASSETS)) return;
+
+    try {
+      const ids = new Set();
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd || typeof pd !== "object") continue;
+        if (pd.emblem_svg) continue;
+        const aid = String(pd.emblem_asset_id || "").trim();
+        if (aid) ids.add(aid);
+      }
+      for (const type of REALM_TYPES) {
+        for (const realm of Object.values(state[type] || {})) {
+          if (!realm || typeof realm !== "object") continue;
+          if (realm.emblem_svg) continue;
+          const aid = String(realm.emblem_asset_id || "").trim();
+          if (aid) ids.add(aid);
+        }
+      }
+      const assets = await loadEmblemAssetsById(Array.from(ids));
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd || typeof pd !== "object") continue;
+        if (pd.emblem_svg) continue;
+        const aid = String(pd.emblem_asset_id || "").trim();
+        if (aid && assets.has(aid)) pd.emblem_svg = assets.get(aid);
+      }
+      for (const type of REALM_TYPES) {
+        for (const realm of Object.values(state[type] || {})) {
+          if (!realm || typeof realm !== "object") continue;
+          if (realm.emblem_svg) continue;
+          const aid = String(realm.emblem_asset_id || "").trim();
+          if (aid && assets.has(aid)) realm.emblem_svg = assets.get(aid);
+        }
+      }
+    } catch (err) {
+      console.warn("[state-loader] emblem assets failed, fallback to legacy emblem_svg", err);
+    }
   }
 
   async function loadState(stateUrl) {
@@ -134,42 +198,16 @@
       }
     }
 
-    if (flags.USE_EMBLEM_ASSETS) {
-      try {
-        const ids = new Set();
-        for (const pd of Object.values(state.provinces || {})) {
-          if (!pd || typeof pd !== "object") continue;
-          if (pd.emblem_svg) continue;
-          const aid = String(pd.emblem_asset_id || "").trim();
-          if (aid) ids.add(aid);
-        }
-        for (const type of REALM_TYPES) {
-          for (const realm of Object.values(state[type] || {})) {
-            if (!realm || typeof realm !== "object") continue;
-            if (realm.emblem_svg) continue;
-            const aid = String(realm.emblem_asset_id || "").trim();
-            if (aid) ids.add(aid);
-          }
-        }
-        const assets = await loadEmblemAssetsById(Array.from(ids));
-        for (const pd of Object.values(state.provinces || {})) {
-          if (!pd || typeof pd !== "object") continue;
-          if (pd.emblem_svg) continue;
-          const aid = String(pd.emblem_asset_id || "").trim();
-          if (aid && assets.has(aid)) pd.emblem_svg = assets.get(aid);
-        }
-        for (const type of REALM_TYPES) {
-          for (const realm of Object.values(state[type] || {})) {
-            if (!realm || typeof realm !== "object") continue;
-            if (realm.emblem_svg) continue;
-            const aid = String(realm.emblem_asset_id || "").trim();
-            if (aid && assets.has(aid)) realm.emblem_svg = assets.get(aid);
-          }
-        }
-      } catch (err) {
-        console.warn("[state-loader] emblem assets failed, fallback to legacy emblem_svg", err);
-      }
-    }
+    await hydrateEmblemsIfNeeded(state, flags);
+
+    return { state, flags };
+  }
+
+  async function loadStateBackendOnly() {
+    const flags = getFlags();
+    flags.USE_CHUNKED_API = true;
+    const state = await loadStateChunked(flags);
+    await hydrateEmblemsIfNeeded(state, flags);
 
     return { state, flags };
   }
@@ -177,5 +215,6 @@
   window.AdminMapStateLoader = {
     getFlags,
     loadState,
+    loadStateBackendOnly,
   };
 })();

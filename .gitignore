@@ -1,0 +1,5 @@
+# Local desktop/mobile build workspaces (generated via bootstrap scripts)
+local/
+
+# Windows desktop prototype workspace (Tauri)
+windows-local/
