@@ -100,14 +100,16 @@
       let offset = 0;
       let total = null;
       while (total == null || offset < total) {
-        const page = await fetchJson(`/api/assets/emblems/?offset=${offset}&limit=${limit}&profile=full`);
+        const page = await fetchJson(`/api/assets/emblems/?offset=${offset}&limit=${limit}&profile=full&with_payload=1`);
         const items = Array.isArray(page && page.items) ? page.items : [];
-        total = Number(page && page.total || 0);
+        total = Number((page && (page.assets_total ?? page.total)) || 0);
         for (const item of items) {
           if (!item || typeof item !== "object") continue;
           const id = String(item.id || "").trim();
           if (!id || !wanted.has(id) || map.has(id)) continue;
-          map.set(id, String(item.svg || ""));
+          const svg = String(item.svg || "");
+          if (!svg) continue;
+          map.set(id, svg);
         }
         offset += items.length;
         if (!items.length || map.size >= wanted.size) break;
