@@ -379,18 +379,42 @@
     const ifMatch = String(versionPayload && versionPayload.map_version || "").trim();
     if (!ifMatch) throw new Error("Пустая версия карты (map_version)");
 
-    const saveRes = await fetch("/api/migration/apply/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json;charset=utf-8",
-        "If-Match": ifMatch,
-      },
-      body: JSON.stringify({
-        state: parsedState,
-        include_legacy_svg: false,
-        replace_map_state: true,
-      }),
-    });
+    const payload = {
+      state: parsedState,
+      include_legacy_svg: false,
+      replace_map_state: true,
+    };
+
+    let saveRes;
+    if (typeof CompressionStream === "function") {
+      try {
+        const json = JSON.stringify(payload);
+        const compressedStream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+        const compressedBuffer = await new Response(compressedStream).arrayBuffer();
+        saveRes = await fetch("/api/migration/apply/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json;charset=utf-8",
+            "Content-Encoding": "gzip",
+            "If-Match": ifMatch,
+          },
+          body: compressedBuffer,
+        });
+      } catch (_err) {
+        saveRes = null;
+      }
+    }
+
+    if (!saveRes) {
+      saveRes = await fetch("/api/migration/apply/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json;charset=utf-8",
+          "If-Match": ifMatch,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!saveRes.ok) {
       const errText = await saveRes.text();
