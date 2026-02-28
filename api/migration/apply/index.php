@@ -8,6 +8,14 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
 }
 
 $raw = file_get_contents('php://input');
+$encoding = strtolower(trim((string)($_SERVER['HTTP_CONTENT_ENCODING'] ?? '')));
+if ($raw !== false && $raw !== '' && in_array($encoding, ['gzip', 'x-gzip'], true)) {
+  $decoded = @gzdecode($raw);
+  if ($decoded === false) {
+    api_json_response(['error' => 'invalid_gzip_body'], 400, api_state_mtime());
+  }
+  $raw = $decoded;
+}
 $payload = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : [];
 if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
 $valid = api_validate_migration_apply_payload($payload);
