@@ -111,7 +111,8 @@
   const selectedKeys = new Set();
   const keyByPid = new Map();
   const pidByKey = new Map();
-  const hexmapData = window.HEXMAP || null;
+  let hexmapData = window.HEXMAP || null;
+  let hexmapDataLoadPromise = null;
   const provinceCardBaseByPid = new Map();
   const CARD_TARGET_W = 1280;
   const CARD_TARGET_H = 720;
@@ -133,6 +134,32 @@
       reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
       reader.readAsDataURL(file);
     });
+  }
+
+  function parseHexmapDataScript(scriptText) {
+    const src = String(scriptText || "").trim();
+    const m = src.match(/^\s*window\.HEXMAP\s*=\s*(\{[\s\S]*\})\s*;?\s*$/);
+    if (!m) throw new Error("Unexpected hexmap/data.js format");
+    return JSON.parse(m[1]);
+  }
+
+  async function ensureHexmapDataLoaded() {
+    if (hexmapData && Array.isArray(hexmapData.hexes)) return hexmapData;
+    if (hexmapDataLoadPromise) return hexmapDataLoadPromise;
+    hexmapDataLoadPromise = (async () => {
+      const resp = await fetch("hexmap/data.js", { cache: "no-store" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} while loading hexmap/data.js`);
+      const raw = await resp.text();
+      const parsed = parseHexmapDataScript(raw);
+      if (!parsed || !Array.isArray(parsed.hexes)) throw new Error("hexmap/data.js does not contain hexes");
+      hexmapData = parsed;
+      return hexmapData;
+    })();
+    try {
+      return await hexmapDataLoadPromise;
+    } finally {
+      hexmapDataLoadPromise = null;
+    }
   }
 
   function isPlainObject(value) {
@@ -232,10 +259,11 @@
     }
     return [90, 117, 146];
   }
-  function getHexesForProvincePid(pid) {
-    if (!hexmapData || !Array.isArray(hexmapData.hexes)) return [];
+  async function getHexesForProvincePid(pid) {
+    const data = await ensureHexmapDataLoaded();
+    if (!data || !Array.isArray(data.hexes)) return [];
     const p = Number(pid) >>> 0;
-    return hexmapData.hexes.filter(h => (Number(h.p) >>> 0) === p);
+    return data.hexes.filter(h => (Number(h.p) >>> 0) === p);
   }
   function drawImageCover(ctx, img, dw, dh) {
     const iw = Math.max(1, img.naturalWidth || img.width || 1);
@@ -280,14 +308,15 @@
     ctx.fillRect(boxX, boxY, boxSize, boxSize);
     ctx.strokeRect(boxX, boxY, boxSize, boxSize);
 
-    const hexes = getHexesForProvincePid(pd.pid);
+    const localHexmapData = await ensureHexmapDataLoaded();
+    const hexes = await getHexesForProvincePid(pd.pid);
     if (hexes.length) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const hex of hexes) {
-        minX = Math.min(minX, Number(hex.cx) - 1.2 * Number(hexmapData.hexSize || 1));
-        minY = Math.min(minY, Number(hex.cy) - 1.2 * Number(hexmapData.hexSize || 1));
-        maxX = Math.max(maxX, Number(hex.cx) + 1.2 * Number(hexmapData.hexSize || 1));
-        maxY = Math.max(maxY, Number(hex.cy) + 1.2 * Number(hexmapData.hexSize || 1));
+        minX = Math.min(minX, Number(hex.cx) - 1.2 * Number(localHexmapData.hexSize || 1));
+        minY = Math.min(minY, Number(hex.cy) - 1.2 * Number(localHexmapData.hexSize || 1));
+        maxX = Math.max(maxX, Number(hex.cx) + 1.2 * Number(localHexmapData.hexSize || 1));
+        maxY = Math.max(maxY, Number(hex.cy) + 1.2 * Number(localHexmapData.hexSize || 1));
       }
       const pw = Math.max(1, maxX - minX);
       const ph = Math.max(1, maxY - minY);
@@ -295,7 +324,7 @@
       const ox = boxX + (boxSize - pw * scale) * 0.5 - minX * scale;
       const oy = boxY + (boxSize - ph * scale) * 0.5 - minY * scale;
       const [fr, fg, fb] = getProvinceOwnerColor(pd);
-      const r = Number(hexmapData.hexSize || 1) * scale;
+      const r = Number(localHexmapData.hexSize || 1) * scale;
       ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
       ctx.strokeStyle = "rgba(0,0,0,0.45)";
       ctx.lineWidth = Math.max(1, r * 0.12);
@@ -1167,7 +1196,13 @@
 
   async function loadInitialState(url) {
     const loader = window.AdminMapStateLoader;
-    const loaded = loader ? await loader.loadState(url) : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} };
+    const hasBackendOnlyLoader = !!(loader && typeof loader.loadStateBackendOnly === "function");
+    const preferBackendOnly = hasBackendOnlyLoader && !!(APP_FLAGS && APP_FLAGS.USE_CHUNKED_API);
+    const loaded = hasBackendOnlyLoader
+      ? (preferBackendOnly ? await loader.loadStateBackendOnly() : await loader.loadState(url))
+      : (loader
+        ? await loader.loadState(url)
+        : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} });
     const obj = loaded.state; if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
     if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[admin] USE_CHUNKED_API enabled");
     if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[admin] USE_EMBLEM_ASSETS enabled");
