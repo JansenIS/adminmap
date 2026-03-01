@@ -328,6 +328,78 @@ function layout() {
     });
   };
 
+  const enforceStrictSpouseAdjacency = (rows, g) => {
+    const ids = (rows.get(g) || []).slice();
+    if (ids.length <= 1) return;
+
+    const memberSet = new Set(ids);
+    const visited = new Set();
+    const spouseComponentById = new Map();
+    const spouseComponents = [];
+
+    ids.forEach((startId) => {
+      if (visited.has(startId)) return;
+      const stack = [startId];
+      const component = [];
+      visited.add(startId);
+
+      while (stack.length) {
+        const id = stack.pop();
+        component.push(id);
+        (spousesById.get(id) || new Set()).forEach((spouseId) => {
+          if (!memberSet.has(spouseId) || visited.has(spouseId)) return;
+          if ((normalizedGen.get(spouseId) || 0) !== g) return;
+          visited.add(spouseId);
+          stack.push(spouseId);
+        });
+      }
+
+      if (component.length > 1) {
+        const normalized = component.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+        spouseComponents.push(normalized);
+        normalized.forEach((id) => spouseComponentById.set(id, normalized));
+      }
+    });
+
+    if (!spouseComponents.length) return;
+
+    const orderedIds = ids.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+    const blocks = [];
+    const emittedIds = new Set();
+
+    orderedIds.forEach((id) => {
+      if (emittedIds.has(id)) return;
+      const spouseComponent = spouseComponentById.get(id);
+      if (!spouseComponent) {
+        blocks.push([id]);
+        emittedIds.add(id);
+        return;
+      }
+      blocks.push(spouseComponent);
+      spouseComponent.forEach(memberId => emittedIds.add(memberId));
+    });
+
+    if (blocks.length <= 1) return;
+
+    const spouseSpacing = Math.max(130, spacing * 0.55);
+    const blockGap = spacing;
+
+    const blockWidths = blocks.map(block => {
+      if (block.length <= 1) return 0;
+      const localSpacing = block.length > 1 ? spouseSpacing : spacing;
+      return (block.length - 1) * localSpacing;
+    });
+    const rowCenter = avg(ids.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+    const totalWidth = blockWidths.reduce((sum, width) => sum + width, 0) + (blocks.length - 1) * blockGap;
+    let left = (Number.isFinite(rowCenter) ? rowCenter : 0) - totalWidth / 2;
+
+    blocks.forEach((block, blockIdx) => {
+      const localSpacing = block.length > 1 ? spouseSpacing : spacing;
+      block.forEach((id, idx) => xById.set(id, left + idx * localSpacing));
+      left += blockWidths[blockIdx] + blockGap;
+    });
+  };
+
   const nodesById = new Set(state.characters.map(c => c.id));
   const componentOf = new Map();
   const components = [];
@@ -432,6 +504,7 @@ function layout() {
     rowIndex.forEach(g => relaxRow(rows, g, 1));
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
     rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
+    rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
