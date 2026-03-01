@@ -1013,7 +1013,10 @@ function layout() {
 
       if (!family.children.length) return;
 
-      const childrenOrdered = family.children.slice().sort((a, b) => idSort(a, b));
+      // Важно: используем уже рассчитанный порядок детей (после barycenter-pass),
+      // иначе сортировка по id ломает локальную геометрию и может «разрывать»
+      // соседнюю семью при push-смещениях.
+      const childrenOrdered = family.children.slice();
 
       const slots = childrenOrdered.map((childId) => {
         const childFamily = familyModel.primaryFamilyByPerson.get(childId);
