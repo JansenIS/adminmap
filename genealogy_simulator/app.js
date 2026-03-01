@@ -14,6 +14,7 @@ const state = {
 };
 
 const svg = document.getElementById('tree');
+svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
 const statusEl = document.getElementById('status');
 const panel = document.getElementById('adminPanel');
 const clanFilter = document.getElementById('clanFilter');
@@ -61,50 +62,114 @@ function fmtYears(c) {
 }
 
 function computeGenerations(chars, rels) {
-  const gen = new Map(chars.map(c => [c.id, 0]));
-  rels.forEach(r => {
-    if (r.type === 'parent_child' && gen.has(r.target_id) && gen.has(r.source_id)) {
-      const g = Math.max(gen.get(r.target_id) || 0, (gen.get(r.source_id) || 0) + 1);
-      gen.set(r.target_id, g);
+  const ids = chars.map(c => c.id);
+  const gen = new Map(ids.map(id => [id, 0]));
+  if (!ids.length) return gen;
+
+  const peerEdges = rels.filter(r => (r.type === 'spouses' || r.type === 'siblings') && gen.has(r.source_id) && gen.has(r.target_id));
+
+  // Union-Find: супруги/сиблинги должны делить одно поколение.
+  const parent = new Map(ids.map(id => [id, id]));
+  const rank = new Map(ids.map(id => [id, 0]));
+
+  const find = (x) => {
+    let p = parent.get(x);
+    while (p !== parent.get(p)) p = parent.get(p);
+    let cur = x;
+    while (parent.get(cur) !== p) {
+      const next = parent.get(cur);
+      parent.set(cur, p);
+      cur = next;
     }
+    return p;
+  };
+
+  const unite = (a, b) => {
+    let ra = find(a);
+    let rb = find(b);
+    if (ra === rb) return;
+    const rka = rank.get(ra) || 0;
+    const rkb = rank.get(rb) || 0;
+    if (rka < rkb) [ra, rb] = [rb, ra];
+    parent.set(rb, ra);
+    if (rka === rkb) rank.set(ra, rka + 1);
+  };
+
+  peerEdges.forEach((r) => unite(r.source_id, r.target_id));
+
+  const groupMembers = new Map();
+  ids.forEach((id) => {
+    const g = find(id);
+    if (!groupMembers.has(g)) groupMembers.set(g, []);
+    groupMembers.get(g).push(id);
   });
 
-  let changed = true;
-  let guard = 0;
-  while (changed && guard < 20) {
-    changed = false;
-    guard++;
-    rels.forEach(r => {
-      if (r.type === 'parent_child' && gen.has(r.target_id) && gen.has(r.source_id)) {
-        const parentGen = gen.get(r.source_id) || 0;
-        const childGen = gen.get(r.target_id) || 0;
-        if (childGen <= parentGen) {
-          gen.set(r.target_id, parentGen + 1);
-          changed = true;
-        }
-      }
+  const indegree = new Map([...groupMembers.keys()].map(g => [g, 0]));
+  const out = new Map([...groupMembers.keys()].map(g => [g, new Set()]));
+
+  rels.forEach((r) => {
+    if (r.type !== 'parent_child' || !gen.has(r.source_id) || !gen.has(r.target_id)) return;
+    const from = find(r.source_id);
+    const to = find(r.target_id);
+    if (from === to) return; // некорректная/циклическая связь внутри peer-группы
+    if (out.get(from).has(to)) return;
+    out.get(from).add(to);
+    indegree.set(to, (indegree.get(to) || 0) + 1);
+  });
+
+  // Топологический проход по DAG групп; если остались циклы — игнорируем их ребра.
+  const queue = [];
+  indegree.forEach((deg, g) => { if (deg === 0) queue.push(g); });
+
+  const gGen = new Map([...groupMembers.keys()].map(g => [g, 0]));
+  const processed = new Set();
+
+  while (queue.length) {
+    const g = queue.shift();
+    processed.add(g);
+    const base = gGen.get(g) || 0;
+    (out.get(g) || []).forEach((to) => {
+      if ((gGen.get(to) || 0) < base + 1) gGen.set(to, base + 1);
+      const nextDeg = (indegree.get(to) || 0) - 1;
+      indegree.set(to, nextDeg);
+      if (nextDeg === 0) queue.push(to);
     });
   }
 
-  rels.filter(r => r.type === 'spouses' || r.type === 'siblings').forEach(r => {
-    if (!gen.has(r.source_id) || !gen.has(r.target_id)) return;
-    const g = Math.max(gen.get(r.source_id) || 0, gen.get(r.target_id) || 0);
-    gen.set(r.source_id, g);
-    gen.set(r.target_id, g);
+  // Защита от циклов в parent_child: делаем ограниченный релакс только по непротиворечивым ребрам.
+  rels.forEach((r) => {
+    if (r.type !== 'parent_child' || !gen.has(r.source_id) || !gen.has(r.target_id)) return;
+    const from = find(r.source_id);
+    const to = find(r.target_id);
+    if (from === to) return;
+    if (processed.has(from) && processed.has(to)) return;
+    const v = Math.max(gGen.get(to) || 0, (gGen.get(from) || 0) + 1);
+    gGen.set(to, v);
   });
+
+  groupMembers.forEach((members, g) => {
+    const level = gGen.get(g) || 0;
+    members.forEach((id) => gen.set(id, level));
+  });
+
   return gen;
 }
 
 function layout() {
   const gen = computeGenerations(state.characters, state.relationships);
-  const rows = new Map();
   const parentsByChild = new Map();
   const childrenByParent = new Map();
   const spousesById = new Map();
+  const adjacency = new Map();
 
   const addLink = (map, key, value) => {
     if (!map.has(key)) map.set(key, new Set());
     map.get(key).add(value);
+  };
+
+  const addAdjacency = (a, b) => {
+    addLink(adjacency, a, b);
+    addLink(adjacency, b, a);
   };
 
   state.relationships.forEach((r) => {
@@ -112,24 +177,23 @@ function layout() {
       if ((gen.get(r.target_id) || 0) <= (gen.get(r.source_id) || 0)) return;
       addLink(parentsByChild, r.target_id, r.source_id);
       addLink(childrenByParent, r.source_id, r.target_id);
+      addAdjacency(r.source_id, r.target_id);
       return;
     }
 
     if (r.type === 'spouses') {
       addLink(spousesById, r.source_id, r.target_id);
       addLink(spousesById, r.target_id, r.source_id);
+      addAdjacency(r.source_id, r.target_id);
+      return;
     }
-  });
 
-  state.characters.forEach(c => {
-    const g = gen.get(c.id) || 0;
-    if (!rows.has(g)) rows.set(g, []);
-    rows.get(g).push(c.id);
+    if (r.type === 'siblings') addAdjacency(r.source_id, r.target_id);
   });
 
   const spacing = 230;
+  const componentGap = 280;
   const xById = new Map();
-  const rowIndex = [...rows.keys()].sort((a, b) => a - b);
 
   const idSort = (left, right) => {
     const leftId = normalizeId(left);
@@ -154,31 +218,70 @@ function layout() {
     }
   };
 
-  // Плотная «пирамида»: базово размещаем каждый ряд как отдельную линию
-  // (без глобального накопления X), затем притягиваем узлы к родителям/детям.
-  rowIndex.forEach((g) => {
-    const ids = (rows.get(g) || []).slice().sort(idSort);
-    if (!ids.length) return;
-    const mid = (ids.length - 1) / 2;
-    ids.forEach((id, i) => xById.set(id, (i - mid) * spacing));
+  const nodesById = new Set(state.characters.map(c => c.id));
+  const componentOf = new Map();
+  const components = [];
+
+  nodesById.forEach((startId) => {
+    if (componentOf.has(startId)) return;
+    const stack = [startId];
+    const ids = [];
+    componentOf.set(startId, components.length);
+    while (stack.length) {
+      const id = stack.pop();
+      ids.push(id);
+      (adjacency.get(id) || []).forEach((neighborId) => {
+        if (!nodesById.has(neighborId) || componentOf.has(neighborId)) return;
+        componentOf.set(neighborId, components.length);
+        stack.push(neighborId);
+      });
+    }
+    components.push(ids);
   });
 
-  // Локальное уплотнение: приближаем к центрам родственников,
-  // но сохраняем интервалы внутри поколения.
-  const relaxRow = (g, iterations = 10) => {
+  const normalizedGen = new Map();
+  components.forEach((ids, idx) => {
+    const minGen = Math.min(...ids.map(id => gen.get(id) || 0));
+    ids.forEach((id) => {
+      normalizedGen.set(id, (gen.get(id) || 0) - minGen);
+      componentOf.set(id, idx);
+    });
+  });
+
+  const componentRows = components.map((ids) => {
+    const rows = new Map();
+    ids.forEach((id) => {
+      const g = normalizedGen.get(id) || 0;
+      if (!rows.has(g)) rows.set(g, []);
+      rows.get(g).push(id);
+    });
+    return rows;
+  });
+
+  const componentMeta = components.map((ids, idx) => {
+    const rows = componentRows[idx];
+    const roots = ids.filter(id => (parentsByChild.get(id) || new Set()).size === 0).length;
+    const rowCount = rows.size;
+    const size = ids.length;
+    return { idx, size, rowCount, roots };
+  }).sort((a, b) => b.size - a.size || b.rowCount - a.rowCount || b.roots - a.roots || a.idx - b.idx);
+
+  const relaxRow = (rows, g, iterations = 10) => {
     const ids = (rows.get(g) || []).slice();
     if (ids.length <= 1) return;
 
     for (let i = 0; i < iterations; i++) {
       const targets = ids.map((id) => {
         const parentTarget = avg([...(parentsByChild.get(id) || [])]
+          .filter(parentId => componentOf.get(parentId) === componentOf.get(id))
           .map(parentId => xById.get(parentId))
           .filter(x => typeof x === 'number'));
         const childTarget = avg([...(childrenByParent.get(id) || [])]
+          .filter(childId => componentOf.get(childId) === componentOf.get(id))
           .map(childId => xById.get(childId))
           .filter(x => typeof x === 'number'));
         const spouseTarget = avg([...(spousesById.get(id) || [])]
-          .filter(spouseId => (gen.get(spouseId) || 0) === g)
+          .filter(spouseId => componentOf.get(spouseId) === componentOf.get(id) && (normalizedGen.get(spouseId) || 0) === g)
           .map(spouseId => xById.get(spouseId))
           .filter(x => typeof x === 'number'));
 
@@ -196,10 +299,44 @@ function layout() {
     }
   };
 
-  for (let i = 0; i < 4; i++) {
-    rowIndex.forEach(g => relaxRow(g, 1));
-    [...rowIndex].reverse().forEach(g => relaxRow(g, 1));
-  }
+  const componentBounds = [];
+
+  componentMeta.forEach(({ idx }) => {
+    const rows = componentRows[idx];
+    const rowIndex = [...rows.keys()].sort((a, b) => a - b);
+
+    rowIndex.forEach((g) => {
+      const ids = (rows.get(g) || []).slice().sort(idSort);
+      if (!ids.length) return;
+      const mid = (ids.length - 1) / 2;
+      ids.forEach((id, i) => xById.set(id, (i - mid) * spacing));
+    });
+
+    for (let i = 0; i < 5; i++) {
+      rowIndex.forEach(g => relaxRow(rows, g, 1));
+      [...rowIndex].reverse().forEach(g => relaxRow(rows, g, 1));
+    }
+
+    const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
+    if (!xs.length) return;
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    componentBounds.push({ idx, minX, maxX, width: Math.max(spacing, maxX - minX) });
+  });
+
+  let cursorX = 0;
+  componentBounds.forEach(({ idx, minX, width }) => {
+    const shiftX = cursorX - minX;
+    components[idx].forEach((id) => {
+      const x = xById.get(id);
+      if (typeof x === 'number') xById.set(id, x + shiftX);
+    });
+    cursorX += width + componentGap;
+  });
+
+  const usedWidth = Math.max(0, cursorX - componentGap);
+  const globalShift = -usedWidth / 2;
+  xById.forEach((x, id) => xById.set(id, x + globalShift));
 
   const allX = [...xById.values()];
   const minX = Math.min(...allX);
@@ -209,9 +346,11 @@ function layout() {
   xById.forEach((x, id) => xById.set(id, x + shiftX));
 
   const pos = new Map();
-  rowIndex.forEach((g) => {
-    (rows.get(g) || []).forEach((id) => {
-      pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 230 });
+  componentRows.forEach((rows) => {
+    [...rows.keys()].forEach((g) => {
+      (rows.get(g) || []).forEach((id) => {
+        pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 230 });
+      });
     });
   });
 
@@ -719,7 +858,12 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     const midX = (p1.x + p2.x) / 2;
     const spouseLaneY = Math.max(p1.y, p2.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
-    const branchY = Math.max(spouseLaneY + 36, Math.min(...kids.map(k => k.pos.y)) - 120);
+    const minChildY = Math.min(...kids.map(k => k.pos.y));
+    const minChildTopY = Math.min(...kids.map(k => k.pos.y - NODE_RADIUS));
+    const branchY = Math.min(
+      Math.max(spouseLaneY + 36, minChildY - 120),
+      minChildTopY - 14
+    );
 
     const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     trunk.setAttribute('x1', midX);
@@ -729,8 +873,8 @@ function render({ preserveViewportAnchor = true } = {}) {
     trunk.setAttribute('class', 'edge-parent');
     svg.appendChild(trunk);
 
-    const railStartX = Math.min(...kids.map(({ pos }) => pos.x));
-    const railEndX = Math.max(...kids.map(({ pos }) => pos.x));
+    const railStartX = Math.min(midX, ...kids.map(({ pos }) => pos.x));
+    const railEndX = Math.max(midX, ...kids.map(({ pos }) => pos.x));
     const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     rail.setAttribute('x1', railStartX);
     rail.setAttribute('y1', branchY);
