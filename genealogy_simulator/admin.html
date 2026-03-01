@@ -24,6 +24,14 @@
         <label>Имя</label><input name="name" required />
         <label>Титул</label><input name="title" />
         <label>Род</label><input name="clan" placeholder="Например, Старк" />
+        <label>Категория рода</label>
+        <select name="clan_branch_type">
+          <option value="main">Основной род</option>
+          <option value="side">Побочная ветвь</option>
+        </select>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0;">
+          <input name="is_clan_founder" type="checkbox" /> Основатель рода/ветви
+        </label>
         <label>Год рождения</label><input name="birth_year" type="number" />
         <label>Год смерти</label><input name="death_year" type="number" />
         <label>URL фото</label><input name="photo_url" type="url" />
@@ -56,6 +64,14 @@
         <label>Имя</label><input id="editCharacterName" name="name" required />
         <label>Титул</label><input id="editCharacterTitle" name="title" />
         <label>Род</label><input id="editCharacterClan" name="clan" placeholder="Например, Старк" />
+        <label>Категория рода</label>
+        <select id="editCharacterClanBranchType" name="clan_branch_type">
+          <option value="main">Основной род</option>
+          <option value="side">Побочная ветвь</option>
+        </select>
+        <label style="display:flex;gap:8px;align-items:center;margin:8px 0;">
+          <input id="editCharacterIsClanFounder" name="is_clan_founder" type="checkbox" /> Основатель рода/ветви
+        </label>
         <label>Год рождения</label><input id="editCharacterBirthYear" name="birth_year" type="number" />
         <label>Год смерти</label><input id="editCharacterDeathYear" name="death_year" type="number" />
         <label>URL фото</label><input id="editCharacterPhotoUrl" name="photo_url" type="url" />
