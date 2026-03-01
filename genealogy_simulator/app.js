@@ -143,41 +143,56 @@ function layout() {
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   };
 
-  // Сначала размещаем дерево как пирамиду: листья идут слева направо,
-  // а родитель центрируется над своими детьми.
-  const roots = (rows.get(0) || []).slice().sort(idSort);
+  // Базовый проход снизу вверх:
+  // 1) нижнее поколение фиксируем равномерно,
+  // 2) выше центрируем каждого персонажа над детьми,
+  // 3) в каждом ряду гарантируем минимальный интервал.
+  const maxGen = rowIndex.length ? rowIndex[rowIndex.length - 1] : 0;
+  const bottomIds = (rows.get(maxGen) || []).slice().sort(idSort);
   let nextLeafX = 0;
-  const placeSubtree = (id, stack = new Set()) => {
-    if (xById.has(id)) return xById.get(id);
-    if (stack.has(id)) {
-      const fallback = nextLeafX;
-      nextLeafX += spacing;
-      xById.set(id, fallback);
-      return fallback;
+  bottomIds.forEach((id) => {
+    xById.set(id, nextLeafX);
+    nextLeafX += spacing;
+  });
+
+  const placeRow = (g) => {
+    const ids = (rows.get(g) || []).slice();
+    if (!ids.length) return;
+
+    const targets = ids.map((id) => {
+      const childTarget = avg([...(childrenByParent.get(id) || [])]
+        .filter(childId => (gen.get(childId) || 0) > g)
+        .map(childId => xById.get(childId))
+        .filter(x => typeof x === 'number'));
+
+      const spouseTarget = avg([...(spousesById.get(id) || [])]
+        .filter(spouseId => (gen.get(spouseId) || 0) === g)
+        .map(spouseId => xById.get(spouseId))
+        .filter(x => typeof x === 'number'));
+
+      const fallback = Number.isFinite(childTarget)
+        ? childTarget
+        : (Number.isFinite(spouseTarget) ? spouseTarget : nextLeafX);
+
+      return { id, target: fallback };
+    }).sort((a, b) => a.target - b.target || idSort(a.id, b.id));
+
+    if (!targets.length) return;
+
+    targets[0].x = Math.max(targets[0].target, 0);
+    for (let i = 1; i < targets.length; i++) {
+      targets[i].x = Math.max(targets[i].target, targets[i - 1].x + spacing);
     }
 
-    stack.add(id);
-    const children = [...(childrenByParent.get(id) || [])].sort(idSort);
-    const childXs = [];
-
-    children.forEach((childId) => {
-      const childGen = gen.get(childId) || 0;
-      const parentGen = gen.get(id) || 0;
-      if (childGen <= parentGen) return;
-      childXs.push(placeSubtree(childId, stack));
+    targets.forEach(({ id, x }) => {
+      xById.set(id, x);
+      nextLeafX = Math.max(nextLeafX, x + spacing);
     });
-
-    stack.delete(id);
-
-    const x = childXs.length ? avg(childXs) : nextLeafX;
-    if (!childXs.length) nextLeafX += spacing;
-    xById.set(id, x);
-    return x;
   };
 
-  roots.forEach(rootId => placeSubtree(rootId));
+  for (let g = maxGen - 1; g >= 0; g--) placeRow(g);
 
-  // Несвязанные/боковые персонажи тоже должны получить позицию.
+  // Если ряд не попал в общий цикл (например, один уровень), добиваем вручную.
   rowIndex.forEach((g) => {
     (rows.get(g) || []).slice().sort(idSort).forEach((id) => {
       if (!xById.has(id)) {
