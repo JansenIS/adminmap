@@ -30,7 +30,7 @@ function genealogy_load_people_profiles(): array {
   return is_array($profiles) ? $profiles : [];
 }
 
-function genealogy_sync_people_profiles_from_characters(array $characters, bool $overwritePhoto = false): void {
+function genealogy_sync_people_profiles_from_characters(array $characters, bool $overwritePhoto = false, bool $overwriteBio = false): void {
   $state = api_load_state();
   if (!is_array($state['people_profiles'] ?? null)) $state['people_profiles'] = [];
 
@@ -63,9 +63,11 @@ function genealogy_sync_people_profiles_from_characters(array $characters, bool 
     if (!empty($bioParts)) {
       $bio = implode("\n\n", $bioParts);
       $currentBio = trim((string)($state['people_profiles'][$name]['bio'] ?? ''));
-      if ($currentBio === '') {
-        $state['people_profiles'][$name]['bio'] = $bio;
-        $changed = true;
+      if ($overwriteBio || $currentBio === '') {
+        if ($currentBio !== $bio) {
+          $state['people_profiles'][$name]['bio'] = $bio;
+          $changed = true;
+        }
       }
     }
   }

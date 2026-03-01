@@ -641,6 +641,55 @@
   }
 
 
+
+
+  async function loadGenealogyCharacters() {
+    try {
+      const res = await fetch('/api/genealogy/', { cache: 'no-store' });
+      if (!res.ok) return [];
+      const body = await res.json().catch(() => ({}));
+      return Array.isArray(body && body.characters) ? body.characters : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function mergeGenealogyPeopleIntoState(characters) {
+    if (!Array.isArray(characters) || !characters.length || !state) return;
+    if (!Array.isArray(state.people)) state.people = [];
+    if (!state.people_profiles || typeof state.people_profiles !== 'object') state.people_profiles = {};
+
+    const seen = new Set(state.people.map((name) => String(name || '').trim().toLowerCase()).filter(Boolean));
+
+    for (const row of characters) {
+      if (!row || typeof row !== 'object') continue;
+      const name = String(row.name || '').trim();
+      if (!name) continue;
+
+      const key = name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        state.people.push(name);
+      }
+
+      const profile = state.people_profiles[name] && typeof state.people_profiles[name] === 'object'
+        ? state.people_profiles[name]
+        : { photo_url: '', bio: '' };
+
+      const photo = String(row.photo_url || '').trim();
+      const title = String(row.title || '').trim();
+      const notes = String(row.notes || '').trim();
+      const bio = [title, notes].filter(Boolean).join('\n\n').trim();
+
+      if (photo && String(profile.photo_url || '').trim() !== photo) profile.photo_url = photo;
+      if (bio && String(profile.bio || '').trim() !== bio) profile.bio = bio;
+
+      state.people_profiles[name] = profile;
+    }
+
+    state.people.sort((a, b) => String(a).localeCompare(String(b), 'ru'));
+  }
+
   async function applyServerLayerIfEnabled(map, mode) {
     if (!(APP_FLAGS && APP_FLAGS.USE_SERVER_RENDER)) return false;
     try {
@@ -767,7 +816,7 @@
     urlInput.value = DEFAULT_STATE_URL;
     const map = new RasterProvinceMap({ baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png", onHover: ({ key, meta, evt }) => { if (!key || !state) return tooltip.style.display = "none"; const pd = getStateProvinceByPid(meta && meta.pid); const label = (pd && pd.name) || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : "")); setTooltip(evt, label); if ((viewModeSelect.value || "provinces") === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(map, meta && meta.pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } }, onClick: ({ key, meta }) => { renderProvince(key, meta, map); openProvinceModal(map, key, meta).catch(e => console.warn(e)); } });
     await map.init(); initZoomControls(map);
-    async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map); }
+    async function reload() { state = await loadState(urlInput.value.trim() || DEFAULT_STATE_URL); const genealogyCharacters = await loadGenealogyCharacters(); mergeGenealogyPeopleIntoState(genealogyCharacters); await applyState(map); renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map); }
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
     viewModeSelect.addEventListener("change", () => {
       updateMicroMapButton();
