@@ -22,20 +22,6 @@ foreach (($state['people'] ?? []) as $person) {
   $addName($name);
 }
 
-foreach ((array)($state['provinces'] ?? []) as $province) {
-  if (!is_array($province)) continue;
-  foreach (['owner', 'suzerain', 'senior'] as $field) {
-    $addName((string)($province[$field] ?? ''));
-  }
-}
-
-foreach (['great_houses', 'minor_houses', 'kingdoms', 'free_cities'] as $collection) {
-  foreach ((array)($state[$collection] ?? []) as $entry) {
-    if (!is_array($entry)) continue;
-    $addName((string)($entry['name'] ?? ''));
-  }
-}
-
 $list = array_keys($names);
 usort($list, static fn($a, $b) => strcasecmp($a, $b));
 

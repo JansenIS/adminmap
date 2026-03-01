@@ -45,6 +45,19 @@
         <button type="submit">Сохранить род персонажа</button>
       </form>
 
+      <h2>Редактировать персонажа</h2>
+      <form id="editCharacterForm">
+        <label>Персонаж</label><select id="editCharacterSelect" name="id" required></select>
+        <label>Имя</label><input id="editCharacterName" name="name" required />
+        <label>Титул</label><input id="editCharacterTitle" name="title" />
+        <label>Род</label><input id="editCharacterClan" name="clan" placeholder="Например, Старк" />
+        <label>Год рождения</label><input id="editCharacterBirthYear" name="birth_year" type="number" />
+        <label>Год смерти</label><input id="editCharacterDeathYear" name="death_year" type="number" />
+        <label>URL фото</label><input id="editCharacterPhotoUrl" name="photo_url" type="url" />
+        <label>Заметки</label><textarea id="editCharacterNotes" name="notes"></textarea>
+        <button type="submit">Сохранить изменения персонажа</button>
+      </form>
+
       <h2>Добавить связь</h2>
       <form id="linkForm">
         <label>Тип</label>

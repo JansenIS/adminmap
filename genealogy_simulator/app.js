@@ -433,6 +433,7 @@ function onNodeClick(id) {
     const selected = nodeByIdFromAll(id);
     if (assignSel) assignSel.value = id;
     if (assignClan && selected) assignClan.value = selected.clan || '';
+    syncEditCharacterForm(id);
   }
   if (state.mode === 'public') {
     openProfile(id);
@@ -440,10 +441,36 @@ function onNodeClick(id) {
   render();
 }
 
+
+function syncEditCharacterForm(id = null) {
+  const selectedId = id || state.selectedId;
+  const selected = selectedId ? nodeByIdFromAll(selectedId) : null;
+  const setValue = (elId, value) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.value = value ?? '';
+  };
+
+  setValue('editCharacterSelect', selected?.id || '');
+  setValue('editCharacterName', selected?.name || '');
+  setValue('editCharacterTitle', selected?.title || '');
+  setValue('editCharacterClan', selected?.clan || '');
+  setValue('editCharacterBirthYear', selected?.birth_year ?? '');
+  setValue('editCharacterDeathYear', selected?.death_year ?? '');
+  setValue('editCharacterPhotoUrl', selected?.photo_url || '');
+  setValue('editCharacterNotes', selected?.notes || '');
+}
+
 async function loadData() {
   const data = await api('/api/genealogy/');
   state.allCharacters = data.characters || [];
   state.allRelationships = data.relationships || [];
+  if (state.selectedId && !state.allCharacters.some((c) => c.id === state.selectedId)) {
+    state.selectedId = null;
+  }
+  if (!state.selectedId && state.allCharacters.length) {
+    state.selectedId = state.allCharacters[0].id;
+  }
   applyClanFilter();
 }
 
@@ -520,6 +547,34 @@ function bindAdmin() {
       syncMapCharacterSelect();
       render();
       setStatus('Род персонажа обновлён.');
+    } catch (err) { setStatus(`Ошибка: ${err.message}`); }
+  });
+
+  document.getElementById('editCharacterSelect')?.addEventListener('change', (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    state.selectedId = id;
+    syncEditCharacterForm(id);
+    render();
+  });
+
+  document.getElementById('editCharacterForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    ['birth_year', 'death_year'].forEach((k) => {
+      if (payload[k] === '') payload[k] = '';
+    });
+    try {
+      await api('/api/genealogy/characters/update-clan/', { method: 'PATCH', body: JSON.stringify(payload) });
+      state.selectedId = payload.id || state.selectedId;
+      await loadData();
+      await loadMapPeople();
+      syncClanFilter();
+      syncCharacterSelects();
+      syncMapCharacterSelect();
+      syncEditCharacterForm(state.selectedId);
+      render();
+      setStatus('Данные персонажа обновлены.');
     } catch (err) { setStatus(`Ошибка: ${err.message}`); }
   });
 
@@ -604,12 +659,14 @@ function syncCharacterSelects() {
     document.getElementById('linkSource'),
     document.getElementById('linkTarget'),
     document.getElementById('assignClanCharacter'),
+    document.getElementById('editCharacterSelect'),
   ].filter(Boolean);
   selects.forEach(sel => {
     const selected = sel.value;
     sel.innerHTML = state.allCharacters.map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
     if (selected) sel.value = selected;
   });
+  syncEditCharacterForm();
 }
 
 function syncMapCharacterSelect() {
