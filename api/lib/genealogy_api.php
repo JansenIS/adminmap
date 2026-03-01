@@ -107,6 +107,8 @@ function genealogy_sync_characters_with_state_people(array &$data): bool {
       'death_year' => null,
       'photo_url' => '',
       'clan' => '',
+      'clan_branch_type' => 'main',
+      'is_clan_founder' => false,
       'notes' => '',
     ];
     $data['characters'][] = $char;
@@ -206,6 +208,11 @@ function genealogy_validate_character_payload(?array $payload): array {
   $photo = trim((string)($payload['photo_url'] ?? ''));
   $clan = trim((string)($payload['clan'] ?? ''));
   $notes = trim((string)($payload['notes'] ?? ''));
+  $branchType = trim((string)($payload['clan_branch_type'] ?? 'main'));
+  if ($branchType !== 'main' && $branchType !== 'side') $branchType = 'main';
+  $isFounderRaw = $payload['is_clan_founder'] ?? false;
+  $isFounder = filter_var($isFounderRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+  if ($isFounder === null) $isFounder = false;
 
   return [
     'ok' => true,
@@ -216,6 +223,8 @@ function genealogy_validate_character_payload(?array $payload): array {
       'death_year' => $deathYear,
       'photo_url' => $photo,
       'clan' => $clan,
+      'clan_branch_type' => $branchType,
+      'is_clan_founder' => (bool)$isFounder,
       'notes' => $notes,
     ],
   ];
@@ -341,10 +350,12 @@ function genealogy_update_character(array &$data, string $id, array $payload): ?
     'death_year' => array_key_exists('death_year', $current) ? $current['death_year'] : null,
     'photo_url' => (string)($current['photo_url'] ?? ''),
     'clan' => (string)($current['clan'] ?? ''),
+    'clan_branch_type' => (string)($current['clan_branch_type'] ?? 'main'),
+    'is_clan_founder' => (bool)($current['is_clan_founder'] ?? false),
     'notes' => (string)($current['notes'] ?? ''),
   ];
 
-  $allowed = ['name', 'title', 'birth_year', 'death_year', 'photo_url', 'clan', 'notes'];
+  $allowed = ['name', 'title', 'birth_year', 'death_year', 'photo_url', 'clan', 'clan_branch_type', 'is_clan_founder', 'notes'];
   foreach ($allowed as $field) {
     if (!array_key_exists($field, $payload)) continue;
     $value = $payload[$field];

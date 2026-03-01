@@ -262,45 +262,119 @@ function worldToScreen(point) {
 }
 
 
+function parseClanFilterValue(value) {
+  const raw = String(value || 'all');
+  if (raw === 'all') return { mode: 'all' };
+  if (raw.startsWith('clan:')) return { mode: 'clan', clan: raw.slice(5) };
+  if (raw.startsWith('branch:')) {
+    const parts = raw.split(':');
+    return { mode: 'branch', clan: parts[1] || '', founderId: parts[2] || '' };
+  }
+  return { mode: 'all' };
+}
+
+function getDirectChildren(parentId, clan = '') {
+  const clanNorm = String(clan || '').trim();
+  const children = new Set();
+  state.allRelationships
+    .filter((r) => r.type === 'parent_child' && r.source_id === parentId)
+    .forEach((r) => {
+      const child = nodeByIdFromAll(r.target_id);
+      if (!child) return;
+      if (clanNorm && String(child.clan || '').trim() !== clanNorm) return;
+      children.add(child.id);
+    });
+  return children;
+}
+
+function getDescendantsWithinClan(founderId, clan = '') {
+  const clanNorm = String(clan || '').trim();
+  const members = new Set([founderId]);
+  const queue = [founderId];
+  while (queue.length) {
+    const current = queue.shift();
+    state.allRelationships
+      .filter((r) => r.type === 'parent_child' && r.source_id === current)
+      .forEach((r) => {
+        const child = nodeByIdFromAll(r.target_id);
+        if (!child) return;
+        if (clanNorm && String(child.clan || '').trim() !== clanNorm) return;
+        if (members.has(child.id)) return;
+        members.add(child.id);
+        queue.push(child.id);
+      });
+  }
+  return members;
+}
+
+function getSpouses(id, clan = '') {
+  const clanNorm = String(clan || '').trim();
+  const spouses = new Set();
+  state.allRelationships
+    .filter((r) => r.type === 'spouses' && (r.source_id === id || r.target_id === id))
+    .forEach((r) => {
+      const spouseId = r.source_id === id ? r.target_id : r.source_id;
+      const spouse = nodeByIdFromAll(spouseId);
+      if (!spouse) return;
+      if (clanNorm && String(spouse.clan || '').trim() !== clanNorm) return;
+      spouses.add(spouseId);
+    });
+  return spouses;
+}
+
 function applyClanFilter() {
-  const clan = state.selectedClan;
-  if (clan === 'all') {
+  const selected = parseClanFilterValue(state.selectedClan);
+  if (selected.mode === 'all') {
     state.characters = [...state.allCharacters];
     state.relationships = [...state.allRelationships];
     return;
   }
 
-  const included = new Set(
-    state.allCharacters
-      .filter(c => (c.clan || '').trim() === clan)
-      .map(c => c.id)
-  );
+  const clan = String(selected.clan || '').trim();
+  if (!clan) {
+    state.characters = [...state.allCharacters];
+    state.relationships = [...state.allRelationships];
+    return;
+  }
 
-  if (!included.size) {
+  const clanMembers = state.allCharacters.filter((c) => String(c.clan || '').trim() === clan);
+  if (!clanMembers.length) {
     state.characters = [];
     state.relationships = [];
     state.selectedId = null;
     return;
   }
 
-  state.allRelationships.forEach((r) => {
-    if (r.type !== 'spouses' && r.type !== 'siblings') return;
-    const sourceIn = included.has(r.source_id);
-    const targetIn = included.has(r.target_id);
-    if (sourceIn && !targetIn) included.add(r.target_id);
-    if (!sourceIn && targetIn) included.add(r.source_id);
-  });
+  const included = new Set();
 
-  state.characters = state.allCharacters.filter(c => included.has(c.id));
-  state.relationships = state.allRelationships.filter((r) => {
-    if (!included.has(r.source_id) || !included.has(r.target_id)) return false;
-    const sourceInClan = (nodeByIdFromAll(r.source_id)?.clan || '').trim() === clan;
-    const targetInClan = (nodeByIdFromAll(r.target_id)?.clan || '').trim() === clan;
+  if (selected.mode === 'branch') {
+    const founderId = selected.founderId;
+    const founder = nodeByIdFromAll(founderId);
+    if (!founder || String(founder.clan || '').trim() !== clan) {
+      state.characters = [];
+      state.relationships = [];
+      state.selectedId = null;
+      return;
+    }
+    getDescendantsWithinClan(founderId, clan).forEach((id) => included.add(id));
+  } else {
+    const sideFounders = clanMembers.filter((c) => c.clan_branch_type === 'side' && !!c.is_clan_founder);
+    const sideBranchMembers = new Set();
 
-    if (sourceInClan && targetInClan) return true;
-    if (r.type === 'parent_child') return sourceInClan || targetInClan;
-    return r.type === 'spouses' || r.type === 'siblings';
-  });
+    sideFounders.forEach((founder) => {
+      getDescendantsWithinClan(founder.id, clan).forEach((id) => sideBranchMembers.add(id));
+      included.add(founder.id);
+      getSpouses(founder.id, clan).forEach((id) => included.add(id));
+      getDirectChildren(founder.id, clan).forEach((id) => included.add(id));
+    });
+
+    clanMembers
+      .filter((c) => !sideBranchMembers.has(c.id))
+      .forEach((c) => included.add(c.id));
+  }
+
+  state.characters = state.allCharacters.filter((c) => included.has(c.id));
+  state.relationships = state.allRelationships.filter((r) => included.has(r.source_id) && included.has(r.target_id));
 
   if (state.selectedId && !included.has(state.selectedId)) state.selectedId = null;
 }
@@ -311,9 +385,21 @@ function syncClanFilter() {
   if (!clanFilter) return;
   const clans = [...new Set(state.allCharacters.map(c => (c.clan || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'ru'));
-  const options = ['<option value="all">Все роды</option>', ...clans.map(clan => `<option value="${clan}">${clan}</option>`)];
-  clanFilter.innerHTML = options.join('');
-  if (state.selectedClan !== 'all' && clans.includes(state.selectedClan)) {
+
+  const clanOptions = clans.map((clan) => `<option value="clan:${clan}">${clan}</option>`);
+  const branchOptions = [];
+  clans.forEach((clan) => {
+    const founders = state.allCharacters
+      .filter((c) => (c.clan || '').trim() === clan && c.clan_branch_type === 'side' && !!c.is_clan_founder)
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+    founders.forEach((founder) => {
+      branchOptions.push(`<option value="branch:${clan}:${founder.id}">${clan} → Побочная ветвь: ${founder.name}</option>`);
+    });
+  });
+
+  clanFilter.innerHTML = ['<option value="all">Все роды</option>', ...clanOptions, ...branchOptions].join('');
+  const exists = [...clanFilter.options].some((opt) => opt.value === state.selectedClan);
+  if (exists) {
     clanFilter.value = state.selectedClan;
   } else {
     state.selectedClan = 'all';
@@ -355,11 +441,14 @@ function createQuickActionButton({ x, y, className = '', label, title, onClick }
   return btn;
 }
 
-function defaultRelativePayload(name, clan = '') {
+function defaultRelativePayload(name, clan = '', source = null) {
+  const branchType = source?.clan_branch_type === 'side' ? 'side' : 'main';
   return {
     name,
     title: '',
     clan,
+    clan_branch_type: branchType,
+    is_clan_founder: false,
     birth_year: '',
     death_year: '',
     photo_url: '',
@@ -381,7 +470,7 @@ async function createRelativeFromNode(sourceId, relationType) {
   const name = window.prompt(`Введите имя нового ${relationLabelMap[relationType] || 'родственника'}:`, '');
   if (!name || !name.trim()) return;
 
-  const payload = defaultRelativePayload(name.trim(), source.clan || '');
+  const payload = defaultRelativePayload(name.trim(), source.clan || '', source);
 
   try {
     const created = await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
@@ -423,7 +512,7 @@ async function createChildForRelationship(aId, bId, relationType) {
   const name = window.prompt(`Введите имя нового ${relText}:`, '');
   if (!name || !name.trim()) return;
 
-  const payload = defaultRelativePayload(name.trim(), clan);
+  const payload = defaultRelativePayload(name.trim(), clan, parentA || parentB);
 
   try {
     const created = await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
@@ -590,8 +679,9 @@ function render({ preserveViewportAnchor = true } = {}) {
     trunk.setAttribute('class', 'edge-parent');
     svg.appendChild(trunk);
 
-    const railStartX = Math.min(midX, kids[0].pos.x);
-    const railEndX = Math.max(midX, kids[kids.length - 1].pos.x);
+    const maxBranchOffset = Math.max(...kids.map(({ pos }) => Math.abs(pos.x - midX)));
+    const railStartX = midX - maxBranchOffset;
+    const railEndX = midX + maxBranchOffset;
     const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     rail.setAttribute('x1', railStartX);
     rail.setAttribute('y1', branchY);
@@ -666,7 +756,9 @@ function render({ preserveViewportAnchor = true } = {}) {
     clan.setAttribute('x', p.x);
     clan.setAttribute('y', p.y + 104);
     clan.setAttribute('class', 'node-meta');
-    clan.textContent = c.clan ? `Род: ${c.clan}` : 'Род: —';
+    const branchLabel = c.clan_branch_type === 'side' ? ' (побочная ветвь)' : '';
+    const founderLabel = c.is_clan_founder ? ' • основатель' : '';
+    clan.textContent = c.clan ? `Род: ${c.clan}${branchLabel}${founderLabel}` : 'Род: —';
     svg.appendChild(clan);
 
     const years = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -748,6 +840,9 @@ function syncEditCharacterForm(id = null) {
   setValue('editCharacterName', selected?.name || '');
   setValue('editCharacterTitle', selected?.title || '');
   setValue('editCharacterClan', selected?.clan || '');
+  setValue('editCharacterClanBranchType', selected?.clan_branch_type || 'main');
+  const founderEl = document.getElementById('editCharacterIsClanFounder');
+  if (founderEl) founderEl.checked = !!selected?.is_clan_founder;
   setValue('editCharacterBirthYear', selected?.birth_year ?? '');
   setValue('editCharacterDeathYear', selected?.death_year ?? '');
   setValue('editCharacterPhotoUrl', selected?.photo_url || '');
@@ -828,7 +923,9 @@ function bindAdmin() {
   document.getElementById('createCharacterForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+    payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
     ['birth_year', 'death_year'].forEach(k => { if (payload[k] === '') delete payload[k]; });
     try {
       await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
@@ -898,7 +995,9 @@ function bindAdmin() {
 
   document.getElementById('editCharacterForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const payload = Object.fromEntries(new FormData(e.target).entries());
+    const formData = new FormData(e.target);
+    const payload = Object.fromEntries(formData.entries());
+    payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
     ['birth_year', 'death_year'].forEach((k) => {
       if (payload[k] === '') payload[k] = '';
     });
@@ -948,7 +1047,8 @@ function bindAdmin() {
   });
 
   document.getElementById('deleteClanBtn')?.addEventListener('click', async () => {
-    const clan = state.selectedClan === 'all' ? '' : state.selectedClan;
+    const selected = parseClanFilterValue(state.selectedClan);
+    const clan = selected.mode === 'clan' ? selected.clan : '';
     if (!clan) {
       setStatus('Выберите род в фильтре для удаления.');
       return;
