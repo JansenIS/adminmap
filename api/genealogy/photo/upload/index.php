@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/lib/genealogy_api.php';
+require_once dirname(__DIR__, 3) . '/lib/genealogy_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, genealogy_mtime());
