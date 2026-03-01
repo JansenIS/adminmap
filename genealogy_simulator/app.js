@@ -773,17 +773,27 @@ function layout() {
     const families = new Map();
     const familiesByGeneration = new Map();
     const familiesByParent = new Map();
+    const spouseRelsByPair = new Map();
 
-    const addFamily = (parentIds, childId) => {
+    state.relationships
+      .filter((r) => r.type === 'spouses' && idSet.has(r.source_id) && idSet.has(r.target_id))
+      .forEach((r) => {
+        const key = relKey(r.source_id, r.target_id);
+        if (!spouseRelsByPair.has(key)) spouseRelsByPair.set(key, []);
+        spouseRelsByPair.get(key).push(r);
+      });
+
+    const addFamily = (parentIds, childId, unionId = '') => {
       const sortedParents = [...new Set(parentIds)].sort(idSort);
       if (!sortedParents.length) return;
       const g = normalizedGen.get(sortedParents[0]) || 0;
       if (sortedParents.some(pid => (normalizedGen.get(pid) || 0) !== g)) return;
-      const key = `f:${g}:${sortedParents.join('|')}`;
+      const key = `f:${g}:${sortedParents.join('|')}:u:${String(unionId || '')}`;
       if (!families.has(key)) {
         const node = {
           key,
           generation: g,
+          unionId: String(unionId || ''),
           parents: sortedParents,
           children: [],
           childSet: new Set(),
@@ -800,17 +810,52 @@ function layout() {
         });
       }
       const family = families.get(key);
-      if (!family.childSet.has(childId)) {
+      if (childId != null && !family.childSet.has(childId)) {
         family.childSet.add(childId);
         family.children.push(childId);
       }
     };
 
     componentIds.forEach((childId) => {
-      const parentIds = [...(parentsByChild.get(childId) || [])]
-        .filter(parentId => idSet.has(parentId) && (normalizedGen.get(parentId) || 0) === (normalizedGen.get(childId) || 0) - 1)
-        .sort(idSort);
+      const childGen = normalizedGen.get(childId) || 0;
+      const parentEdges = state.relationships
+        .filter((r) => r.type === 'parent_child' && r.target_id === childId && idSet.has(r.source_id) && (normalizedGen.get(r.source_id) || 0) === childGen - 1);
+
+      const parentIds = [...new Set(parentEdges.map(r => r.source_id))].sort(idSort);
       if (!parentIds.length) return;
+
+      const byUnion = new Map();
+      parentEdges.forEach((r) => {
+        const u = String(r.parents_union_id || '').trim();
+        if (!u) return;
+        if (!byUnion.has(u)) byUnion.set(u, new Set());
+        byUnion.get(u).add(r.source_id);
+      });
+
+      let assignedToUnion = false;
+      byUnion.forEach((set, unionId) => {
+        const unionParents = [...set].sort(idSort);
+        if (!unionParents.length) return;
+        if (unionParents.length >= 2) {
+          for (let i = 0; i < unionParents.length; i++) {
+            for (let j = i + 1; j < unionParents.length; j++) {
+              const a = unionParents[i];
+              const b = unionParents[j];
+              const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])
+                .find((rel) => String(rel.union_id || '') === unionId);
+              if (!spouseRel && !(spousesById.get(a) || new Set()).has(b)) continue;
+              addFamily([a, b], childId, unionId);
+              assignedToUnion = true;
+              return;
+            }
+          }
+        }
+
+        addFamily([unionParents[0]], childId, unionId);
+        assignedToUnion = true;
+      });
+
+      if (assignedToUnion) return;
 
       if (parentIds.length >= 2) {
         for (let i = 0; i < parentIds.length; i++) {
@@ -818,7 +863,9 @@ function layout() {
             const a = parentIds[i];
             const b = parentIds[j];
             if (!(spousesById.get(a) || new Set()).has(b)) continue;
-            addFamily([a, b], childId);
+            const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])[0] || null;
+            const unionId = spouseRel ? String(spouseRel.union_id || '') : '';
+            addFamily([a, b], childId, unionId);
             return;
           }
         }
@@ -827,11 +874,23 @@ function layout() {
       addFamily([parentIds[0]], childId);
     });
 
+    // Бездетные союзы всё равно должны участвовать в раскладке, чтобы супруги оставались рядом.
+    state.relationships
+      .filter((r) => r.type === 'spouses' && idSet.has(r.source_id) && idSet.has(r.target_id))
+      .forEach((r) => {
+        const a = r.source_id;
+        const b = r.target_id;
+        if ((normalizedGen.get(a) || 0) !== (normalizedGen.get(b) || 0)) return;
+        addFamily([a, b], null, String(r.union_id || ''));
+      });
+
     // Если у родителя несколько семей, выбираем primary по близости к текущему x.
     const primaryFamilyByPerson = new Map();
     familiesByParent.forEach((fams, pid) => {
+      const childBearingFamilies = fams.filter(f => Array.isArray(f.children) && f.children.length > 0);
+      const sourceFamilies = childBearingFamilies.length ? childBearingFamilies : fams;
       const px = xById.get(pid) || 0;
-      const sorted = fams.slice().sort((a, b) => {
+      const sorted = sourceFamilies.slice().sort((a, b) => {
         const ac = avg(a.children.map(cid => xById.get(cid)).filter(x => typeof x === 'number'));
         const bc = avg(b.children.map(cid => xById.get(cid)).filter(x => typeof x === 'number'));
         const da = Math.abs((Number.isFinite(ac) ? ac : px) - px);
@@ -909,7 +968,6 @@ function layout() {
 
   const applyFamilySlotLayout = (rows, g, familyModel, componentSet) => {
     const families = (familyModel.familiesByGeneration.get(g) || [])
-      .filter(f => f.children.length > 0)
       .sort((a, b) => {
         const ax = avg(a.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
         const bx = avg(b.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
@@ -919,6 +977,22 @@ function layout() {
     families.forEach((family) => {
       const anchorX = avg(family.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
       family.anchorX = Number.isFinite(anchorX) ? anchorX : 0;
+
+      if (family.parents.length >= 2) {
+        const spouseSpacing = Math.max(130, spacing * 0.55);
+        const pairWidth = (family.parents.length - 1) * spouseSpacing;
+        const left = family.anchorX - pairWidth / 2;
+        family.parents.forEach((parentId, idx) => {
+          const oldX = xById.get(parentId);
+          if (typeof oldX !== 'number') return;
+          const nextX = left + idx * spouseSpacing;
+          const delta = nextX - oldX;
+          xById.set(parentId, nextX);
+          shiftDescendants(componentSet, parentId, delta, new Set(), { includeSelf: false });
+        });
+      }
+
+      if (!family.children.length) return;
 
       const childrenOrdered = family.children.slice().sort((a, b) => idSort(a, b));
 
@@ -1068,6 +1142,7 @@ function layout() {
         key: family.key,
         parentA,
         parentB,
+        unionId: String(family.unionId || ''),
         children: family.children.slice(),
       });
     });
