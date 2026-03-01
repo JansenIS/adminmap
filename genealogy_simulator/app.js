@@ -447,6 +447,171 @@ function layout() {
     });
   };
 
+  const enforceFamilyBlocks = (rows, g) => {
+    const adultIds = (rows.get(g) || []).slice();
+    const childIds = (rows.get(g + 1) || []).slice();
+    if (!adultIds.length) return;
+
+    const adultSet = new Set(adultIds);
+    const unitByAdult = new Map();
+    const units = [];
+
+    const spouseDfs = (startId) => {
+      const stack = [startId];
+      const seen = new Set([startId]);
+      while (stack.length) {
+        const id = stack.pop();
+        (spousesById.get(id) || new Set()).forEach((spouseId) => {
+          if (!adultSet.has(spouseId) || seen.has(spouseId)) return;
+          if ((normalizedGen.get(spouseId) || 0) !== g) return;
+          if (componentOf.get(spouseId) !== componentOf.get(id)) return;
+          seen.add(spouseId);
+          stack.push(spouseId);
+        });
+      }
+      return [...seen];
+    };
+
+    const siblingKeyOf = (id) => {
+      const parentIds = [...(parentsByChild.get(id) || [])]
+        .filter(parentId => componentOf.get(parentId) === componentOf.get(id) && (normalizedGen.get(parentId) || 0) === g - 1)
+        .sort(idSort);
+      return parentIds.length ? `p:${parentIds.join('|')}` : `solo:${id}`;
+    };
+
+    const orderedAdults = adultIds.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+    orderedAdults.forEach((id) => {
+      if (unitByAdult.has(id)) return;
+      const members = spouseDfs(id).sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+      const siblingKey = siblingKeyOf(members[0]);
+      const unit = {
+        key: `u:${members.join('|')}`,
+        siblingKey,
+        members,
+        center: avg(members.map(mid => xById.get(mid)).filter(x => typeof x === 'number')),
+        children: [],
+      };
+      units.push(unit);
+      members.forEach((memberId) => unitByAdult.set(memberId, unit));
+    });
+
+    if (!units.length) return;
+
+    const groupsBySiblingKey = new Map();
+    units.forEach((unit) => {
+      if (!groupsBySiblingKey.has(unit.siblingKey)) groupsBySiblingKey.set(unit.siblingKey, []);
+      groupsBySiblingKey.get(unit.siblingKey).push(unit);
+    });
+
+    const orderedGroups = [...groupsBySiblingKey.entries()]
+      .map(([siblingKey, groupUnits]) => ({
+        siblingKey,
+        units: groupUnits.slice().sort((a, b) => a.center - b.center || a.key.localeCompare(b.key)),
+        center: avg(groupUnits.map(unit => unit.center).filter(Number.isFinite)),
+      }))
+      .sort((a, b) => a.center - b.center || a.siblingKey.localeCompare(b.siblingKey));
+
+    const spouseSpacing = Math.max(130, spacing * 0.55);
+    const unitGap = Math.max(180, spacing * 0.9);
+    const siblingGap = Math.max(300, spacing * 1.6);
+
+    const unitWidths = new Map();
+    orderedGroups.forEach((group) => {
+      group.units.forEach((unit) => {
+        unitWidths.set(unit.key, Math.max(0, (unit.members.length - 1) * spouseSpacing));
+      });
+    });
+
+    const rowCenter = avg(adultIds.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+    let totalWidth = 0;
+    orderedGroups.forEach((group, groupIdx) => {
+      group.units.forEach((unit, unitIdx) => {
+        totalWidth += unitWidths.get(unit.key) || 0;
+        if (unitIdx < group.units.length - 1) totalWidth += unitGap;
+      });
+      if (groupIdx < orderedGroups.length - 1) totalWidth += siblingGap;
+    });
+
+    let left = (Number.isFinite(rowCenter) ? rowCenter : 0) - totalWidth / 2;
+    orderedGroups.forEach((group, groupIdx) => {
+      group.units.forEach((unit, unitIdx) => {
+        unit.members.forEach((id, idx) => xById.set(id, left + idx * spouseSpacing));
+        const width = unitWidths.get(unit.key) || 0;
+        const center = left + width / 2;
+        unit.center = center;
+        left += width;
+        if (unitIdx < group.units.length - 1) left += unitGap;
+      });
+      if (groupIdx < orderedGroups.length - 1) left += siblingGap;
+    });
+
+    if (!childIds.length) return;
+
+    const blocksByOwner = new Map();
+    const childOrder = childIds.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+    childOrder.forEach((childId) => {
+      const parentUnits = [...(parentsByChild.get(childId) || [])]
+        .map(parentId => unitByAdult.get(parentId))
+        .filter(Boolean);
+      const owner = parentUnits.length ? parentUnits[0].key : `solo:${childId}`;
+      if (!blocksByOwner.has(owner)) blocksByOwner.set(owner, []);
+      blocksByOwner.get(owner).push(childId);
+    });
+
+    const childBlocks = [...blocksByOwner.entries()].map(([ownerKey, members]) => {
+      const ownerUnit = units.find(unit => unit.key === ownerKey) || null;
+      const siblingKey = ownerUnit ? ownerUnit.siblingKey : `solo:${ownerKey}`;
+      const center = ownerUnit
+        ? ownerUnit.center
+        : avg(members.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+      return { ownerKey, siblingKey, members, center };
+    });
+
+    const childGroups = new Map();
+    childBlocks.forEach((block) => {
+      if (!childGroups.has(block.siblingKey)) childGroups.set(block.siblingKey, []);
+      childGroups.get(block.siblingKey).push(block);
+    });
+
+    const orderedChildGroups = [...childGroups.entries()]
+      .map(([siblingKey, blocks]) => ({
+        siblingKey,
+        blocks: blocks.slice().sort((a, b) => a.center - b.center || a.ownerKey.localeCompare(b.ownerKey)),
+        center: avg(blocks.map(block => block.center).filter(Number.isFinite)),
+      }))
+      .sort((a, b) => a.center - b.center || a.siblingKey.localeCompare(b.siblingKey));
+
+    const childGap = Math.max(170, spacing * 0.8);
+    const childSiblingGap = Math.max(300, spacing * 1.5);
+    const childWidths = new Map();
+
+    orderedChildGroups.forEach((group) => {
+      group.blocks.forEach((block) => {
+        childWidths.set(block.ownerKey, Math.max(0, (block.members.length - 1) * spacing));
+      });
+    });
+
+    const childRowCenter = avg(childIds.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+    let childTotalWidth = 0;
+    orderedChildGroups.forEach((group, groupIdx) => {
+      group.blocks.forEach((block, blockIdx) => {
+        childTotalWidth += childWidths.get(block.ownerKey) || 0;
+        if (blockIdx < group.blocks.length - 1) childTotalWidth += childGap;
+      });
+      if (groupIdx < orderedChildGroups.length - 1) childTotalWidth += childSiblingGap;
+    });
+
+    let childLeft = (Number.isFinite(childRowCenter) ? childRowCenter : 0) - childTotalWidth / 2;
+    orderedChildGroups.forEach((group, groupIdx) => {
+      group.blocks.forEach((block, blockIdx) => {
+        block.members.forEach((id, idx) => xById.set(id, childLeft + idx * spacing));
+        childLeft += childWidths.get(block.ownerKey) || 0;
+        if (blockIdx < group.blocks.length - 1) childLeft += childGap;
+      });
+      if (groupIdx < orderedChildGroups.length - 1) childLeft += childSiblingGap;
+    });
+  };
+
   const nodesById = new Set(state.characters.map(c => c.id));
   const componentOf = new Map();
   const components = [];
@@ -548,9 +713,11 @@ function layout() {
 
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
     rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
+    rowIndex.forEach((g) => enforceFamilyBlocks(rows, g));
     rowIndex.forEach(g => relaxRow(rows, g, 1));
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
     rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
+    rowIndex.forEach((g) => enforceFamilyBlocks(rows, g));
     rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
     rowIndex.forEach((g) => enforceStrictSiblingBlocks(rows, g));
 
