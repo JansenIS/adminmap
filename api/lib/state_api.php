@@ -143,6 +143,36 @@ function api_build_refs_by_owner_from_file_or_state(?array $state = null): array
   return $refs;
 }
 
+function api_load_emblem_bundle_from_file_or_state(?array $state = null): array {
+  $assets = [];
+  $refs = [];
+
+  $assetPath = api_repo_root() . '/data/emblem_assets.json';
+  if (is_file($assetPath)) {
+    $decodedAssets = json_decode((string)file_get_contents($assetPath), true);
+    if (is_array($decodedAssets) && is_array($decodedAssets['assets'] ?? null)) {
+      $assets = $decodedAssets['assets'];
+    }
+  }
+
+  $refsPath = api_repo_root() . '/data/emblem_refs.json';
+  if (is_file($refsPath)) {
+    $decodedRefs = json_decode((string)file_get_contents($refsPath), true);
+    if (is_array($decodedRefs) && is_array($decodedRefs['refs'] ?? null)) {
+      $refs = $decodedRefs['refs'];
+    }
+  }
+
+  if (!empty($assets) || !empty($refs)) {
+    return ['assets' => $assets, 'refs' => $refs];
+  }
+
+  if (!is_array($state)) {
+    $state = api_load_state();
+  }
+  return api_emblem_migration_from_state($state);
+}
+
 function api_get_or_build_provinces_index(?array $state = null): array {
   $indexPath = api_provinces_index_path();
   $statePath = api_state_path();

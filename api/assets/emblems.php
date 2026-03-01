@@ -3,9 +3,8 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/state_api.php';
 
-$state = api_load_state();
 $mtime = api_state_mtime();
-$migration = api_emblem_migration_from_state($state);
+$migration = api_load_emblem_bundle_from_file_or_state(null);
 
 $shouldPersist = (($_GET['migrate'] ?? '0') === '1');
 $assetPath = api_repo_root() . '/data/emblem_assets.json';
