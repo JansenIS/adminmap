@@ -1,0 +1,58 @@
+{
+  "characters": [
+    {
+      "id": "char_0001",
+      "name": "Эдар Старк",
+      "title": "Лорд Винтерфелла",
+      "birth_year": 263,
+      "death_year": 299,
+      "photo_url": "https://upload.wikimedia.org/wikipedia/en/5/52/Ned_Stark-Sean_Bean.jpg",
+      "notes": "Стартовый демонстрационный персонаж",
+      "created_at": "2026-03-01T00:00:00Z"
+    },
+    {
+      "id": "char_0002",
+      "name": "Кейтлин Старк",
+      "title": "Леди Винтерфелла",
+      "birth_year": 264,
+      "death_year": 299,
+      "photo_url": "https://upload.wikimedia.org/wikipedia/en/6/6b/Catelyn_Stark-Michelle_Fairley.jpg",
+      "notes": "Стартовый демонстрационный персонаж",
+      "created_at": "2026-03-01T00:00:00Z"
+    },
+    {
+      "id": "char_0003",
+      "name": "Робб Старк",
+      "title": "Король Севера",
+      "birth_year": 283,
+      "death_year": 299,
+      "photo_url": "https://upload.wikimedia.org/wikipedia/en/5/57/Robb_Stark-Richard_Madden.jpg",
+      "notes": "Стартовый демонстрационный персонаж",
+      "created_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel_seed_01",
+      "type": "spouses",
+      "source_id": "char_0001",
+      "target_id": "char_0002",
+      "created_at": "2026-03-01T00:00:00Z"
+    },
+    {
+      "id": "rel_seed_02",
+      "type": "parent_child",
+      "source_id": "char_0001",
+      "target_id": "char_0003",
+      "created_at": "2026-03-01T00:00:00Z"
+    },
+    {
+      "id": "rel_seed_03",
+      "type": "parent_child",
+      "source_id": "char_0002",
+      "target_id": "char_0003",
+      "created_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "updated_at": "2026-03-01T00:00:00Z"
+}

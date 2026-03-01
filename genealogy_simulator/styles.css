@@ -1,0 +1,25 @@
+:root { font-family: Arial, sans-serif; }
+body { margin: 0; background: #111827; color: #e5e7eb; }
+header { padding: 12px 16px; background: #1f2937; border-bottom: 1px solid #374151; }
+main { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 56px); }
+.panel { padding: 12px; border-right: 1px solid #374151; background: #0f172a; }
+.panel h2 { margin-top: 0; }
+label { display: block; margin: 8px 0 4px; font-size: 12px; }
+input, select, button, textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; border-radius: 8px; border: 1px solid #4b5563; background: #1f2937; color: #f9fafb; }
+button { cursor: pointer; background: #2563eb; border-color: #1d4ed8; }
+button.secondary { background: #374151; }
+.canvas-wrap { position: relative; overflow: auto; }
+svg { width: 2000px; height: 1200px; background: radial-gradient(circle at top, #1f2937 0%, #0b1020 80%); }
+.node-label { font-size: 13px; fill: #f9fafb; text-anchor: middle; }
+.node-meta { font-size: 11px; fill: #9ca3af; text-anchor: middle; }
+.node-circle { stroke: #93c5fd; stroke-width: 3; cursor: pointer; }
+.node-circle.selected { stroke: #f59e0b; }
+.edge-parent { stroke: #93c5fd; stroke-width: 2; }
+.edge-sibling { stroke: #a78bfa; stroke-width: 2; stroke-dasharray: 4 3; }
+.edge-spouse { stroke: #fca5a5; stroke-width: 2; }
+.quick-add { position: absolute; width: 44px; background: #f59e0b; color: #111827; border-radius: 999px; border: 0; font-size: 26px; line-height: 36px; height: 44px; display:none; }
+.profile-modal { position: fixed; inset: 0; background: rgba(2,6,23,.7); display: none; align-items: center; justify-content: center; }
+.profile-card { width: min(500px, 95vw); background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; }
+.profile-card img { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; border: 3px solid #60a5fa; }
+.legend { font-size: 12px; color: #9ca3af; }
+@media (max-width: 1000px){ main { grid-template-columns: 1fr; } .panel { border-right:0; border-bottom:1px solid #374151; }}
