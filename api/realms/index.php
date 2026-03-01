@@ -12,9 +12,22 @@ if (!in_array($type, $allowed, true)) {
   api_json_response(['error' => 'invalid_type', 'allowed' => $allowed], 400, $mtime);
 }
 
+$ownerTypeByRealmType = [
+  'kingdoms' => 'kingdom',
+  'great_houses' => 'great_house',
+  'minor_houses' => 'minor_house',
+  'free_cities' => 'free_city',
+];
+$refs = api_build_refs_by_owner_from_file_or_state($state);
+$ownerType = $ownerTypeByRealmType[$type] ?? $type;
+
 $items = [];
 foreach (($state[$type] ?? []) as $id => $realm) {
   if (!is_array($realm)) continue;
+  $ownerKey = $ownerType . ':' . (string)$id;
+  if (!isset($realm['emblem_asset_id']) && isset($refs[$ownerKey]) && $refs[$ownerKey] !== '') {
+    $realm['emblem_asset_id'] = $refs[$ownerKey];
+  }
   if ($profile === 'compact') {
     unset($realm['emblem_svg']);
   }
