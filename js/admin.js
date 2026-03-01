@@ -22,9 +22,8 @@
   const ownerInput = el("ownerInput");
   const peopleDatalist = el("peopleList");
 
-  const suzerainSelect = el("suzerainSelect");
-  const seniorSelect = el("seniorSelect");
-  const vassalsSelect = el("vassalsSelect");
+  const suzerainText = el("suzerainText");
+  const seniorText = el("seniorText");
   const terrainSelect = el("terrainSelect");
 
   const btnApplyFill = el("applyFill");
@@ -36,6 +35,7 @@
   const realmTypeSelect = el("realmType");
   const realmSelect = el("realmSelect");
   const realmNameInput = el("realmName");
+  const realmRulerInput = el("realmRuler");
   const realmColorInput = el("realmColor");
   const realmCapitalInput = el("realmCapital");
   const realmEmblemScaleInput = el("realmEmblemScale");
@@ -51,6 +51,7 @@
   const minorGreatHouseSelect = el("minorGreatHouseSelect");
   const minorVassalSelect = el("minorVassalSelect");
   const minorVassalName = el("minorVassalName");
+  const minorVassalRuler = el("minorVassalRuler");
   const minorSetCapitalBtn = el("minorSetCapital");
   const minorAddDomainBtn = el("minorAddDomain");
   const minorRemoveDomainBtn = el("minorRemoveDomain");
@@ -85,6 +86,14 @@
   const provinceImageFile = el("provinceImageFile");
   const provinceCardPreviewImg = el("provinceCardPreviewImg");
   const provinceCardPreviewEmpty = el("provinceCardPreviewEmpty");
+  const personModal = el("personModal");
+  const personModalClose = el("personModalClose");
+  const personModalPhoto = el("personModalPhoto");
+  const personModalName = el("personModalName");
+  const personModalSuzerain = el("personModalSuzerain");
+  const personModalSeniors = el("personModalSeniors");
+  const personModalVassals = el("personModalVassals");
+  const personModalBio = el("personModalBio");
 
   alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
@@ -194,8 +203,100 @@
     flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
   }
 
+
+  function makePlaceholderAvatar(name) {
+    const seed = Array.from(String(name || "?")).reduce((a, c) => a + c.charCodeAt(0), 0);
+    const hue = seed % 360;
+    const initials = String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join("") || "?";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(${hue},65%,42%)"/><stop offset="100%" stop-color="hsl(${(hue+35)%360},58%,28%)"/></linearGradient></defs><rect width="512" height="512" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui,Segoe UI,Arial" font-size="180" fill="#eaf2ff">${initials}</text></svg>`;
+    return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(svg);
+  }
+
+  function profileByName(name) {
+    const key = String(name || "").trim();
+    if (!key) return null;
+    const map = state && state.people_profiles && typeof state.people_profiles === "object" ? state.people_profiles : {};
+    return map[key] && typeof map[key] === "object" ? map[key] : null;
+  }
+
+  function appendPersonLink(target, name) {
+    const n = String(name || "").trim();
+    if (!n) return false;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "person-link";
+    btn.textContent = n;
+    btn.addEventListener("click", () => openPersonModal(n));
+    target.appendChild(btn);
+    return true;
+  }
+
+  function renderPersonNode(target, name) {
+    if (!target) return;
+    target.textContent = "";
+    if (!appendPersonLink(target, name)) target.textContent = "—";
+  }
+
+  function renderRelationList(target, values) {
+    if (!target) return;
+    target.textContent = "";
+    const arr = Array.from(values || []);
+    if (!arr.length) { target.textContent = "—"; return; }
+    arr.sort((a,b)=>a.localeCompare(b,'ru'));
+    arr.forEach((name, idx) => {
+      if (idx) target.appendChild(document.createTextNode(', '));
+      appendPersonLink(target, name);
+    });
+  }
+
+  function derivePersonRelations(name) {
+    const target = String(name || "").trim();
+    const suzerains = new Set();
+    const seniors = new Set();
+    const vassals = new Set();
+    if (!target || !state || !state.provinces) return { suzerains, seniors, vassals };
+
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || String(pd.owner || "").trim() !== target) continue;
+      const rel = getProvinceSuzerainSenior(pd);
+      if (rel.suzerain && rel.suzerain !== target) suzerains.add(rel.suzerain);
+      if (rel.senior && rel.senior !== target) seniors.add(rel.senior);
+    }
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd) continue;
+      const owner = String(pd.owner || "").trim();
+      if (!owner || owner === target) continue;
+      const rel = getProvinceSuzerainSenior(pd);
+      if (rel.suzerain === target || rel.senior === target) vassals.add(owner);
+    }
+    return { suzerains, seniors, vassals };
+  }
+
+  function openPersonModal(name) {
+    if (!personModal) return;
+    const n = String(name || "").trim();
+    if (!n) return;
+    const profile = profileByName(n) || {};
+    personModalName.textContent = n;
+    personModalPhoto.src = String(profile.photo_url || "").trim() || makePlaceholderAvatar(n);
+    const bio = String(profile.bio || "").trim();
+    personModalBio.textContent = bio || "Биография будет добавлена позже.";
+    const rel = derivePersonRelations(n);
+    renderRelationList(personModalSuzerain, rel.suzerains);
+    renderRelationList(personModalSeniors, rel.seniors);
+    renderRelationList(personModalVassals, rel.vassals);
+    personModal.classList.add('open');
+    personModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closePersonModal() {
+    if (!personModal) return;
+    personModal.classList.remove('open');
+    personModal.setAttribute('aria-hidden', 'true');
+  }
+
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
-  function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } return s; }
+  function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } if (!isPlainObject(state.people_profiles)) state.people_profiles = {}; if (!isPlainObject(state.people_profiles[s])) state.people_profiles[s] = { photo_url: "", bio: "" }; return s; }
   function rebuildPidKeyMaps(map) {
     keyByPid.clear(); pidByKey.clear();
     for (const [key, meta] of map.provincesByKey.entries()) {
@@ -213,6 +314,13 @@
     if (!isPlainObject(obj.great_houses)) obj.great_houses = {};
     if (!isPlainObject(obj.minor_houses)) obj.minor_houses = {};
     if (!isPlainObject(obj.free_cities)) obj.free_cities = {};
+    if (!isPlainObject(obj.people_profiles)) obj.people_profiles = {};
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+      for (const realm of Object.values(obj[type] || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        realm.ruler = String(realm.ruler || "").trim();
+      }
+    }
     for (const realm of Object.values(obj.great_houses || {})) {
       if (!realm || typeof realm !== "object") continue;
       if (!isPlainObject(realm.minor_house_layer)) realm.minor_house_layer = {};
@@ -224,6 +332,7 @@
       layer.vassals = layer.vassals.map((v, idx) => ({
         id: String(v && v.id || `vassal_${idx + 1}`).trim() || `vassal_${idx + 1}`,
         name: String(v && (v.name || v.id) || `Вассал ${idx + 1}`).trim() || `Вассал ${idx + 1}`,
+        ruler: String(v && v.ruler || "").trim(),
         color: String(v && v.color || ""),
         capital_pid: Number(v && v.capital_pid || 0) >>> 0,
         province_pids: Array.isArray(v && v.province_pids) ? v.province_pids.map(x => Number(x) >>> 0).filter(Boolean) : []
@@ -241,13 +350,24 @@
   function rebuildPeopleControls() { /* unchanged */
     peopleDatalist.innerHTML = "";
     for (const p of state.people) { const opt = document.createElement("option"); opt.value = p; peopleDatalist.appendChild(opt); }
-    const buildSelect = (sel, allowEmpty) => { const cur = sel.value || ""; sel.innerHTML = ""; if (allowEmpty) { const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; sel.appendChild(o0); } for (const p of state.people) { const o = document.createElement("option"); o.value = p; o.textContent = p; sel.appendChild(o); } sel.value = cur; };
-    buildSelect(suzerainSelect, true); buildSelect(seniorSelect, true);
-    const curSel = new Set(Array.from(vassalsSelect.selectedOptions || []).map(o => o.value));
-    vassalsSelect.innerHTML = ""; for (const p of state.people) { const o = document.createElement("option"); o.value = p; o.textContent = p; if (curSel.has(p)) o.selected = true; vassalsSelect.appendChild(o); }
   }
 
   function rebuildTerrainSelect() { const list = Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK; const cur = terrainSelect.value || ""; terrainSelect.innerHTML = ""; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; terrainSelect.appendChild(o0); for (const t of list) { const o = document.createElement("option"); o.value = t; o.textContent = t; terrainSelect.appendChild(o); } terrainSelect.value = cur; }
+
+  function syncPeopleFromRealmRulers() {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+      for (const realm of Object.values(state[type] || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        if (realm.ruler) ensurePerson(realm.ruler);
+      }
+    }
+    for (const realm of Object.values(state.great_houses || {})) {
+      if (!realm || typeof realm !== "object") continue;
+      const layer = realm.minor_house_layer;
+      if (!layer || !Array.isArray(layer.vassals)) continue;
+      for (const v of layer.vassals) if (v && v.ruler) ensurePerson(v.ruler);
+    }
+  }
 
   function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
   function setProvinceCardPreview(pd) { const pid = pd ? (Number(pd.pid) >>> 0) : 0; const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : ""; const src = String((pd && pd.province_card_image) || baseSrc || "").trim(); if (src) { provinceCardPreviewImg.src = src; provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
@@ -356,22 +476,49 @@
     return canvas.toDataURL("image/jpeg", CARD_OUTPUT_QUALITY);
   }
 
+
+  function getProvinceSuzerainSenior(pd) {
+    if (!pd || typeof pd !== "object") return { suzerain: "", senior: "" };
+    const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
+    const suzerain = String(kingdom && kingdom.ruler || "").trim();
+
+    const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
+    let senior = String(greatHouse && greatHouse.ruler || "").trim();
+
+    const layer = greatHouse && greatHouse.minor_house_layer && typeof greatHouse.minor_house_layer === "object"
+      ? greatHouse.minor_house_layer
+      : null;
+    if (layer && Array.isArray(layer.vassals)) {
+      const pid = Number(pd.pid) >>> 0;
+      const vassal = layer.vassals.find(v => (v && Array.isArray(v.province_pids) && v.province_pids.some(x => (Number(x) >>> 0) === pid)));
+      if (vassal) {
+        const vassalCapitalPid = Number(vassal.capital_pid) >>> 0;
+        if (vassalCapitalPid > 0 && vassalCapitalPid !== pid) senior = String(vassal.ruler || "").trim() || senior;
+      }
+    }
+
+    return { suzerain, senior };
+  }
   function setSelection(key, meta) {
     selectedKey = key >>> 0;
     const pd = getProvData(selectedKey);
     multiSelCount.textContent = String(selectedKeys.size || (selectedKey ? 1 : 0));
-    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainSelect.value = ""; seniorSelect.value = ""; Array.from(vassalsSelect.options).forEach(o => o.selected = false); terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
+    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainText.textContent = "—"; seniorText.textContent = "—"; terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
     selName.textContent = pd.name || (meta && meta.name) || "—"; selPid.textContent = String(pd.pid ?? (meta ? meta.pid : "—")); selKey.textContent = String(selectedKey);
     provNameInput.value = pd.name || ""; ownerInput.value = pd.owner || "";
-    if (pd.owner) ensurePerson(pd.owner); if (pd.suzerain) ensurePerson(pd.suzerain); if (pd.senior) ensurePerson(pd.senior); if (Array.isArray(pd.vassals)) for (const v of pd.vassals) ensurePerson(v);
-    suzerainSelect.value = pd.suzerain || ""; seniorSelect.value = pd.senior || ""; terrainSelect.value = pd.terrain || "";
-    const vset = new Set(Array.isArray(pd.vassals) ? pd.vassals : []); for (const opt of vassalsSelect.options) opt.selected = vset.has(opt.value);
+    if (pd.owner) ensurePerson(pd.owner);
+    const derived = getProvinceSuzerainSenior(pd);
+    if (derived.suzerain) ensurePerson(derived.suzerain);
+    if (derived.senior) ensurePerson(derived.senior);
+    renderPersonNode(suzerainText, derived.suzerain || "");
+    renderPersonNode(seniorText, derived.senior || "");
+    terrainSelect.value = pd.terrain || "";
     if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
   }
 
-  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.suzerain = ensurePerson(suzerainSelect.value); pd.senior = ensurePerson(seniorSelect.value); pd.vassals = Array.from(vassalsSelect.selectedOptions || []).map(o => o.value).filter(Boolean); for (const v of pd.vassals) ensurePerson(v); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
+  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
   function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
@@ -451,11 +598,11 @@
     }
     return saveRes.json();
   }
-  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), suzerain: String(pd.suzerain || ""), senior: String(pd.senior || ""), terrain: String(pd.terrain || ""), vassals: Array.isArray(pd.vassals) ? pd.vassals.map(v => String(v || "").trim()).filter(Boolean) : [], fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
+  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), terrain: String(pd.terrain || ""), fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
   async function fetchIfMatchVersion() { const res = await fetch("/api/map/version/", { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status); const payload = await res.json(); const v = String(payload && payload.map_version || "").trim(); if (!v) throw new Error("map_version_missing"); return v; }
   async function persistChangesBatch(changes) { const payload = { changes: Array.isArray(changes) ? changes : [] }; const ifMatch = await fetchIfMatchVersion(); const res = await fetch(CHANGES_APPLY_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8", "If-Match": ifMatch }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "province", pid: payload.pid, changes: payload.changes }]); const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
-  function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [] }; }
+  function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), ruler: String(realm.ruler || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [] }; }
   async function persistRealmPatch(type, id, realm) { const payload = { type: String(type || ""), id: String(id || ""), changes: buildRealmPatchFromState(realm) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "realm", type: payload.type, id: payload.id, changes: payload.changes }]); const res = await fetch(REALM_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
 
   async function uploadProvinceCardImage(pid, imageDataUrl) {
@@ -641,11 +788,25 @@
       minorVassalSelect.value = curV;
     }
     renderMinorPalette(gh);
+    loadMinorVassalFields();
   }
 
+
+  function loadMinorVassalFields() {
+    if (!minorVassalSelect || !minorVassalName || !minorVassalRuler) return;
+    const gh = minorGreatHouseSelect ? minorGreatHouseSelect.value : "";
+    const vid = minorVassalSelect.value;
+    if (!gh || !vid) return;
+    const layer = getGreatHouseMinorLayer(gh);
+    const v = (layer.vassals || []).find(x => x.id === vid);
+    if (!v) return;
+    minorVassalName.value = v.name || "";
+    minorVassalRuler.value = v.ruler || "";
+    if (v.ruler) ensurePerson(v.ruler);
+  }
   function buildRealmEntries(type) {
     const bucket = realmBucketByType(type);
-    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 }, r)]);
+    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 }, r)]);
   }
 
   function rebuildRealmSelect() {
@@ -663,15 +824,17 @@
     const id = realmSelect.value;
     const realm = id ? realmBucketByType(type)[id] : null;
     realmNameInput.value = realm ? (realm.name || id) : "";
+    realmRulerInput.value = realm ? String(realm.ruler || "") : "";
     realmColorInput.value = realm && realm.color ? realm.color : "#ff3b30";
     realmCapitalInput.value = realm && (realm.capital_pid || realm.capital_key) ? String(realm.capital_pid || realm.capital_key) : "";
     realmEmblemScaleInput.value = String(realm && realm.emblem_scale ? realm.emblem_scale : 1);
+    if (realm && realm.ruler) ensurePerson(realm.ruler);
     realmEmblemScaleVal.textContent = realmEmblemScaleInput.value;
   }
 
   function ensureRealm(type, id) {
     const bucket = realmBucketByType(type);
-    if (!bucket[id]) bucket[id] = { name: id, color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 };
+    if (!bucket[id]) bucket[id] = { name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1 };
     return bucket[id];
   }
 
@@ -975,8 +1138,12 @@
       });
       syncProvEmblemsToggleLabel();
     }
+    if (personModalClose) personModalClose.addEventListener("click", closePersonModal);
+    if (personModal) personModal.addEventListener("click", (evt) => { if (evt.target === personModal) closePersonModal(); });
+    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") closePersonModal(); });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
+    if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
     btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });
@@ -984,10 +1151,11 @@
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       const realm = ensureRealm(type, id);
       realm.name = String(realmNameInput.value || id).trim() || id;
+      realm.ruler = ensurePerson(realmRulerInput.value);
       realm.color = String(realmColorInput.value || "#ff3b30");
       realm.capital_pid = Number(realmCapitalInput.value) >>> 0;
       realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
-      rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); exportStateToTextarea();
+      rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); setSelection(selectedKey, map.getProvinceMeta(selectedKey)); exportStateToTextarea();
       if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) {
         try { await persistRealmPatch(type, id, realm); }
         catch (err) { alert("PATCH сохранение сущности не удалось: " + (err && err.message ? err.message : err)); }
@@ -1052,15 +1220,34 @@
       const gh = minorGreatHouseSelect.value; if (!gh) return;
       const layer = getGreatHouseMinorLayer(gh);
       const name = String(minorVassalName.value || "").trim() || `Вассал ${layer.vassals.length + 1}`;
+      const ruler = ensurePerson(minorVassalRuler.value);
       const idBase = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-zа-я0-9_\-]/gi, "").slice(0, 32) || `vassal_${layer.vassals.length + 1}`;
       let id = idBase; let n = 2;
       while (layer.vassals.some(v => v.id === id)) { id = `${idBase}_${n++}`; }
       const palette = buildVassalPalette((realmBucketByType("great_houses")[gh] || {}).color || "#ff3b30");
-      layer.vassals.push({ id, name, color: palette[layer.vassals.length % palette.length] || "", capital_pid: 0, province_pids: [] });
+      layer.vassals.push({ id, name, ruler, color: palette[layer.vassals.length % palette.length] || "", capital_pid: 0, province_pids: [] });
       minorVassalName.value = "";
+      minorVassalRuler.value = "";
       rebuildMinorHouseControls();
       applyLayerState(map); exportStateToTextarea();
     });
+    if (minorVassalName) minorVassalName.addEventListener("change", () => {
+      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
+      const layer = getGreatHouseMinorLayer(gh);
+      const v = layer.vassals.find(x => x.id === vid); if (!v) return;
+      v.name = String(minorVassalName.value || "").trim() || v.name;
+      rebuildMinorHouseControls();
+      minorVassalSelect.value = vid;
+      applyLayerState(map); exportStateToTextarea();
+    });
+    if (minorVassalRuler) minorVassalRuler.addEventListener("change", () => {
+      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
+      const layer = getGreatHouseMinorLayer(gh);
+      const v = layer.vassals.find(x => x.id === vid); if (!v) return;
+      v.ruler = ensurePerson(minorVassalRuler.value);
+      applyLayerState(map); exportStateToTextarea();
+    });
+
     if (minorSetVassalCapitalBtn) minorSetVassalCapitalBtn.addEventListener("click", () => {
       const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid || !selectedKey) return;
       const layer = getGreatHouseMinorLayer(gh);
@@ -1113,7 +1300,7 @@
     if (btnExportGreatHousesPng) btnExportGreatHousesPng.addEventListener("click", () => exportLayerPng(map, "great_houses", "layer_great_houses.png"));
     if (btnExportMinorHousesPng) btnExportMinorHousesPng.addEventListener("click", () => exportLayerPng(map, "minor_houses", "layer_minor_houses.png"));
     btnImport.addEventListener("click", () => importFile.click());
-    importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
+    importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); syncPeopleFromRealmRulers(); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
     btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
     if (btnSaveImportedBackend) btnSaveImportedBackend.addEventListener("click", async () => {
       try {
@@ -1176,7 +1363,7 @@
     });
 
     provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
-    suzerainSelect.addEventListener("change", saveProvinceFieldsFromUI); seniorSelect.addEventListener("change", saveProvinceFieldsFromUI); vassalsSelect.addEventListener("change", saveProvinceFieldsFromUI); terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
+    terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
   }
 
 
@@ -1220,7 +1407,7 @@
 
   async function main() {
     state = await loadInitialState(STATE_URL_DEFAULT);
-    rebuildPeopleControls(); rebuildTerrainSelect(); rebuildRealmSelect();
+    rebuildPeopleControls(); syncPeopleFromRealmRulers(); rebuildTerrainSelect(); rebuildRealmSelect();
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",

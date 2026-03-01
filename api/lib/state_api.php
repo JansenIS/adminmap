@@ -410,6 +410,8 @@ function api_normalize_state_snapshot_for_backend(array $state): array {
     $state['people'] = $out;
   }
 
+  api_extract_people_profile_images($state);
+
   if (isset($state['provinces']) && is_array($state['provinces'])) {
     foreach ($state['provinces'] as $pid => $province) {
       if (!is_array($province)) continue;
@@ -424,6 +426,45 @@ function api_normalize_state_snapshot_for_backend(array $state): array {
   }
 
   return $state;
+}
+
+
+function api_extract_people_profile_images(array &$state): void {
+  if (!isset($state['people_profiles']) || !is_array($state['people_profiles'])) return;
+
+  $root = api_repo_root();
+  $dir = $root . '/people';
+  if (!is_dir($dir)) {
+    @mkdir($dir, 0775, true);
+  }
+
+  foreach ($state['people_profiles'] as $name => $profile) {
+    if (!is_array($profile)) continue;
+    $photoUrl = isset($profile['photo_url']) ? trim((string)$profile['photo_url']) : '';
+    if ($photoUrl === '' || !str_starts_with($photoUrl, 'data:image/')) continue;
+
+    if (!preg_match('#^data:image/(png|webp|jpeg|jpg);base64,(.+)$#i', $photoUrl, $m)) continue;
+    $fmt = strtolower((string)$m[1]);
+    $ext = ($fmt === 'jpeg' || $fmt === 'jpg') ? 'jpg' : $fmt;
+    $raw = base64_decode((string)$m[2], true);
+    if ($raw === false || $raw === '') continue;
+
+    $slug = preg_replace('/[^a-z0-9_\-]+/i', '_', (string)$name);
+    $slug = trim((string)$slug, '_');
+    if ($slug === '') $slug = 'person';
+    $hash = substr(sha1((string)$name), 0, 8);
+    $file = $slug . '_' . $hash . '.' . $ext;
+    $path = $dir . '/' . $file;
+    $tmp = $path . '.tmp';
+    if (file_put_contents($tmp, $raw) === false) continue;
+    if (!@rename($tmp, $path)) {
+      @unlink($tmp);
+      continue;
+    }
+
+    $profile['photo_url'] = 'people/' . $file;
+    $state['people_profiles'][$name] = $profile;
+  }
 }
 
 function api_validate_migration_apply_payload(array $payload): array {
@@ -537,11 +578,11 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
 }
 
 function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
-  $allowed = ['name', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
-    if (in_array($f, ['name','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if (in_array($f, ['name','ruler','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
     if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
     if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
     if ($f === 'emblem_box') {
@@ -699,10 +740,10 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     return ['ok' => false, 'error' => 'not_found'];
   }
 
-  $allowed = ['name', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
-    if (in_array((string)$field, ['name','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if (in_array((string)$field, ['name','ruler','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
     if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];
     if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
