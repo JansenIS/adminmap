@@ -145,10 +145,21 @@ function genealogy_delete_clan(array &$data, string $clan): int {
   $clan = trim($clan);
   if ($clan === '') return 0;
 
+  $normalize = static function (string $value): string {
+    $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+    if ($value === '') return '';
+    return function_exists('mb_strtolower')
+      ? mb_strtolower($value, 'UTF-8')
+      : strtolower($value);
+  };
+
+  $needle = $normalize($clan);
+  if ($needle === '') return 0;
+
   $toDelete = [];
   foreach ($data['characters'] ?? [] as $char) {
     if (!is_array($char)) continue;
-    if (trim((string)($char['clan'] ?? '')) === $clan) {
+    if ($normalize((string)($char['clan'] ?? '')) === $needle) {
       $toDelete[] = (string)($char['id'] ?? '');
     }
   }

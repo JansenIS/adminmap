@@ -12,16 +12,27 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
 $state = api_load_state();
 $names = [];
 
-foreach (($state['people'] ?? []) as $person) {
-  $name = is_array($person) ? trim((string)($person['name'] ?? '')) : trim((string)$person);
+$addName = static function (string $raw) use (&$names): void {
+  $name = trim($raw);
   if ($name !== '') $names[$name] = true;
+};
+
+foreach (($state['people'] ?? []) as $person) {
+  $name = is_array($person) ? (string)($person['name'] ?? '') : (string)$person;
+  $addName($name);
 }
 
-foreach (($state['provinces'] ?? []) as $province) {
+foreach ((array)($state['provinces'] ?? []) as $province) {
   if (!is_array($province)) continue;
   foreach (['owner', 'suzerain', 'senior'] as $field) {
-    $name = trim((string)($province[$field] ?? ''));
-    if ($name !== '') $names[$name] = true;
+    $addName((string)($province[$field] ?? ''));
+  }
+}
+
+foreach (['great_houses', 'minor_houses', 'kingdoms', 'free_cities'] as $collection) {
+  foreach ((array)($state[$collection] ?? []) as $entry) {
+    if (!is_array($entry)) continue;
+    $addName((string)($entry['name'] ?? ''));
   }
 }
 
