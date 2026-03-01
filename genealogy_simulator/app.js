@@ -115,7 +115,6 @@ function layout() {
 
   const pos = new Map();
   const spacing = 230;
-  const rowWidth = 1900;
 
   [...rows.entries()].sort((a, b) => a[0] - b[0]).forEach(([g, ids]) => {
     const targetXById = new Map();
@@ -188,6 +187,7 @@ function layout() {
 
     const ordered = blocks.flatMap(block => block);
 
+    const rowWidth = Math.max(1400, (ordered.length - 1) * spacing + 420);
     const offset = (rowWidth - (ordered.length - 1) * spacing) / 2;
     ordered.forEach((id, i) => pos.set(id, { x: offset + i * spacing, y: 130 + g * 230 }));
   });
@@ -307,7 +307,7 @@ function getDescendantsWithinClan(founderId, clan = '') {
   return members;
 }
 
-function getSpouses(id, clan = '') {
+function getSpouses(id, clan = '', { includeExternal = false } = {}) {
   const clanNorm = String(clan || '').trim();
   const spouses = new Set();
   state.allRelationships
@@ -316,7 +316,7 @@ function getSpouses(id, clan = '') {
       const spouseId = r.source_id === id ? r.target_id : r.source_id;
       const spouse = nodeByIdFromAll(spouseId);
       if (!spouse) return;
-      if (clanNorm && String(spouse.clan || '').trim() !== clanNorm) return;
+      if (!includeExternal && clanNorm && String(spouse.clan || '').trim() !== clanNorm) return;
       spouses.add(spouseId);
     });
   return spouses;
@@ -357,6 +357,9 @@ function applyClanFilter() {
       return;
     }
     getDescendantsWithinClan(founderId, clan).forEach((id) => included.add(id));
+    [...included].forEach((id) => {
+      getSpouses(id, clan, { includeExternal: true }).forEach((spouseId) => included.add(spouseId));
+    });
   } else {
     const sideFounders = clanMembers.filter((c) => c.clan_branch_type === 'side' && !!c.is_clan_founder);
     const sideBranchMembers = new Set();
@@ -364,14 +367,22 @@ function applyClanFilter() {
     sideFounders.forEach((founder) => {
       getDescendantsWithinClan(founder.id, clan).forEach((id) => sideBranchMembers.add(id));
       included.add(founder.id);
-      getSpouses(founder.id, clan).forEach((id) => included.add(id));
+      getSpouses(founder.id, clan, { includeExternal: true }).forEach((id) => included.add(id));
       getDirectChildren(founder.id, clan).forEach((id) => included.add(id));
     });
 
     clanMembers
       .filter((c) => !sideBranchMembers.has(c.id))
       .forEach((c) => included.add(c.id));
+
+    [...included].forEach((id) => {
+      getSpouses(id, clan, { includeExternal: true }).forEach((spouseId) => included.add(spouseId));
+    });
   }
+
+  state.allRelationships
+    .filter((r) => r.type === 'parent_child' && included.has(r.target_id))
+    .forEach((r) => included.add(r.source_id));
 
   state.characters = state.allCharacters.filter((c) => included.has(c.id));
   state.relationships = state.allRelationships.filter((r) => included.has(r.source_id) && included.has(r.target_id));
@@ -645,13 +656,24 @@ function render({ preserveViewportAnchor = true } = {}) {
       return;
     }
 
+    if (r.type === 'parent_child' && b.y > a.y) {
+      const parentPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const startY = a.y + NODE_RADIUS;
+      const endY = b.y - NODE_RADIUS;
+      const elbowY = startY + (endY - startY) * 0.45;
+      parentPath.setAttribute('d', `M ${a.x} ${startY} L ${a.x} ${elbowY} L ${b.x} ${elbowY} L ${b.x} ${endY}`);
+      parentPath.setAttribute('fill', 'none');
+      parentPath.setAttribute('class', 'edge-parent');
+      svg.appendChild(parentPath);
+      return;
+    }
+
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    const isParentEdge = r.type === 'parent_child' && b.y > a.y;
     line.setAttribute('x1', a.x);
-    line.setAttribute('y1', isParentEdge ? a.y + NODE_RADIUS : a.y);
+    line.setAttribute('y1', a.y);
     line.setAttribute('x2', b.x);
-    line.setAttribute('y2', isParentEdge ? b.y - NODE_RADIUS : b.y);
-    line.setAttribute('class', r.type === 'parent_child' ? 'edge-parent' : (r.type === 'siblings' ? 'edge-sibling' : 'edge-spouse'));
+    line.setAttribute('y2', b.y);
+    line.setAttribute('class', r.type === 'siblings' ? 'edge-sibling' : 'edge-spouse');
     svg.appendChild(line);
   });
 
