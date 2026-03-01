@@ -720,6 +720,9 @@ function layout() {
     rowIndex.forEach((g) => enforceFamilyBlocks(rows, g));
     rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
     rowIndex.forEach((g) => enforceStrictSiblingBlocks(rows, g));
+    // Сиблинговые блоки могут разрывать пары, поэтому финально повторно
+    // прижимаем супругов друг к другу (исключение «супруги всегда рядом»).
+    rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
