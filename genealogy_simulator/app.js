@@ -93,19 +93,56 @@ function computeGenerations(chars, rels) {
 function layout() {
   const gen = computeGenerations(state.characters, state.relationships);
   const rows = new Map();
+  const parentsByChild = new Map();
+
+  state.relationships
+    .filter(r => r.type === 'parent_child')
+    .forEach((r) => {
+      if (!parentsByChild.has(r.target_id)) parentsByChild.set(r.target_id, []);
+      parentsByChild.get(r.target_id).push(r.source_id);
+    });
+
   state.characters.forEach(c => {
     const g = gen.get(c.id) || 0;
     if (!rows.has(g)) rows.set(g, []);
     rows.get(g).push(c.id);
   });
-  [...rows.values()].forEach(arr => arr.sort());
 
   const pos = new Map();
+  const spacing = 230;
+  const rowWidth = 1900;
+
   [...rows.entries()].sort((a, b) => a[0] - b[0]).forEach(([g, ids]) => {
-    const spacing = 230;
-    const offset = (1900 - (ids.length - 1) * spacing) / 2;
-    ids.forEach((id, i) => pos.set(id, { x: offset + i * spacing, y: 130 + g * 230 }));
+    const ordered = [...ids].sort((left, right) => {
+      const leftParents = parentsByChild.get(left) || [];
+      const rightParents = parentsByChild.get(right) || [];
+
+      const leftKnown = leftParents
+        .map(pid => pos.get(pid)?.x)
+        .filter(x => typeof x === 'number');
+      const rightKnown = rightParents
+        .map(pid => pos.get(pid)?.x)
+        .filter(x => typeof x === 'number');
+
+      const leftTargetX = leftKnown.length
+        ? leftKnown.reduce((sum, x) => sum + x, 0) / leftKnown.length
+        : Number.POSITIVE_INFINITY;
+      const rightTargetX = rightKnown.length
+        ? rightKnown.reduce((sum, x) => sum + x, 0) / rightKnown.length
+        : Number.POSITIVE_INFINITY;
+
+      if (leftTargetX !== rightTargetX) return leftTargetX - rightTargetX;
+
+      const a = normalizeId(left);
+      const b = normalizeId(right);
+      if (typeof a === 'number' && typeof b === 'number') return a - b;
+      return String(a).localeCompare(String(b));
+    });
+
+    const offset = (rowWidth - (ordered.length - 1) * spacing) / 2;
+    ordered.forEach((id, i) => pos.set(id, { x: offset + i * spacing, y: 130 + g * 230 }));
   });
+
   state.positions = pos;
 }
 
@@ -206,6 +243,7 @@ function applyClanFilter() {
     const targetInClan = (nodeByIdFromAll(r.target_id)?.clan || '').trim() === clan;
 
     if (sourceInClan && targetInClan) return true;
+    if (r.type === 'parent_child') return sourceInClan || targetInClan;
     return r.type === 'spouses' || r.type === 'siblings';
   });
 
