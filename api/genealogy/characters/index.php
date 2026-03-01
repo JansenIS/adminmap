@@ -24,6 +24,6 @@ if (!genealogy_save($data)) {
   api_json_response(['error' => 'write_failed'], 500, genealogy_mtime());
 }
 
-genealogy_sync_people_profiles_from_characters([$char], true);
+genealogy_sync_people_profiles_from_characters([$char], true, true);
 
 api_json_response(['ok' => true, 'character' => $char], 201, genealogy_mtime());

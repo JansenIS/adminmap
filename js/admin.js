@@ -1438,8 +1438,8 @@
       const bioParts = [title, notes].filter(Boolean);
       const bio = bioParts.join('\n\n').trim();
 
-      if (!String(profile.photo_url || '').trim() && photo) profile.photo_url = photo;
-      if (!String(profile.bio || '').trim() && bio) profile.bio = bio;
+      if (photo && String(profile.photo_url || '').trim() !== photo) profile.photo_url = photo;
+      if (bio && String(profile.bio || '').trim() !== bio) profile.bio = bio;
     }
   }
 
