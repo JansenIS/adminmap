@@ -15,6 +15,40 @@ const state = {
   dragging: null,
 };
 
+function dedupeRelationships(relationships) {
+  const items = Array.isArray(relationships) ? relationships : [];
+  const seen = new Set();
+  const result = [];
+
+  items.forEach((rel) => {
+    if (!rel || !rel.type || rel.source_id == null || rel.target_id == null) return;
+    const type = String(rel.type);
+
+    let source = rel.source_id;
+    let target = rel.target_id;
+    if (type === 'spouses' || type === 'siblings') {
+      const key = relKey(source, target);
+      const [left, right] = key.split(':');
+      source = left;
+      target = right;
+    }
+
+    const key = [
+      type,
+      String(source),
+      String(target),
+      String(rel.union_id || ''),
+      String(rel.parents_union_id || ''),
+    ].join('|');
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(rel);
+  });
+
+  return result;
+}
+
 const svg = document.getElementById('tree');
 svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
 const statusEl = document.getElementById('status');
@@ -1160,6 +1194,16 @@ function layout() {
     computeFamilySubtreeWidths(familyModel);
     rowIndex.forEach((g) => applyFamilySlotLayout(rows, g, familyModel, componentSet));
 
+    // Финальный anti-overlap пасс по поколениям (регресс относительно gen8):
+    // 1) сближаем супругов в компактные блоки,
+    // 2) разделяем независимые spouse-компоненты внутри sibling-групп,
+    // 3) центрируем sibling-блоки относительно родителей.
+    for (let pass = 0; pass < 2; pass++) {
+      rowIndex.forEach(g => enforceStrictSpouseAdjacency(rows, g));
+      rowIndex.forEach(g => enforceGenerationSpouseSubBlocks(rows, g));
+      rowIndex.forEach(g => enforceGenerationParentBlocks(rows, g));
+    }
+
     familyModel.families.forEach((family) => {
       if (!family.children.length) return;
       const parentA = family.parents[0] || null;
@@ -2091,7 +2135,7 @@ function syncEditCharacterForm(id = null) {
 async function loadData() {
   const data = await api('/api/genealogy/');
   state.allCharacters = data.characters || [];
-  state.allRelationships = data.relationships || [];
+  state.allRelationships = dedupeRelationships(data.relationships || []);
   if (state.selectedId && !state.allCharacters.some((c) => c.id === state.selectedId)) {
     state.selectedId = null;
   }
