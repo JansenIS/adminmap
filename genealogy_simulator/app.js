@@ -218,6 +218,48 @@ function layout() {
     }
   };
 
+  const enforceGenerationParentBlocks = (rows, g) => {
+    const ids = (rows.get(g) || []).slice();
+    if (ids.length <= 1) return;
+
+    const blocks = new Map();
+    const blockMeta = new Map();
+
+    ids.forEach((id) => {
+      const parentIds = [...(parentsByChild.get(id) || [])]
+        .filter(parentId => componentOf.get(parentId) === componentOf.get(id) && (normalizedGen.get(parentId) || 0) === g - 1)
+        .sort(idSort);
+
+      const key = parentIds.length ? `p:${parentIds.join('|')}` : `solo:${id}`;
+      if (!blocks.has(key)) blocks.set(key, []);
+      blocks.get(key).push(id);
+      if (!blockMeta.has(key)) blockMeta.set(key, { parentIds });
+    });
+
+    if (blocks.size <= 1) return;
+
+    const blockGap = spacing * 1.15;
+    const orderedBlocks = [...blocks.entries()]
+      .map(([key, members]) => {
+        const membersSorted = members.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+        const parentIds = blockMeta.get(key)?.parentIds || [];
+        const parentCenter = avg(parentIds.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
+        const currentCenter = avg(membersSorted.map(mid => xById.get(mid)).filter(x => typeof x === 'number'));
+        const targetCenter = Number.isFinite(parentCenter) ? parentCenter : currentCenter;
+        return { key, members: membersSorted, targetCenter };
+      })
+      .sort((a, b) => a.targetCenter - b.targetCenter || a.key.localeCompare(b.key));
+
+    let cursor = Number.NEGATIVE_INFINITY;
+    orderedBlocks.forEach((block) => {
+      const width = (block.members.length - 1) * spacing;
+      const desiredLeft = block.targetCenter - width / 2;
+      const left = Number.isFinite(cursor) ? Math.max(desiredLeft, cursor + blockGap) : desiredLeft;
+      block.members.forEach((id, idx) => xById.set(id, left + idx * spacing));
+      cursor = left + width;
+    });
+  };
+
   const nodesById = new Set(state.characters.map(c => c.id));
   const componentOf = new Map();
   const components = [];
@@ -316,6 +358,10 @@ function layout() {
       rowIndex.forEach(g => relaxRow(rows, g, 1));
       [...rowIndex].reverse().forEach(g => relaxRow(rows, g, 1));
     }
+
+    rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
+    rowIndex.forEach(g => relaxRow(rows, g, 1));
+    rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
