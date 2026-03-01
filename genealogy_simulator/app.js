@@ -129,7 +129,11 @@ function layout() {
 
   const spacing = 230;
   const xById = new Map();
+  const parentCenterByChild = new Map();
   const rowIndex = [...rows.keys()].sort((a, b) => a - b);
+
+  const maxRowSize = Math.max(1, ...[...rows.values()].map(ids => ids.length));
+  const sceneWidth = Math.max(1400, (maxRowSize - 1) * spacing + 420);
 
   const setRowX = (ids, metricById) => {
     const ordered = [...ids].sort((left, right) => {
@@ -143,14 +147,29 @@ function layout() {
       return String(leftId).localeCompare(String(rightId));
     });
 
-    const rowWidth = Math.max(1400, (ordered.length - 1) * spacing + 420);
-    const offset = (rowWidth - (ordered.length - 1) * spacing) / 2;
+    const offset = (sceneWidth - (ordered.length - 1) * spacing) / 2;
     ordered.forEach((id, i) => xById.set(id, offset + i * spacing));
   };
 
   rowIndex.forEach((g) => {
     const ids = rows.get(g) || [];
     setRowX(ids, (id) => {
+      const n = normalizeId(id);
+      return typeof n === 'number' ? n : Number.MAX_SAFE_INTEGER;
+    });
+  });
+
+  rowIndex.slice(1).forEach((g) => {
+    const ids = rows.get(g) || [];
+    ids.forEach((id) => {
+      const parents = [...(parentsByChild.get(id) || [])]
+        .map(parentId => xById.get(parentId))
+        .filter(x => typeof x === 'number');
+      if (parents.length) parentCenterByChild.set(id, parents.reduce((sum, x) => sum + x, 0) / parents.length);
+    });
+    setRowX(ids, (id) => {
+      const parentCenter = parentCenterByChild.get(id);
+      if (Number.isFinite(parentCenter)) return parentCenter;
       const n = normalizeId(id);
       return typeof n === 'number' ? n : Number.MAX_SAFE_INTEGER;
     });
@@ -570,6 +589,9 @@ function render({ preserveViewportAnchor = true } = {}) {
   const NODE_RADIUS = 48;
   const SPOUSE_RAIL_OFFSET = 16;
   const SIBLING_RAIL_OFFSET = 16;
+  const siblingPairs = state.relationships.filter(r => r.type === 'siblings').map(r => relKey(r.source_id, r.target_id));
+  const siblingOrder = [...new Set(siblingPairs)].sort();
+  const siblingLaneIndex = new Map(siblingOrder.map((key, idx) => [key, idx]));
 
   const spousePairs = new Set(
     state.relationships
@@ -649,7 +671,9 @@ function render({ preserveViewportAnchor = true } = {}) {
       const siblingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
-      const laneY = Math.min(a.y, b.y) - NODE_RADIUS - SIBLING_RAIL_OFFSET;
+      const pairIndex = siblingLaneIndex.get(relKey(r.source_id, r.target_id)) || 0;
+      const laneLift = SIBLING_RAIL_OFFSET + 12 + (pairIndex % 4) * 14;
+      const laneY = Math.min(a.y, b.y) - NODE_RADIUS - laneLift;
       siblingPath.setAttribute('d', `M ${minX} ${a.y - NODE_RADIUS} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y - NODE_RADIUS}`);
       siblingPath.setAttribute('fill', 'none');
       siblingPath.setAttribute('class', 'edge-sibling');
@@ -713,9 +737,8 @@ function render({ preserveViewportAnchor = true } = {}) {
     trunk.setAttribute('class', 'edge-parent');
     svg.appendChild(trunk);
 
-    const maxBranchOffset = Math.max(...kids.map(({ pos }) => Math.abs(pos.x - midX)));
-    const railStartX = midX - maxBranchOffset;
-    const railEndX = midX + maxBranchOffset;
+    const railStartX = Math.min(...kids.map(({ pos }) => pos.x));
+    const railEndX = Math.max(...kids.map(({ pos }) => pos.x));
     const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     rail.setAttribute('x1', railStartX);
     rail.setAttribute('y1', branchY);
