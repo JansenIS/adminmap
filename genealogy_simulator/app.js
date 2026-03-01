@@ -435,7 +435,30 @@ function layout() {
 
     if (blocks.length <= 1) return;
 
-    const siblingGap = Math.max(spacing * 0.9, 190);
+    const maxChildrenByBlock = blocks.map((block) => {
+      const adults = new Set(block);
+      block.forEach((id) => {
+        (spousesById.get(id) || new Set()).forEach((spouseId) => {
+          if ((normalizedGen.get(spouseId) || 0) !== g) return;
+          if (componentOf.get(spouseId) !== componentOf.get(id)) return;
+          adults.add(spouseId);
+        });
+      });
+
+      const children = new Set();
+      adults.forEach((adultId) => {
+        (childrenByParent.get(adultId) || new Set()).forEach((childId) => {
+          if ((normalizedGen.get(childId) || 0) !== g + 1) return;
+          if (componentOf.get(childId) !== componentOf.get(adultId)) return;
+          children.add(childId);
+        });
+      });
+      return children.size;
+    });
+
+    const rowMaxChildren = Math.max(0, ...maxChildrenByBlock);
+    const descendantDrivenGap = Math.ceil((rowMaxChildren + 1) / 2) * spacing;
+    const siblingGap = Math.max(spacing * 0.9, 190, descendantDrivenGap);
     const rowCenter = avg(orderedIds.map(id => xById.get(id)).filter(x => typeof x === 'number'));
     const widths = blocks.map(block => Math.max(0, (block.length - 1) * spacing));
     const totalWidth = widths.reduce((sum, width) => sum + width, 0) + (blocks.length - 1) * siblingGap;
@@ -513,7 +536,23 @@ function layout() {
 
     const spouseSpacing = Math.max(130, spacing * 0.55);
     const unitGap = Math.max(180, spacing * 0.9);
-    const siblingGap = Math.max(300, spacing * 1.6);
+    const maxChildrenByGroup = orderedGroups.map((group) => {
+      let groupMax = 0;
+      group.units.forEach((unit) => {
+        const childSet = new Set();
+        unit.members.forEach((adultId) => {
+          (childrenByParent.get(adultId) || new Set()).forEach((childId) => {
+            if ((normalizedGen.get(childId) || 0) !== g + 1) return;
+            if (componentOf.get(childId) !== componentOf.get(adultId)) return;
+            childSet.add(childId);
+          });
+        });
+        if (childSet.size > groupMax) groupMax = childSet.size;
+      });
+      return groupMax;
+    });
+
+    const siblingGap = Math.max(300, spacing * 1.6, Math.ceil((Math.max(0, ...maxChildrenByGroup) + 1) / 2) * spacing);
 
     const unitWidths = new Map();
     orderedGroups.forEach((group) => {
@@ -582,7 +621,7 @@ function layout() {
       .sort((a, b) => a.center - b.center || a.siblingKey.localeCompare(b.siblingKey));
 
     const childGap = Math.max(170, spacing * 0.8);
-    const childSiblingGap = Math.max(300, spacing * 1.5);
+    const childSiblingGap = Math.max(300, spacing * 1.5, Math.ceil((Math.max(0, ...maxChildrenByGroup) + 1) / 2) * spacing);
     const childWidths = new Map();
 
     orderedChildGroups.forEach((group) => {
