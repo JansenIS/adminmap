@@ -125,3 +125,69 @@ function genealogy_relationship_exists(array $relationships, array $candidate): 
   }
   return false;
 }
+
+function genealogy_delete_character(array &$data, string $id): bool {
+  $idx = genealogy_find_character_index($data['characters'] ?? [], $id);
+  if ($idx < 0) return false;
+
+  array_splice($data['characters'], $idx, 1);
+  $data['relationships'] = array_values(array_filter(
+    $data['relationships'] ?? [],
+    static function ($rel) use ($id) {
+      if (!is_array($rel)) return false;
+      return (string)($rel['source_id'] ?? '') !== $id && (string)($rel['target_id'] ?? '') !== $id;
+    }
+  ));
+  return true;
+}
+
+function genealogy_delete_clan(array &$data, string $clan): int {
+  $clan = trim($clan);
+  if ($clan === '') return 0;
+
+  $toDelete = [];
+  foreach ($data['characters'] ?? [] as $char) {
+    if (!is_array($char)) continue;
+    if (trim((string)($char['clan'] ?? '')) === $clan) {
+      $toDelete[] = (string)($char['id'] ?? '');
+    }
+  }
+
+  $toDelete = array_values(array_filter($toDelete, static fn($id) => $id !== ''));
+  if (!$toDelete) return 0;
+
+  $idSet = array_fill_keys($toDelete, true);
+  $data['characters'] = array_values(array_filter(
+    $data['characters'] ?? [],
+    static function ($char) use ($idSet) {
+      if (!is_array($char)) return false;
+      $id = (string)($char['id'] ?? '');
+      return $id !== '' && !isset($idSet[$id]);
+    }
+  ));
+
+  $data['relationships'] = array_values(array_filter(
+    $data['relationships'] ?? [],
+    static function ($rel) use ($idSet) {
+      if (!is_array($rel)) return false;
+      $source = (string)($rel['source_id'] ?? '');
+      $target = (string)($rel['target_id'] ?? '');
+      return $source !== '' && $target !== '' && !isset($idSet[$source]) && !isset($idSet[$target]);
+    }
+  ));
+
+  return count($toDelete);
+}
+
+
+function genealogy_update_character_clan(array &$data, string $id, string $clan): ?array {
+  $idx = genealogy_find_character_index($data['characters'] ?? [], $id);
+  if ($idx < 0) return null;
+
+  $normalizedClan = trim($clan);
+  $character = $data['characters'][$idx];
+  if (!is_array($character)) return null;
+  $character['clan'] = $normalizedClan;
+  $data['characters'][$idx] = $character;
+  return $character;
+}
