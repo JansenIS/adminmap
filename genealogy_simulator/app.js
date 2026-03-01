@@ -27,6 +27,16 @@ async function api(path, options = {}) {
   return body;
 }
 
+function resolvePhotoUrl(rawUrl, name = '') {
+  const url = String(rawUrl || '').trim();
+  if (!url) return `https://placehold.co/160x160/1f2937/ffffff?text=${encodeURIComponent((name || '?').slice(0, 1) || '?')}`;
+  if (/^data:image\//i.test(url) || /^blob:/i.test(url) || /^\/api\/genealogy\/photo\//.test(url)) return url;
+  if (/^https?:\/\//i.test(url)) {
+    return `/api/genealogy/photo/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name || '')}`;
+  }
+  return url;
+}
+
 function fmtYears(c) {
   const b = c.birth_year ?? '?';
   const d = c.death_year ?? '...';
@@ -334,7 +344,7 @@ function render() {
     svg.appendChild(defs);
 
     const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-    img.setAttribute('href', c.photo_url || 'https://placehold.co/160x160/1f2937/ffffff?text=?');
+    img.setAttribute('href', resolvePhotoUrl(c.photo_url, c.name));
     img.setAttribute('x', p.x - 50);
     img.setAttribute('y', p.y - 50);
     img.setAttribute('width', 100);
@@ -402,7 +412,7 @@ function openProfile(id) {
   const modal = document.getElementById('profileModal');
   document.getElementById('profileBody').innerHTML = `
     <div style="display:flex;gap:16px;align-items:center;">
-      <img src="${c.photo_url || 'https://placehold.co/120x120/1f2937/ffffff?text=?'}" alt="${c.name}">
+      <img src="${resolvePhotoUrl(c.photo_url, c.name)}" alt="${c.name}">
       <div>
         <h3>${c.name}</h3>
         <p>${c.title || 'Без титула'}</p>

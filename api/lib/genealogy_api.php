@@ -4,6 +4,19 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/state_api.php';
 
+if (!function_exists('api_read_json_body')) {
+  function api_read_json_body(): array {
+    $raw = (string)file_get_contents('php://input');
+    if (trim($raw) === '') return [];
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+      api_json_response(['error' => 'invalid_json'], 400);
+    }
+    return $decoded;
+  }
+}
+
 function genealogy_data_path(): string {
   return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'genealogy_tree.json';
 }
