@@ -123,6 +123,81 @@ function genealogy_data_path(): string {
   return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'genealogy_tree.json';
 }
 
+function genealogy_migrate_relationships(array &$decoded): bool {
+  $changed = false;
+  $rels = is_array($decoded['relationships'] ?? null) ? $decoded['relationships'] : [];
+
+  // 1) У spouse-ребер должны быть union_id.
+  foreach ($rels as $idx => $rel) {
+    if (!is_array($rel)) continue;
+    if (($rel['type'] ?? '') !== 'spouses') continue;
+    $unionId = trim((string)($rel['union_id'] ?? ''));
+    if ($unionId !== '') continue;
+    $a = (string)($rel['source_id'] ?? '');
+    $b = (string)($rel['target_id'] ?? '');
+    $pair = [$a, $b];
+    sort($pair, SORT_STRING);
+    $rels[$idx]['union_id'] = 'u_' . substr(hash('sha1', implode(':', $pair) . ':' . (string)($rel['id'] ?? $idx)), 0, 10);
+    $changed = true;
+  }
+
+  // 2) Для parent_child без parents_union_id пытаемся вывести его по паре родителей-супругов.
+  $parentsByChild = [];
+  foreach ($rels as $rel) {
+    if (!is_array($rel)) continue;
+    if (($rel['type'] ?? '') !== 'parent_child') continue;
+    $child = (string)($rel['target_id'] ?? '');
+    $parent = (string)($rel['source_id'] ?? '');
+    if ($child === '' || $parent === '') continue;
+    if (!isset($parentsByChild[$child])) $parentsByChild[$child] = [];
+    $parentsByChild[$child][] = $parent;
+  }
+
+  $spouseByPair = [];
+  foreach ($rels as $rel) {
+    if (!is_array($rel) || ($rel['type'] ?? '') !== 'spouses') continue;
+    $a = (string)($rel['source_id'] ?? '');
+    $b = (string)($rel['target_id'] ?? '');
+    $u = trim((string)($rel['union_id'] ?? ''));
+    if ($a === '' || $b === '' || $u === '') continue;
+    $pair = [$a, $b];
+    sort($pair, SORT_STRING);
+    $spouseByPair[implode('|', $pair)] = $u;
+  }
+
+  foreach ($rels as $idx => $rel) {
+    if (!is_array($rel) || ($rel['type'] ?? '') !== 'parent_child') continue;
+    $current = trim((string)($rel['parents_union_id'] ?? ''));
+    if ($current !== '') continue;
+    $child = (string)($rel['target_id'] ?? '');
+    $parent = (string)($rel['source_id'] ?? '');
+    $parents = array_values(array_unique($parentsByChild[$child] ?? []));
+
+    $assigned = '';
+    if (count($parents) >= 2) {
+      sort($parents, SORT_STRING);
+      for ($i = 0; $i < count($parents); $i++) {
+        for ($j = $i + 1; $j < count($parents); $j++) {
+          $pair = [$parents[$i], $parents[$j]];
+          sort($pair, SORT_STRING);
+          $k = implode('|', $pair);
+          if (isset($spouseByPair[$k])) { $assigned = $spouseByPair[$k]; break 2; }
+        }
+      }
+    }
+
+    if ($assigned === '') {
+      $assigned = 'pu_' . substr(hash('sha1', $parent . ':' . $child), 0, 10);
+    }
+
+    $rels[$idx]['parents_union_id'] = $assigned;
+    $changed = true;
+  }
+
+  if ($changed) $decoded['relationships'] = $rels;
+  return $changed;
+}
+
 function genealogy_load(): array {
   $path = genealogy_data_path();
   if (!is_file($path)) {
@@ -142,7 +217,14 @@ function genealogy_load(): array {
   if (!is_array($decoded['characters'] ?? null)) $decoded['characters'] = [];
   if (!is_array($decoded['relationships'] ?? null)) $decoded['relationships'] = [];
 
+  $changed = false;
   if (genealogy_sync_characters_with_state_people($decoded)) {
+    $changed = true;
+  }
+  if (genealogy_migrate_relationships($decoded)) {
+    $changed = true;
+  }
+  if ($changed) {
     genealogy_save($decoded);
   }
 
@@ -235,6 +317,8 @@ function genealogy_validate_relationship_payload(?array $payload): array {
   $type = trim((string)($payload['type'] ?? ''));
   $source = trim((string)($payload['source_id'] ?? ''));
   $target = trim((string)($payload['target_id'] ?? ''));
+  $unionId = trim((string)($payload['union_id'] ?? ''));
+  $parentsUnionId = trim((string)($payload['parents_union_id'] ?? ''));
   $allowed = ['parent_child', 'siblings', 'spouses'];
   if (!in_array($type, $allowed, true)) return ['ok' => false, 'error' => 'type_invalid', 'allowed' => $allowed];
   if ($source === '' || $target === '') return ['ok' => false, 'error' => 'source_target_required'];
@@ -245,6 +329,8 @@ function genealogy_validate_relationship_payload(?array $payload): array {
       'type' => $type,
       'source_id' => $source,
       'target_id' => $target,
+      'union_id' => $unionId !== '' ? $unionId : null,
+      'parents_union_id' => $parentsUnionId !== '' ? $parentsUnionId : null,
     ],
   ];
 }
@@ -260,7 +346,16 @@ function genealogy_relationship_exists(array $relationships, array $candidate): 
     $b2 = (string)($candidate['target_id'] ?? '');
 
     if ($candidate['type'] === 'parent_child') {
-      if ($a1 === $a2 && $b1 === $b2) return true;
+      $u1 = (string)($row['parents_union_id'] ?? '');
+      $u2 = (string)($candidate['parents_union_id'] ?? '');
+      if ($a1 === $a2 && $b1 === $b2 && ($u1 === $u2 || $u1 === '' || $u2 === '')) return true;
+      continue;
+    }
+
+    if ($candidate['type'] === 'spouses') {
+      $u1 = (string)($row['union_id'] ?? '');
+      $u2 = (string)($candidate['union_id'] ?? '');
+      if ((($a1 === $a2 && $b1 === $b2) || ($a1 === $b2 && $b1 === $a2)) && $u1 === $u2) return true;
       continue;
     }
 
