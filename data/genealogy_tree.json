@@ -37,21 +37,24 @@
       "type": "spouses",
       "source_id": "char_0001",
       "target_id": "char_0002",
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "union_id": "u_rel_seed_01"
     },
     {
       "id": "rel_seed_02",
       "type": "parent_child",
       "source_id": "char_0001",
       "target_id": "char_0003",
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "parents_union_id": "u_rel_seed_01"
     },
     {
       "id": "rel_seed_03",
       "type": "parent_child",
       "source_id": "char_0002",
       "target_id": "char_0003",
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "parents_union_id": "u_rel_seed_01"
     }
   ],
   "updated_at": "2026-03-01T00:00:00Z"
