@@ -591,25 +591,84 @@ function layout() {
       });
     });
 
-    const childRowCenter = avg(childIds.map(id => xById.get(id)).filter(x => typeof x === 'number'));
-    let childTotalWidth = 0;
-    orderedChildGroups.forEach((group, groupIdx) => {
-      group.blocks.forEach((block, blockIdx) => {
-        childTotalWidth += childWidths.get(block.ownerKey) || 0;
-        if (blockIdx < group.blocks.length - 1) childTotalWidth += childGap;
+    // Дети должны оставаться под «своим» родительским юнитом.
+    // Для этого сначала целимся в центр родителя, потом мягко разводим блоки,
+    // чтобы они не пересекались внутри sibling-группы.
+    orderedChildGroups.forEach((group) => {
+      if (!group.blocks.length) return;
+
+      const blocks = group.blocks
+        .map((block, index) => {
+          const width = childWidths.get(block.ownerKey) || 0;
+          const targetCenter = Number.isFinite(block.center)
+            ? block.center
+            : avg(block.members.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+          return {
+            ...block,
+            index,
+            width,
+            targetCenter: Number.isFinite(targetCenter) ? targetCenter : 0,
+            center: Number.isFinite(targetCenter) ? targetCenter : 0,
+          };
+        })
+        .sort((a, b) => a.targetCenter - b.targetCenter || a.ownerKey.localeCompare(b.ownerKey));
+
+      // forward pass: соблюдаем минимальные расстояния
+      blocks.forEach((block, idx) => {
+        if (idx === 0) {
+          block.center = block.targetCenter;
+          return;
+        }
+        const prev = blocks[idx - 1];
+        const minCenter = prev.center + prev.width / 2 + childGap + block.width / 2;
+        block.center = Math.max(block.targetCenter, minCenter);
       });
-      if (groupIdx < orderedChildGroups.length - 1) childTotalWidth += childSiblingGap;
+
+      // backward pass: возвращаем ближе к targetCenter без нарушения интервалов
+      for (let idx = blocks.length - 2; idx >= 0; idx--) {
+        const next = blocks[idx + 1];
+        const block = blocks[idx];
+        const maxCenter = next.center - next.width / 2 - childGap - block.width / 2;
+        block.center = Math.min(block.center, maxCenter);
+      }
+
+      blocks.forEach((block) => {
+        const left = block.center - block.width / 2;
+        block.members.forEach((id, idx) => xById.set(id, left + idx * spacing));
+      });
     });
 
-    let childLeft = (Number.isFinite(childRowCenter) ? childRowCenter : 0) - childTotalWidth / 2;
-    orderedChildGroups.forEach((group, groupIdx) => {
-      group.blocks.forEach((block, blockIdx) => {
-        block.members.forEach((id, idx) => xById.set(id, childLeft + idx * spacing));
-        childLeft += childWidths.get(block.ownerKey) || 0;
-        if (blockIdx < group.blocks.length - 1) childLeft += childGap;
+    // Разводим sibling-группы между собой, сохраняя внутреннюю привязку детей к родителям.
+    if (orderedChildGroups.length > 1) {
+      const groupBounds = orderedChildGroups.map((group, index) => {
+        const xs = group.blocks.flatMap(block => block.members.map(id => xById.get(id))).filter(x => typeof x === 'number');
+        const minX = xs.length ? Math.min(...xs) : 0;
+        const maxX = xs.length ? Math.max(...xs) : 0;
+        return {
+          index,
+          minX,
+          maxX,
+          center: (minX + maxX) / 2,
+          width: Math.max(0, maxX - minX),
+        };
       });
-      if (groupIdx < orderedChildGroups.length - 1) childLeft += childSiblingGap;
-    });
+
+      groupBounds.forEach((group, idx) => {
+        if (idx === 0) return;
+        const prev = groupBounds[idx - 1];
+        const minLeft = prev.maxX + childSiblingGap;
+        if (group.minX >= minLeft) return;
+        const shift = minLeft - group.minX;
+        orderedChildGroups[group.index].blocks.forEach((block) => {
+          block.members.forEach((id) => {
+            const x = xById.get(id);
+            if (typeof x === 'number') xById.set(id, x + shift);
+          });
+        });
+        group.minX += shift;
+        group.maxX += shift;
+      });
+    }
   };
 
   const nodesById = new Set(state.characters.map(c => c.id));
