@@ -13,45 +13,19 @@ $state = api_load_state();
 $genealogy = genealogy_load();
 $names = [];
 
-$addName = static function (string $raw) use (&$names): void {
-  $name = trim($raw);
-  if ($name !== '') $names[$name] = true;
-};
-
-foreach (($state['people'] ?? []) as $person) {
-  $name = is_array($person) ? (string)($person['name'] ?? '') : (string)$person;
-  $addName($name);
-}
-
-foreach (($state['provinces'] ?? []) as $province) {
-  if (!is_array($province)) continue;
-  $addName((string)($province['owner'] ?? ''));
-}
-
-foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
-  foreach (($state[$bucket] ?? []) as $realm) {
-    if (!is_array($realm)) continue;
-    $addName((string)($realm['ruler'] ?? ''));
-
-    if ($bucket === 'great_houses') {
-      $layer = $realm['minor_house_layer'] ?? null;
-      if (is_array($layer) && is_array($layer['vassals'] ?? null)) {
-        foreach ($layer['vassals'] as $vassal) {
-          if (!is_array($vassal)) continue;
-          $addName((string)($vassal['ruler'] ?? ''));
-        }
-      }
-    }
-  }
+foreach (api_collect_people_names_from_state($state) as $name) {
+  $trimmed = trim((string)$name);
+  if ($trimmed !== '') $names[$trimmed] = true;
 }
 
 foreach (($genealogy['characters'] ?? []) as $character) {
   if (!is_array($character)) continue;
-  $addName((string)($character['name'] ?? ''));
+  $name = trim((string)($character['name'] ?? ''));
+  if ($name !== '') $names[$name] = true;
 }
 
 $list = array_keys($names);
-usort($list, static fn($a, $b) => strcasecmp($a, $b));
+usort($list, static fn($a, $b) => strcasecmp((string)$a, (string)$b));
 
 api_json_response([
   'people' => $list,
