@@ -17,7 +17,6 @@ svg { min-width: 100%; min-height: 100%; background: radial-gradient(circle at t
 .edge-parent { stroke: #93c5fd; stroke-width: 2; }
 .edge-sibling { stroke: #a78bfa; stroke-width: 2; stroke-dasharray: 4 3; }
 .edge-spouse { stroke: #fca5a5; stroke-width: 2; }
-.quick-add { position: absolute; width: 44px; background: #f59e0b; color: #111827; border-radius: 999px; border: 0; font-size: 26px; line-height: 36px; height: 44px; display:none; }
 .profile-modal { position: fixed; inset: 0; background: rgba(2,6,23,.7); display: none; align-items: center; justify-content: center; }
 .profile-card { width: min(500px, 95vw); background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; }
 .profile-card img { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; border: 3px solid #60a5fa; }
@@ -30,3 +29,11 @@ svg { min-width: 100%; min-height: 100%; background: radial-gradient(circle at t
 button.danger { background: #b91c1c; border-color: #991b1b; }
 .canvas-wrap.panning { cursor: grabbing; }
 .canvas-wrap svg { cursor: default; }
+
+.quick-action-circle { fill: #0f172a; stroke: #cbd5e1; stroke-width: 1.5; }
+.quick-action-label { fill: #e2e8f0; text-anchor: middle; font-size: 9px; font-weight: 700; pointer-events: none; }
+.quick-action.quick-parent .quick-action-circle { stroke: #60a5fa; }
+.quick-action.quick-spouse .quick-action-circle { stroke: #fca5a5; }
+.quick-action.quick-child .quick-action-circle { stroke: #86efac; }
+.quick-action.quick-sibling .quick-action-circle { stroke: #c4b5fd; }
+.quick-action:hover .quick-action-circle { fill: #1e293b; }
