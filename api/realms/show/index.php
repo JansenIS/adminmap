@@ -20,6 +20,20 @@ $item = ($state[$type] ?? [])[$id] ?? null;
 if (!is_array($item)) {
   api_json_response(['error' => 'not_found'], 404, $mtime);
 }
+
+$ownerTypeByRealmType = [
+  'kingdoms' => 'kingdom',
+  'great_houses' => 'great_house',
+  'minor_houses' => 'minor_house',
+  'free_cities' => 'free_city',
+];
+$refs = api_build_refs_by_owner_from_file_or_state($state);
+$ownerType = $ownerTypeByRealmType[$type] ?? $type;
+$ownerKey = $ownerType . ':' . $id;
+if (!isset($item['emblem_asset_id']) && isset($refs[$ownerKey]) && $refs[$ownerKey] !== '') {
+  $item['emblem_asset_id'] = $refs[$ownerKey];
+}
+
 if ($profile === 'compact') {
   unset($item['emblem_svg']);
 }
