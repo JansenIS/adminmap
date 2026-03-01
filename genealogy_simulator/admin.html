@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genealogy Simulator — Admin</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-mode="admin">
+  <header>
+    <strong>Genealogy Simulator (backend-first)</strong>
+    <div class="legend">Клик по персонажу выделяет его, + рядом — быстрый старт добавления связи.</div>
+  </header>
+  <main>
+    <section id="adminPanel" class="panel">
+      <h2>Добавить персонажа</h2>
+      <form id="createCharacterForm">
+        <label>Имя</label><input name="name" required />
+        <label>Титул</label><input name="title" />
+        <label>Год рождения</label><input name="birth_year" type="number" />
+        <label>Год смерти</label><input name="death_year" type="number" />
+        <label>URL фото</label><input name="photo_url" type="url" />
+        <label>Заметки</label><textarea name="notes"></textarea>
+        <button type="submit">Создать персонажа</button>
+      </form>
+
+      <h2>Добавить связь</h2>
+      <form id="linkForm">
+        <label>Тип</label>
+        <select name="type">
+          <option value="parent_child">Родитель → ребенок</option>
+          <option value="siblings">Братья/сёстры</option>
+          <option value="spouses">Супруги</option>
+        </select>
+        <label>Источник</label><select id="linkSource" name="source_id"></select>
+        <label>Цель</label><select id="linkTarget" name="target_id"></select>
+        <button type="submit">Создать связь</button>
+      </form>
+      <p id="status"></p>
+    </section>
+    <section class="canvas-wrap">
+      <button id="quickAdd" class="quick-add" title="Быстро создать связь">+</button>
+      <svg id="tree" viewBox="0 0 2000 1200"></svg>
+    </section>
+  </main>
+
+  <div id="profileModal" class="profile-modal">
+    <div class="profile-card">
+      <button id="closeProfile" class="secondary">Закрыть</button>
+      <div id="profileBody"></div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genealogy Simulator — Public</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-mode="public">
+  <header>
+    <strong>Genealogy Simulator — Публичная версия</strong>
+    <div class="legend">Нажмите на персонажа, чтобы открыть его профиль.</div>
+    <p id="status"></p>
+  </header>
+  <main style="grid-template-columns:1fr;">
+    <section class="canvas-wrap">
+      <button id="quickAdd" class="quick-add" style="display:none;">+</button>
+      <svg id="tree" viewBox="0 0 2000 1200"></svg>
+    </section>
+  </main>
+
+  <div id="profileModal" class="profile-modal">
+    <div class="profile-card">
+      <button id="closeProfile" class="secondary">Закрыть</button>
+      <div id="profileBody"></div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
