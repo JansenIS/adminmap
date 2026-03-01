@@ -1232,6 +1232,8 @@ function render({ preserveViewportAnchor = true } = {}) {
   const NODE_RADIUS = 48;
   const SPOUSE_RAIL_OFFSET = 16;
   const SIBLING_RAIL_OFFSET = 16;
+  const CONNECTOR_DROP = 58;
+  const CHILD_RAIL_PADDING = 16;
   const siblingPairs = state.relationships.filter(r => r.type === 'siblings').map(r => relKey(r.source_id, r.target_id));
   const siblingOrder = [...new Set(siblingPairs)].sort();
   const siblingLaneIndex = new Map(siblingOrder.map((key, idx) => [key, idx]));
@@ -1244,12 +1246,22 @@ function render({ preserveViewportAnchor = true } = {}) {
   const groupedParentChild = new Set();
   const families = new Map();
   const parentsByChild = new Map();
+  const parentChildEdges = [];
+
+  const createPolyline = (points, className) => {
+    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', points.map(([x, y]) => `${x},${y}`).join(' '));
+    polyline.setAttribute('fill', 'none');
+    polyline.setAttribute('class', className);
+    svg.appendChild(polyline);
+  };
 
   state.relationships
     .filter(r => r.type === 'parent_child')
     .forEach(r => {
       if (!parentsByChild.has(r.target_id)) parentsByChild.set(r.target_id, []);
       parentsByChild.get(r.target_id).push(r.source_id);
+      parentChildEdges.push(r);
     });
 
   parentsByChild.forEach((parents, childId) => {
@@ -1279,6 +1291,21 @@ function render({ preserveViewportAnchor = true } = {}) {
     }
   });
 
+  // Однородительские связи, не вошедшие в «семейные юниты», тоже рисуем через общий sibling-rail.
+  parentChildEdges.forEach((r) => {
+    if (groupedParentChild.has(`${r.source_id}->${r.target_id}`)) return;
+    const key = `single:${r.source_id}`;
+    if (!families.has(key)) {
+      families.set(key, {
+        parentA: r.source_id,
+        parentB: null,
+        children: [],
+      });
+    }
+    families.get(key).children.push(r.target_id);
+    groupedParentChild.add(`${r.source_id}->${r.target_id}`);
+  });
+
   state.relationships.forEach(r => {
     if (r.type === 'parent_child' && groupedParentChild.has(`${r.source_id}->${r.target_id}`)) {
       return;
@@ -1288,14 +1315,15 @@ function render({ preserveViewportAnchor = true } = {}) {
     const b = state.positions.get(r.target_id);
     if (!a || !b) return;
     if (r.type === 'spouses' && Math.abs(a.y - b.y) < 1) {
-      const spousePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
       const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
-      spousePath.setAttribute('d', `M ${minX} ${a.y + NODE_RADIUS} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y + NODE_RADIUS}`);
-      spousePath.setAttribute('fill', 'none');
-      spousePath.setAttribute('class', 'edge-spouse');
-      svg.appendChild(spousePath);
+      createPolyline([
+        [minX, a.y + NODE_RADIUS],
+        [minX, laneY],
+        [maxX, laneY],
+        [maxX, b.y + NODE_RADIUS],
+      ], 'edge-spouse');
       if (state.mode === 'admin') {
         const btn = createQuickActionButton({
           x: (minX + maxX) / 2,
@@ -1311,16 +1339,17 @@ function render({ preserveViewportAnchor = true } = {}) {
     }
 
     if (r.type === 'siblings' && Math.abs(a.y - b.y) < 1) {
-      const siblingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
       const pairIndex = siblingLaneIndex.get(relKey(r.source_id, r.target_id)) || 0;
       const laneLift = SIBLING_RAIL_OFFSET + 12 + (pairIndex % 4) * 14;
       const laneY = Math.min(a.y, b.y) - NODE_RADIUS - laneLift;
-      siblingPath.setAttribute('d', `M ${minX} ${a.y - NODE_RADIUS} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y - NODE_RADIUS}`);
-      siblingPath.setAttribute('fill', 'none');
-      siblingPath.setAttribute('class', 'edge-sibling');
-      svg.appendChild(siblingPath);
+      createPolyline([
+        [minX, a.y - NODE_RADIUS],
+        [minX, laneY],
+        [maxX, laneY],
+        [maxX, b.y - NODE_RADIUS],
+      ], 'edge-sibling');
       if (state.mode === 'admin') {
         const btn = createQuickActionButton({
           x: (minX + maxX) / 2,
@@ -1336,14 +1365,15 @@ function render({ preserveViewportAnchor = true } = {}) {
     }
 
     if (r.type === 'parent_child' && b.y > a.y) {
-      const parentPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const startY = a.y + NODE_RADIUS;
       const endY = b.y - NODE_RADIUS;
       const elbowY = startY + (endY - startY) * 0.45;
-      parentPath.setAttribute('d', `M ${a.x} ${startY} L ${a.x} ${elbowY} L ${b.x} ${elbowY} L ${b.x} ${endY}`);
-      parentPath.setAttribute('fill', 'none');
-      parentPath.setAttribute('class', 'edge-parent');
-      svg.appendChild(parentPath);
+      createPolyline([
+        [a.x, startY],
+        [a.x, elbowY],
+        [b.x, elbowY],
+        [b.x, endY],
+      ], 'edge-parent');
       return;
     }
 
@@ -1358,8 +1388,8 @@ function render({ preserveViewportAnchor = true } = {}) {
 
   families.forEach((family) => {
     const p1 = state.positions.get(family.parentA);
-    const p2 = state.positions.get(family.parentB);
-    if (!p1 || !p2) return;
+    const p2 = family.parentB ? state.positions.get(family.parentB) : null;
+    if (!p1) return;
 
     const kids = [...new Set(family.children)]
       .map(id => ({ id, pos: state.positions.get(id) }))
@@ -1368,41 +1398,37 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     if (!kids.length) return;
 
-    const midX = (p1.x + p2.x) / 2;
-    const spouseLaneY = Math.max(p1.y, p2.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+    const parentLowY = p2 ? Math.max(p1.y, p2.y) : p1.y;
+    const spouseLaneY = parentLowY + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+    const marriageMidX = p2 ? (p1.x + p2.x) / 2 : p1.x;
     const minChildY = Math.min(...kids.map(k => k.pos.y));
     const minChildTopY = Math.min(...kids.map(k => k.pos.y - NODE_RADIUS));
-    const branchY = Math.min(
-      Math.max(spouseLaneY + 36, minChildY - 120),
-      minChildTopY - 14
+    const siblingMidX = kids[Math.floor(kids.length / 2)].pos.x;
+    const connY = Math.min(spouseLaneY + CONNECTOR_DROP, minChildTopY - CHILD_RAIL_PADDING - 20);
+    const siblingRailY = Math.min(
+      Math.max(connY + 28, minChildY - 120),
+      minChildTopY - CHILD_RAIL_PADDING
     );
 
-    const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    trunk.setAttribute('x1', midX);
-    trunk.setAttribute('y1', spouseLaneY);
-    trunk.setAttribute('x2', midX);
-    trunk.setAttribute('y2', branchY);
-    trunk.setAttribute('class', 'edge-parent');
-    svg.appendChild(trunk);
+    createPolyline([
+      [marriageMidX, spouseLaneY],
+      [marriageMidX, connY],
+      [siblingMidX, connY],
+      [siblingMidX, siblingRailY],
+    ], 'edge-parent');
 
-    const railStartX = Math.min(midX, ...kids.map(({ pos }) => pos.x));
-    const railEndX = Math.max(midX, ...kids.map(({ pos }) => pos.x));
-    const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    rail.setAttribute('x1', railStartX);
-    rail.setAttribute('y1', branchY);
-    rail.setAttribute('x2', railEndX);
-    rail.setAttribute('y2', branchY);
-    rail.setAttribute('class', 'edge-parent');
-    svg.appendChild(rail);
+    const railStartX = Math.min(...kids.map(({ pos }) => pos.x));
+    const railEndX = Math.max(...kids.map(({ pos }) => pos.x));
+    createPolyline([
+      [railStartX, siblingRailY],
+      [railEndX, siblingRailY],
+    ], 'edge-parent');
 
     kids.forEach(({ pos }) => {
-      const childBranch = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      childBranch.setAttribute('x1', pos.x);
-      childBranch.setAttribute('y1', branchY);
-      childBranch.setAttribute('x2', pos.x);
-      childBranch.setAttribute('y2', pos.y - NODE_RADIUS);
-      childBranch.setAttribute('class', 'edge-parent');
-      svg.appendChild(childBranch);
+      createPolyline([
+        [pos.x, pos.y - NODE_RADIUS],
+        [pos.x, siblingRailY],
+      ], 'edge-parent');
     });
   });
 
