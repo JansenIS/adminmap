@@ -113,31 +113,75 @@ function layout() {
   const rowWidth = 1900;
 
   [...rows.entries()].sort((a, b) => a[0] - b[0]).forEach(([g, ids]) => {
-    const ordered = [...ids].sort((left, right) => {
-      const leftParents = parentsByChild.get(left) || [];
-      const rightParents = parentsByChild.get(right) || [];
-
-      const leftKnown = leftParents
+    const targetXById = new Map();
+    ids.forEach((id) => {
+      const parentIds = parentsByChild.get(id) || [];
+      const knownParents = parentIds
         .map(pid => pos.get(pid)?.x)
         .filter(x => typeof x === 'number');
-      const rightKnown = rightParents
-        .map(pid => pos.get(pid)?.x)
-        .filter(x => typeof x === 'number');
-
-      const leftTargetX = leftKnown.length
-        ? leftKnown.reduce((sum, x) => sum + x, 0) / leftKnown.length
+      const targetX = knownParents.length
+        ? knownParents.reduce((sum, x) => sum + x, 0) / knownParents.length
         : Number.POSITIVE_INFINITY;
-      const rightTargetX = rightKnown.length
-        ? rightKnown.reduce((sum, x) => sum + x, 0) / rightKnown.length
-        : Number.POSITIVE_INFINITY;
+      targetXById.set(id, targetX);
+    });
 
+    const byTarget = (left, right) => {
+      const leftTargetX = targetXById.get(left) ?? Number.POSITIVE_INFINITY;
+      const rightTargetX = targetXById.get(right) ?? Number.POSITIVE_INFINITY;
       if (leftTargetX !== rightTargetX) return leftTargetX - rightTargetX;
 
       const a = normalizeId(left);
       const b = normalizeId(right);
       if (typeof a === 'number' && typeof b === 'number') return a - b;
       return String(a).localeCompare(String(b));
+    };
+
+    const spouseAdj = new Map();
+    state.relationships
+      .filter(r => r.type === 'spouses')
+      .forEach((r) => {
+        if (!ids.includes(r.source_id) || !ids.includes(r.target_id)) return;
+        if (!spouseAdj.has(r.source_id)) spouseAdj.set(r.source_id, new Set());
+        if (!spouseAdj.has(r.target_id)) spouseAdj.set(r.target_id, new Set());
+        spouseAdj.get(r.source_id).add(r.target_id);
+        spouseAdj.get(r.target_id).add(r.source_id);
+      });
+
+    const visited = new Set();
+    const blocks = [];
+
+    ids.forEach((id) => {
+      if (visited.has(id)) return;
+      if (!spouseAdj.has(id)) {
+        visited.add(id);
+        blocks.push([id]);
+        return;
+      }
+
+      const stack = [id];
+      const component = [];
+      while (stack.length) {
+        const current = stack.pop();
+        if (visited.has(current)) continue;
+        visited.add(current);
+        component.push(current);
+        (spouseAdj.get(current) || []).forEach((next) => {
+          if (!visited.has(next)) stack.push(next);
+        });
+      }
+
+      const componentSorted = component.sort(byTarget);
+      blocks.push(componentSorted);
     });
+
+    blocks.sort((leftBlock, rightBlock) => {
+      const leftAnchor = Math.min(...leftBlock.map(id => targetXById.get(id) ?? Number.POSITIVE_INFINITY));
+      const rightAnchor = Math.min(...rightBlock.map(id => targetXById.get(id) ?? Number.POSITIVE_INFINITY));
+      if (leftAnchor !== rightAnchor) return leftAnchor - rightAnchor;
+      return byTarget(leftBlock[0], rightBlock[0]);
+    });
+
+    const ordered = blocks.flatMap(block => block);
 
     const offset = (rowWidth - (ordered.length - 1) * spacing) / 2;
     ordered.forEach((id, i) => pos.set(id, { x: offset + i * spacing, y: 130 + g * 230 }));
@@ -322,6 +366,29 @@ function render() {
     const a = state.positions.get(r.source_id);
     const b = state.positions.get(r.target_id);
     if (!a || !b) return;
+    if (r.type === 'spouses' && Math.abs(a.y - b.y) < 1) {
+      const spouseLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      spouseLine.setAttribute('x1', a.x);
+      spouseLine.setAttribute('y1', a.y + 56);
+      spouseLine.setAttribute('x2', b.x);
+      spouseLine.setAttribute('y2', b.y + 56);
+      spouseLine.setAttribute('class', 'edge-spouse');
+      svg.appendChild(spouseLine);
+      return;
+    }
+
+    if (r.type === 'siblings' && Math.abs(a.y - b.y) < 1) {
+      const siblingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const minX = Math.min(a.x, b.x);
+      const maxX = Math.max(a.x, b.x);
+      const laneY = a.y - 62;
+      siblingPath.setAttribute('d', `M ${minX} ${a.y - 48} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y - 48}`);
+      siblingPath.setAttribute('fill', 'none');
+      siblingPath.setAttribute('class', 'edge-sibling');
+      svg.appendChild(siblingPath);
+      return;
+    }
+
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     const isParentEdge = r.type === 'parent_child' && b.y > a.y;
     line.setAttribute('x1', a.x);
