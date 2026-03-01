@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 4) . '/lib/genealogy_api.php';
+require_once dirname(__DIR__, 3) . '/lib/genealogy_api.php';
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method !== 'PATCH' && $method !== 'POST') {

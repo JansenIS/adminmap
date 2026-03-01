@@ -45,6 +45,22 @@
     return { w: 2000, h: 2400 };
   }
 
+
+
+  function resolveCharacterPhotoUrl(rawUrl, name, placeholderFactory) {
+    const url = String(rawUrl || "").trim();
+    if (!url) {
+      return typeof placeholderFactory === "function"
+        ? placeholderFactory(name || "")
+        : "";
+    }
+    if (/^data:image\//i.test(url) || /^blob:/i.test(url) || /^\/api\/genealogy\/photo\//.test(url)) return url;
+    if (/^https?:\/\//i.test(url)) {
+      return `/api/genealogy/photo/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(String(name || ""))}`;
+    }
+    return url;
+  }
+
   class RasterProvinceMap {
     constructor(opts) {
       this.opts = opts || {};
@@ -689,5 +705,5 @@
   }
 
   window.RasterProvinceMap = RasterProvinceMap;
-  window.MapUtils = { clamp, hexToRgb, rgbToHex, toBase64Utf8, parseSvgBox };
+  window.MapUtils = { clamp, hexToRgb, rgbToHex, toBase64Utf8, parseSvgBox, resolveCharacterPhotoUrl };
 })();
