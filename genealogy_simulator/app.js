@@ -315,6 +315,10 @@ function render() {
   computeViewport();
   svg.innerHTML = '';
 
+  const NODE_RADIUS = 48;
+  const SPOUSE_RAIL_OFFSET = 16;
+  const SIBLING_RAIL_OFFSET = 16;
+
   const spousePairs = new Set(
     state.relationships
       .filter(r => r.type === 'spouses')
@@ -367,13 +371,14 @@ function render() {
     const b = state.positions.get(r.target_id);
     if (!a || !b) return;
     if (r.type === 'spouses' && Math.abs(a.y - b.y) < 1) {
-      const spouseLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      spouseLine.setAttribute('x1', a.x);
-      spouseLine.setAttribute('y1', a.y + 56);
-      spouseLine.setAttribute('x2', b.x);
-      spouseLine.setAttribute('y2', b.y + 56);
-      spouseLine.setAttribute('class', 'edge-spouse');
-      svg.appendChild(spouseLine);
+      const spousePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const minX = Math.min(a.x, b.x);
+      const maxX = Math.max(a.x, b.x);
+      const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+      spousePath.setAttribute('d', `M ${minX} ${a.y + NODE_RADIUS} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y + NODE_RADIUS}`);
+      spousePath.setAttribute('fill', 'none');
+      spousePath.setAttribute('class', 'edge-spouse');
+      svg.appendChild(spousePath);
       return;
     }
 
@@ -381,8 +386,8 @@ function render() {
       const siblingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
-      const laneY = a.y - 62;
-      siblingPath.setAttribute('d', `M ${minX} ${a.y - 48} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y - 48}`);
+      const laneY = Math.min(a.y, b.y) - NODE_RADIUS - SIBLING_RAIL_OFFSET;
+      siblingPath.setAttribute('d', `M ${minX} ${a.y - NODE_RADIUS} L ${minX} ${laneY} L ${maxX} ${laneY} L ${maxX} ${b.y - NODE_RADIUS}`);
       siblingPath.setAttribute('fill', 'none');
       siblingPath.setAttribute('class', 'edge-sibling');
       svg.appendChild(siblingPath);
@@ -392,9 +397,9 @@ function render() {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     const isParentEdge = r.type === 'parent_child' && b.y > a.y;
     line.setAttribute('x1', a.x);
-    line.setAttribute('y1', isParentEdge ? a.y + 48 : a.y);
+    line.setAttribute('y1', isParentEdge ? a.y + NODE_RADIUS : a.y);
     line.setAttribute('x2', b.x);
-    line.setAttribute('y2', isParentEdge ? b.y - 48 : b.y);
+    line.setAttribute('y2', isParentEdge ? b.y - NODE_RADIUS : b.y);
     line.setAttribute('class', r.type === 'parent_child' ? 'edge-parent' : (r.type === 'siblings' ? 'edge-sibling' : 'edge-spouse'));
     svg.appendChild(line);
   });
@@ -412,12 +417,12 @@ function render() {
     if (!kids.length) return;
 
     const midX = (p1.x + p2.x) / 2;
-    const midY = (p1.y + p2.y) / 2;
-    const branchY = Math.max(midY + 40, Math.min(...kids.map(k => k.pos.y)) - 120);
+    const spouseLaneY = Math.max(p1.y, p2.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+    const branchY = Math.max(spouseLaneY + 36, Math.min(...kids.map(k => k.pos.y)) - 120);
 
     const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     trunk.setAttribute('x1', midX);
-    trunk.setAttribute('y1', midY);
+    trunk.setAttribute('y1', spouseLaneY);
     trunk.setAttribute('x2', midX);
     trunk.setAttribute('y2', branchY);
     trunk.setAttribute('class', 'edge-parent');
@@ -438,7 +443,7 @@ function render() {
       childBranch.setAttribute('x1', pos.x);
       childBranch.setAttribute('y1', branchY);
       childBranch.setAttribute('x2', pos.x);
-      childBranch.setAttribute('y2', pos.y - 48);
+      childBranch.setAttribute('y2', pos.y - NODE_RADIUS);
       childBranch.setAttribute('class', 'edge-parent');
       svg.appendChild(childBranch);
     });
