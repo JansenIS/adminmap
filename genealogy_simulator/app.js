@@ -14,7 +14,6 @@ const state = {
 };
 
 const svg = document.getElementById('tree');
-const quickAdd = document.getElementById('quickAdd');
 const statusEl = document.getElementById('status');
 const panel = document.getElementById('adminPanel');
 const clanFilter = document.getElementById('clanFilter');
@@ -310,6 +309,135 @@ function syncClanFilter() {
   }
 }
 
+
+function createQuickActionButton({ x, y, className = '', label, title, onClick }) {
+  const btn = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  btn.setAttribute('transform', `translate(${x}, ${y})`);
+  btn.setAttribute('class', `quick-action ${className}`.trim());
+  btn.style.cursor = 'pointer';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('r', 13);
+  circle.setAttribute('cx', 0);
+  circle.setAttribute('cy', 0);
+  circle.setAttribute('class', 'quick-action-circle');
+  btn.appendChild(circle);
+
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', 0);
+  text.setAttribute('y', 4);
+  text.setAttribute('class', 'quick-action-label');
+  text.textContent = label;
+  btn.appendChild(text);
+
+  if (title) {
+    const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    tip.textContent = title;
+    btn.appendChild(tip);
+  }
+
+  return btn;
+}
+
+function defaultRelativePayload(name, clan = '') {
+  return {
+    name,
+    title: '',
+    clan,
+    birth_year: '',
+    death_year: '',
+    photo_url: '',
+    notes: '',
+  };
+}
+
+async function createRelativeFromNode(sourceId, relationType) {
+  const source = nodeByIdFromAll(sourceId);
+  if (!source) return;
+
+  const relationLabelMap = {
+    parent_child_parent: 'родителя',
+    parent_child_child: 'ребёнка',
+    spouses: 'супруга',
+    siblings: 'брата/сестру',
+  };
+
+  const name = window.prompt(`Введите имя нового ${relationLabelMap[relationType] || 'родственника'}:`, '');
+  if (!name || !name.trim()) return;
+
+  const payload = defaultRelativePayload(name.trim(), source.clan || '');
+
+  try {
+    const created = await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
+    const targetId = created?.character?.id;
+    if (!targetId) throw new Error('character_create_failed');
+
+    let relationPayload = null;
+    if (relationType === 'parent_child_parent') {
+      relationPayload = { type: 'parent_child', source_id: targetId, target_id: sourceId };
+    } else if (relationType === 'parent_child_child') {
+      relationPayload = { type: 'parent_child', source_id: sourceId, target_id: targetId };
+    } else if (relationType === 'spouses') {
+      relationPayload = { type: 'spouses', source_id: sourceId, target_id: targetId };
+    } else if (relationType === 'siblings') {
+      relationPayload = { type: 'siblings', source_id: sourceId, target_id: targetId };
+    }
+
+    if (relationPayload) {
+      await api('/api/genealogy/relationships/', { method: 'POST', body: JSON.stringify(relationPayload) });
+    }
+
+    state.selectedId = targetId;
+    await loadData();
+    syncClanFilter();
+    syncCharacterSelects();
+    syncMapCharacterSelect();
+    render();
+    setStatus(`Добавлен новый родственник: ${payload.name}.`);
+  } catch (err) {
+    setStatus(`Ошибка добавления родственника: ${err.message}`);
+  }
+}
+
+async function createChildForRelationship(aId, bId, relationType) {
+  const parentA = nodeByIdFromAll(aId);
+  const parentB = nodeByIdFromAll(bId);
+  const clan = parentA?.clan || parentB?.clan || '';
+  const relText = relationType === 'siblings' ? 'общего брата/сестру' : 'общего ребёнка';
+  const name = window.prompt(`Введите имя нового ${relText}:`, '');
+  if (!name || !name.trim()) return;
+
+  const payload = defaultRelativePayload(name.trim(), clan);
+
+  try {
+    const created = await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
+    const childId = created?.character?.id;
+    if (!childId) throw new Error('character_create_failed');
+
+    if (relationType === 'spouses') {
+      await api('/api/genealogy/relationships/', { method: 'POST', body: JSON.stringify({ type: 'parent_child', source_id: aId, target_id: childId }) });
+      await api('/api/genealogy/relationships/', { method: 'POST', body: JSON.stringify({ type: 'parent_child', source_id: bId, target_id: childId }) });
+    } else {
+      await api('/api/genealogy/relationships/', { method: 'POST', body: JSON.stringify({ type: 'siblings', source_id: aId, target_id: childId }) });
+      await api('/api/genealogy/relationships/', { method: 'POST', body: JSON.stringify({ type: 'siblings', source_id: bId, target_id: childId }) });
+    }
+
+    state.selectedId = childId;
+    await loadData();
+    syncClanFilter();
+    syncCharacterSelects();
+    syncMapCharacterSelect();
+    render();
+    setStatus(`Добавлен родственник: ${payload.name}.`);
+  } catch (err) {
+    setStatus(`Ошибка добавления родственника: ${err.message}`);
+  }
+}
+
 function render() {
   layout();
   computeViewport();
@@ -379,6 +507,17 @@ function render() {
       spousePath.setAttribute('fill', 'none');
       spousePath.setAttribute('class', 'edge-spouse');
       svg.appendChild(spousePath);
+      if (state.mode === 'admin') {
+        const btn = createQuickActionButton({
+          x: (minX + maxX) / 2,
+          y: laneY,
+          className: 'quick-child',
+          label: 'C+',
+          title: 'Добавить общего ребёнка в браке',
+          onClick: () => createChildForRelationship(r.source_id, r.target_id, 'spouses'),
+        });
+        svg.appendChild(btn);
+      }
       return;
     }
 
@@ -391,6 +530,17 @@ function render() {
       siblingPath.setAttribute('fill', 'none');
       siblingPath.setAttribute('class', 'edge-sibling');
       svg.appendChild(siblingPath);
+      if (state.mode === 'admin') {
+        const btn = createQuickActionButton({
+          x: (minX + maxX) / 2,
+          y: laneY,
+          className: 'quick-sibling',
+          label: 'B+',
+          title: 'Добавить общего брата/сестру',
+          onClick: () => createChildForRelationship(r.source_id, r.target_id, 'siblings'),
+        });
+        svg.appendChild(btn);
+      }
       return;
     }
 
@@ -513,17 +663,26 @@ function render() {
     years.setAttribute('class', 'node-meta');
     years.textContent = fmtYears(c);
     svg.appendChild(years);
-  });
 
-  if (state.mode === 'admin' && state.selectedId && state.positions.get(state.selectedId)) {
-    const p = state.positions.get(state.selectedId);
-    quickAdd.style.display = 'block';
-    const screen = worldToScreen(p);
-    quickAdd.style.left = `${screen.x + 42}px`;
-    quickAdd.style.top = `${screen.y - 22}px`;
-  } else {
-    quickAdd.style.display = 'none';
-  }
+    if (state.mode === 'admin' && state.selectedId === c.id) {
+      const actions = [
+        { dx: 62, dy: -26, className: 'quick-parent', label: 'P', title: 'Добавить родителя', action: () => createRelativeFromNode(c.id, 'parent_child_parent') },
+        { dx: 62, dy: 0, className: 'quick-spouse', label: 'S', title: 'Добавить супруга', action: () => createRelativeFromNode(c.id, 'spouses') },
+        { dx: 62, dy: 26, className: 'quick-child', label: 'C', title: 'Добавить ребёнка', action: () => createRelativeFromNode(c.id, 'parent_child_child') },
+      ];
+      actions.forEach((item) => {
+        const btn = createQuickActionButton({
+          x: p.x + item.dx,
+          y: p.y + item.dy,
+          className: item.className,
+          label: item.label,
+          title: item.title,
+          onClick: item.action,
+        });
+        svg.appendChild(btn);
+      });
+    }
+  });
 }
 
 function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
@@ -755,13 +914,6 @@ function bindAdmin() {
       render();
       setStatus('Связь создана.');
     } catch (err) { setStatus(`Ошибка: ${err.message}`); }
-  });
-
-  quickAdd.addEventListener('click', () => {
-    if (!state.selectedId) return;
-    const source = state.selectedId;
-    document.getElementById('linkSource').value = source;
-    document.getElementById('linkTarget').focus();
   });
   document.getElementById('deleteCharacterBtn')?.addEventListener('click', async () => {
     if (!state.selectedId) {
