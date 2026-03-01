@@ -17,6 +17,64 @@ if (!function_exists('api_read_json_body')) {
   }
 }
 
+
+
+function genealogy_load_people_profiles(): array {
+  try {
+    $state = api_load_state();
+  } catch (Throwable $e) {
+    return [];
+  }
+
+  $profiles = $state['people_profiles'] ?? null;
+  return is_array($profiles) ? $profiles : [];
+}
+
+function genealogy_sync_people_profiles_from_characters(array $characters, bool $overwritePhoto = false): void {
+  $state = api_load_state();
+  if (!is_array($state['people_profiles'] ?? null)) $state['people_profiles'] = [];
+
+  $changed = false;
+  foreach ($characters as $char) {
+    if (!is_array($char)) continue;
+    $name = trim((string)($char['name'] ?? ''));
+    if ($name === '') continue;
+
+    if (!is_array($state['people_profiles'][$name] ?? null)) {
+      $state['people_profiles'][$name] = ['photo_url' => '', 'bio' => ''];
+      $changed = true;
+    }
+
+    $photo = trim((string)($char['photo_url'] ?? ''));
+    if ($photo !== '') {
+      $currentPhoto = trim((string)($state['people_profiles'][$name]['photo_url'] ?? ''));
+      if ($overwritePhoto || $currentPhoto === '') {
+        if ($currentPhoto !== $photo) {
+          $state['people_profiles'][$name]['photo_url'] = $photo;
+          $changed = true;
+        }
+      }
+    }
+
+    $bioParts = array_values(array_filter([
+      trim((string)($char['title'] ?? '')),
+      trim((string)($char['notes'] ?? '')),
+    ], static fn($v) => $v !== ''));
+    if (!empty($bioParts)) {
+      $bio = implode("\n\n", $bioParts);
+      $currentBio = trim((string)($state['people_profiles'][$name]['bio'] ?? ''));
+      if ($currentBio === '') {
+        $state['people_profiles'][$name]['bio'] = $bio;
+        $changed = true;
+      }
+    }
+  }
+
+  if ($changed) {
+    api_atomic_write_json(api_state_path(), $state);
+  }
+}
+
 function genealogy_data_path(): string {
   return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'genealogy_tree.json';
 }
@@ -39,6 +97,23 @@ function genealogy_load(): array {
 
   if (!is_array($decoded['characters'] ?? null)) $decoded['characters'] = [];
   if (!is_array($decoded['relationships'] ?? null)) $decoded['relationships'] = [];
+
+  genealogy_sync_people_profiles_from_characters($decoded['characters'], false);
+  $profiles = genealogy_load_people_profiles();
+  foreach ($decoded['characters'] as &$char) {
+    if (!is_array($char)) continue;
+    $name = trim((string)($char['name'] ?? ''));
+    if ($name === '') continue;
+    $profile = $profiles[$name] ?? null;
+    if (!is_array($profile)) continue;
+
+    $profilePhoto = trim((string)($profile['photo_url'] ?? ''));
+    if ($profilePhoto !== '') {
+      $char['photo_url'] = $profilePhoto;
+    }
+  }
+  unset($char);
+
   return $decoded;
 }
 

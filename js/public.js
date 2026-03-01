@@ -143,7 +143,7 @@
     if (!n) return;
     const profile = profileByName(n) || {};
     personModalName.textContent = n;
-    personModalPhoto.src = String(profile.photo_url || "").trim() || makePlaceholderAvatar(n);
+    personModalPhoto.src = MapUtils.resolveCharacterPhotoUrl(profile.photo_url, n, makePlaceholderAvatar);
     const bio = String(profile.bio || "").trim();
     personModalBio.textContent = bio || "Биография будет добавлена позже.";
     const rel = derivePersonRelations(n);
