@@ -15,7 +15,7 @@
       </select>
     </div>
     <strong>Genealogy Simulator (backend-first)</strong>
-    <div class="legend">Клик по персонажу выделяет его, + рядом — быстрый старт добавления связи.</div>
+    <div class="legend">Клик по персонажу выделяет его, + рядом — быстрый старт добавления связи. Колесо мыши — масштаб, зажатие ЛКМ на фоне — перемещение.</div>
   </header>
   <main>
     <section id="adminPanel" class="panel">
@@ -31,6 +31,20 @@
         <button type="submit">Создать персонажа</button>
       </form>
 
+      <h2>Добавить персонажа с карты в род</h2>
+      <form id="mapAssignClanForm">
+        <label>Персонаж карты (владельцы провинций и др.)</label><select id="mapCharacterSelect" name="name"></select>
+        <label>Род</label><input id="mapAssignClanName" name="clan" placeholder="Например, Старк" />
+        <button type="submit">Добавить/назначить род</button>
+      </form>
+
+      <h2>Добавить существующего персонажа в род</h2>
+      <form id="assignClanForm">
+        <label>Персонаж</label><select id="assignClanCharacter" name="id"></select>
+        <label>Род</label><input id="assignClanName" name="clan" placeholder="Оставьте пустым, чтобы убрать род" />
+        <button type="submit">Сохранить род персонажа</button>
+      </form>
+
       <h2>Добавить связь</h2>
       <form id="linkForm">
         <label>Тип</label>
@@ -43,9 +57,16 @@
         <label>Цель</label><select id="linkTarget" name="target_id"></select>
         <button type="submit">Создать связь</button>
       </form>
+      <button type="button" id="deleteCharacterBtn" class="danger">Удалить выбранного персонажа</button>
+      <button type="button" id="deleteClanBtn" class="danger">Удалить выбранный род</button>
       <p id="status"></p>
     </section>
     <section class="canvas-wrap">
+      <div class="zoom-controls">
+        <button type="button" id="zoomInBtn">+</button>
+        <button type="button" id="zoomOutBtn">−</button>
+        <button type="button" id="resetViewBtn" class="secondary">Сброс</button>
+      </div>
       <button id="quickAdd" class="quick-add" title="Быстро создать связь">+</button>
       <svg id="tree" viewBox="0 0 2000 1200"></svg>
     </section>

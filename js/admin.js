@@ -1405,8 +1405,48 @@
 
 
 
+
+  async function loadGenealogyCharacters() {
+    try {
+      const res = await fetch('/api/genealogy/', { cache: 'no-store' });
+      if (!res.ok) return [];
+      const body = await res.json().catch(() => ({}));
+      return Array.isArray(body && body.characters) ? body.characters : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function mergeGenealogyPeopleIntoState(characters) {
+    if (!Array.isArray(characters) || !characters.length) return;
+    if (!isPlainObject(state.people_profiles)) state.people_profiles = {};
+
+    for (const row of characters) {
+      if (!row || typeof row !== 'object') continue;
+      const name = String(row.name || '').trim();
+      if (!name) continue;
+      ensurePerson(name);
+
+      if (!isPlainObject(state.people_profiles[name])) {
+        state.people_profiles[name] = { photo_url: '', bio: '' };
+      }
+
+      const profile = state.people_profiles[name];
+      const photo = String(row.photo_url || '').trim();
+      const title = String(row.title || '').trim();
+      const notes = String(row.notes || '').trim();
+      const bioParts = [title, notes].filter(Boolean);
+      const bio = bioParts.join('\n\n').trim();
+
+      if (!String(profile.photo_url || '').trim() && photo) profile.photo_url = photo;
+      if (!String(profile.bio || '').trim() && bio) profile.bio = bio;
+    }
+  }
+
   async function main() {
     state = await loadInitialState(STATE_URL_DEFAULT);
+    const genealogyCharacters = await loadGenealogyCharacters();
+    mergeGenealogyPeopleIntoState(genealogyCharacters);
     rebuildPeopleControls(); syncPeopleFromRealmRulers(); rebuildTerrainSelect(); rebuildRealmSelect();
 
     const map = new RasterProvinceMap({

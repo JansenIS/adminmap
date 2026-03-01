@@ -5,9 +5,12 @@ const state = {
   characters: [],
   relationships: [],
   positions: new Map(),
-  viewport: { minX: 0, minY: 0 },
+  viewport: { minX: 0, minY: 0, width: 1200, height: 800 },
   selectedId: null,
   selectedClan: 'all',
+  mapPeople: [],
+  camera: { zoom: 1, panX: 0, panY: 0 },
+  dragging: null,
 };
 
 const svg = document.getElementById('tree');
@@ -15,6 +18,7 @@ const quickAdd = document.getElementById('quickAdd');
 const statusEl = document.getElementById('status');
 const panel = document.getElementById('adminPanel');
 const clanFilter = document.getElementById('clanFilter');
+const canvasWrap = document.querySelector('.canvas-wrap');
 
 async function api(path, options = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -101,10 +105,10 @@ function relKey(a, b) {
 function computeViewport() {
   const points = [...state.positions.values()];
   if (!points.length) {
-    state.viewport = { minX: 0, minY: 0 };
-    svg.setAttribute('viewBox', '0 0 1200 800');
+    state.viewport = { minX: 0, minY: 0, width: 1200, height: 800 };
     svg.setAttribute('width', '1200');
     svg.setAttribute('height', '800');
+    applyViewBox();
     return;
   }
 
@@ -115,11 +119,34 @@ function computeViewport() {
   const width = Math.max(600, maxX - minX);
   const height = Math.max(500, maxY - minY);
 
-  state.viewport = { minX, minY };
-  svg.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
+  state.viewport = { minX, minY, width, height };
+  applyViewBox();
   svg.setAttribute('width', `${Math.ceil(width)}`);
   svg.setAttribute('height', `${Math.ceil(height)}`);
 }
+
+function applyViewBox() {
+  const { minX, minY, width, height } = state.viewport;
+  const zoom = state.camera.zoom || 1;
+  const viewW = width / zoom;
+  const viewH = height / zoom;
+  const x = minX + state.camera.panX;
+  const y = minY + state.camera.panY;
+  svg.setAttribute('viewBox', `${x} ${y} ${viewW} ${viewH}`);
+}
+
+function clampZoom(v) { return Math.min(3, Math.max(0.4, v)); }
+
+function worldToScreen(point) {
+  const vb = svg.viewBox.baseVal;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return { x: 0, y: 0 };
+  return {
+    x: ((point.x - vb.x) / vb.width) * rect.width,
+    y: ((point.y - vb.y) / vb.height) * rect.height,
+  };
+}
+
 
 function applyClanFilter() {
   const clan = state.selectedClan;
@@ -129,39 +156,41 @@ function applyClanFilter() {
     return;
   }
 
-  const clanMembers = state.allCharacters.filter(c => (c.clan || '').trim() === clan);
-  const included = new Set(clanMembers.map(c => c.id));
-  const externalSpouses = new Set();
+  const included = new Set(
+    state.allCharacters
+      .filter(c => (c.clan || '').trim() === clan)
+      .map(c => c.id)
+  );
 
-  state.allRelationships.forEach(r => {
-    if (r.type !== 'spouses') return;
-    const aIn = included.has(r.source_id);
-    const bIn = included.has(r.target_id);
-    if (aIn && !bIn) {
-      included.add(r.target_id);
-      externalSpouses.add(r.target_id);
-    }
-    if (bIn && !aIn) {
-      included.add(r.source_id);
-      externalSpouses.add(r.source_id);
-    }
-  });
+  if (!included.size) {
+    state.characters = [];
+    state.relationships = [];
+    state.selectedId = null;
+    return;
+  }
 
-  state.allRelationships.forEach(r => {
-    if (r.type === 'parent_child') {
-      if (externalSpouses.has(r.source_id)) included.add(r.target_id);
-      if (externalSpouses.has(r.target_id)) included.add(r.source_id);
-    }
-    if (r.type === 'siblings') {
-      if (externalSpouses.has(r.source_id)) included.add(r.target_id);
-      if (externalSpouses.has(r.target_id)) included.add(r.source_id);
-    }
+  state.allRelationships.forEach((r) => {
+    if (r.type !== 'spouses' && r.type !== 'siblings') return;
+    const sourceIn = included.has(r.source_id);
+    const targetIn = included.has(r.target_id);
+    if (sourceIn && !targetIn) included.add(r.target_id);
+    if (!sourceIn && targetIn) included.add(r.source_id);
   });
 
   state.characters = state.allCharacters.filter(c => included.has(c.id));
-  state.relationships = state.allRelationships.filter(r => included.has(r.source_id) && included.has(r.target_id));
+  state.relationships = state.allRelationships.filter((r) => {
+    if (!included.has(r.source_id) || !included.has(r.target_id)) return false;
+    const sourceInClan = (nodeByIdFromAll(r.source_id)?.clan || '').trim() === clan;
+    const targetInClan = (nodeByIdFromAll(r.target_id)?.clan || '').trim() === clan;
+
+    if (sourceInClan && targetInClan) return true;
+    return r.type === 'spouses' || r.type === 'siblings';
+  });
+
   if (state.selectedId && !included.has(state.selectedId)) state.selectedId = null;
 }
+
+function nodeByIdFromAll(id) { return state.allCharacters.find(c => c.id === id); }
 
 function syncClanFilter() {
   if (!clanFilter) return;
@@ -357,8 +386,9 @@ function render() {
   if (state.mode === 'admin' && state.selectedId && state.positions.get(state.selectedId)) {
     const p = state.positions.get(state.selectedId);
     quickAdd.style.display = 'block';
-    quickAdd.style.left = `${p.x - state.viewport.minX + 42}px`;
-    quickAdd.style.top = `${p.y - state.viewport.minY - 22}px`;
+    const screen = worldToScreen(p);
+    quickAdd.style.left = `${screen.x + 42}px`;
+    quickAdd.style.top = `${screen.y - 22}px`;
   } else {
     quickAdd.style.display = 'none';
   }
@@ -387,6 +417,13 @@ function openProfile(id) {
 
 function onNodeClick(id) {
   state.selectedId = id;
+  if (state.mode === 'admin') {
+    const assignSel = document.getElementById('assignClanCharacter');
+    const assignClan = document.getElementById('assignClanName');
+    const selected = nodeByIdFromAll(id);
+    if (assignSel) assignSel.value = id;
+    if (assignClan && selected) assignClan.value = selected.clan || '';
+  }
   if (state.mode === 'public') {
     openProfile(id);
   }
@@ -398,6 +435,16 @@ async function loadData() {
   state.allCharacters = data.characters || [];
   state.allRelationships = data.relationships || [];
   applyClanFilter();
+}
+
+async function loadMapPeople() {
+  if (state.mode !== 'admin') return;
+  try {
+    const data = await api('/api/genealogy/map-people/');
+    state.mapPeople = Array.isArray(data.people) ? data.people : [];
+  } catch (_) {
+    state.mapPeople = [];
+  }
 }
 
 function bindAdmin() {
@@ -412,10 +459,57 @@ function bindAdmin() {
       await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
       form.reset();
       await loadData();
+      await loadMapPeople();
       syncClanFilter();
       render();
       setStatus('Персонаж добавлен.');
       syncCharacterSelects();
+      syncMapCharacterSelect();
+    } catch (err) { setStatus(`Ошибка: ${err.message}`); }
+  });
+
+  document.getElementById('mapAssignClanForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    const mapName = (payload.name || '').trim();
+    const clan = (payload.clan || '').trim();
+    if (!mapName) {
+      setStatus('Выберите персонажа карты.');
+      return;
+    }
+    if (!clan) {
+      setStatus('Укажите род для добавления.');
+      return;
+    }
+
+    try {
+      const existing = state.allCharacters.find((c) => (c.name || '').trim() === mapName);
+      if (existing) {
+        await api('/api/genealogy/characters/update-clan/', { method: 'PATCH', body: JSON.stringify({ id: existing.id, clan }) });
+      } else {
+        await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify({ name: mapName, clan }) });
+      }
+      await loadData();
+      await loadMapPeople();
+      syncClanFilter();
+      syncCharacterSelects();
+      syncMapCharacterSelect();
+      render();
+      setStatus('Персонаж карты добавлен в род.');
+    } catch (err) { setStatus(`Ошибка: ${err.message}`); }
+  });
+
+  document.getElementById('assignClanForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      await api('/api/genealogy/characters/update-clan/', { method: 'PATCH', body: JSON.stringify(payload) });
+      await loadData();
+      syncClanFilter();
+      syncCharacterSelects();
+      syncMapCharacterSelect();
+      render();
+      setStatus('Род персонажа обновлён.');
     } catch (err) { setStatus(`Ошибка: ${err.message}`); }
   });
 
@@ -437,15 +531,84 @@ function bindAdmin() {
     document.getElementById('linkSource').value = source;
     document.getElementById('linkTarget').focus();
   });
+  document.getElementById('deleteCharacterBtn')?.addEventListener('click', async () => {
+    if (!state.selectedId) {
+      setStatus('Выберите персонажа для удаления.');
+      return;
+    }
+    const character = nodeById(state.selectedId);
+    if (!character) return;
+    if (!window.confirm(`Удалить персонажа «${character.name}» и все его связи?`)) return;
+    try {
+      await api('/api/genealogy/characters/delete/', { method: 'DELETE', body: JSON.stringify({ id: state.selectedId }) });
+      state.selectedId = null;
+      await loadData();
+      syncClanFilter();
+      syncCharacterSelects();
+      syncMapCharacterSelect();
+      render();
+      setStatus('Персонаж удалён.');
+    } catch (err) { setStatus(`Ошибка: ${err.message}`); }
+  });
+
+  document.getElementById('deleteClanBtn')?.addEventListener('click', async () => {
+    const clan = state.selectedClan === 'all' ? '' : state.selectedClan;
+    if (!clan) {
+      setStatus('Выберите род в фильтре для удаления.');
+      return;
+    }
+    if (!window.confirm(`Удалить весь род «${clan}» вместе с персонажами и связями?`)) return;
+    try {
+      const res = await api('/api/genealogy/clans/delete/', { method: 'DELETE', body: JSON.stringify({ clan }) });
+      state.selectedClan = 'all';
+      state.selectedId = null;
+      await loadData();
+      syncClanFilter();
+      syncCharacterSelects();
+      syncMapCharacterSelect();
+      render();
+      setStatus(`Род удалён. Персонажей удалено: ${res.deleted_characters ?? 0}.`);
+    } catch (err) { setStatus(`Ошибка: ${err.message}`); }
+  });
+
+  document.getElementById('zoomInBtn')?.addEventListener('click', () => {
+    state.camera.zoom = clampZoom(state.camera.zoom * 1.2);
+    applyViewBox();
+    render();
+  });
+  document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
+    state.camera.zoom = clampZoom(state.camera.zoom / 1.2);
+    applyViewBox();
+    render();
+  });
+  document.getElementById('resetViewBtn')?.addEventListener('click', () => {
+    state.camera = { zoom: 1, panX: 0, panY: 0 };
+    applyViewBox();
+    render();
+  });
+
 }
 
 function syncCharacterSelects() {
-  const selects = [document.getElementById('linkSource'), document.getElementById('linkTarget')].filter(Boolean);
+  const selects = [
+    document.getElementById('linkSource'),
+    document.getElementById('linkTarget'),
+    document.getElementById('assignClanCharacter'),
+  ].filter(Boolean);
   selects.forEach(sel => {
     const selected = sel.value;
     sel.innerHTML = state.allCharacters.map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
     if (selected) sel.value = selected;
   });
+}
+
+function syncMapCharacterSelect() {
+  const select = document.getElementById('mapCharacterSelect');
+  if (!select) return;
+  const selected = select.value;
+  const options = state.mapPeople.map(name => `<option value="${name}">${name}</option>`);
+  select.innerHTML = options.join('');
+  if (selected && state.mapPeople.includes(selected)) select.value = selected;
 }
 
 function bindClanFilter() {
@@ -454,6 +617,44 @@ function bindClanFilter() {
     state.selectedClan = e.target.value || 'all';
     applyClanFilter();
     render();
+  });
+}
+
+
+function bindViewportControls() {
+  if (!canvasWrap) return;
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    state.camera.zoom = clampZoom(state.camera.zoom * factor);
+    applyViewBox();
+    render();
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', (e) => {
+    const tag = (e.target?.tagName || '').toLowerCase();
+    if (tag && tag !== 'svg') return;
+    state.dragging = { x: e.clientX, y: e.clientY, panX: state.camera.panX, panY: state.camera.panY };
+    canvasWrap.classList.add('panning');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!state.dragging) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const vb = svg.viewBox.baseVal;
+    const dx = ((e.clientX - state.dragging.x) / rect.width) * vb.width;
+    const dy = ((e.clientY - state.dragging.y) / rect.height) * vb.height;
+    state.camera.panX = state.dragging.panX - dx;
+    state.camera.panY = state.dragging.panY - dy;
+    applyViewBox();
+    render();
+  });
+
+  window.addEventListener('mouseup', () => {
+    state.dragging = null;
+    canvasWrap.classList.remove('panning');
   });
 }
 
@@ -468,10 +669,13 @@ async function init() {
 
   try {
     await loadData();
+    await loadMapPeople();
     bindAdmin();
     bindClanFilter();
+    bindViewportControls();
     syncClanFilter();
     syncCharacterSelects();
+    syncMapCharacterSelect();
     render();
     setStatus('Данные загружены из backend API.');
   } catch (err) {
