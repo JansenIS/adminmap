@@ -11,21 +11,22 @@ if ($method !== 'PATCH' && $method !== 'POST') {
 
 $payload = api_read_json_body();
 $id = trim((string)($payload['id'] ?? $_GET['id'] ?? ''));
-$clan = trim((string)($payload['clan'] ?? $_GET['clan'] ?? ''));
 
 if ($id === '') {
   api_json_response(['error' => 'id_required'], 400, genealogy_mtime());
 }
 
 $data = genealogy_load();
-$character = genealogy_update_character_clan($data, $id, $clan);
+$character = genealogy_update_character($data, $id, is_array($payload) ? $payload : []);
 if ($character === null) {
-  api_json_response(['error' => 'character_not_found'], 404, genealogy_mtime());
+  api_json_response(['error' => 'character_not_found_or_invalid_payload'], 400, genealogy_mtime());
 }
 
 if (!genealogy_save($data)) {
   api_json_response(['error' => 'write_failed'], 500, genealogy_mtime());
 }
+
+genealogy_sync_people_profiles_from_characters([$character], true);
 
 api_json_response([
   'ok' => true,

@@ -279,6 +279,44 @@ function genealogy_delete_clan(array &$data, string $clan): int {
 }
 
 
+
+
+function genealogy_update_character(array &$data, string $id, array $payload): ?array {
+  $idx = genealogy_find_character_index($data['characters'] ?? [], $id);
+  if ($idx < 0) return null;
+
+  $current = $data['characters'][$idx] ?? null;
+  if (!is_array($current)) return null;
+
+  $candidate = [
+    'name' => (string)($current['name'] ?? ''),
+    'title' => (string)($current['title'] ?? ''),
+    'birth_year' => array_key_exists('birth_year', $current) ? $current['birth_year'] : null,
+    'death_year' => array_key_exists('death_year', $current) ? $current['death_year'] : null,
+    'photo_url' => (string)($current['photo_url'] ?? ''),
+    'clan' => (string)($current['clan'] ?? ''),
+    'notes' => (string)($current['notes'] ?? ''),
+  ];
+
+  $allowed = ['name', 'title', 'birth_year', 'death_year', 'photo_url', 'clan', 'notes'];
+  foreach ($allowed as $field) {
+    if (!array_key_exists($field, $payload)) continue;
+    $value = $payload[$field];
+    if (($field === 'birth_year' || $field === 'death_year') && $value === '') {
+      $candidate[$field] = null;
+      continue;
+    }
+    $candidate[$field] = $value;
+  }
+
+  $valid = genealogy_validate_character_payload($candidate);
+  if (!($valid['ok'] ?? false)) return null;
+
+  $updated = $valid['character'];
+  $updated['id'] = $id;
+  $data['characters'][$idx] = $updated;
+  return $updated;
+}
 function genealogy_update_character_clan(array &$data, string $id, string $clan): ?array {
   $idx = genealogy_find_character_index($data['characters'] ?? [], $id);
   if ($idx < 0) return null;
