@@ -27,6 +27,11 @@
         <label>Год рождения</label><input name="birth_year" type="number" />
         <label>Год смерти</label><input name="death_year" type="number" />
         <label>URL фото</label><input name="photo_url" type="url" />
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px;">
+          <button type="button" id="createPhotoUploadBtn" class="secondary">Загрузить фото на сервер (квадрат)</button>
+          <input id="createPhotoFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
+          <small>Фото автоматически обрежется в квадрат и сохранится как JPG.</small>
+        </div>
         <label>Заметки</label><textarea name="notes"></textarea>
         <button type="submit">Создать персонажа</button>
       </form>
@@ -54,6 +59,11 @@
         <label>Год рождения</label><input id="editCharacterBirthYear" name="birth_year" type="number" />
         <label>Год смерти</label><input id="editCharacterDeathYear" name="death_year" type="number" />
         <label>URL фото</label><input id="editCharacterPhotoUrl" name="photo_url" type="url" />
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px;">
+          <button type="button" id="editPhotoUploadBtn" class="secondary">Загрузить фото на сервер (квадрат)</button>
+          <input id="editPhotoFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
+          <small>После загрузки URL подставится автоматически.</small>
+        </div>
         <label>Заметки</label><textarea id="editCharacterNotes" name="notes"></textarea>
         <button type="submit">Сохранить изменения персонажа</button>
       </form>
