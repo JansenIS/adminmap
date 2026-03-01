@@ -45,6 +45,13 @@ function resolvePhotoUrl(rawUrl, name = '') {
   return url;
 }
 
+function shortenText(value, maxLength = 30) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
+
 async function uploadPhotoSquare(file, name = '') {
   const fd = new FormData();
   fd.append('photo', file);
@@ -1200,7 +1207,7 @@ function layout() {
   componentRows.forEach((rows) => {
     [...rows.keys()].forEach((g) => {
       (rows.get(g) || []).forEach((id) => {
-        pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 230 });
+        pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 300 });
       });
     });
   });
@@ -1852,6 +1859,7 @@ function render({ preserveViewportAnchor = true } = {}) {
       siblingMidX,
       railStartX: Math.min(...kids.map(({ pos }) => pos.x)),
       railEndX: Math.max(...kids.map(({ pos }) => pos.x)),
+      parentLabelSafeY: parentLowY + NODE_RADIUS + 74,
       parentGeneration: generationById.get(family.parentA) ?? 0,
       childGeneration: generationById.get(kids[0].id) ?? (generationById.get(family.parentA) ?? 0) + 1,
     });
@@ -1868,12 +1876,15 @@ function render({ preserveViewportAnchor = true } = {}) {
     const connTrack = connectorRailsTrack.get(`c:${fl.key}`) || 0;
     const siblingTrack = siblingRailsTrack.get(`s:${fl.key}`) || 0;
     const connYBase = Math.min(fl.spouseLaneY + CONNECTOR_DROP, fl.minChildTopY - CHILD_RAIL_PADDING - 20);
+    const minReadableRailY = (fl.parentLabelSafeY || fl.spouseLaneY) + 32;
     const siblingRailBase = Math.min(
-      Math.max(connYBase + 28, fl.minChildY - 120),
+      Math.max(connYBase + 28, fl.minChildY - 96, minReadableRailY),
       fl.minChildTopY - CHILD_RAIL_PADDING
     );
     const siblingRailY = siblingRailBase - siblingTrack * 14;
-    const connY = Math.min(connYBase + connTrack * 12, siblingRailY - 24);
+    const connYFloor = (fl.parentLabelSafeY || fl.spouseLaneY) + 4;
+    const connYCeil = siblingRailY - 24;
+    const connY = Math.max(connYFloor, Math.min(connYBase + connTrack * 12, connYCeil));
 
     createPolyline([
       [fl.marriageMidX, fl.spouseLaneY],
@@ -1959,14 +1970,21 @@ function render({ preserveViewportAnchor = true } = {}) {
     name.setAttribute('x', p.x);
     name.setAttribute('y', p.y + 70);
     name.setAttribute('class', 'node-label');
-    name.textContent = c.name;
+    name.textContent = shortenText(c.name, 24) || 'Без имени';
+    const nameTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    nameTitle.textContent = c.name || 'Без имени';
+    name.appendChild(nameTitle);
     svg.appendChild(name);
 
     const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     title.setAttribute('x', p.x);
     title.setAttribute('y', p.y + 88);
     title.setAttribute('class', 'node-meta');
-    title.textContent = c.title || '—';
+    const fullTitle = c.title || '—';
+    title.textContent = shortenText(fullTitle, 28);
+    const roleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    roleTitle.textContent = fullTitle;
+    title.appendChild(roleTitle);
     svg.appendChild(title);
 
     const clan = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1975,7 +1993,11 @@ function render({ preserveViewportAnchor = true } = {}) {
     clan.setAttribute('class', 'node-meta');
     const branchLabel = c.clan_branch_type === 'side' ? ' (побочная ветвь)' : '';
     const founderLabel = c.is_clan_founder ? ' • основатель' : '';
-    clan.textContent = c.clan ? `Род: ${c.clan}${branchLabel}${founderLabel}` : 'Род: —';
+    const fullClanLabel = c.clan ? `Род: ${c.clan}${branchLabel}${founderLabel}` : 'Род: —';
+    clan.textContent = shortenText(fullClanLabel, 34);
+    const clanTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    clanTitle.textContent = fullClanLabel;
+    clan.appendChild(clanTitle);
     svg.appendChild(clan);
 
     const years = document.createElementNS('http://www.w3.org/2000/svg', 'text');
