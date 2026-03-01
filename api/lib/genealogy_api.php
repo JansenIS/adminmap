@@ -77,6 +77,46 @@ function genealogy_sync_people_profiles_from_characters(array $characters, bool 
   }
 }
 
+
+function genealogy_sync_characters_with_state_people(array &$data): bool {
+  $existingNames = [];
+  foreach (($data['characters'] ?? []) as $char) {
+    if (!is_array($char)) continue;
+    $name = trim((string)($char['name'] ?? ''));
+    if ($name === '') continue;
+    $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    $existingNames[$key] = true;
+  }
+
+  $state = api_load_state();
+  $mapNames = api_collect_people_names_from_state($state);
+  if (!is_array($data['characters'] ?? null)) $data['characters'] = [];
+
+  $changed = false;
+  foreach ($mapNames as $nameRaw) {
+    $name = trim((string)$nameRaw);
+    if ($name === '') continue;
+    $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    if (isset($existingNames[$key])) continue;
+
+    $char = [
+      'id' => genealogy_new_character_id($data['characters']),
+      'name' => $name,
+      'title' => '',
+      'birth_year' => null,
+      'death_year' => null,
+      'photo_url' => '',
+      'clan' => '',
+      'notes' => '',
+    ];
+    $data['characters'][] = $char;
+    $existingNames[$key] = true;
+    $changed = true;
+  }
+
+  return $changed;
+}
+
 function genealogy_data_path(): string {
   return api_repo_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'genealogy_tree.json';
 }
@@ -84,21 +124,25 @@ function genealogy_data_path(): string {
 function genealogy_load(): array {
   $path = genealogy_data_path();
   if (!is_file($path)) {
-    return [
+    $decoded = [
       'characters' => [],
       'relationships' => [],
       'updated_at' => gmdate('c'),
     ];
-  }
-
-  $raw = (string)file_get_contents($path);
-  $decoded = json_decode($raw, true);
-  if (!is_array($decoded)) {
-    api_json_response(['error' => 'genealogy_decode_failed'], 500);
+  } else {
+    $raw = (string)file_get_contents($path);
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+      api_json_response(['error' => 'genealogy_decode_failed'], 500);
+    }
   }
 
   if (!is_array($decoded['characters'] ?? null)) $decoded['characters'] = [];
   if (!is_array($decoded['relationships'] ?? null)) $decoded['relationships'] = [];
+
+  if (genealogy_sync_characters_with_state_people($decoded)) {
+    genealogy_save($decoded);
+  }
 
   genealogy_sync_people_profiles_from_characters($decoded['characters'], false);
   $profiles = genealogy_load_people_profiles();

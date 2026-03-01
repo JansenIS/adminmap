@@ -17,6 +17,14 @@ if ($id === '') {
 }
 
 $data = genealogy_load();
+$previous = null;
+foreach (($data['characters'] ?? []) as $row) {
+  if (!is_array($row)) continue;
+  if ((string)($row['id'] ?? '') !== $id) continue;
+  $previous = $row;
+  break;
+}
+
 $character = genealogy_update_character($data, $id, is_array($payload) ? $payload : []);
 if ($character === null) {
   api_json_response(['error' => 'character_not_found_or_invalid_payload'], 400, genealogy_mtime());
@@ -27,6 +35,15 @@ if (!genealogy_save($data)) {
 }
 
 genealogy_sync_people_profiles_from_characters([$character], true, true);
+
+$oldName = trim((string)($previous['name'] ?? ''));
+$newName = trim((string)($character['name'] ?? ''));
+if ($oldName !== '' && $newName !== '' && $oldName !== $newName) {
+  $mapState = api_load_state();
+  if (api_replace_person_name_in_state($mapState, $oldName, $newName)) {
+    api_atomic_write_json(api_state_path(), $mapState);
+  }
+}
 
 api_json_response([
   'ok' => true,

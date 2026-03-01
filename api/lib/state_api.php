@@ -76,6 +76,115 @@ function api_state_mtime(): int {
   return (int)@filemtime(api_state_path()) ?: time();
 }
 
+function api_collect_people_names_from_state(array $state): array {
+  $names = [];
+  $addName = static function (string $raw) use (&$names): void {
+    $name = trim($raw);
+    if ($name !== '') $names[$name] = true;
+  };
+
+  foreach (($state['people'] ?? []) as $person) {
+    $name = is_array($person) ? (string)($person['name'] ?? '') : (string)$person;
+    $addName($name);
+  }
+
+  foreach (($state['provinces'] ?? []) as $province) {
+    if (!is_array($province)) continue;
+    $addName((string)($province['owner'] ?? ''));
+  }
+
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+    foreach (($state[$bucket] ?? []) as $realm) {
+      if (!is_array($realm)) continue;
+      $addName((string)($realm['ruler'] ?? ''));
+      if ($bucket !== 'great_houses') continue;
+
+      $layer = $realm['minor_house_layer'] ?? null;
+      if (!is_array($layer) || !is_array($layer['vassals'] ?? null)) continue;
+      foreach ($layer['vassals'] as $vassal) {
+        if (!is_array($vassal)) continue;
+        $addName((string)($vassal['ruler'] ?? ''));
+      }
+    }
+  }
+
+  $list = array_keys($names);
+  usort($list, static fn($a, $b) => strcasecmp((string)$a, (string)$b));
+  return $list;
+}
+
+function api_replace_person_name_in_state(array &$state, string $fromName, string $toName): bool {
+  $from = trim($fromName);
+  $to = trim($toName);
+  if ($from === '' || $to === '' || $from === $to) return false;
+
+  $changed = false;
+  $replace = static function ($value) use ($from, $to, &$changed) {
+    if (!is_string($value)) return $value;
+    if (trim($value) !== $from) return $value;
+    $changed = true;
+    return $to;
+  };
+
+  foreach (($state['provinces'] ?? []) as &$province) {
+    if (!is_array($province)) continue;
+    $province['owner'] = $replace((string)($province['owner'] ?? ''));
+  }
+  unset($province);
+
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+    foreach (($state[$bucket] ?? []) as &$realm) {
+      if (!is_array($realm)) continue;
+      $realm['ruler'] = $replace((string)($realm['ruler'] ?? ''));
+      if ($bucket !== 'great_houses') continue;
+
+      $layer = $realm['minor_house_layer'] ?? null;
+      if (!is_array($layer) || !is_array($layer['vassals'] ?? null)) continue;
+      foreach ($layer['vassals'] as &$vassal) {
+        if (!is_array($vassal)) continue;
+        $vassal['ruler'] = $replace((string)($vassal['ruler'] ?? ''));
+      }
+      unset($vassal);
+      $realm['minor_house_layer'] = $layer;
+    }
+    unset($realm);
+  }
+
+  if (is_array($state['people'] ?? null)) {
+    foreach ($state['people'] as $idx => $person) {
+      if (!is_string($person) || trim($person) !== $from) continue;
+      $state['people'][$idx] = $to;
+      $changed = true;
+    }
+    $normalized = [];
+    $seen = [];
+    foreach ($state['people'] as $person) {
+      $name = trim(is_string($person) ? $person : '');
+      if ($name === '') continue;
+      $k = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+      if (isset($seen[$k])) continue;
+      $seen[$k] = true;
+      $normalized[] = $name;
+    }
+    usort($normalized, static fn($a, $b) => strcasecmp((string)$a, (string)$b));
+    $state['people'] = $normalized;
+  }
+
+  if (is_array($state['people_profiles'] ?? null)) {
+    $fromProfile = $state['people_profiles'][$from] ?? null;
+    $toProfile = $state['people_profiles'][$to] ?? null;
+    if (is_array($fromProfile)) {
+      if (!is_array($toProfile)) {
+        $state['people_profiles'][$to] = $fromProfile;
+      }
+      unset($state['people_profiles'][$from]);
+      $changed = true;
+    }
+  }
+
+  return $changed;
+}
+
 function api_build_provinces_index(array $state, array $refsByOwner = []): array {
   $rows = [];
   foreach (($state['provinces'] ?? []) as $pid => $pd) {
