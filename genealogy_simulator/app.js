@@ -129,92 +129,112 @@ function layout() {
 
   const spacing = 230;
   const xById = new Map();
-  const parentCenterByChild = new Map();
   const rowIndex = [...rows.keys()].sort((a, b) => a - b);
 
-  const maxRowSize = Math.max(1, ...[...rows.values()].map(ids => ids.length));
-  const sceneWidth = Math.max(1400, (maxRowSize - 1) * spacing + 420);
-
-  const setRowX = (ids, metricById) => {
-    const ordered = [...ids].sort((left, right) => {
-      const leftMetric = metricById(left);
-      const rightMetric = metricById(right);
-      if (leftMetric !== rightMetric) return leftMetric - rightMetric;
-
-      const leftId = normalizeId(left);
-      const rightId = normalizeId(right);
-      if (typeof leftId === 'number' && typeof rightId === 'number') return leftId - rightId;
-      return String(leftId).localeCompare(String(rightId));
-    });
-
-    const offset = (sceneWidth - (ordered.length - 1) * spacing) / 2;
-    ordered.forEach((id, i) => xById.set(id, offset + i * spacing));
+  const idSort = (left, right) => {
+    const leftId = normalizeId(left);
+    const rightId = normalizeId(right);
+    if (typeof leftId === 'number' && typeof rightId === 'number') return leftId - rightId;
+    return String(leftId).localeCompare(String(rightId));
   };
-
-  rowIndex.forEach((g) => {
-    const ids = rows.get(g) || [];
-    setRowX(ids, (id) => {
-      const n = normalizeId(id);
-      return typeof n === 'number' ? n : Number.MAX_SAFE_INTEGER;
-    });
-  });
-
-  rowIndex.slice(1).forEach((g) => {
-    const ids = rows.get(g) || [];
-    ids.forEach((id) => {
-      const parents = [...(parentsByChild.get(id) || [])]
-        .map(parentId => xById.get(parentId))
-        .filter(x => typeof x === 'number');
-      if (parents.length) parentCenterByChild.set(id, parents.reduce((sum, x) => sum + x, 0) / parents.length);
-    });
-    setRowX(ids, (id) => {
-      const parentCenter = parentCenterByChild.get(id);
-      if (Number.isFinite(parentCenter)) return parentCenter;
-      const n = normalizeId(id);
-      return typeof n === 'number' ? n : Number.MAX_SAFE_INTEGER;
-    });
-  });
 
   const avg = (values) => {
     if (!values.length) return Number.POSITIVE_INFINITY;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   };
 
-  const applySweep = (levels, neighborGetter, blend = 1) => {
-    levels.forEach((g) => {
-      const ids = rows.get(g) || [];
-      if (!ids.length) return;
+  // Сначала размещаем дерево как пирамиду: листья идут слева направо,
+  // а родитель центрируется над своими детьми.
+  const roots = (rows.get(0) || []).slice().sort(idSort);
+  let nextLeafX = 0;
+  const placeSubtree = (id, stack = new Set()) => {
+    if (xById.has(id)) return xById.get(id);
+    if (stack.has(id)) {
+      const fallback = nextLeafX;
+      nextLeafX += spacing;
+      xById.set(id, fallback);
+      return fallback;
+    }
 
-      setRowX(ids, (id) => {
-        const neighbors = [...(neighborGetter(id) || [])]
-          .map(nearId => xById.get(nearId))
-          .filter(x => typeof x === 'number');
-        const spouseNeighbors = [...(spousesById.get(id) || [])]
-          .filter(spouseId => (gen.get(spouseId) || 0) === g)
-          .map(spouseId => xById.get(spouseId))
-          .filter(x => typeof x === 'number');
+    stack.add(id);
+    const children = [...(childrenByParent.get(id) || [])].sort(idSort);
+    const childXs = [];
 
-        const neighborTarget = avg(neighbors);
-        const spouseTarget = avg(spouseNeighbors);
-        const current = xById.get(id) ?? 0;
-
-        let target = neighborTarget;
-        if (!Number.isFinite(target)) target = current;
-        if (Number.isFinite(spouseTarget)) {
-          target = Number.isFinite(neighborTarget)
-            ? (target * 0.8 + spouseTarget * 0.2)
-            : spouseTarget;
-        }
-
-        return current * (1 - blend) + target * blend;
-      });
+    children.forEach((childId) => {
+      const childGen = gen.get(childId) || 0;
+      const parentGen = gen.get(id) || 0;
+      if (childGen <= parentGen) return;
+      childXs.push(placeSubtree(childId, stack));
     });
+
+    stack.delete(id);
+
+    const x = childXs.length ? avg(childXs) : nextLeafX;
+    if (!childXs.length) nextLeafX += spacing;
+    xById.set(id, x);
+    return x;
   };
 
-  for (let i = 0; i < 8; i++) {
-    applySweep(rowIndex.slice(1), id => parentsByChild.get(id), 1);
-    applySweep([...rowIndex].reverse().slice(1), id => childrenByParent.get(id), 0.65);
-  }
+  roots.forEach(rootId => placeSubtree(rootId));
+
+  // Несвязанные/боковые персонажи тоже должны получить позицию.
+  rowIndex.forEach((g) => {
+    (rows.get(g) || []).slice().sort(idSort).forEach((id) => {
+      if (!xById.has(id)) {
+        xById.set(id, nextLeafX);
+        nextLeafX += spacing;
+      }
+    });
+  });
+
+  // Локальное уплотнение: приближаем к центрам родственников,
+  // но сохраняем интервалы внутри поколения.
+  const relaxRow = (g, iterations = 6) => {
+    const ids = (rows.get(g) || []).slice();
+    if (ids.length <= 1) return;
+
+    for (let i = 0; i < iterations; i++) {
+      const targets = ids.map((id) => {
+        const parentTarget = avg([...(parentsByChild.get(id) || [])]
+          .map(parentId => xById.get(parentId))
+          .filter(x => typeof x === 'number'));
+        const childTarget = avg([...(childrenByParent.get(id) || [])]
+          .map(childId => xById.get(childId))
+          .filter(x => typeof x === 'number'));
+        const spouseTarget = avg([...(spousesById.get(id) || [])]
+          .filter(spouseId => (gen.get(spouseId) || 0) === g)
+          .map(spouseId => xById.get(spouseId))
+          .filter(x => typeof x === 'number'));
+
+        const current = xById.get(id) || 0;
+        const signals = [parentTarget, childTarget, spouseTarget].filter(Number.isFinite);
+        if (!signals.length) return { id, target: current };
+        const target = signals.reduce((sum, x) => sum + x, 0) / signals.length;
+        return { id, target: current * 0.35 + target * 0.65 };
+      }).sort((a, b) => a.target - b.target || idSort(a.id, b.id));
+
+      if (!targets.length) continue;
+      targets[0].x = targets[0].target;
+      for (let t = 1; t < targets.length; t++) {
+        targets[t].x = Math.max(targets[t].target, targets[t - 1].x + spacing);
+      }
+
+      for (let t = targets.length - 2; t >= 0; t--) {
+        targets[t].x = Math.min(targets[t].x, targets[t + 1].x - spacing);
+      }
+
+      targets.forEach(({ id, x }) => xById.set(id, x));
+    }
+  };
+
+  rowIndex.forEach(g => relaxRow(g));
+
+  const allX = [...xById.values()];
+  const minX = Math.min(...allX);
+  const maxX = Math.max(...allX);
+  const sceneWidth = Math.max(1400, maxX - minX + 420);
+  const shiftX = (sceneWidth - (maxX - minX)) / 2 - minX;
+  xById.forEach((x, id) => xById.set(id, x + shiftX));
 
   const pos = new Map();
   rowIndex.forEach((g) => {
