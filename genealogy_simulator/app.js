@@ -967,6 +967,25 @@ function layout() {
   };
 
   const applyFamilySlotLayout = (rows, g, familyModel, componentSet) => {
+    const enforceDescendantRowGap = (rowGen, minGap, passes = 2) => {
+      for (let pass = 0; pass < passes; pass++) {
+        const ordered = (rows.get(rowGen) || [])
+          .slice()
+          .sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+        if (ordered.length <= 1) return;
+
+        for (let i = 0; i < ordered.length - 1; i++) {
+          const leftId = ordered[i];
+          const rightId = ordered[i + 1];
+          const leftX = xById.get(leftId) || 0;
+          const rightX = xById.get(rightId) || 0;
+          if (rightX >= leftX + minGap) continue;
+          const shift = leftX + minGap - rightX;
+          shiftDescendants(componentSet, rightId, shift);
+        }
+      }
+    };
+
     const families = (familyModel.familiesByGeneration.get(g) || [])
       .sort((a, b) => {
         const ax = avg(a.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
@@ -1034,17 +1053,8 @@ function layout() {
       }
     });
 
-    const rowIds = (rows.get(g + 1) || []).slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
-    for (let i = 0; i < rowIds.length - 1; i++) {
-      const leftId = rowIds[i];
-      const rightId = rowIds[i + 1];
-      const leftX = xById.get(leftId) || 0;
-      const rightX = xById.get(rightId) || 0;
-      const minGap = DIAM + Math.max(18, spacing * 0.08);
-      if (rightX >= leftX + minGap) continue;
-      const shift = leftX + minGap - rightX;
-      shiftDescendants(componentSet, rightId, shift);
-    }
+    const minGap = DIAM + Math.max(18, spacing * 0.08);
+    enforceDescendantRowGap(g + 1, minGap, 2);
 
     // После push-прохода повторно прижимаем child-range к anchorX, чтобы инвариант не расползался.
     families.forEach((family) => {
@@ -1065,6 +1075,12 @@ function layout() {
         }
       });
     });
+
+    // Предохранитель от "наслоений": после локальной центровки семей
+    // еще раз гарантируем минимальный зазор между соседями в ряду детей.
+    // Этот шаг нужен, потому что центровка отдельных семей может повторно
+    // сдвинуть пары/сиблингов слишком близко друг к другу.
+    enforceDescendantRowGap(g + 1, minGap, 3);
   };
 
   const relaxRow = (rows, g, iterations = 10) => {
