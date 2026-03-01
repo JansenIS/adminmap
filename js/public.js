@@ -5,12 +5,13 @@
   const el = (id) => document.getElementById(id);
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
-  const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const vassalsEl = el("provVassals"); const terrainEl = el("provTerrain"); const keyEl = el("provKey");
+  const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const terrainEl = el("provTerrain"); const keyEl = el("provKey"); const modeListLabelEl = el("provModeListLabel"); const modeListEl = el("provModeList");
   const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap"); const toggleLegacyModeBtn = el("toggleLegacyMode");
   const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
   const modalProvinceMapImage = el("modalProvinceMapImage"); const modalKingdomHerald = el("modalKingdomHerald"); const modalKingdomName = el("modalKingdomName");
   const modalGreatHouseHerald = el("modalGreatHouseHerald"); const modalGreatHouseName = el("modalGreatHouseName"); const modalMinorHouseHerald = el("modalMinorHouseHerald");
   const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle");
+  const personModal = el("personModal"); const personModalClose = el("personModalClose"); const personModalPhoto = el("personModalPhoto"); const personModalName = el("personModalName"); const personModalSuzerain = el("personModalSuzerain"); const personModalSeniors = el("personModalSeniors"); const personModalVassals = el("personModalVassals"); const personModalBio = el("personModalBio");
   const DEFAULT_STATE_URL = "data/map_state.json";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
@@ -50,7 +51,116 @@
     syncLegacyModeButton(flags || {});
   }
 
-  function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; vassalsEl.textContent = "—"; terrainEl.textContent = "—"; }
+
+  function makePlaceholderAvatar(name) {
+    const seed = Array.from(String(name || "?")).reduce((a, c) => a + c.charCodeAt(0), 0);
+    const hue = seed % 360;
+    const initials = String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join("") || "?";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(${hue},65%,42%)"/><stop offset="100%" stop-color="hsl(${(hue+35)%360},58%,28%)"/></linearGradient></defs><rect width="512" height="512" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui,Segoe UI,Arial" font-size="180" fill="#eaf2ff">${initials}</text></svg>`;
+    return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(svg);
+  }
+
+  function profileByName(name) {
+    const key = String(name || "").trim();
+    if (!key) return null;
+    const map = state && state.people_profiles && typeof state.people_profiles === "object" ? state.people_profiles : {};
+    return map[key] && typeof map[key] === "object" ? map[key] : null;
+  }
+
+  function renderPersonNode(target, name) {
+    if (!target) return;
+    const n = String(name || "").trim();
+    target.textContent = "";
+    if (!n) { target.textContent = "—"; return; }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "person-link";
+    btn.textContent = n;
+    btn.addEventListener("click", () => openPersonModal(n));
+    target.appendChild(btn);
+  }
+
+  function appendPersonLink(target, name) {
+    const n = String(name || "").trim();
+    if (!n) return false;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "person-link";
+    btn.textContent = n;
+    btn.addEventListener("click", () => openPersonModal(n));
+    target.appendChild(btn);
+    return true;
+  }
+
+  function derivePersonRelations(name) {
+    const target = String(name || "").trim();
+    const suzerains = new Set();
+    const seniors = new Set();
+    const vassals = new Set();
+    if (!target || !state || !state.provinces) return { suzerains, seniors, vassals };
+
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || String(pd.owner || "").trim() !== target) continue;
+      const rel = getProvinceSuzerainSenior(pd);
+      if (rel.suzerain && rel.suzerain !== target) suzerains.add(rel.suzerain);
+      if (rel.senior && rel.senior !== target) seniors.add(rel.senior);
+    }
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd) continue;
+      const owner = String(pd.owner || "").trim();
+      if (!owner || owner === target) continue;
+      const rel = getProvinceSuzerainSenior(pd);
+      if (rel.suzerain === target || rel.senior === target) vassals.add(owner);
+    }
+    for (const realm of Object.values(state.great_houses || {})) {
+      if (!realm || typeof realm !== "object") continue;
+      if (String(realm.ruler || "").trim() === target) {
+        const layer = realm.minor_house_layer && typeof realm.minor_house_layer === "object" ? realm.minor_house_layer : null;
+        for (const v of (layer && Array.isArray(layer.vassals) ? layer.vassals : [])) {
+          const vr = String(v && v.ruler || "").trim();
+          if (vr && vr !== target) vassals.add(vr);
+        }
+      }
+    }
+    return { suzerains, seniors, vassals };
+  }
+
+  function renderRelationList(target, values) {
+    if (!target) return;
+    target.textContent = "";
+    const arr = Array.from(values || []);
+    if (!arr.length) { target.textContent = "—"; return; }
+    arr.sort((a,b)=>a.localeCompare(b,'ru'));
+    arr.forEach((name, idx) => {
+      if (idx) target.appendChild(document.createTextNode(', '));
+      appendPersonLink(target, name);
+    });
+  }
+
+  function openPersonModal(name) {
+    if (!personModal) return;
+    const n = String(name || "").trim();
+    if (!n) return;
+    const profile = profileByName(n) || {};
+    personModalName.textContent = n;
+    personModalPhoto.src = String(profile.photo_url || "").trim() || makePlaceholderAvatar(n);
+    const bio = String(profile.bio || "").trim();
+    personModalBio.textContent = bio || "Биография будет добавлена позже.";
+    const rel = derivePersonRelations(n);
+    renderRelationList(personModalSuzerain, rel.suzerains);
+    renderRelationList(personModalSeniors, rel.seniors);
+    renderRelationList(personModalVassals, rel.vassals);
+    personModal.classList.add('open');
+    personModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closePersonModal() {
+    if (!personModal) return;
+    personModal.classList.remove('open');
+    personModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function setSidebarEmpty() { title.textContent = "—"; pidEl.textContent = "—"; keyEl.textContent = "—"; ownerEl.textContent = "—"; suzerainEl.textContent = "—"; seniorEl.textContent = "—"; terrainEl.textContent = "—"; if (modeListLabelEl) modeListLabelEl.textContent = "Состав"; if (modeListEl) modeListEl.textContent = "—"; }
   function updateMicroMapButton() {
     if (!openMicroMapBtn) return;
     const mode = viewModeSelect.value || "provinces";
@@ -76,12 +186,94 @@
     return null;
   }
   function getStateProvinceByPid(pid) { if (!state || !state.provinces) return null; return state.provinces[String(Number(pid) || 0)] || null; }
+
+  function getProvinceSuzerainSenior(pd) {
+    if (!pd || typeof pd !== "object") return { suzerain: "", senior: "" };
+    const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
+    const suzerain = String(kingdom && kingdom.ruler || "").trim();
+
+    const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
+    let senior = String(greatHouse && greatHouse.ruler || "").trim();
+
+    const layer = greatHouse && greatHouse.minor_house_layer && typeof greatHouse.minor_house_layer === "object"
+      ? greatHouse.minor_house_layer
+      : null;
+    if (layer && Array.isArray(layer.vassals)) {
+      const pid = Number(pd.pid) >>> 0;
+      const vassal = layer.vassals.find(v => (v && Array.isArray(v.province_pids) && v.province_pids.some(x => (Number(x) >>> 0) === pid)));
+      if (vassal) {
+        const vassalCapitalPid = Number(vassal.capital_pid) >>> 0;
+        if (vassalCapitalPid > 0 && vassalCapitalPid !== pid) senior = String(vassal.ruler || "").trim() || senior;
+      }
+    }
+
+    return { suzerain, senior };
+  }
+
+  function renderModeList(pd) {
+    if (!modeListEl) return;
+    modeListEl.textContent = "";
+    const mode = viewModeSelect.value || "provinces";
+    if (mode === "kingdoms") {
+      if (modeListLabelEl) modeListLabelEl.textContent = "Большие Дома";
+      const kingdomId = String(pd && pd.kingdom_id || "").trim();
+      if (!kingdomId) { modeListEl.textContent = "—"; return; }
+      const seen = new Set();
+      const rows = [];
+      for (const x of Object.values(state.provinces || {})) {
+        if (!x || String(x.kingdom_id || "") !== kingdomId) continue;
+        const ghId = String(x.great_house_id || "").trim();
+        if (!ghId || seen.has(ghId)) continue;
+        seen.add(ghId);
+        const gh = (state.great_houses || {})[ghId] || {};
+        rows.push({ label: String(gh.name || ghId).trim() || ghId, ruler: String(gh.ruler || "").trim() });
+      }
+      if (!rows.length) { modeListEl.textContent = "—"; return; }
+      rows.forEach((row, idx) => {
+        if (idx) modeListEl.appendChild(document.createTextNode(', '));
+        modeListEl.appendChild(document.createTextNode(row.label));
+        if (row.ruler) {
+          modeListEl.appendChild(document.createTextNode(' — '));
+          appendPersonLink(modeListEl, row.ruler);
+        }
+      });
+      return;
+    }
+    if (mode === "great_houses") {
+      if (modeListLabelEl) modeListLabelEl.textContent = "Вассалы";
+      const ghId = String(pd && pd.great_house_id || "").trim();
+      if (!ghId) { modeListEl.textContent = "—"; return; }
+      const gh = (state.great_houses || {})[ghId] || {};
+      const layer = gh && gh.minor_house_layer && typeof gh.minor_house_layer === "object" ? gh.minor_house_layer : null;
+      const vassals = layer && Array.isArray(layer.vassals) ? layer.vassals : [];
+      const rows = [];
+      for (const v of vassals) {
+        if (!v) continue;
+        const label = String(v.name || v.id || "").trim();
+        if (!label) continue;
+        rows.push({ label, ruler: String(v.ruler || "").trim() });
+      }
+      if (!rows.length) { modeListEl.textContent = "—"; return; }
+      rows.forEach((row, idx) => {
+        if (idx) modeListEl.appendChild(document.createTextNode(', '));
+        modeListEl.appendChild(document.createTextNode(row.label));
+        if (row.ruler) {
+          modeListEl.appendChild(document.createTextNode(' — '));
+          appendPersonLink(modeListEl, row.ruler);
+        }
+      });
+      return;
+    }
+    if (modeListLabelEl) modeListLabelEl.textContent = "Состав";
+    modeListEl.textContent = "—";
+  }
+
   function keyForPid(map, pid) {
     const p = Number(pid); if (!isFinite(p) || p <= 0) return 0;
     for (const [key, meta] of map.provincesByKey.entries()) if (meta && Number(meta.pid) === p) return key >>> 0;
     return 0;
   }
-  function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); ownerEl.textContent = pd.owner || "—"; suzerainEl.textContent = pd.suzerain || "—"; seniorEl.textContent = pd.senior || "—"; terrainEl.textContent = pd.terrain || "—"; vassalsEl.textContent = (Array.isArray(pd.vassals) && pd.vassals.length) ? pd.vassals.join(", ") : "—"; selectedMicroTarget = getMicroTargetByPid(pid); updateMicroMapButton(); }
+  function renderProvince(key, meta, map) { selectedKey = key >>> 0; if (!state || !selectedKey) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } const m = meta || (map ? map.getProvinceMeta(selectedKey) : null); const pid = m ? Number(m.pid) : 0; const pd = getStateProvinceByPid(pid); if (!pd) { selectedMicroTarget = null; updateMicroMapButton(); return setSidebarEmpty(); } title.textContent = pd.name || (m && m.name) || "—"; pidEl.textContent = String(pd.pid ?? (m ? m.pid : "—")); keyEl.textContent = String(selectedKey); renderPersonNode(ownerEl, pd.owner || ""); const derived = getProvinceSuzerainSenior(pd); renderPersonNode(suzerainEl, derived.suzerain || ""); renderPersonNode(seniorEl, derived.senior || ""); terrainEl.textContent = pd.terrain || "—"; renderModeList(pd); selectedMicroTarget = getMicroTargetByPid(pid); updateMicroMapButton(); }
 
   function sanitizeSvgText(svgText) { return String(svgText || "").replace(/<script[\s\S]*?<\/script\s*>/gi, ""); }
   function svgTextToDataUri(svgText) { return "data:image/svg+xml;base64," + MapUtils.toBase64Utf8(sanitizeSvgText(svgText)); }
@@ -133,6 +325,18 @@
     if (!obj.great_houses || typeof obj.great_houses !== "object") obj.great_houses = {};
     if (!obj.minor_houses || typeof obj.minor_houses !== "object") obj.minor_houses = {};
     if (!obj.free_cities || typeof obj.free_cities !== "object") obj.free_cities = {};
+    if (!obj.people_profiles || typeof obj.people_profiles !== "object") obj.people_profiles = {};
+    for (const p of (Array.isArray(obj.people) ? obj.people : [])) {
+      const n = String(p || "").trim();
+      if (!n) continue;
+      if (!obj.people_profiles[n] || typeof obj.people_profiles[n] !== "object") obj.people_profiles[n] = { photo_url: "", bio: "" };
+    }
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+      for (const realm of Object.values(obj[type] || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        realm.ruler = String(realm.ruler || "").trim();
+      }
+    }
     for (const realm of Object.values(obj.great_houses || {})) {
       if (!realm || typeof realm !== "object") continue;
       if (!realm.minor_house_layer || typeof realm.minor_house_layer !== "object") realm.minor_house_layer = {};
@@ -144,6 +348,7 @@
       layer.vassals = layer.vassals.map((v, idx) => ({
         id: String(v && v.id || `vassal_${idx + 1}`).trim() || `vassal_${idx + 1}`,
         name: String(v && (v.name || v.id) || `Вассал ${idx + 1}`).trim() || `Вассал ${idx + 1}`,
+        ruler: String(v && v.ruler || "").trim(),
         color: String(v && v.color || ""),
         capital_pid: Number(v && v.capital_pid || 0) >>> 0,
         province_pids: Array.isArray(v && v.province_pids) ? v.province_pids.map(x => Number(x) >>> 0).filter(Boolean) : []
@@ -566,8 +771,11 @@
     reloadBtn.addEventListener("click", () => reload().catch(e => alert("Не удалось загрузить JSON: " + e.message)));
     viewModeSelect.addEventListener("change", () => {
       updateMicroMapButton();
-      applyState(map).catch(e => alert(e.message));
+      applyState(map).then(() => renderProvince(selectedKey, map.getProvinceMeta(selectedKey), map)).catch(e => alert(e.message));
     });
+    if (personModalClose) personModalClose.addEventListener("click", closePersonModal);
+    if (personModal) personModal.addEventListener("click", (evt) => { if (evt.target === personModal) closePersonModal(); });
+    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") closePersonModal(); });
     if (openMicroMapBtn) {
       openMicroMapBtn.addEventListener("click", () => {
         if (!selectedMicroTarget) return;

@@ -26,6 +26,40 @@ function decode_data_url_image(string $src): ?array {
   return ["ext" => $ext, "bytes" => $raw];
 }
 
+function persist_people_profile_images(array &$state): void {
+  $profiles = $state['people_profiles'] ?? null;
+  if (!is_array($profiles)) return;
+
+  $peopleDir = __DIR__ . DIRECTORY_SEPARATOR . 'people';
+  if (!is_dir($peopleDir) && !mkdir($peopleDir, 0775, true) && !is_dir($peopleDir)) return;
+
+  foreach ($profiles as $name => $profile) {
+    if (!is_array($profile)) continue;
+    $photo = isset($profile['photo_url']) ? trim((string)$profile['photo_url']) : '';
+    if ($photo === '' || !str_starts_with($photo, 'data:image/')) continue;
+    $img = decode_data_url_image($photo);
+    if ($img === null) continue;
+
+    $slug = preg_replace('/[^a-z0-9_\-]+/i', '_', (string)$name);
+    $slug = trim((string)$slug, '_');
+    if ($slug === '') $slug = 'person';
+    $hash = substr(sha1((string)$name), 0, 8);
+    $filename = $slug . '_' . $hash . '.' . $img['ext'];
+    $path = $peopleDir . DIRECTORY_SEPARATOR . $filename;
+    $tmp = $path . '.tmp';
+    if (file_put_contents($tmp, $img['bytes']) === false || !rename($tmp, $path)) {
+      @unlink($tmp);
+      continue;
+    }
+
+    $profile['photo_url'] = 'people/' . $filename;
+    $profiles[$name] = $profile;
+  }
+
+  $state['people_profiles'] = $profiles;
+}
+
+
 $raw = file_get_contents("php://input");
 if ($raw === false || $raw === "") {
   http_response_code(400);
@@ -56,6 +90,8 @@ if (!is_array($state) || !isset($state["provinces"])) {
   echo "Missing state/provinces";
   exit;
 }
+
+persist_people_profile_images($state);
 
 // Basic sanity limit: prevent huge writes by mistake.
 // Can be overridden from web-server config if needed, e.g.:

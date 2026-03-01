@@ -40,6 +40,20 @@
     .province-modal__text { margin-top:16px; line-height:1.45; color:#d8e1ec; }
     .small { font-size:11px; color:#a6b4c5; line-height:1.35; margin-top:10px; }
     .hidden { display:none !important; }
+
+    .person-link { background:none; border:0; color:#9bc7ff; padding:0; margin:0; cursor:pointer; font:inherit; text-decoration:underline; }
+    .person-link:hover { color:#c3ddff; }
+    .person-modal { position:fixed; inset:0; z-index:110; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
+    .person-modal.open { display:flex; }
+    .person-modal__window { width:min(520px, 96vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
+    .person-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
+    .person-modal__content { padding:16px; clear:both; }
+    .person-modal__photo-wrap { width:180px; aspect-ratio:1/1; border:1px solid #2b3f56; border-radius:12px; overflow:hidden; background:#111923; }
+    .person-modal__photo { width:100%; height:100%; object-fit:cover; display:block; }
+    .person-modal__name { margin:14px 0 8px; font-size:24px; }
+    .person-modal__kv { display:grid; gap:8px; font-size:13px; }
+    .person-modal__kv b { color:#a6b4c5; }
+    .person-modal__bio { margin-top:14px; line-height:1.45; color:#d8e1ec; }
   </style>
 </head>
 <body>
@@ -105,8 +119,8 @@
           <div><b>Владелец</b> <span id="provOwner">—</span></div>
           <div><b>Сюзерен</b> <span id="provSuzerain">—</span></div>
           <div><b>Сеньор</b> <span id="provSenior">—</span></div>
-          <div><b>Вассалы</b> <span id="provVassals">—</span></div>
           <div><b>Местность</b> <span id="provTerrain">—</span></div>
+          <div><b id="provModeListLabel">Состав</b> <span id="provModeList">—</span></div>
         </div>
         <div class="btnrow">
           <button id="openMicroMap" type="button" class="hidden">Перейти на микрокарту</button>
@@ -140,6 +154,23 @@
           <h2 id="modalProvinceTitle" class="province-modal__title">—</h2>
         </div>
         <p class="province-modal__text">Здесь будет располагаться расширенное описание провинции. Заполните этот блок лором, историей, важными персонажами и текущими событиями.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="personModal" class="person-modal" aria-hidden="true">
+    <div class="person-modal__window" role="dialog" aria-modal="true" aria-label="Карточка персонажа">
+      <button id="personModalClose" class="person-modal__close" type="button" aria-label="Закрыть">×</button>
+      <div class="person-modal__content">
+        <div class="person-modal__photo-wrap"><img id="personModalPhoto" class="person-modal__photo" alt="Фото персонажа" /></div>
+        <h2 id="personModalName" class="person-modal__name">—</h2>
+        <div class="person-modal__kv">
+          <div><b>Сюзерен:</b> <span id="personModalSuzerain">—</span></div>
+          <div><b>Сеньоры:</b> <span id="personModalSeniors">—</span></div>
+          <div><b>Вассалы:</b> <span id="personModalVassals">—</span></div>
+        </div>
+        <p id="personModalBio" class="person-modal__bio">Биография будет добавлена позже.</p>
       </div>
     </div>
   </div>
