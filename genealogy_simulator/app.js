@@ -37,6 +37,18 @@ function resolvePhotoUrl(rawUrl, name = '') {
   return url;
 }
 
+async function uploadPhotoSquare(file, name = '') {
+  const fd = new FormData();
+  fd.append('photo', file);
+  if (name) fd.append('name', String(name));
+  const res = await fetch('/api/genealogy/photo/upload/', { method: 'POST', body: fd });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  const photoUrl = String(body.photo_url || '').trim();
+  if (!photoUrl) throw new Error('empty_photo_url');
+  return photoUrl;
+}
+
 function fmtYears(c) {
   const b = c.birth_year ?? '?';
   const d = c.death_year ?? '...';
@@ -486,6 +498,51 @@ async function loadMapPeople() {
 
 function bindAdmin() {
   if (!panel) return;
+
+  const createPhotoBtn = document.getElementById('createPhotoUploadBtn');
+  const createPhotoFile = document.getElementById('createPhotoFile');
+  const createForm = document.getElementById('createCharacterForm');
+  const createPhotoInput = createForm ? createForm.querySelector('input[name="photo_url"]') : null;
+  if (createPhotoBtn && createPhotoFile && createPhotoInput) {
+    createPhotoBtn.addEventListener('click', () => createPhotoFile.click());
+    createPhotoFile.addEventListener('change', async () => {
+      const file = createPhotoFile.files && createPhotoFile.files[0];
+      createPhotoFile.value = '';
+      if (!file) return;
+      const nameInput = createForm.querySelector('input[name="name"]');
+      try {
+        createPhotoBtn.disabled = true;
+        createPhotoInput.value = await uploadPhotoSquare(file, nameInput ? nameInput.value : '');
+        setStatus('Фото загружено на сервер с обрезкой под квадрат.');
+      } catch (err) {
+        setStatus(`Ошибка загрузки фото: ${err.message}`);
+      } finally {
+        createPhotoBtn.disabled = false;
+      }
+    });
+  }
+
+  const editPhotoBtn = document.getElementById('editPhotoUploadBtn');
+  const editPhotoFile = document.getElementById('editPhotoFile');
+  const editPhotoInput = document.getElementById('editCharacterPhotoUrl');
+  if (editPhotoBtn && editPhotoFile && editPhotoInput) {
+    editPhotoBtn.addEventListener('click', () => editPhotoFile.click());
+    editPhotoFile.addEventListener('change', async () => {
+      const file = editPhotoFile.files && editPhotoFile.files[0];
+      editPhotoFile.value = '';
+      if (!file) return;
+      const editNameInput = document.getElementById('editCharacterName');
+      try {
+        editPhotoBtn.disabled = true;
+        editPhotoInput.value = await uploadPhotoSquare(file, editNameInput ? editNameInput.value : '');
+        setStatus('Фото загружено на сервер с обрезкой под квадрат.');
+      } catch (err) {
+        setStatus(`Ошибка загрузки фото: ${err.message}`);
+      } finally {
+        editPhotoBtn.disabled = false;
+      }
+    });
+  }
 
   document.getElementById('createCharacterForm').addEventListener('submit', async (e) => {
     e.preventDefault();
