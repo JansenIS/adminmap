@@ -17,16 +17,22 @@ if ($method === 'POST') {
   if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $valid['field'] ?? null], 400, api_state_mtime());
 }
 
-$state = api_load_state();
 $mtime = api_state_mtime();
-$migration = api_emblem_migration_from_state($state);
-
 $shouldPersist = false;
 if ($method === 'POST') {
   $shouldPersist = !empty($payload['migrate']);
 } else {
   $shouldPersist = (($_GET['migrate'] ?? '0') === '1');
 }
+
+$state = null;
+if ($shouldPersist) {
+  $state = api_load_state();
+}
+
+$migration = $shouldPersist
+  ? api_emblem_migration_from_state($state)
+  : api_load_emblem_bundle_from_file_or_state(null);
 
 $assetPath = api_repo_root() . '/data/emblem_assets.json';
 $refsPath = api_repo_root() . '/data/emblem_refs.json';

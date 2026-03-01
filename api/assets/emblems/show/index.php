@@ -3,12 +3,11 @@
 declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/lib/state_api.php';
 
-$state = api_load_state();
 $mtime = api_state_mtime();
 $assetId = trim((string)($_GET['id'] ?? ''));
 if ($assetId === '') api_json_response(['error' => 'invalid_id'], 400, $mtime);
 
-$migration = api_emblem_migration_from_state($state);
+$migration = api_load_emblem_bundle_from_file_or_state(null);
 $found = null;
 foreach (($migration['assets'] ?? []) as $asset) {
   if (($asset['id'] ?? '') === $assetId) {
