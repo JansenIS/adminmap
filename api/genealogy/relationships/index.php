@@ -19,6 +19,18 @@ if (!($valid['ok'] ?? false)) {
 
 $data = genealogy_load();
 $rel = $valid['relationship'];
+
+if (($rel['type'] ?? '') === 'spouses' && !is_string($rel['union_id'] ?? null)) {
+  $rel['union_id'] = null;
+}
+if (($rel['type'] ?? '') === 'spouses' && trim((string)($rel['union_id'] ?? '')) === '') {
+  $source = (string)($rel['source_id'] ?? '');
+  $target = (string)($rel['target_id'] ?? '');
+  $pair = [$source, $target];
+  sort($pair, SORT_STRING);
+  $rel['union_id'] = 'u_' . substr(hash('sha1', implode(':', $pair) . ':' . microtime(true)), 0, 10);
+}
+
 if (genealogy_find_character_index($data['characters'], $rel['source_id']) < 0 || genealogy_find_character_index($data['characters'], $rel['target_id']) < 0) {
   api_json_response(['error' => 'character_not_found'], 404, genealogy_mtime());
 }

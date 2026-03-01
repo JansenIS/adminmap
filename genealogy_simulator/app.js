@@ -5,6 +5,8 @@ const state = {
   characters: [],
   relationships: [],
   positions: new Map(),
+  layoutFamilies: [],
+  referenceNodes: [],
   viewport: { minX: 0, minY: 0, width: 1200, height: 800 },
   selectedId: null,
   selectedClan: 'all',
@@ -136,6 +138,8 @@ function computeGenerations(chars, rels) {
     });
   }
 
+  const cycleRefs = [];
+
   // Защита от циклов в parent_child: делаем ограниченный релакс только по непротиворечивым ребрам.
   rels.forEach((r) => {
     if (r.type !== 'parent_child' || !gen.has(r.source_id) || !gen.has(r.target_id)) return;
@@ -145,7 +149,10 @@ function computeGenerations(chars, rels) {
     if (processed.has(from) && processed.has(to)) return;
     const v = Math.max(gGen.get(to) || 0, (gGen.get(from) || 0) + 1);
     gGen.set(to, v);
+    cycleRefs.push({ source: r.source_id, target: r.target_id, type: 'parent_child_cycle_relax' });
   });
+
+  state.referenceNodes = cycleRefs;
 
   groupMembers.forEach((members, g) => {
     const level = gGen.get(g) || 0;
@@ -758,6 +765,234 @@ function layout() {
     return { idx, size, rowCount, roots };
   }).sort((a, b) => b.size - a.size || b.rowCount - a.rowCount || b.roots - a.roots || a.idx - b.idx);
 
+  const DIAM = 96;
+  const FAMILY_SLOT_GAP = Math.max(30, spacing * 0.2);
+
+  const buildFamilyModel = (componentIds) => {
+    const idSet = new Set(componentIds);
+    const families = new Map();
+    const familiesByGeneration = new Map();
+    const familiesByParent = new Map();
+
+    const addFamily = (parentIds, childId) => {
+      const sortedParents = [...new Set(parentIds)].sort(idSort);
+      if (!sortedParents.length) return;
+      const g = normalizedGen.get(sortedParents[0]) || 0;
+      if (sortedParents.some(pid => (normalizedGen.get(pid) || 0) !== g)) return;
+      const key = `f:${g}:${sortedParents.join('|')}`;
+      if (!families.has(key)) {
+        const node = {
+          key,
+          generation: g,
+          parents: sortedParents,
+          children: [],
+          childSet: new Set(),
+          anchorX: 0,
+          ownW: Math.max(DIAM, (sortedParents.length - 1) * Math.max(130, spacing * 0.55) + DIAM),
+          subW: DIAM,
+        };
+        families.set(key, node);
+        if (!familiesByGeneration.has(g)) familiesByGeneration.set(g, []);
+        familiesByGeneration.get(g).push(node);
+        sortedParents.forEach((pid) => {
+          if (!familiesByParent.has(pid)) familiesByParent.set(pid, []);
+          familiesByParent.get(pid).push(node);
+        });
+      }
+      const family = families.get(key);
+      if (!family.childSet.has(childId)) {
+        family.childSet.add(childId);
+        family.children.push(childId);
+      }
+    };
+
+    componentIds.forEach((childId) => {
+      const parentIds = [...(parentsByChild.get(childId) || [])]
+        .filter(parentId => idSet.has(parentId) && (normalizedGen.get(parentId) || 0) === (normalizedGen.get(childId) || 0) - 1)
+        .sort(idSort);
+      if (!parentIds.length) return;
+
+      if (parentIds.length >= 2) {
+        for (let i = 0; i < parentIds.length; i++) {
+          for (let j = i + 1; j < parentIds.length; j++) {
+            const a = parentIds[i];
+            const b = parentIds[j];
+            if (!(spousesById.get(a) || new Set()).has(b)) continue;
+            addFamily([a, b], childId);
+            return;
+          }
+        }
+      }
+
+      addFamily([parentIds[0]], childId);
+    });
+
+    // Если у родителя несколько семей, выбираем primary по близости к текущему x.
+    const primaryFamilyByPerson = new Map();
+    familiesByParent.forEach((fams, pid) => {
+      const px = xById.get(pid) || 0;
+      const sorted = fams.slice().sort((a, b) => {
+        const ac = avg(a.children.map(cid => xById.get(cid)).filter(x => typeof x === 'number'));
+        const bc = avg(b.children.map(cid => xById.get(cid)).filter(x => typeof x === 'number'));
+        const da = Math.abs((Number.isFinite(ac) ? ac : px) - px);
+        const db = Math.abs((Number.isFinite(bc) ? bc : px) - px);
+        return da - db || a.key.localeCompare(b.key);
+      });
+      if (sorted.length) primaryFamilyByPerson.set(pid, sorted[0]);
+    });
+
+    return {
+      families,
+      familiesByGeneration,
+      primaryFamilyByPerson,
+    };
+  };
+
+  const computeFamilySubtreeWidths = (familyModel) => {
+    const generations = [...familyModel.familiesByGeneration.keys()].sort((a, b) => b - a);
+    generations.forEach((g) => {
+      (familyModel.familiesByGeneration.get(g) || []).forEach((family) => {
+        const childReqW = family.children.map((childId) => {
+          const childFamily = familyModel.primaryFamilyByPerson.get(childId);
+          if (childFamily && childFamily.generation === g + 1) return Math.max(DIAM, childFamily.subW || DIAM);
+          return DIAM;
+        });
+        const childBlockW = childReqW.length
+          ? childReqW.reduce((sum, w) => sum + w, 0) + FAMILY_SLOT_GAP * (childReqW.length - 1)
+          : 0;
+        family.subW = Math.max(family.ownW, childBlockW, DIAM);
+      });
+    });
+  };
+
+  const reorderFamilyChildrenByBarycenter = (familyModel, direction = 'top_down') => {
+    const generations = [...familyModel.familiesByGeneration.keys()]
+      .sort((a, b) => direction === 'bottom_up' ? b - a : a - b);
+    generations.forEach((g) => {
+      (familyModel.familiesByGeneration.get(g) || []).forEach((family) => {
+        if (!Array.isArray(family.children) || family.children.length <= 2) return;
+        const scored = family.children.map((childId) => {
+          const childFamily = familyModel.primaryFamilyByPerson.get(childId);
+          const childFamilyCenter = childFamily
+            ? avg(childFamily.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'))
+            : Number.NaN;
+          const spouseCenter = avg([...(spousesById.get(childId) || new Set())]
+            .map(pid => xById.get(pid))
+            .filter(x => typeof x === 'number'));
+          const parentCenter = avg(family.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
+          const currentX = xById.get(childId);
+          const base = Number.isFinite(childFamilyCenter)
+            ? childFamilyCenter
+            : (Number.isFinite(parentCenter) ? parentCenter : (typeof currentX === 'number' ? currentX : 0));
+          const spousePart = Number.isFinite(spouseCenter) ? spouseCenter : base;
+          const currentPart = typeof currentX === 'number' ? currentX : base;
+          const key = base * 0.65 + spousePart * 0.25 + currentPart * 0.10;
+          return { childId, key };
+        });
+
+        scored.sort((a, b) => a.key - b.key || idSort(a.childId, b.childId));
+        family.children = scored.map(item => item.childId);
+      });
+    });
+  };
+
+
+  const shiftDescendants = (componentSet, startId, delta, seen = new Set(), { includeSelf = true } = {}) => {
+    if (!Number.isFinite(delta) || Math.abs(delta) < 0.001 || seen.has(startId) || !componentSet.has(startId)) return;
+    seen.add(startId);
+    if (includeSelf) {
+      const oldX = xById.get(startId);
+      if (typeof oldX === 'number') xById.set(startId, oldX + delta);
+    }
+    (childrenByParent.get(startId) || new Set()).forEach((childId) => shiftDescendants(componentSet, childId, delta, seen));
+  };
+
+  const applyFamilySlotLayout = (rows, g, familyModel, componentSet) => {
+    const families = (familyModel.familiesByGeneration.get(g) || [])
+      .filter(f => f.children.length > 0)
+      .sort((a, b) => {
+        const ax = avg(a.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
+        const bx = avg(b.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
+        return (Number.isFinite(ax) ? ax : 0) - (Number.isFinite(bx) ? bx : 0) || a.key.localeCompare(b.key);
+      });
+
+    families.forEach((family) => {
+      const anchorX = avg(family.parents.map(pid => xById.get(pid)).filter(x => typeof x === 'number'));
+      family.anchorX = Number.isFinite(anchorX) ? anchorX : 0;
+
+      const childrenOrdered = family.children.slice().sort((a, b) => idSort(a, b));
+
+      const slots = childrenOrdered.map((childId) => {
+        const childFamily = familyModel.primaryFamilyByPerson.get(childId);
+        const requiredW = childFamily && childFamily.generation === g + 1
+          ? Math.max(DIAM, childFamily.subW || DIAM)
+          : DIAM;
+        return { childId, childFamily, requiredW };
+      });
+
+      const blockW = slots.reduce((sum, slot) => sum + slot.requiredW, 0) + FAMILY_SLOT_GAP * Math.max(0, slots.length - 1);
+      let left = family.anchorX - blockW / 2;
+      slots.forEach((slot) => {
+        const center = left + slot.requiredW / 2;
+        const oldX = xById.get(slot.childId) || 0;
+        const delta = center - oldX;
+        xById.set(slot.childId, center);
+        if (slot.childFamily && slot.childFamily.generation === g + 1) {
+          shiftDescendants(componentSet, slot.childId, delta, new Set(), { includeSelf: false });
+        }
+        left += slot.requiredW + FAMILY_SLOT_GAP;
+      });
+
+      // Жёсткий инвариант: anchorX семьи = центр диапазона детей.
+      const childXs = slots.map(slot => xById.get(slot.childId)).filter(x => typeof x === 'number');
+      if (childXs.length) {
+        const childCenter = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+        const shift = family.anchorX - childCenter;
+        if (Math.abs(shift) > 0.001) {
+          slots.forEach((slot) => {
+            const x = xById.get(slot.childId);
+            if (typeof x === 'number') xById.set(slot.childId, x + shift);
+            if (slot.childFamily && slot.childFamily.generation === g + 1) {
+              shiftDescendants(componentSet, slot.childId, shift, new Set(), { includeSelf: false });
+            }
+          });
+        }
+      }
+    });
+
+    const rowIds = (rows.get(g + 1) || []).slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+    for (let i = 0; i < rowIds.length - 1; i++) {
+      const leftId = rowIds[i];
+      const rightId = rowIds[i + 1];
+      const leftX = xById.get(leftId) || 0;
+      const rightX = xById.get(rightId) || 0;
+      const minGap = DIAM + Math.max(18, spacing * 0.08);
+      if (rightX >= leftX + minGap) continue;
+      const shift = leftX + minGap - rightX;
+      shiftDescendants(componentSet, rightId, shift);
+    }
+
+    // После push-прохода повторно прижимаем child-range к anchorX, чтобы инвариант не расползался.
+    families.forEach((family) => {
+      const slots = family.children.map((childId) => ({
+        childId,
+        childFamily: familyModel.primaryFamilyByPerson.get(childId),
+      }));
+      const childXs = slots.map(slot => xById.get(slot.childId)).filter(x => typeof x === 'number');
+      if (!childXs.length) return;
+      const childCenter = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+      const shift = family.anchorX - childCenter;
+      if (Math.abs(shift) < 0.001) return;
+      slots.forEach((slot) => {
+        const x = xById.get(slot.childId);
+        if (typeof x === 'number') xById.set(slot.childId, x + shift);
+        if (slot.childFamily && slot.childFamily.generation === g + 1) {
+          shiftDescendants(componentSet, slot.childId, shift, new Set(), { includeSelf: false });
+        }
+      });
+    });
+  };
+
   const relaxRow = (rows, g, iterations = 10) => {
     const ids = (rows.get(g) || []).slice();
     if (ids.length <= 1) return;
@@ -792,8 +1027,10 @@ function layout() {
   };
 
   const componentBounds = [];
+  const allLayoutFamilies = [];
 
   componentMeta.forEach(({ idx }) => {
+    const componentSet = new Set(components[idx]);
     const rows = componentRows[idx];
     const rowIndex = [...rows.keys()].sort((a, b) => a - b);
 
@@ -809,18 +1046,33 @@ function layout() {
       [...rowIndex].reverse().forEach(g => relaxRow(rows, g, 1));
     }
 
-    rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
-    rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
-    rowIndex.forEach((g) => enforceFamilyBlocks(rows, g));
-    rowIndex.forEach(g => relaxRow(rows, g, 1));
-    rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
-    rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
-    rowIndex.forEach((g) => enforceFamilyBlocks(rows, g));
-    rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
-    rowIndex.forEach((g) => enforceStrictSiblingBlocks(rows, g));
-    // Сиблинговые блоки могут разрывать пары, поэтому финально повторно
-    // прижимаем супругов друг к другу (исключение «супруги всегда рядом»).
-    rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
+    const familyModel = buildFamilyModel(components[idx]);
+
+    // Многопроходная итерация в стиле gen8: subtree -> slots -> barycenter (top/down + bottom/up).
+    for (let pass = 0; pass < 2; pass++) {
+      computeFamilySubtreeWidths(familyModel);
+      rowIndex.forEach((g) => applyFamilySlotLayout(rows, g, familyModel, componentSet));
+      reorderFamilyChildrenByBarycenter(familyModel, 'top_down');
+      computeFamilySubtreeWidths(familyModel);
+      rowIndex.forEach((g) => applyFamilySlotLayout(rows, g, familyModel, componentSet));
+      reorderFamilyChildrenByBarycenter(familyModel, 'bottom_up');
+    }
+    computeFamilySubtreeWidths(familyModel);
+    rowIndex.forEach((g) => applyFamilySlotLayout(rows, g, familyModel, componentSet));
+
+    familyModel.families.forEach((family) => {
+      if (!family.children.length) return;
+      const parentA = family.parents[0] || null;
+      const parentB = family.parents[1] || null;
+      allLayoutFamilies.push({
+        key: family.key,
+        parentA,
+        parentB,
+        children: family.children.slice(),
+      });
+    });
+
+    // Legacy post-pass полностью отключен: итоговый X формируется family-slot/tidy этапом.
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
@@ -860,6 +1112,7 @@ function layout() {
   });
 
   state.positions = pos;
+  state.layoutFamilies = allLayoutFamilies;
 }
 
 function nodeById(id) { return state.characters.find(c => c.id === id); }
@@ -1297,7 +1550,10 @@ function render({ preserveViewportAnchor = true } = {}) {
       generation: generationById.get(r.source_id) ?? 0,
     };
     if (r.type === 'siblings') siblingIntervals.push(interval);
-    if (r.type === 'spouses') spouseIntervals.push(interval);
+    if (r.type === 'spouses') {
+      interval.id = `${relKey(r.source_id, r.target_id)}:${String(r.union_id || '')}`;
+      spouseIntervals.push(interval);
+    }
   });
   const siblingLaneIndex = trackByGeneration(siblingIntervals);
   const spouseLaneIndex = trackByGeneration(spouseIntervals);
@@ -1305,12 +1561,10 @@ function render({ preserveViewportAnchor = true } = {}) {
   const spousePairs = new Set(
     state.relationships
       .filter(r => r.type === 'spouses')
-      .map(r => relKey(r.source_id, r.target_id))
+      .map(r => `${relKey(r.source_id, r.target_id)}:${String(r.union_id || '')}`)
   );
   const groupedParentChild = new Set();
   const families = new Map();
-  const parentsByChild = new Map();
-  const parentChildEdges = [];
 
   const createPolyline = (points, className) => {
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
@@ -1320,55 +1574,77 @@ function render({ preserveViewportAnchor = true } = {}) {
     svg.appendChild(polyline);
   };
 
-  state.relationships
-    .filter(r => r.type === 'parent_child')
-    .forEach(r => {
-      if (!parentsByChild.has(r.target_id)) parentsByChild.set(r.target_id, []);
-      parentsByChild.get(r.target_id).push(r.source_id);
-      parentChildEdges.push(r);
+  const layoutFamilies = Array.isArray(state.layoutFamilies) ? state.layoutFamilies : [];
+  layoutFamilies.forEach((family) => {
+    if (!family?.parentA || !Array.isArray(family.children) || !family.children.length) return;
+    const key = String(family.key || `layout:${family.parentA}:${family.parentB || ''}`);
+    families.set(key, {
+      parentA: family.parentA,
+      parentB: family.parentB || null,
+      children: [...new Set(family.children)],
+    });
+    families.get(key).children.forEach((childId) => {
+      groupedParentChild.add(`${family.parentA}->${childId}`);
+      if (family.parentB) groupedParentChild.add(`${family.parentB}->${childId}`);
+    });
+  });
+
+  // Fallback: если layout-семьи не собраны, используем предыдущую схему по relationship-графу.
+  if (!families.size) {
+    const parentsByChild = new Map();
+    const parentChildEdges = [];
+
+    state.relationships
+      .filter(r => r.type === 'parent_child')
+      .forEach(r => {
+        if (!parentsByChild.has(r.target_id)) parentsByChild.set(r.target_id, []);
+        parentsByChild.get(r.target_id).push(r.source_id);
+        parentChildEdges.push(r);
+      });
+
+    parentsByChild.forEach((parents, childId) => {
+      if (parents.length < 2) return;
+      for (let i = 0; i < parents.length; i++) {
+        for (let j = i + 1; j < parents.length; j++) {
+          const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && ((rel.source_id === parents[i] && rel.target_id === parents[j]) || (rel.source_id === parents[j] && rel.target_id === parents[i])));
+          if (!matchingSpouse) continue;
+          const pairKey = `${relKey(parents[i], parents[j])}:${String(matchingSpouse.union_id || '')}`;
+          if (!families.has(pairKey)) {
+            const [parentA, parentB] = [parents[i], parents[j]].sort((left, right) => {
+              const a = normalizeId(left);
+              const b = normalizeId(right);
+              if (typeof a === 'number' && typeof b === 'number') return a - b;
+              return String(a).localeCompare(String(b));
+            });
+            families.set(pairKey, {
+              parentA,
+              parentB,
+              children: [],
+            });
+          }
+          families.get(pairKey).children.push(childId);
+          groupedParentChild.add(`${parents[i]}->${childId}`);
+          groupedParentChild.add(`${parents[j]}->${childId}`);
+          return;
+        }
+      }
     });
 
-  parentsByChild.forEach((parents, childId) => {
-    if (parents.length < 2) return;
-    for (let i = 0; i < parents.length; i++) {
-      for (let j = i + 1; j < parents.length; j++) {
-        const pairKey = relKey(parents[i], parents[j]);
-        if (!spousePairs.has(pairKey)) continue;
-        if (!families.has(pairKey)) {
-          const [parentA, parentB] = [parents[i], parents[j]].sort((left, right) => {
-            const a = normalizeId(left);
-            const b = normalizeId(right);
-            if (typeof a === 'number' && typeof b === 'number') return a - b;
-            return String(a).localeCompare(String(b));
-          });
-          families.set(pairKey, {
-            parentA,
-            parentB,
-            children: [],
-          });
-        }
-        families.get(pairKey).children.push(childId);
-        groupedParentChild.add(`${parents[i]}->${childId}`);
-        groupedParentChild.add(`${parents[j]}->${childId}`);
-        return;
+    // Однородительские связи, не вошедшие в «семейные юниты», тоже рисуем через общий sibling-rail.
+    parentChildEdges.forEach((r) => {
+      if (groupedParentChild.has(`${r.source_id}->${r.target_id}`)) return;
+      const key = `single:${r.source_id}`;
+      if (!families.has(key)) {
+        families.set(key, {
+          parentA: r.source_id,
+          parentB: null,
+          children: [],
+        });
       }
-    }
-  });
-
-  // Однородительские связи, не вошедшие в «семейные юниты», тоже рисуем через общий sibling-rail.
-  parentChildEdges.forEach((r) => {
-    if (groupedParentChild.has(`${r.source_id}->${r.target_id}`)) return;
-    const key = `single:${r.source_id}`;
-    if (!families.has(key)) {
-      families.set(key, {
-        parentA: r.source_id,
-        parentB: null,
-        children: [],
-      });
-    }
-    families.get(key).children.push(r.target_id);
-    groupedParentChild.add(`${r.source_id}->${r.target_id}`);
-  });
+      families.get(key).children.push(r.target_id);
+      groupedParentChild.add(`${r.source_id}->${r.target_id}`);
+    });
+  }
 
   state.relationships.forEach(r => {
     if (r.type === 'parent_child' && groupedParentChild.has(`${r.source_id}->${r.target_id}`)) {
@@ -1381,7 +1657,7 @@ function render({ preserveViewportAnchor = true } = {}) {
     if (r.type === 'spouses' && Math.abs(a.y - b.y) < 1) {
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
-      const pairIndex = spouseLaneIndex.get(relKey(r.source_id, r.target_id)) || 0;
+      const pairIndex = spouseLaneIndex.get(`${relKey(r.source_id, r.target_id)}:${String(r.union_id || '')}`) || 0;
       const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET + pairIndex * 12;
       createPolyline([
         [minX, a.y + NODE_RADIUS],
@@ -1523,6 +1799,29 @@ function render({ preserveViewportAnchor = true } = {}) {
         [pos.x, siblingRailY],
       ], 'edge-parent');
     });
+  });
+
+  // Визуализация reference-node маркеров для циклических/конфликтных связей.
+  (state.referenceNodes || []).forEach((ref, idx) => {
+    const a = state.positions.get(ref.source);
+    const b = state.positions.get(ref.target);
+    if (!a || !b) return;
+    const startY = a.y + NODE_RADIUS;
+    const endY = b.y - NODE_RADIUS;
+    const railY = Math.min(startY + 26 + (idx % 3) * 8, endY - 12);
+    createPolyline([
+      [a.x, startY],
+      [a.x, railY],
+      [b.x, railY],
+      [b.x, endY],
+    ], 'edge-reference');
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String((a.x + b.x) / 2));
+    label.setAttribute('y', String(railY - 6));
+    label.setAttribute('class', 'edge-reference-label');
+    label.textContent = 'ref';
+    svg.appendChild(label);
   });
 
   state.characters.forEach((c) => {

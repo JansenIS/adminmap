@@ -17,6 +17,8 @@ svg { min-width: 100%; min-height: 100%; background: radial-gradient(circle at t
 .edge-parent { stroke: #93c5fd; stroke-width: 2; }
 .edge-sibling { stroke: #a78bfa; stroke-width: 2; stroke-dasharray: 4 3; }
 .edge-spouse { stroke: #fca5a5; stroke-width: 2; }
+.edge-reference { stroke: #fbbf24; stroke-width: 1.5; stroke-dasharray: 3 4; opacity: 0.9; }
+.edge-reference-label { fill: #fcd34d; font-size: 10px; text-anchor: middle; }
 .profile-modal { position: fixed; inset: 0; background: rgba(2,6,23,.7); display: none; align-items: center; justify-content: center; }
 .profile-card { width: min(500px, 95vw); background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; }
 .profile-card img { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; border: 3px solid #60a5fa; }
