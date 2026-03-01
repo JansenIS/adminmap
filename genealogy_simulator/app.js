@@ -1234,9 +1234,73 @@ function render({ preserveViewportAnchor = true } = {}) {
   const SIBLING_RAIL_OFFSET = 16;
   const CONNECTOR_DROP = 58;
   const CHILD_RAIL_PADDING = 16;
-  const siblingPairs = state.relationships.filter(r => r.type === 'siblings').map(r => relKey(r.source_id, r.target_id));
-  const siblingOrder = [...new Set(siblingPairs)].sort();
-  const siblingLaneIndex = new Map(siblingOrder.map((key, idx) => [key, idx]));
+  const generationById = computeGenerations(state.characters, state.relationships);
+
+  const assignIntervalTracks = (intervals, eps = 6) => {
+    const sorted = intervals
+      .map(interval => ({
+        ...interval,
+        l: Math.min(interval.l, interval.r),
+        r: Math.max(interval.l, interval.r),
+      }))
+      .sort((a, b) => a.l - b.l || a.r - b.r || String(a.id).localeCompare(String(b.id)));
+
+    const trackEnds = [];
+    const trackById = new Map();
+
+    sorted.forEach((interval) => {
+      let chosenTrack = -1;
+      for (let i = 0; i < trackEnds.length; i++) {
+        if (trackEnds[i] <= interval.l - eps) {
+          chosenTrack = i;
+          break;
+        }
+      }
+      if (chosenTrack < 0) {
+        chosenTrack = trackEnds.length;
+        trackEnds.push(interval.r);
+      } else {
+        trackEnds[chosenTrack] = interval.r;
+      }
+      trackById.set(interval.id, chosenTrack);
+    });
+
+    return trackById;
+  };
+
+  const trackByGeneration = (intervals) => {
+    const byGeneration = new Map();
+    intervals.forEach((interval) => {
+      if (!Number.isFinite(interval.generation)) return;
+      if (!byGeneration.has(interval.generation)) byGeneration.set(interval.generation, []);
+      byGeneration.get(interval.generation).push(interval);
+    });
+
+    const tracks = new Map();
+    byGeneration.forEach((generationIntervals) => {
+      assignIntervalTracks(generationIntervals).forEach((track, id) => tracks.set(id, track));
+    });
+
+    return tracks;
+  };
+
+  const siblingIntervals = [];
+  const spouseIntervals = [];
+  state.relationships.forEach((r) => {
+    const a = state.positions.get(r.source_id);
+    const b = state.positions.get(r.target_id);
+    if (!a || !b || Math.abs(a.y - b.y) >= 1) return;
+    const interval = {
+      id: relKey(r.source_id, r.target_id),
+      l: a.x,
+      r: b.x,
+      generation: generationById.get(r.source_id) ?? 0,
+    };
+    if (r.type === 'siblings') siblingIntervals.push(interval);
+    if (r.type === 'spouses') spouseIntervals.push(interval);
+  });
+  const siblingLaneIndex = trackByGeneration(siblingIntervals);
+  const spouseLaneIndex = trackByGeneration(spouseIntervals);
 
   const spousePairs = new Set(
     state.relationships
@@ -1317,7 +1381,8 @@ function render({ preserveViewportAnchor = true } = {}) {
     if (r.type === 'spouses' && Math.abs(a.y - b.y) < 1) {
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
-      const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+      const pairIndex = spouseLaneIndex.get(relKey(r.source_id, r.target_id)) || 0;
+      const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET + pairIndex * 12;
       createPolyline([
         [minX, a.y + NODE_RADIUS],
         [minX, laneY],
@@ -1342,7 +1407,7 @@ function render({ preserveViewportAnchor = true } = {}) {
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
       const pairIndex = siblingLaneIndex.get(relKey(r.source_id, r.target_id)) || 0;
-      const laneLift = SIBLING_RAIL_OFFSET + 12 + (pairIndex % 4) * 14;
+      const laneLift = SIBLING_RAIL_OFFSET + 12 + pairIndex * 14;
       const laneY = Math.min(a.y, b.y) - NODE_RADIUS - laneLift;
       createPolyline([
         [minX, a.y - NODE_RADIUS],
@@ -1386,7 +1451,9 @@ function render({ preserveViewportAnchor = true } = {}) {
     svg.appendChild(line);
   });
 
-  families.forEach((family) => {
+  const familyLayouts = [];
+
+  families.forEach((family, familyKey) => {
     const p1 = state.positions.get(family.parentA);
     const p2 = family.parentB ? state.positions.get(family.parentB) : null;
     if (!p1) return;
@@ -1404,27 +1471,53 @@ function render({ preserveViewportAnchor = true } = {}) {
     const minChildY = Math.min(...kids.map(k => k.pos.y));
     const minChildTopY = Math.min(...kids.map(k => k.pos.y - NODE_RADIUS));
     const siblingMidX = kids[Math.floor(kids.length / 2)].pos.x;
-    const connY = Math.min(spouseLaneY + CONNECTOR_DROP, minChildTopY - CHILD_RAIL_PADDING - 20);
-    const siblingRailY = Math.min(
-      Math.max(connY + 28, minChildY - 120),
-      minChildTopY - CHILD_RAIL_PADDING
+
+    familyLayouts.push({
+      key: familyKey,
+      kids,
+      spouseLaneY,
+      marriageMidX,
+      minChildY,
+      minChildTopY,
+      siblingMidX,
+      railStartX: Math.min(...kids.map(({ pos }) => pos.x)),
+      railEndX: Math.max(...kids.map(({ pos }) => pos.x)),
+      parentGeneration: generationById.get(family.parentA) ?? 0,
+      childGeneration: generationById.get(kids[0].id) ?? (generationById.get(family.parentA) ?? 0) + 1,
+    });
+  });
+
+  const siblingRailsTrack = trackByGeneration(
+    familyLayouts.map(fl => ({ id: `s:${fl.key}`, l: fl.railStartX, r: fl.railEndX, generation: fl.childGeneration }))
+  );
+  const connectorRailsTrack = trackByGeneration(
+    familyLayouts.map(fl => ({ id: `c:${fl.key}`, l: fl.marriageMidX, r: fl.siblingMidX, generation: fl.parentGeneration }))
+  );
+
+  familyLayouts.forEach((fl) => {
+    const connTrack = connectorRailsTrack.get(`c:${fl.key}`) || 0;
+    const siblingTrack = siblingRailsTrack.get(`s:${fl.key}`) || 0;
+    const connYBase = Math.min(fl.spouseLaneY + CONNECTOR_DROP, fl.minChildTopY - CHILD_RAIL_PADDING - 20);
+    const siblingRailBase = Math.min(
+      Math.max(connYBase + 28, fl.minChildY - 120),
+      fl.minChildTopY - CHILD_RAIL_PADDING
     );
+    const siblingRailY = siblingRailBase - siblingTrack * 14;
+    const connY = Math.min(connYBase + connTrack * 12, siblingRailY - 24);
 
     createPolyline([
-      [marriageMidX, spouseLaneY],
-      [marriageMidX, connY],
-      [siblingMidX, connY],
-      [siblingMidX, siblingRailY],
+      [fl.marriageMidX, fl.spouseLaneY],
+      [fl.marriageMidX, connY],
+      [fl.siblingMidX, connY],
+      [fl.siblingMidX, siblingRailY],
     ], 'edge-parent');
 
-    const railStartX = Math.min(...kids.map(({ pos }) => pos.x));
-    const railEndX = Math.max(...kids.map(({ pos }) => pos.x));
     createPolyline([
-      [railStartX, siblingRailY],
-      [railEndX, siblingRailY],
+      [fl.railStartX, siblingRailY],
+      [fl.railEndX, siblingRailY],
     ], 'edge-parent');
 
-    kids.forEach(({ pos }) => {
+    fl.kids.forEach(({ pos }) => {
       createPolyline([
         [pos.x, pos.y - NODE_RADIUS],
         [pos.x, siblingRailY],
