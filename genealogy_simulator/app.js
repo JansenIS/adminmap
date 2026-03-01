@@ -260,6 +260,74 @@ function layout() {
     });
   };
 
+  const enforceGenerationSpouseSubBlocks = (rows, g) => {
+    const ids = (rows.get(g) || []).slice();
+    if (ids.length <= 1) return;
+
+    const groupByParents = new Map();
+    ids.forEach((id) => {
+      const parentIds = [...(parentsByChild.get(id) || [])]
+        .filter(parentId => componentOf.get(parentId) === componentOf.get(id) && (normalizedGen.get(parentId) || 0) === g - 1)
+        .sort(idSort);
+      const key = parentIds.length ? `p:${parentIds.join('|')}` : `solo:${id}`;
+      if (!groupByParents.has(key)) groupByParents.set(key, []);
+      groupByParents.get(key).push(id);
+    });
+
+    const avgX = (members) => avg(members.map(mid => xById.get(mid)).filter(x => typeof x === 'number'));
+
+    groupByParents.forEach((members) => {
+      if (members.length <= 2) return;
+
+      const memberSet = new Set(members);
+      const visited = new Set();
+      const componentsLocal = [];
+
+      members.forEach((startId) => {
+        if (visited.has(startId)) return;
+        const stack = [startId];
+        const component = [];
+        visited.add(startId);
+
+        while (stack.length) {
+          const id = stack.pop();
+          component.push(id);
+          (spousesById.get(id) || new Set()).forEach((spouseId) => {
+            if (!memberSet.has(spouseId) || visited.has(spouseId)) return;
+            if ((normalizedGen.get(spouseId) || 0) !== g) return;
+            visited.add(spouseId);
+            stack.push(spouseId);
+          });
+        }
+
+        componentsLocal.push(component);
+      });
+
+      if (componentsLocal.length <= 1) return;
+
+      const componentGap = spacing * 1.1;
+      const ordered = componentsLocal
+        .map((component, index) => {
+          const sortedMembers = component.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+          return {
+            index,
+            members: sortedMembers,
+            center: avgX(sortedMembers),
+          };
+        })
+        .sort((a, b) => a.center - b.center || a.index - b.index);
+
+      const currentCenter = avgX(members);
+      const totalWidth = ordered.reduce((sum, item) => sum + (item.members.length - 1) * spacing, 0) + (ordered.length - 1) * componentGap;
+      let left = (Number.isFinite(currentCenter) ? currentCenter : 0) - totalWidth / 2;
+
+      ordered.forEach((item) => {
+        item.members.forEach((id, idx) => xById.set(id, left + idx * spacing));
+        left += (item.members.length - 1) * spacing + componentGap;
+      });
+    });
+  };
+
   const nodesById = new Set(state.characters.map(c => c.id));
   const componentOf = new Map();
   const components = [];
@@ -360,8 +428,10 @@ function layout() {
     }
 
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
+    rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
     rowIndex.forEach(g => relaxRow(rows, g, 1));
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
+    rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
