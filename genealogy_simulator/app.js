@@ -20,7 +20,13 @@ const clanFilter = document.getElementById('clanFilter');
 const canvasWrap = document.querySelector('.canvas-wrap');
 
 async function api(path, options = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+  const method = String(options.method || 'GET').toUpperCase();
+  const fetchOptions = {
+    cache: method === 'GET' ? 'no-store' : 'default',
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  };
+  const res = await fetch(path, fetchOptions);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
   return body;
@@ -204,7 +210,8 @@ function relKey(a, b) {
   return `${x}:${y}`;
 }
 
-function computeViewport() {
+function computeViewport({ preserveAnchor = true } = {}) {
+  const prevViewport = state.viewport;
   const points = [...state.positions.values()];
   if (!points.length) {
     state.viewport = { minX: 0, minY: 0, width: 1200, height: 800 };
@@ -220,6 +227,11 @@ function computeViewport() {
   const maxY = Math.max(...points.map(p => p.y + 160));
   const width = Math.max(600, maxX - minX);
   const height = Math.max(500, maxY - minY);
+
+  if (preserveAnchor && Number.isFinite(prevViewport?.minX) && Number.isFinite(prevViewport?.minY)) {
+    state.camera.panX += (prevViewport.minX - minX);
+    state.camera.panY += (prevViewport.minY - minY);
+  }
 
   state.viewport = { minX, minY, width, height };
   applyViewBox();
@@ -438,9 +450,9 @@ async function createChildForRelationship(aId, bId, relationType) {
   }
 }
 
-function render() {
+function render({ preserveViewportAnchor = true } = {}) {
   layout();
-  computeViewport();
+  computeViewport({ preserveAnchor: preserveViewportAnchor });
   svg.innerHTML = '';
 
   const NODE_RADIUS = 48;
@@ -968,7 +980,7 @@ function bindAdmin() {
   document.getElementById('resetViewBtn')?.addEventListener('click', () => {
     state.camera = { zoom: 1, panX: 0, panY: 0 };
     applyViewBox();
-    render();
+    render({ preserveViewportAnchor: false });
   });
 
 }
