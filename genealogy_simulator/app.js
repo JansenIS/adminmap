@@ -143,68 +143,29 @@ function layout() {
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   };
 
-  // Базовый проход снизу вверх:
-  // 1) нижнее поколение фиксируем равномерно,
-  // 2) выше центрируем каждого персонажа над детьми,
-  // 3) в каждом ряду гарантируем минимальный интервал.
-  const maxGen = rowIndex.length ? rowIndex[rowIndex.length - 1] : 0;
-  const bottomIds = (rows.get(maxGen) || []).slice().sort(idSort);
-  let nextLeafX = 0;
-  bottomIds.forEach((id) => {
-    xById.set(id, nextLeafX);
-    nextLeafX += spacing;
-  });
-
-  const placeRow = (g) => {
-    const ids = (rows.get(g) || []).slice();
-    if (!ids.length) return;
-
-    const targets = ids.map((id) => {
-      const childTarget = avg([...(childrenByParent.get(id) || [])]
-        .filter(childId => (gen.get(childId) || 0) > g)
-        .map(childId => xById.get(childId))
-        .filter(x => typeof x === 'number'));
-
-      const spouseTarget = avg([...(spousesById.get(id) || [])]
-        .filter(spouseId => (gen.get(spouseId) || 0) === g)
-        .map(spouseId => xById.get(spouseId))
-        .filter(x => typeof x === 'number'));
-
-      const fallback = Number.isFinite(childTarget)
-        ? childTarget
-        : (Number.isFinite(spouseTarget) ? spouseTarget : nextLeafX);
-
-      return { id, target: fallback };
-    }).sort((a, b) => a.target - b.target || idSort(a.id, b.id));
-
-    if (!targets.length) return;
-
-    targets[0].x = Math.max(targets[0].target, 0);
-    for (let i = 1; i < targets.length; i++) {
-      targets[i].x = Math.max(targets[i].target, targets[i - 1].x + spacing);
+  const placeSequential = (items) => {
+    if (!items.length) return;
+    items[0].x = items[0].target;
+    for (let i = 1; i < items.length; i++) {
+      items[i].x = Math.max(items[i].target, items[i - 1].x + spacing);
     }
-
-    targets.forEach(({ id, x }) => {
-      xById.set(id, x);
-      nextLeafX = Math.max(nextLeafX, x + spacing);
-    });
+    for (let i = items.length - 2; i >= 0; i--) {
+      items[i].x = Math.min(items[i].x, items[i + 1].x - spacing);
+    }
   };
 
-  for (let g = maxGen - 1; g >= 0; g--) placeRow(g);
-
-  // Если ряд не попал в общий цикл (например, один уровень), добиваем вручную.
+  // Плотная «пирамида»: базово размещаем каждый ряд как отдельную линию
+  // (без глобального накопления X), затем притягиваем узлы к родителям/детям.
   rowIndex.forEach((g) => {
-    (rows.get(g) || []).slice().sort(idSort).forEach((id) => {
-      if (!xById.has(id)) {
-        xById.set(id, nextLeafX);
-        nextLeafX += spacing;
-      }
-    });
+    const ids = (rows.get(g) || []).slice().sort(idSort);
+    if (!ids.length) return;
+    const mid = (ids.length - 1) / 2;
+    ids.forEach((id, i) => xById.set(id, (i - mid) * spacing));
   });
 
   // Локальное уплотнение: приближаем к центрам родственников,
   // но сохраняем интервалы внутри поколения.
-  const relaxRow = (g, iterations = 6) => {
+  const relaxRow = (g, iterations = 10) => {
     const ids = (rows.get(g) || []).slice();
     if (ids.length <= 1) return;
 
@@ -225,24 +186,20 @@ function layout() {
         const signals = [parentTarget, childTarget, spouseTarget].filter(Number.isFinite);
         if (!signals.length) return { id, target: current };
         const target = signals.reduce((sum, x) => sum + x, 0) / signals.length;
-        return { id, target: current * 0.35 + target * 0.65 };
+        return { id, target: current * 0.2 + target * 0.8 };
       }).sort((a, b) => a.target - b.target || idSort(a.id, b.id));
 
       if (!targets.length) continue;
-      targets[0].x = targets[0].target;
-      for (let t = 1; t < targets.length; t++) {
-        targets[t].x = Math.max(targets[t].target, targets[t - 1].x + spacing);
-      }
-
-      for (let t = targets.length - 2; t >= 0; t--) {
-        targets[t].x = Math.min(targets[t].x, targets[t + 1].x - spacing);
-      }
+      placeSequential(targets);
 
       targets.forEach(({ id, x }) => xById.set(id, x));
     }
   };
 
-  rowIndex.forEach(g => relaxRow(g));
+  for (let i = 0; i < 4; i++) {
+    rowIndex.forEach(g => relaxRow(g, 1));
+    [...rowIndex].reverse().forEach(g => relaxRow(g, 1));
+  }
 
   const allX = [...xById.values()];
   const minX = Math.min(...allX);
