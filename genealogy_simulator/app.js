@@ -400,6 +400,53 @@ function layout() {
     });
   };
 
+  const enforceStrictSiblingBlocks = (rows, g) => {
+    const ids = (rows.get(g) || []).slice();
+    if (ids.length <= 1) return;
+
+    const orderedIds = ids.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+    const blockById = new Map();
+
+    const siblingsByParentKey = new Map();
+    orderedIds.forEach((id) => {
+      const parentIds = [...(parentsByChild.get(id) || [])]
+        .filter(parentId => componentOf.get(parentId) === componentOf.get(id) && (normalizedGen.get(parentId) || 0) === g - 1)
+        .sort(idSort);
+      if (!parentIds.length) return;
+      const key = `p:${parentIds.join('|')}`;
+      if (!siblingsByParentKey.has(key)) siblingsByParentKey.set(key, []);
+      siblingsByParentKey.get(key).push(id);
+    });
+
+    siblingsByParentKey.forEach((members) => {
+      if (members.length <= 1) return;
+      const normalized = members.slice().sort((a, b) => (xById.get(a) || 0) - (xById.get(b) || 0) || idSort(a, b));
+      normalized.forEach((id) => blockById.set(id, normalized));
+    });
+
+    const blocks = [];
+    const emitted = new Set();
+    orderedIds.forEach((id) => {
+      if (emitted.has(id)) return;
+      const block = blockById.get(id) || [id];
+      blocks.push(block);
+      block.forEach((memberId) => emitted.add(memberId));
+    });
+
+    if (blocks.length <= 1) return;
+
+    const siblingGap = Math.max(spacing * 0.9, 190);
+    const rowCenter = avg(orderedIds.map(id => xById.get(id)).filter(x => typeof x === 'number'));
+    const widths = blocks.map(block => Math.max(0, (block.length - 1) * spacing));
+    const totalWidth = widths.reduce((sum, width) => sum + width, 0) + (blocks.length - 1) * siblingGap;
+    let left = (Number.isFinite(rowCenter) ? rowCenter : 0) - totalWidth / 2;
+
+    blocks.forEach((block, idx) => {
+      block.forEach((id, memberIdx) => xById.set(id, left + memberIdx * spacing));
+      left += widths[idx] + siblingGap;
+    });
+  };
+
   const nodesById = new Set(state.characters.map(c => c.id));
   const componentOf = new Map();
   const components = [];
@@ -505,6 +552,7 @@ function layout() {
     rowIndex.forEach((g) => enforceGenerationParentBlocks(rows, g));
     rowIndex.forEach((g) => enforceGenerationSpouseSubBlocks(rows, g));
     rowIndex.forEach((g) => enforceStrictSpouseAdjacency(rows, g));
+    rowIndex.forEach((g) => enforceStrictSiblingBlocks(rows, g));
 
     const xs = components[idx].map(id => xById.get(id)).filter(x => typeof x === 'number');
     if (!xs.length) return;
@@ -733,7 +781,14 @@ function applyClanFilter() {
 
   state.allRelationships
     .filter((r) => r.type === 'parent_child' && included.has(r.target_id))
-    .forEach((r) => included.add(r.source_id));
+    .forEach((r) => {
+      const parent = nodeByIdFromAll(r.source_id);
+      const child = nodeByIdFromAll(r.target_id);
+      if (!parent || !child) return;
+      const parentClan = String(parent.clan || '').trim();
+      const childClan = String(child.clan || '').trim();
+      if (parentClan === clan || childClan === clan) included.add(r.source_id);
+    });
 
   state.characters = state.allCharacters.filter((c) => included.has(c.id));
   state.relationships = state.allRelationships.filter((r) => included.has(r.source_id) && included.has(r.target_id));
