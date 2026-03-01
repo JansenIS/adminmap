@@ -162,7 +162,9 @@ function genealogy_migrate_relationships(array &$decoded): bool {
     if ($a === '' || $b === '' || $u === '') continue;
     $pair = [$a, $b];
     sort($pair, SORT_STRING);
-    $spouseByPair[implode('|', $pair)] = $u;
+    $k = implode('|', $pair);
+    if (!isset($spouseByPair[$k])) $spouseByPair[$k] = [];
+    $spouseByPair[$k][] = $u;
   }
 
   foreach ($rels as $idx => $rel) {
@@ -174,15 +176,36 @@ function genealogy_migrate_relationships(array &$decoded): bool {
     $parents = array_values(array_unique($parentsByChild[$child] ?? []));
 
     $assigned = '';
+    $candidates = [];
     if (count($parents) >= 2) {
       sort($parents, SORT_STRING);
-      for ($i = 0; $i < count($parents); $i++) {
-        for ($j = $i + 1; $j < count($parents); $j++) {
-          $pair = [$parents[$i], $parents[$j]];
-          sort($pair, SORT_STRING);
-          $k = implode('|', $pair);
-          if (isset($spouseByPair[$k])) { $assigned = $spouseByPair[$k]; break 2; }
+      foreach ($parents as $coParent) {
+        if ($coParent === $parent) continue;
+        $pair = [$parent, $coParent];
+        sort($pair, SORT_STRING);
+        $k = implode('|', $pair);
+        foreach (($spouseByPair[$k] ?? []) as $u) {
+          if ($u === '') continue;
+          $candidates[$u] = true;
         }
+      }
+      if (!$candidates) {
+        for ($i = 0; $i < count($parents); $i++) {
+          for ($j = $i + 1; $j < count($parents); $j++) {
+            $pair = [$parents[$i], $parents[$j]];
+            sort($pair, SORT_STRING);
+            $k = implode('|', $pair);
+            foreach (($spouseByPair[$k] ?? []) as $u) {
+              if ($u === '') continue;
+              $candidates[$u] = true;
+            }
+          }
+        }
+      }
+      if ($candidates) {
+        $unionIds = array_keys($candidates);
+        sort($unionIds, SORT_STRING);
+        $assigned = (string)$unionIds[0];
       }
     }
 
