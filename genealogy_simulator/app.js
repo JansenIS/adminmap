@@ -1710,6 +1710,7 @@ function render({ preserveViewportAnchor = true } = {}) {
   );
   const groupedParentChild = new Set();
   const families = new Map();
+  const parentChildEdgeKey = (rel) => `${rel.source_id}->${rel.target_id}:u:${String(rel.parents_union_id || '').trim()}`;
 
   const createPolyline = (points, className) => {
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
@@ -1729,8 +1730,12 @@ function render({ preserveViewportAnchor = true } = {}) {
       children: [...new Set(family.children)],
     });
     families.get(key).children.forEach((childId) => {
-      groupedParentChild.add(`${family.parentA}->${childId}`);
-      if (family.parentB) groupedParentChild.add(`${family.parentB}->${childId}`);
+      const parentAEdge = state.relationships.find((rel) => rel.type === 'parent_child' && rel.source_id === family.parentA && rel.target_id === childId);
+      if (parentAEdge) groupedParentChild.add(parentChildEdgeKey(parentAEdge));
+      if (family.parentB) {
+        const parentBEdge = state.relationships.find((rel) => rel.type === 'parent_child' && rel.source_id === family.parentB && rel.target_id === childId);
+        if (parentBEdge) groupedParentChild.add(parentChildEdgeKey(parentBEdge));
+      }
     });
   });
 
@@ -1749,13 +1754,59 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     parentsByChild.forEach((parents, childId) => {
       if (parents.length < 2) return;
+      const parentEdges = parentChildEdges.filter((edge) => edge.target_id === childId);
+      const parentsByUnion = new Map();
+
+      parentEdges.forEach((edge) => {
+        const unionId = String(edge.parents_union_id || '').trim();
+        if (!unionId) return;
+        if (!parentsByUnion.has(unionId)) parentsByUnion.set(unionId, new Set());
+        parentsByUnion.get(unionId).add(edge.source_id);
+      });
+
+      if (parentsByUnion.size) {
+        parentsByUnion.forEach((unionParentsSet, unionId) => {
+          const unionParents = [...unionParentsSet];
+          if (unionParents.length < 2) return;
+          for (let i = 0; i < unionParents.length; i++) {
+            for (let j = i + 1; j < unionParents.length; j++) {
+              const leftParent = unionParents[i];
+              const rightParent = unionParents[j];
+              const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && String(rel.union_id || '').trim() === unionId && ((rel.source_id === leftParent && rel.target_id === rightParent) || (rel.source_id === rightParent && rel.target_id === leftParent)));
+              if (!matchingSpouse) continue;
+              const pairKey = `${relKey(leftParent, rightParent)}:${unionId}`;
+              if (!families.has(pairKey)) {
+                const [parentA, parentB] = [leftParent, rightParent].sort((left, right) => {
+                  const a = normalizeId(left);
+                  const b = normalizeId(right);
+                  if (typeof a === 'number' && typeof b === 'number') return a - b;
+                  return String(a).localeCompare(String(b));
+                });
+                families.set(pairKey, {
+                  parentA,
+                  parentB,
+                  children: [],
+                });
+              }
+              families.get(pairKey).children.push(childId);
+              parentEdges
+                .filter((edge) => edge.target_id === childId && (edge.source_id === leftParent || edge.source_id === rightParent) && String(edge.parents_union_id || '').trim() === unionId)
+                .forEach((edge) => groupedParentChild.add(parentChildEdgeKey(edge)));
+              return;
+            }
+          }
+        });
+      }
+
       for (let i = 0; i < parents.length; i++) {
         for (let j = i + 1; j < parents.length; j++) {
-          const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && ((rel.source_id === parents[i] && rel.target_id === parents[j]) || (rel.source_id === parents[j] && rel.target_id === parents[i])));
+          const leftParent = parents[i];
+          const rightParent = parents[j];
+          const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && ((rel.source_id === leftParent && rel.target_id === rightParent) || (rel.source_id === rightParent && rel.target_id === leftParent)));
           if (!matchingSpouse) continue;
-          const pairKey = `${relKey(parents[i], parents[j])}:${String(matchingSpouse.union_id || '')}`;
+          const pairKey = `${relKey(leftParent, rightParent)}:${String(matchingSpouse.union_id || '')}`;
           if (!families.has(pairKey)) {
-            const [parentA, parentB] = [parents[i], parents[j]].sort((left, right) => {
+            const [parentA, parentB] = [leftParent, rightParent].sort((left, right) => {
               const a = normalizeId(left);
               const b = normalizeId(right);
               if (typeof a === 'number' && typeof b === 'number') return a - b;
@@ -1768,8 +1819,9 @@ function render({ preserveViewportAnchor = true } = {}) {
             });
           }
           families.get(pairKey).children.push(childId);
-          groupedParentChild.add(`${parents[i]}->${childId}`);
-          groupedParentChild.add(`${parents[j]}->${childId}`);
+          parentEdges
+            .filter((edge) => edge.target_id === childId && (edge.source_id === leftParent || edge.source_id === rightParent))
+            .forEach((edge) => groupedParentChild.add(parentChildEdgeKey(edge)));
           return;
         }
       }
@@ -1777,7 +1829,7 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     // Однородительские связи, не вошедшие в «семейные юниты», тоже рисуем через общий sibling-rail.
     parentChildEdges.forEach((r) => {
-      if (groupedParentChild.has(`${r.source_id}->${r.target_id}`)) return;
+      if (groupedParentChild.has(parentChildEdgeKey(r))) return;
       const key = `single:${r.source_id}`;
       if (!families.has(key)) {
         families.set(key, {
@@ -1787,12 +1839,12 @@ function render({ preserveViewportAnchor = true } = {}) {
         });
       }
       families.get(key).children.push(r.target_id);
-      groupedParentChild.add(`${r.source_id}->${r.target_id}`);
+      groupedParentChild.add(parentChildEdgeKey(r));
     });
   }
 
   state.relationships.forEach(r => {
-    if (r.type === 'parent_child' && groupedParentChild.has(`${r.source_id}->${r.target_id}`)) {
+    if (r.type === 'parent_child' && groupedParentChild.has(parentChildEdgeKey(r))) {
       return;
     }
 
