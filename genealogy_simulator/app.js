@@ -99,13 +99,27 @@ function layout() {
   const gen = computeGenerations(state.characters, state.relationships);
   const rows = new Map();
   const parentsByChild = new Map();
+  const childrenByParent = new Map();
+  const spousesById = new Map();
 
-  state.relationships
-    .filter(r => r.type === 'parent_child')
-    .forEach((r) => {
-      if (!parentsByChild.has(r.target_id)) parentsByChild.set(r.target_id, []);
-      parentsByChild.get(r.target_id).push(r.source_id);
-    });
+  const addLink = (map, key, value) => {
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key).add(value);
+  };
+
+  state.relationships.forEach((r) => {
+    if (r.type === 'parent_child') {
+      if ((gen.get(r.target_id) || 0) <= (gen.get(r.source_id) || 0)) return;
+      addLink(parentsByChild, r.target_id, r.source_id);
+      addLink(childrenByParent, r.source_id, r.target_id);
+      return;
+    }
+
+    if (r.type === 'spouses') {
+      addLink(spousesById, r.source_id, r.target_id);
+      addLink(spousesById, r.target_id, r.source_id);
+    }
+  });
 
   state.characters.forEach(c => {
     const g = gen.get(c.id) || 0;
@@ -113,83 +127,81 @@ function layout() {
     rows.get(g).push(c.id);
   });
 
-  const pos = new Map();
   const spacing = 230;
+  const xById = new Map();
+  const rowIndex = [...rows.keys()].sort((a, b) => a - b);
 
-  [...rows.entries()].sort((a, b) => a[0] - b[0]).forEach(([g, ids]) => {
-    const targetXById = new Map();
-    ids.forEach((id) => {
-      const parentIds = parentsByChild.get(id) || [];
-      const knownParents = parentIds
-        .map(pid => pos.get(pid)?.x)
-        .filter(x => typeof x === 'number');
-      const targetX = knownParents.length
-        ? knownParents.reduce((sum, x) => sum + x, 0) / knownParents.length
-        : Number.POSITIVE_INFINITY;
-      targetXById.set(id, targetX);
+  const setRowX = (ids, metricById) => {
+    const ordered = [...ids].sort((left, right) => {
+      const leftMetric = metricById(left);
+      const rightMetric = metricById(right);
+      if (leftMetric !== rightMetric) return leftMetric - rightMetric;
+
+      const leftId = normalizeId(left);
+      const rightId = normalizeId(right);
+      if (typeof leftId === 'number' && typeof rightId === 'number') return leftId - rightId;
+      return String(leftId).localeCompare(String(rightId));
     });
-
-    const byTarget = (left, right) => {
-      const leftTargetX = targetXById.get(left) ?? Number.POSITIVE_INFINITY;
-      const rightTargetX = targetXById.get(right) ?? Number.POSITIVE_INFINITY;
-      if (leftTargetX !== rightTargetX) return leftTargetX - rightTargetX;
-
-      const a = normalizeId(left);
-      const b = normalizeId(right);
-      if (typeof a === 'number' && typeof b === 'number') return a - b;
-      return String(a).localeCompare(String(b));
-    };
-
-    const spouseAdj = new Map();
-    state.relationships
-      .filter(r => r.type === 'spouses')
-      .forEach((r) => {
-        if (!ids.includes(r.source_id) || !ids.includes(r.target_id)) return;
-        if (!spouseAdj.has(r.source_id)) spouseAdj.set(r.source_id, new Set());
-        if (!spouseAdj.has(r.target_id)) spouseAdj.set(r.target_id, new Set());
-        spouseAdj.get(r.source_id).add(r.target_id);
-        spouseAdj.get(r.target_id).add(r.source_id);
-      });
-
-    const visited = new Set();
-    const blocks = [];
-
-    ids.forEach((id) => {
-      if (visited.has(id)) return;
-      if (!spouseAdj.has(id)) {
-        visited.add(id);
-        blocks.push([id]);
-        return;
-      }
-
-      const stack = [id];
-      const component = [];
-      while (stack.length) {
-        const current = stack.pop();
-        if (visited.has(current)) continue;
-        visited.add(current);
-        component.push(current);
-        (spouseAdj.get(current) || []).forEach((next) => {
-          if (!visited.has(next)) stack.push(next);
-        });
-      }
-
-      const componentSorted = component.sort(byTarget);
-      blocks.push(componentSorted);
-    });
-
-    blocks.sort((leftBlock, rightBlock) => {
-      const leftAnchor = Math.min(...leftBlock.map(id => targetXById.get(id) ?? Number.POSITIVE_INFINITY));
-      const rightAnchor = Math.min(...rightBlock.map(id => targetXById.get(id) ?? Number.POSITIVE_INFINITY));
-      if (leftAnchor !== rightAnchor) return leftAnchor - rightAnchor;
-      return byTarget(leftBlock[0], rightBlock[0]);
-    });
-
-    const ordered = blocks.flatMap(block => block);
 
     const rowWidth = Math.max(1400, (ordered.length - 1) * spacing + 420);
     const offset = (rowWidth - (ordered.length - 1) * spacing) / 2;
-    ordered.forEach((id, i) => pos.set(id, { x: offset + i * spacing, y: 130 + g * 230 }));
+    ordered.forEach((id, i) => xById.set(id, offset + i * spacing));
+  };
+
+  rowIndex.forEach((g) => {
+    const ids = rows.get(g) || [];
+    setRowX(ids, (id) => {
+      const n = normalizeId(id);
+      return typeof n === 'number' ? n : Number.MAX_SAFE_INTEGER;
+    });
+  });
+
+  const avg = (values) => {
+    if (!values.length) return Number.POSITIVE_INFINITY;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  };
+
+  const applySweep = (levels, neighborGetter, blend = 1) => {
+    levels.forEach((g) => {
+      const ids = rows.get(g) || [];
+      if (!ids.length) return;
+
+      setRowX(ids, (id) => {
+        const neighbors = [...(neighborGetter(id) || [])]
+          .map(nearId => xById.get(nearId))
+          .filter(x => typeof x === 'number');
+        const spouseNeighbors = [...(spousesById.get(id) || [])]
+          .filter(spouseId => (gen.get(spouseId) || 0) === g)
+          .map(spouseId => xById.get(spouseId))
+          .filter(x => typeof x === 'number');
+
+        const neighborTarget = avg(neighbors);
+        const spouseTarget = avg(spouseNeighbors);
+        const current = xById.get(id) ?? 0;
+
+        let target = neighborTarget;
+        if (!Number.isFinite(target)) target = current;
+        if (Number.isFinite(spouseTarget)) {
+          target = Number.isFinite(neighborTarget)
+            ? (target * 0.8 + spouseTarget * 0.2)
+            : spouseTarget;
+        }
+
+        return current * (1 - blend) + target * blend;
+      });
+    });
+  };
+
+  for (let i = 0; i < 8; i++) {
+    applySweep(rowIndex.slice(1), id => parentsByChild.get(id), 1);
+    applySweep([...rowIndex].reverse().slice(1), id => childrenByParent.get(id), 0.65);
+  }
+
+  const pos = new Map();
+  rowIndex.forEach((g) => {
+    (rows.get(g) || []).forEach((id) => {
+      pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 230 });
+    });
   });
 
   state.positions = pos;
