@@ -9,7 +9,7 @@ input, select, button, textarea { width: 100%; box-sizing: border-box; margin-bo
 button { cursor: pointer; background: #2563eb; border-color: #1d4ed8; }
 button.secondary { background: #374151; }
 .canvas-wrap { position: relative; overflow: auto; }
-svg { width: 2000px; height: 1200px; background: radial-gradient(circle at top, #1f2937 0%, #0b1020 80%); }
+svg { min-width: 100%; min-height: 100%; background: radial-gradient(circle at top, #1f2937 0%, #0b1020 80%); }
 .node-label { font-size: 13px; fill: #f9fafb; text-anchor: middle; }
 .node-meta { font-size: 11px; fill: #9ca3af; text-anchor: middle; }
 .node-circle { stroke: #93c5fd; stroke-width: 3; cursor: pointer; }

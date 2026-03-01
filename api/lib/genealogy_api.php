@@ -70,6 +70,7 @@ function genealogy_validate_character_payload(?array $payload): array {
   if ($birthYear !== null && $deathYear !== null && $deathYear < $birthYear) return ['ok' => false, 'error' => 'death_before_birth'];
 
   $photo = trim((string)($payload['photo_url'] ?? ''));
+  $clan = trim((string)($payload['clan'] ?? ''));
   $notes = trim((string)($payload['notes'] ?? ''));
 
   return [
@@ -80,6 +81,7 @@ function genealogy_validate_character_payload(?array $payload): array {
       'birth_year' => $birthYear,
       'death_year' => $deathYear,
       'photo_url' => $photo,
+      'clan' => $clan,
       'notes' => $notes,
     ],
   ];

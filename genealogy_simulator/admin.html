@@ -8,6 +8,12 @@
 </head>
 <body data-mode="admin">
   <header>
+    <div style="margin-top:8px; max-width:320px;">
+      <label for="clanFilter" style="display:block;margin-bottom:4px;">Род</label>
+      <select id="clanFilter">
+        <option value="all">Все роды</option>
+      </select>
+    </div>
     <strong>Genealogy Simulator (backend-first)</strong>
     <div class="legend">Клик по персонажу выделяет его, + рядом — быстрый старт добавления связи.</div>
   </header>
@@ -17,6 +23,7 @@
       <form id="createCharacterForm">
         <label>Имя</label><input name="name" required />
         <label>Титул</label><input name="title" />
+        <label>Род</label><input name="clan" placeholder="Например, Старк" />
         <label>Год рождения</label><input name="birth_year" type="number" />
         <label>Год смерти</label><input name="death_year" type="number" />
         <label>URL фото</label><input name="photo_url" type="url" />
