@@ -147,10 +147,18 @@ function computeKeyCentroids() {
   }
 }
 
+function swapRgbKey(k) {
+  const v = k >>> 0;
+  return (((v & 0x0000ff) << 16) | (v & 0x00ff00) | ((v & 0xff0000) >>> 16)) >>> 0;
+}
+
 function resolveRowKey(rowKey) {
   const k = rowKey >>> 0;
+  const swapped = swapRgbKey(k);
+
+  if (state.byKey?.has(k)) return k;
+  if (state.byKey?.has(swapped)) return swapped;
   if (state.centroidByKey.has(k) || state.anchorByKey.has(k)) return k;
-  const swapped = (((k & 0x0000ff) << 16) | (k & 0x00ff00) | ((k & 0xff0000) >>> 16)) >>> 0;
   if (state.centroidByKey.has(swapped) || state.anchorByKey.has(swapped)) return swapped;
   return k;
 }
@@ -223,7 +231,8 @@ function paintTerritoryOverlay() {
     const key = state.keyPixels[i] >>> 0;
     if (!key) continue;
     const resolvedKey = resolveRowKey(key);
-    const row = state.byKey.get(key) || state.byKey.get(resolvedKey);
+    const swappedKey = swapRgbKey(key);
+    const row = state.byKey.get(key) || state.byKey.get(resolvedKey) || state.byKey.get(swappedKey);
     if (!row) continue;
     const color = realmColorForRow(row);
     if (!color) continue;
@@ -231,7 +240,7 @@ function paintTerritoryOverlay() {
     out[p] = Number.parseInt(hex.slice(1, 3), 16);
     out[p + 1] = Number.parseInt(hex.slice(3, 5), 16);
     out[p + 2] = Number.parseInt(hex.slice(5, 7), 16);
-    out[p + 3] = 120;
+    out[p + 3] = 210;
   }
 
   ox.putImageData(img, 0, 0);
@@ -278,7 +287,9 @@ function render() {
       }
     }
     const outline = new ImageData(dst, state.width, state.height);
-    ctx.putImageData(outline, 0, 0);
+    ox.clearRect(0, 0, state.width, state.height);
+    ox.putImageData(outline, 0, 0);
+    ctx.drawImage(off, 0, 0, state.width, state.height);
   }
   ctx.restore();
 

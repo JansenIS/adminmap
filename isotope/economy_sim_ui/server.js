@@ -29,6 +29,12 @@ function parseArgs(argv) {
   return out;
 }
 
+function normalizeRealmId(value) {
+  if (value === null || value === undefined) return "";
+  const id = String(value).trim();
+  return id;
+}
+
 
 async function fetchAdminProvincesFromApi(apiBase) {
   if (!apiBase) return null;
@@ -55,10 +61,10 @@ async function fetchAdminProvincesFromApi(apiBase) {
         pid,
         name: typeof row?.name === "string" ? row.name : "",
         terrain: typeof row?.terrain === "string" ? row.terrain : "",
-        kingdom_id: typeof row?.kingdom_id === "string" ? row.kingdom_id : "",
-        great_house_id: typeof row?.great_house_id === "string" ? row.great_house_id : "",
-        minor_house_id: typeof row?.minor_house_id === "string" ? row.minor_house_id : "",
-        free_city_id: typeof row?.free_city_id === "string" ? row.free_city_id : "",
+        kingdom_id: normalizeRealmId(row?.kingdom_id),
+        great_house_id: normalizeRealmId(row?.great_house_id),
+        minor_house_id: normalizeRealmId(row?.minor_house_id),
+        free_city_id: normalizeRealmId(row?.free_city_id),
       });
     }
 
@@ -458,10 +464,10 @@ const server = http.createServer((req, res) => {
             treasuryExpenseYear: st?.treasuryExpenseYear ?? 0,
             treasuryNetYear: st?.treasuryNetYear ?? 0,
             marketMode: st?.marketMode || "normal",
-            kingdom_id: typeof adminStateByPid.get(pid)?.kingdom_id === "string" ? adminStateByPid.get(pid).kingdom_id : "",
-            great_house_id: typeof adminStateByPid.get(pid)?.great_house_id === "string" ? adminStateByPid.get(pid).great_house_id : "",
-            minor_house_id: typeof adminStateByPid.get(pid)?.minor_house_id === "string" ? adminStateByPid.get(pid).minor_house_id : "",
-            free_city_id: typeof adminStateByPid.get(pid)?.free_city_id === "string" ? adminStateByPid.get(pid).free_city_id : "",
+            kingdom_id: normalizeRealmId(adminStateByPid.get(pid)?.kingdom_id),
+            great_house_id: normalizeRealmId(adminStateByPid.get(pid)?.great_house_id),
+            minor_house_id: normalizeRealmId(adminStateByPid.get(pid)?.minor_house_id),
+            free_city_id: normalizeRealmId(adminStateByPid.get(pid)?.free_city_id),
             isSpecialTerritory: Boolean((adminStateByPid.get(pid)?.marketMode || "") === "special"),
             isOffMarket: (st?.marketMode || "normal") === "off_market",
             isBlackMarket: (st?.marketMode || "normal") === "black_market",
