@@ -47,6 +47,15 @@
 
 
 
+  function resolveStaticAssetUrl(rawUrl) {
+    const url = String(rawUrl || "").trim();
+    if (!url) return "";
+    if (/^data:image\//i.test(url) || /^blob:/i.test(url) || /^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/')) return url;
+    if (/^(people|provinces)\//i.test(url)) return '/' + url;
+    return url;
+  }
+
   function resolveCharacterPhotoUrl(rawUrl, name, placeholderFactory) {
     const url = String(rawUrl || "").trim();
     if (!url) {
@@ -58,7 +67,7 @@
     if (/^https?:\/\//i.test(url)) {
       return `/api/genealogy/photo/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(String(name || ""))}`;
     }
-    return url;
+    return resolveStaticAssetUrl(url);
   }
 
   class RasterProvinceMap {
@@ -705,5 +714,5 @@
   }
 
   window.RasterProvinceMap = RasterProvinceMap;
-  window.MapUtils = { clamp, hexToRgb, rgbToHex, toBase64Utf8, parseSvgBox, resolveCharacterPhotoUrl };
+  window.MapUtils = { clamp, hexToRgb, rgbToHex, toBase64Utf8, parseSvgBox, resolveCharacterPhotoUrl, resolveStaticAssetUrl };
 })();
