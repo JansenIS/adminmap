@@ -406,6 +406,151 @@ function collectRealmItems(realmsByType, type) {
     }));
 }
 
+function toRate(value, fallback = 0.1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  if (n > 1) return Math.max(0, Math.min(1, n / 100));
+  return Math.max(0, Math.min(1, n));
+}
+
+function computeEntityEconomy(rows, realmsByType) {
+  const provincesByPid = new Map((rows || []).map((row) => [Number(row.pid), row]));
+  const defaultProvinceTaxRate = 0.1;
+  const greatTributeRate = 0.1;
+  const crownTaxRate = 0.1;
+
+  const result = {
+    config: {
+      defaultProvinceTaxRate,
+      greatTributeRate,
+      crownTaxRate,
+    },
+    kingdoms: [],
+    great_houses: [],
+    minor_houses: [],
+  };
+
+  for (const [greatHouseId, greatHouse] of Object.entries((realmsByType && realmsByType.great_houses) || {})) {
+    if (!greatHouse || typeof greatHouse !== "object") continue;
+
+    const layer = greatHouse.minor_house_layer && typeof greatHouse.minor_house_layer === "object"
+      ? greatHouse.minor_house_layer
+      : {};
+
+    const domainPids = Array.isArray(layer.domain_pids) ? layer.domain_pids.map((x) => Number(x)) : [];
+    const domainSet = new Set(domainPids.filter((pid) => Number.isFinite(pid) && pid > 0));
+    const vassals = Array.isArray(layer.vassals) ? layer.vassals : [];
+
+    let domainIncome = 0;
+    for (const pid of domainSet) {
+      const row = provincesByPid.get(pid);
+      if (!row) continue;
+      domainIncome += Math.max(0, Number(row.effectiveGDP) || 0);
+    }
+
+    let tributeFromVassals = 0;
+    let unassignedIncome = 0;
+
+    for (const row of rows || []) {
+      if (String(row.great_house_id || "") !== String(greatHouseId)) continue;
+      if (domainSet.has(Number(row.pid))) continue;
+      let assigned = false;
+      for (const vassal of vassals) {
+        const provincePids = Array.isArray(vassal?.province_pids) ? vassal.province_pids : [];
+        if (provincePids.some((x) => (Number(x) >>> 0) === (Number(row.pid) >>> 0))) {
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        unassignedIncome += Math.max(0, Number(row.effectiveGDP) || 0);
+      }
+    }
+
+    const domainTaxRate = toRate(greatHouse.domain_tax_rate, 1.0);
+    const unassignedTaxRate = toRate(greatHouse.unassigned_tax_rate, defaultProvinceTaxRate);
+
+    const greatGrossIncome = domainIncome * domainTaxRate + unassignedIncome * unassignedTaxRate;
+
+    const kingdomId = String(greatHouse.kingdom_id || "").trim();
+
+    for (const vassal of vassals) {
+      const vassalId = String(vassal?.id || "").trim();
+      if (!vassalId) continue;
+
+      const capitalPid = Number(vassal.capital_pid) >>> 0;
+      const provincePids = Array.isArray(vassal.province_pids) ? vassal.province_pids.map((x) => Number(x) >>> 0) : [];
+      const minorTaxRate = toRate(vassal.tax_rate, defaultProvinceTaxRate);
+      const capitalShare = toRate(vassal.capital_share, 1.0);
+
+      let capitalIncome = 0;
+      let otherIncome = 0;
+
+      for (const pid of provincePids) {
+        const row = provincesByPid.get(pid);
+        if (!row) continue;
+        const income = Math.max(0, Number(row.effectiveGDP) || 0);
+        if (pid === capitalPid) capitalIncome += income;
+        else otherIncome += income;
+      }
+
+      const grossIncome = capitalIncome * capitalShare + otherIncome * minorTaxRate;
+      const tributeToGreat = grossIncome * greatTributeRate;
+      const netIncome = grossIncome - tributeToGreat;
+
+      tributeFromVassals += tributeToGreat;
+
+      result.minor_houses.push({
+        id: vassalId,
+        name: String(vassal.name || vassalId),
+        great_house_id: String(greatHouseId),
+        kingdom_id: kingdomId,
+        capital_pid: capitalPid,
+        provinces: provincePids.length,
+        capitalIncome,
+        otherIncome,
+        taxRate: minorTaxRate,
+        grossIncome,
+        tributeToGreat,
+        netIncome,
+      });
+    }
+
+    const grossWithVassals = greatGrossIncome + tributeFromVassals;
+    const crownTax = grossWithVassals * crownTaxRate;
+    const netIncome = grossWithVassals - crownTax;
+
+    result.great_houses.push({
+      id: String(greatHouseId),
+      name: String(greatHouse.name || greatHouseId),
+      kingdom_id: kingdomId,
+      domainIncome,
+      domainTaxRate,
+      unassignedIncome,
+      unassignedTaxRate,
+      grossIncome: greatGrossIncome,
+      tributeFromVassals,
+      grossWithVassals,
+      crownTax,
+      netIncome,
+    });
+  }
+
+  const kingdoms = (realmsByType && realmsByType.kingdoms) || {};
+  for (const [kingdomId, kingdom] of Object.entries(kingdoms)) {
+    const greatRows = result.great_houses.filter((row) => String(row.kingdom_id || "") === String(kingdomId));
+    const crownIncome = greatRows.reduce((acc, row) => acc + row.crownTax, 0);
+    result.kingdoms.push({
+      id: String(kingdomId),
+      name: String((kingdom && kingdom.name) || kingdomId),
+      greatHouses: greatRows.length,
+      income: crownIncome,
+    });
+  }
+
+  return result;
+}
+
 function getProvinceIndexByPid(pid) {
   const i = engine.pidToIndex.get(Number(pid));
   return typeof i === "number" ? i : -1;
@@ -493,6 +638,7 @@ const server = http.createServer((req, res) => {
             type,
             name: def?.name || type,
           })),
+          entityEconomy: computeEntityEconomy(rows, adminRealmsByType),
         });
       }
 

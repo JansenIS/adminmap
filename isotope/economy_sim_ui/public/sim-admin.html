@@ -80,6 +80,7 @@
       <div class="tabs" role="tablist" aria-label="Просмотры sim-admin">
         <button id="tabBtnMap" class="tabBtn active" type="button" data-tab="map" role="tab" aria-selected="true">Карта</button>
         <button id="tabBtnTreasury" class="tabBtn" type="button" data-tab="treasury" role="tab" aria-selected="false">Казна провинций</button>
+        <button id="tabBtnEntities" class="tabBtn" type="button" data-tab="entities" role="tab" aria-selected="false">Экономика сущностей</button>
       </div>
 
       <section id="tabMap" class="tabPanel active" role="tabpanel">
@@ -102,6 +103,12 @@
             </thead>
             <tbody id="treasuryTableBody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="tabEntities" class="tabPanel" role="tabpanel" hidden>
+        <div class="tableWrap">
+          <pre id="entityEconomyDump" style="white-space:pre-wrap; margin:0; font-size:12px; line-height:1.35;"></pre>
         </div>
       </section>
 

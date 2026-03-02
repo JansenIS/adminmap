@@ -9,6 +9,7 @@ const state = {
   realmColorsByMode: { kingdoms: new Map(), great_houses: new Map(), minor_houses: new Map() },
   activeTab: "map",
   treasurySort: { key: "treasury", dir: "desc" },
+  entityEconomy: null,
   mapImg: null,
   maskImg: null,
   keyPixels: null,
@@ -44,9 +45,12 @@ const UI = {
   tooltip: document.getElementById("tooltip"),
   tabBtnMap: document.getElementById("tabBtnMap"),
   tabBtnTreasury: document.getElementById("tabBtnTreasury"),
+  tabBtnEntities: document.getElementById("tabBtnEntities"),
   tabMap: document.getElementById("tabMap"),
   tabTreasury: document.getElementById("tabTreasury"),
+  tabEntities: document.getElementById("tabEntities"),
   treasuryTableBody: document.getElementById("treasuryTableBody"),
+  entityEconomyDump: document.getElementById("entityEconomyDump"),
   sortBtns: Array.from(document.querySelectorAll(".sortBtn")),
   flagOffMarket: document.getElementById("flagOffMarket"),
   flagBlackMarket: document.getElementById("flagBlackMarket"),
@@ -328,15 +332,33 @@ function render() {
 function setActiveTab(tab) {
   state.activeTab = tab;
   const isMap = tab === "map";
+  const isTreasury = tab === "treasury";
+  const isEntities = tab === "entities";
+
   UI.tabBtnMap.classList.toggle("active", isMap);
   UI.tabBtnMap.setAttribute("aria-selected", isMap ? "true" : "false");
   UI.tabMap.classList.toggle("active", isMap);
   UI.tabMap.hidden = !isMap;
 
-  UI.tabBtnTreasury.classList.toggle("active", !isMap);
-  UI.tabBtnTreasury.setAttribute("aria-selected", isMap ? "false" : "true");
-  UI.tabTreasury.classList.toggle("active", !isMap);
-  UI.tabTreasury.hidden = isMap;
+  UI.tabBtnTreasury.classList.toggle("active", isTreasury);
+  UI.tabBtnTreasury.setAttribute("aria-selected", isTreasury ? "true" : "false");
+  UI.tabTreasury.classList.toggle("active", isTreasury);
+  UI.tabTreasury.hidden = !isTreasury;
+
+  UI.tabBtnEntities.classList.toggle("active", isEntities);
+  UI.tabBtnEntities.setAttribute("aria-selected", isEntities ? "true" : "false");
+  UI.tabEntities.classList.toggle("active", isEntities);
+  UI.tabEntities.hidden = !isEntities;
+}
+
+function renderEntityEconomy() {
+  if (!UI.entityEconomyDump) return;
+  const payload = state.entityEconomy;
+  if (!payload) {
+    UI.entityEconomyDump.textContent = "Нет данных";
+    return;
+  }
+  UI.entityEconomyDump.textContent = JSON.stringify(payload, null, 2);
 }
 
 function updateSelectionUi() {
@@ -555,6 +577,7 @@ async function loadAll() {
   }
   state.byPid = new Map(state.rows.map((r) => [r.pid, r]));
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
+  state.entityEconomy = payload.entityEconomy || null;
   await loadImages(payload.map.image, payload.map.mask);
 
   state.rows = state.rows.map((row) => ({
@@ -565,6 +588,7 @@ async function loadAll() {
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
 
   renderTreasuryTable();
+  renderEntityEconomy();
   updateSelectionUi();
   render();
 }
@@ -573,6 +597,10 @@ UI.tabBtnMap.addEventListener("click", () => setActiveTab("map"));
 UI.tabBtnTreasury.addEventListener("click", () => {
   setActiveTab("treasury");
   renderTreasuryTable();
+});
+UI.tabBtnEntities.addEventListener("click", () => {
+  setActiveTab("entities");
+  renderEntityEconomy();
 });
 
 UI.sortBtns.forEach((btn) => {
