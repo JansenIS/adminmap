@@ -20,6 +20,12 @@
     .muted { color:#a6b4c5; font-size:12px; }
     textarea { min-height:190px; resize:vertical; margin-top:10px; }
     .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .toolbar button { padding:6px 10px; font-size:12px; }
+    .wiki-preview { margin-top:10px; border:1px solid #223041; border-radius:10px; padding:10px; background:#0b0f14; line-height:1.45; }
+    .wiki-preview p { margin:0 0 0.8em; }
+    .wiki-preview p:last-child { margin-bottom:0; }
+    .wiki-preview ul { margin:0.4em 0 0.8em 1.2em; padding:0; }
     button { background:#1a2634; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:650; }
     button:hover { background:#223446; }
     button:disabled { opacity:0.55; cursor:not-allowed; }
@@ -46,6 +52,14 @@
 
         <label for="description" style="display:block; margin-top:12px;">Описание</label>
         <textarea id="description" placeholder="Описание страницы"></textarea>
+        <div class="toolbar">
+          <button type="button" data-wrap="**" data-wrap-end="**">Жирный</button>
+          <button type="button" data-wrap="*" data-wrap-end="*">Курсив</button>
+          <button type="button" data-prefix="# ">H1</button>
+          <button type="button" data-prefix="## ">H2</button>
+          <button type="button" data-prefix="- ">Список</button>
+        </div>
+        <div id="descriptionPreview" class="wiki-preview muted">Предпросмотр появится здесь.</div>
 
         <div id="assetBlock" style="display:none; margin-top:12px;">
           <label id="assetLabel" for="assetFile">Изображение</label>
@@ -61,6 +75,7 @@
       </div>
     </main>
   </div>
+<script src="/js/wiki_markup.js"></script>
 <script>
 let pages = [];
 let filtered = [];
@@ -110,6 +125,7 @@ function renderSelected(item){
   document.getElementById('title').textContent = item.title || item.page_key || 'Без названия';
   document.getElementById('meta').textContent = `${kind} · ${item.page_key || ''}`;
   document.getElementById('description').value = item.description || '';
+  refreshDescriptionPreview();
 
   const assetBlock = document.getElementById('assetBlock');
   const assetLabel = document.getElementById('assetLabel');
@@ -196,7 +212,7 @@ async function saveSelected(){
   saveBtn.disabled = true;
   setStatus('Сохранение…');
   try {
-    const changes = { description: document.getElementById('description').value.trim() };
+    const changes = { description: document.getElementById('description').value };
     const payload = { kind: selected.kind, changes };
 
     if (selected.kind === 'character') {
@@ -258,6 +274,41 @@ document.getElementById('assetFile').addEventListener('change', (e)=>{
   }
 });
 document.getElementById('saveBtn').addEventListener('click', saveSelected);
+document.getElementById('description').addEventListener('input', refreshDescriptionPreview);
+document.querySelectorAll('.toolbar button').forEach((btn)=>btn.addEventListener('click', ()=>applyFormat(btn)));
+function refreshDescriptionPreview(){
+  const area = document.getElementById('description');
+  const preview = document.getElementById('descriptionPreview');
+  const value = String(area.value || '');
+  const wiki = window.AdminMapWikiMarkup;
+  if (!value.trim()) {
+    preview.classList.add('muted');
+    preview.textContent = 'Предпросмотр появится здесь.';
+    return;
+  }
+  preview.classList.remove('muted');
+  preview.innerHTML = wiki && typeof wiki.toHtml === 'function' ? wiki.toHtml(value) : esc(value);
+}
+
+function applyFormat(btn){
+  const area = document.getElementById('description');
+  const start = area.selectionStart || 0;
+  const end = area.selectionEnd || 0;
+  const selected = area.value.slice(start, end);
+  const wrap = btn.getAttribute('data-wrap') || '';
+  const wrapEnd = btn.getAttribute('data-wrap-end') || wrap;
+  const prefix = btn.getAttribute('data-prefix') || '';
+  if (wrap) {
+    area.setRangeText(wrap + selected + wrapEnd, start, end, 'end');
+  } else if (prefix) {
+    const text = selected || area.value.slice(start, end) || '';
+    const target = text ? text.split('\n').map((l) => prefix + l).join('\n') : prefix;
+    area.setRangeText(target, start, end, 'end');
+  }
+  area.focus();
+  refreshDescriptionPreview();
+}
+
 
 loadPages().then(()=>setStatus('Выберите страницу для редактирования.')).catch((e)=>setStatus('Ошибка загрузки списка: '+ (e && e.message ? e.message : e), true));
 </script>

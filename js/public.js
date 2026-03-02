@@ -571,9 +571,15 @@
     if (!pd) return;
 
     modalProvinceTitle.textContent = (pd.name || m.name || "Провинция").toUpperCase();
-    const wikiDescription = String(pd.wiki_description || "").trim();
+    const wikiDescription = String(pd.wiki_description || "");
+    const hasWikiDescription = wikiDescription.trim() !== "";
     if (modalProvinceDescription) {
-      modalProvinceDescription.textContent = wikiDescription || "Описание провинции пока не заполнено.";
+      const wiki = window.AdminMapWikiMarkup;
+      if (wiki && typeof wiki.toHtml === "function") {
+        modalProvinceDescription.innerHTML = hasWikiDescription ? wiki.toHtml(wikiDescription) : "<p>Описание провинции пока не заполнено.</p>";
+      } else {
+        modalProvinceDescription.textContent = hasWikiDescription ? wikiDescription : "Описание провинции пока не заполнено.";
+      }
     }
 
     const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
