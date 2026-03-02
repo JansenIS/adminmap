@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Админка Wiki</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e7eef7; }
+    .layout { display:grid; grid-template-columns: 360px 1fr; min-height:100vh; }
+    .sidebar { border-right:1px solid #223041; background:#0d131b; padding:14px; box-sizing:border-box; }
+    .content { padding:16px; }
+    .search, textarea, input[type="file"] { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:10px; }
+    .list { display:grid; gap:8px; max-height: calc(100vh - 160px); overflow:auto; margin-top:10px; }
+    .item { border:1px solid #223041; border-radius:10px; padding:10px; background:#0b0f14; text-align:left; color:inherit; cursor:pointer; }
+    .item.active { border-color:#6aa9ff; }
+    .item h3 { margin:0; font-size:14px; }
+    .item p { margin:6px 0 0; font-size:12px; color:#a6b4c5; }
+    .card { border:1px solid #223041; background:#0d131b; border-radius:14px; padding:14px; }
+    .muted { color:#a6b4c5; font-size:12px; }
+    textarea { min-height:190px; resize:vertical; margin-top:10px; }
+    .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button { background:#1a2634; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:650; }
+    button:hover { background:#223446; }
+    button:disabled { opacity:0.55; cursor:not-allowed; }
+    .preview { margin-top:10px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; display:flex; align-items:center; justify-content:center; min-height:200px; }
+    .preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
+    .topnav { margin-bottom:10px; }
+    .topnav a { color:#9bc7ff; text-decoration:none; font-size:13px; margin-right:12px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1 style="margin:0 0 6px;">Админка Wiki</h1>
+      <div class="muted">Редактирование описаний и изображений страниц персонажей/провинций.</div>
+      <div class="topnav"><a href="/wiki/">← Wiki</a><a href="/">К карте</a></div>
+      <input id="search" class="search" type="search" placeholder="Поиск по страницам" />
+      <div id="stats" class="muted" style="margin-top:8px;">Загрузка…</div>
+      <div id="list" class="list"></div>
+    </aside>
+    <main class="content">
+      <div class="card">
+        <h2 id="title" style="margin:0 0 4px;">Выберите страницу</h2>
+        <div id="meta" class="muted">—</div>
+
+        <label for="description" style="display:block; margin-top:12px;">Описание</label>
+        <textarea id="description" placeholder="Описание страницы"></textarea>
+
+        <div id="assetBlock" style="display:none; margin-top:12px;">
+          <label id="assetLabel" for="assetFile">Изображение</label>
+          <input id="assetFile" type="file" accept="image/*" />
+          <div id="assetHint" class="muted" style="margin-top:6px;"></div>
+          <div class="preview"><img id="assetPreview" alt="preview" style="display:none;" /><div id="assetEmpty" class="muted">Изображение не выбрано</div></div>
+        </div>
+
+        <div class="btnrow">
+          <button id="saveBtn" type="button" disabled>Сохранить</button>
+        </div>
+        <div id="status" class="muted" style="margin-top:10px;">—</div>
+      </div>
+    </main>
+  </div>
+<script>
+let pages = [];
+let filtered = [];
+let selected = null;
+let pendingAssetFile = null;
+let currentAssetUrl = '';
+
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+function setStatus(text, isError=false){
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.color = isError ? '#ff9aa5' : '#a6b4c5';
+}
+
+function setAssetPreview(url){
+  const img = document.getElementById('assetPreview');
+  const empty = document.getElementById('assetEmpty');
+  if (url) {
+    img.src = url;
+    img.style.display = 'block';
+    empty.style.display = 'none';
+  } else {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    empty.style.display = 'block';
+  }
+}
+
+function renderList(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  filtered = pages.filter((p) => [p.title, p.kind, p.page_key].filter(Boolean).join(' ').toLowerCase().includes(q));
+  document.getElementById('stats').textContent = `Найдено: ${filtered.length} / ${pages.length}`;
+  const list = document.getElementById('list');
+  list.innerHTML = filtered.map((p,i)=>`<button type="button" class="item ${selected && selected.page_key===p.page_key?'active':''}" data-i="${i}"><h3>${esc(p.title||p.page_key)}</h3><p>${esc(p.kind)} · ${esc(p.page_key)}</p></button>`).join('');
+  list.querySelectorAll('.item').forEach((el)=> el.addEventListener('click', ()=> openPage(filtered[Number(el.dataset.i)])));
+}
+
+function getShowUrl(p){
+  if (p.wiki_link) return p.wiki_link;
+  if (p.kind === 'character') return '/api/wiki/show/index.php?kind=character&id=' + encodeURIComponent(p.id || '');
+  if (p.kind === 'province') return '/api/wiki/show/index.php?kind=province&pid=' + encodeURIComponent(p.id || '');
+  return '/api/wiki/show/index.php?kind=' + encodeURIComponent(p.kind || '');
+}
+
+function renderSelected(item){
+  const kind = String(item.kind || '');
+  document.getElementById('title').textContent = item.title || item.page_key || 'Без названия';
+  document.getElementById('meta').textContent = `${kind} · ${item.page_key || ''}`;
+  document.getElementById('description').value = item.description || '';
+
+  const assetBlock = document.getElementById('assetBlock');
+  const assetLabel = document.getElementById('assetLabel');
+  const assetHint = document.getElementById('assetHint');
+
+  pendingAssetFile = null;
+  currentAssetUrl = '';
+
+  if (kind === 'character') {
+    assetBlock.style.display = 'block';
+    assetLabel.textContent = 'Фото персонажа';
+    assetHint.textContent = 'После сохранения фото будет использоваться в генеалогии и на карте.';
+    currentAssetUrl = item.character && item.character.photo_url ? String(item.character.photo_url) : '';
+    setAssetPreview(currentAssetUrl ? (currentAssetUrl.startsWith('/api/') ? currentAssetUrl : '/api/genealogy/photo/?url=' + encodeURIComponent(currentAssetUrl)) : '');
+  } else if (kind === 'province') {
+    assetBlock.style.display = 'block';
+    assetLabel.textContent = 'Фон карточки провинции';
+    assetHint.textContent = 'После сохранения фон будет виден на карте и в wiki-карточке провинции.';
+    currentAssetUrl = item.province && item.province.background_image ? String(item.province.background_image) : '';
+    setAssetPreview(currentAssetUrl ? '/' + currentAssetUrl.replace(/^\/+/, '') : '');
+  } else {
+    assetBlock.style.display = 'none';
+    setAssetPreview('');
+  }
+  document.getElementById('saveBtn').disabled = false;
+}
+
+async function openPage(page){
+  selected = page;
+  renderList();
+  setStatus('Загрузка страницы…');
+  try {
+    const res = await fetch(getShowUrl(page));
+    const body = await res.json();
+    if (!res.ok || !body.item) throw new Error(body.error || 'load_failed');
+    selected = body.item;
+    renderSelected(selected);
+    setStatus('Готово к редактированию.');
+  } catch (e) {
+    setStatus('Ошибка загрузки: ' + (e && e.message ? e.message : e), true);
+  }
+}
+
+async function uploadCharacterPhoto(file){
+  const fd = new FormData();
+  fd.append('photo', file);
+  const res = await fetch('/api/genealogy/photo/upload/', { method:'POST', body: fd });
+  const body = await res.json();
+  if (!res.ok || !body.photo_url) throw new Error(body.error || 'photo_upload_failed');
+  return String(body.photo_url);
+}
+
+function fileToDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadProvinceBackground(pid, file){
+  const imageDataUrl = await fileToDataUrl(file);
+  const res = await fetch('/api/provinces/card/upload/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pid, image_data_url: imageDataUrl }),
+  });
+  const body = await res.json();
+  if (!res.ok || !body.path) throw new Error(body.error || 'province_upload_failed');
+  return String(body.path);
+}
+
+async function getMapVersion(){
+  const res = await fetch('/api/map/version/index.php');
+  const body = await res.json();
+  if (!res.ok || !body.map_version) throw new Error(body.error || 'map_version_failed');
+  return String(body.map_version);
+}
+
+async function saveSelected(){
+  if (!selected) return;
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  setStatus('Сохранение…');
+  try {
+    const changes = { description: document.getElementById('description').value.trim() };
+    const payload = { kind: selected.kind, changes };
+
+    if (selected.kind === 'character') {
+      payload.id = selected.id;
+      if (pendingAssetFile) {
+        changes.photo_url = await uploadCharacterPhoto(pendingAssetFile);
+      }
+    } else if (selected.kind === 'province') {
+      const pid = Number(selected.id || selected.province?.pid || 0);
+      payload.pid = pid;
+      payload.if_match = await getMapVersion();
+      if (pendingAssetFile) {
+        changes.background_image = await uploadProvinceBackground(pid, pendingAssetFile);
+      }
+    } else if (selected.kind === 'entity' || selected.kind === 'clan') {
+      payload.id = selected.id;
+      if (selected.kind === 'entity') {
+        payload.entity_type = selected.entity_type;
+        payload.if_match = await getMapVersion();
+      }
+    } else {
+      throw new Error('unsupported_kind');
+    }
+
+    const res = await fetch('/api/wiki/patch/index.php', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.ok) throw new Error(body.error || 'patch_failed');
+    setStatus('Изменения сохранены.');
+    await loadPages();
+    const toOpen = pages.find((p) => p.page_key === selected.page_key);
+    if (toOpen) await openPage(toOpen);
+  } catch (e) {
+    setStatus('Ошибка сохранения: ' + (e && e.message ? e.message : e), true);
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function loadPages(){
+  const res = await fetch('/api/wiki/index.php');
+  const body = await res.json();
+  if (!res.ok || !Array.isArray(body.pages)) throw new Error(body.error || 'pages_load_failed');
+  pages = body.pages.filter((p) => ['province','character','entity','clan'].includes(String(p.kind || '')));
+  renderList();
+}
+
+document.getElementById('search').addEventListener('input', renderList);
+document.getElementById('assetFile').addEventListener('change', (e)=>{
+  const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+  pendingAssetFile = file;
+  if (file) {
+    const blobUrl = URL.createObjectURL(file);
+    setAssetPreview(blobUrl);
+    setStatus('Выбрано новое изображение. Нажмите «Сохранить».');
+  }
+});
+document.getElementById('saveBtn').addEventListener('click', saveSelected);
+
+loadPages().then(()=>setStatus('Выберите страницу для редактирования.')).catch((e)=>setStatus('Ошибка загрузки списка: '+ (e && e.message ? e.message : e), true));
+</script>
+</body>
+</html>
