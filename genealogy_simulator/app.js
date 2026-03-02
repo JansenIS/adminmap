@@ -865,55 +865,75 @@ function layout() {
       const parentIds = [...new Set(parentEdges.map(r => r.source_id))].sort(idSort);
       if (!parentIds.length) return;
 
-      const byUnion = new Map();
+      // ВАЖНО: child -> family должен быть ОДНОЗНАЧНЫМ.
+      // Если у одного ребёнка два родителя, но parents_union_id в parent_child ребрах
+      // заполнен частично/по-разному, старая логика дробила его на несколько "семей"
+      // (две одиночные или несколько union), что давало дубли и сломанные линии.
+      //
+      // Новая логика:
+      // - если есть 2+ родителя: выбираем одну родительскую пару (предпочтительно реальных супругов),
+      //   и назначаем один unionId (предпочтительно из spouse-rel; иначе по голосам parents_union_id; иначе auto:<pairKey>).
+      // - если родитель один: оставляем одиночную семью.
+
+      const unionVotes = new Map();
       parentEdges.forEach((r) => {
         const u = String(r.parents_union_id || '').trim();
         if (!u) return;
-        if (!byUnion.has(u)) byUnion.set(u, new Set());
-        byUnion.get(u).add(r.source_id);
+        unionVotes.set(u, (unionVotes.get(u) || 0) + 1);
       });
 
-      let assignedToUnion = false;
-      byUnion.forEach((set, unionId) => {
-        const unionParents = [...set].sort(idSort);
-        if (!unionParents.length) return;
-        if (unionParents.length >= 2) {
-          for (let i = 0; i < unionParents.length; i++) {
-            for (let j = i + 1; j < unionParents.length; j++) {
-              const a = unionParents[i];
-              const b = unionParents[j];
-              const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])
-                .find((rel) => String(rel.union_id || '') === unionId);
-              if (!spouseRel && !(spousesById.get(a) || new Set()).has(b)) continue;
-              addFamily([a, b], childId, unionId);
-              assignedToUnion = true;
-              return;
-            }
-          }
-        }
+      const pickBestUnionIdForPair = (a, b) => {
+        const pairKey = relKey(a, b);
+        const rels = spouseRelsByPair.get(pairKey) || [];
+        // 1) если есть spouse-rel с union_id — это самый сильный сигнал
+        const fromSpouse = rels.map(rr => String(rr.union_id || '').trim()).find(Boolean);
+        if (fromSpouse) return fromSpouse;
 
-        addFamily([unionParents[0]], childId, unionId);
-        assignedToUnion = true;
-      });
+        // 2) иначе берём наиболее частый parents_union_id среди рёбер ребёнка
+        let best = '';
+        let bestCount = 0;
+        unionVotes.forEach((cnt, u) => {
+          if (cnt > bestCount) { best = u; bestCount = cnt; }
+        });
+        if (best) return best;
 
-      if (assignedToUnion) return;
+        // 3) если есть единственный unionId (даже с 1 голосом)
+        if (unionVotes.size === 1) return [...unionVotes.keys()][0];
+
+        return '';
+      };
 
       if (parentIds.length >= 2) {
-        for (let i = 0; i < parentIds.length; i++) {
+        // выбираем пару родителей: сначала реальных супругов, иначе первые двое
+        let pair = null;
+        outer: for (let i = 0; i < parentIds.length; i++) {
           for (let j = i + 1; j < parentIds.length; j++) {
             const a = parentIds[i];
             const b = parentIds[j];
-            if (!(spousesById.get(a) || new Set()).has(b)) continue;
-            const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])[0] || null;
-            const unionId = spouseRel ? String(spouseRel.union_id || '') : '';
-            addFamily([a, b], childId, unionId);
-            return;
+            if ((spousesById.get(a) || new Set()).has(b)) { pair = [a, b]; break outer; }
           }
         }
+        if (!pair) pair = [parentIds[0], parentIds[1]];
+
+        const [a, b] = pair;
+
+        const rawUnionId = pickBestUnionIdForPair(a, b);
+        const unionId = rawUnionId ? rawUnionId : `auto:${relKey(a, b)}`;
+
+        addFamily([a, b], childId, unionId);
+        return;
       }
 
-      addFamily([parentIds[0]], childId);
+      // одиночный родитель
+      const onlyParent = parentIds[0];
+      let rawUnionId = '';
+      if (unionVotes.size) {
+        rawUnionId = [...unionVotes.entries()]
+          .sort((x, y) => (y[1] - x[1]) || x[0].localeCompare(y[0]))[0][0];
+      }
+      addFamily([onlyParent], childId, rawUnionId);
     });
+
 
     // Бездетные союзы всё равно должны участвовать в раскладке, чтобы супруги оставались рядом.
     state.relationships
@@ -922,8 +942,11 @@ function layout() {
         const a = r.source_id;
         const b = r.target_id;
         if ((normalizedGen.get(a) || 0) !== (normalizedGen.get(b) || 0)) return;
-        addFamily([a, b], null, String(r.union_id || ''));
+        const rawUnionId = String(r.union_id || '').trim();
+        const unionId = rawUnionId ? rawUnionId : `auto:${relKey(a, b)}`;
+        addFamily([a, b], null, unionId);
       });
+
 
     // Если у родителя несколько семей, выбираем primary по близости к текущему x.
     const primaryFamilyByPerson = new Map();
@@ -1737,6 +1760,8 @@ function render({ preserveViewportAnchor = true } = {}) {
 
   const siblingLaneIndex = trackByGeneration(siblingIntervals);
   const spouseLaneIndex = trackByGeneration(spouseIntervals);
+  const spouseLaneYByPair = new Map();
+  const drawnSpousePairs = new Set();
 
   const groupedParentChild = new Set();
   const families = new Map();
@@ -1752,17 +1777,39 @@ function render({ preserveViewportAnchor = true } = {}) {
   const layoutFamilies = Array.isArray(state.layoutFamilies) ? state.layoutFamilies : [];
   layoutFamilies.forEach((family) => {
     if (!family?.parentA || !Array.isArray(family.children) || !family.children.length) return;
-    const key = String(family.key || `layout:${family.parentA}:${family.parentB || ''}`);
-    families.set(key, {
-      parentA: family.parentA,
-      parentB: family.parentB || null,
-      children: [...new Set(family.children)],
-    });
-    families.get(key).children.forEach((childId) => {
-      groupedParentChild.add(`${family.parentA}->${childId}`);
-      if (family.parentB) groupedParentChild.add(`${family.parentB}->${childId}`);
+
+    const parentA = family.parentA;
+    const parentB = family.parentB || null;
+
+    // ВАЖНО: семьи нужно мерджить по паре родителей, а не по произвольному family.key.
+    // Иначе при рассинхроне unionId/parents_union_id или дублях в данных одна и та же пара
+    // может появиться несколько раз => двойные рельсы и "утолщённые" линии.
+    const canonKey = parentB ? `pair:${relKey(parentA, parentB)}` : `single:${String(parentA)}`;
+
+    if (!families.has(canonKey)) {
+      families.set(canonKey, {
+        parentA,
+        parentB,
+        children: [],
+        _childSet: new Set(),
+      });
+    } else {
+      const existing = families.get(canonKey);
+      if (!existing.parentB && parentB) existing.parentB = parentB;
+    }
+
+    const node = families.get(canonKey);
+    family.children.forEach((childId) => {
+      if (childId == null) return;
+      if (!node._childSet.has(childId)) {
+        node._childSet.add(childId);
+        node.children.push(childId);
+      }
+      groupedParentChild.add(`${node.parentA}->${childId}`);
+      if (node.parentB) groupedParentChild.add(`${node.parentB}->${childId}`);
     });
   });
+
 
   // Fallback: если layout-семьи не собраны, используем предыдущую схему по relationship-графу.
   if (!families.size) {
@@ -1836,8 +1883,11 @@ function render({ preserveViewportAnchor = true } = {}) {
       const canonical = canonicalSpouseRelByPair.get(pairKey);
       if (!canonical) return;
       if (String(canonical.union_id || '') !== String(r.union_id || '')) return;
+      if (drawnSpousePairs.has(pairKey)) return;
       const pairIndex = spouseLaneIndex.get(pairKey) || 0;
       const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET + pairIndex * 12;
+      drawnSpousePairs.add(pairKey);
+      spouseLaneYByPair.set(pairKey, laneY);
       createPolyline([
         [minX, a.y + NODE_RADIUS],
         [minX, laneY],
@@ -1921,7 +1971,17 @@ function render({ preserveViewportAnchor = true } = {}) {
     if (!kids.length) return;
 
     const parentLowY = p2 ? Math.max(p1.y, p2.y) : p1.y;
-    const spouseLaneY = parentLowY + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+    let spouseLaneY = parentLowY + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
+    if (p2) {
+      const pairKey = relKey(family.parentA, family.parentB);
+      const storedLane = spouseLaneYByPair.get(pairKey);
+      if (typeof storedLane === 'number') {
+        spouseLaneY = storedLane;
+      } else {
+        const pairIndex = spouseLaneIndex.get(pairKey) || 0;
+        spouseLaneY = parentLowY + NODE_RADIUS + SPOUSE_RAIL_OFFSET + pairIndex * 12;
+      }
+    }
     const marriageMidX = p2 ? (p1.x + p2.x) / 2 : p1.x;
     const minChildY = Math.min(...kids.map(k => k.pos.y));
     const minChildTopY = Math.min(...kids.map(k => k.pos.y - NODE_RADIUS));
