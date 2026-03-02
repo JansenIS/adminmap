@@ -1,0 +1,3559 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Isotope Village Generator — v5.1 (Dark UI • SVG/JSON/PNG export)</title>
+  <style>
+    :root{
+      --bg0:#070910;
+      --bg1:#0b0f1a;
+      --panel:#0f1422;
+      --panel2:#0c1020;
+      --line:#23304a;
+      --text:#e7ecf6;
+      --muted:#9fb0c6;
+      --accent:#7c4dff;
+      --accent2:#3cf6c2;
+
+      /* Map palette */
+      --map-bg:#070a12;
+      --map-grid:#101a2a;
+      --map-road:#2c3b57;
+      --map-road2:#22304a;
+      --map-wall:#a7b3c7;
+      --map-ditch:#3a4b6b;
+      --map-house-fill:#111a2b;
+      --map-house-stroke:#3b4a66;
+      --map-work-fill:#121f2e;
+      --map-work-stroke:#4a5f84;
+      --map-green-fill:#0f1c20;
+      --map-green-stroke:#46ffd2;
+      --map-green-rib:#22bca0;
+      --map-wind:#90a0bd;
+      --map-wind2:#c5d0e6;
+      --map-power:#ffd36b;
+      --map-water:#1a2b48;
+      --map-water-stroke:#2e507c;
+      --map-label:#cfe0ff;
+
+      --map-tract:#415a86;
+      --map-tract2:#2b3d5c;
+
+      --map-forest-fill:#0b1317;
+      --map-forest-stroke:#2fe3c0;
+      --map-forest-text:#1a2a2f;
+
+      --map-swamp-fill:#0a1220;
+      --map-swamp-stroke:#2a4e7d;
+      --map-swamp-text:#152b45;
+
+      --map-hill-stroke:#3c4f74;
+      --map-hill-text:#22304a;
+
+      --map-ruin-fill:#0a0d15;
+      --map-ruin-stroke:#5f708f;
+      --map-ruin-text:#2b3a55;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(1200px 800px at 20% 10%, #0b1030 0%, var(--bg1) 45%, var(--bg0) 100%);
+      color:var(--text);
+      overflow:hidden;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:12px;
+      height:100vh;
+      padding:12px;
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      overflow:hidden;
+      min-height:0;
+    }
+
+    .left{
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+
+    .hdr{
+      padding:14px 14px 10px 14px;
+      background:linear-gradient(180deg, rgba(124,77,255,.12), rgba(124,77,255,0));
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .hdr h1{
+      font-size:16px;
+      margin:0 0 6px 0;
+      letter-spacing:.2px;
+      font-weight:650;
+    }
+    .hdr .sub{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+
+    .controls{
+      padding:12px 14px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .sec{
+      padding:10px 0 12px 0;
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .sec:last-child{border-bottom:none}
+
+    .sec h2{
+      margin:0 0 8px 0;
+      font-size:12px;
+      letter-spacing:.5px;
+      text-transform:uppercase;
+      color:#c9d6ee;
+      font-weight:700;
+    }
+
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      align-items:center;
+      margin:8px 0;
+    }
+    .row.one{grid-template-columns:1fr}
+    label{
+      font-size:12px;
+      color:var(--muted);
+      display:block;
+      margin:0 0 4px 0;
+    }
+    input[type="text"], input[type="number"], select, textarea{
+      width:100%;
+      padding:10px 10px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      outline:none;
+    }
+    input[type="number"]{appearance:textfield}
+    input[type="range"]{width:100%}
+
+    .btns{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:8px;
+    }
+    button{
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      padding:9px 10px;
+      border-radius:10px;
+      font-size:12px;
+      transition:transform .06s ease, background .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    button:hover{background:rgba(255,255,255,.10)}
+    button:active{transform:translateY(1px)}
+    button.primary{
+      border-color:rgba(124,77,255,.55);
+      background:rgba(124,77,255,.20);
+    }
+    button.primary:hover{background:rgba(124,77,255,.28)}
+    button.good{
+      border-color:rgba(60,246,194,.55);
+      background:rgba(60,246,194,.12);
+    }
+    button.good:hover{background:rgba(60,246,194,.16)}
+    button.warn{
+      border-color:rgba(255,211,107,.5);
+      background:rgba(255,211,107,.10);
+    }
+    button.warn:hover{background:rgba(255,211,107,.14)}
+    button.ghost{
+      border-color:rgba(255,255,255,.08);
+      background:transparent;
+    }
+
+    .tog{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-top:8px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .tog input{transform:translateY(1px)}
+
+    .right{
+      position:relative;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .canvasWrap{
+      position:relative;
+      min-height:0;
+      flex:1;
+      background:radial-gradient(1200px 900px at 50% 20%, rgba(124,77,255,.08) 0%, rgba(0,0,0,0) 45%),
+                 linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.00));
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:14px;
+      overflow:hidden;
+    }
+
+    .topbar{
+      position:absolute;
+      left:12px; top:12px;
+      right:12px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      pointer-events:none;
+      z-index:5;
+    }
+    .chip{
+      pointer-events:auto;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:999px;
+      padding:8px 10px;
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      backdrop-filter: blur(6px);
+    }
+    .chip b{color:var(--text); font-weight:650}
+    .chip .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--accent2);
+      box-shadow:0 0 12px rgba(60,246,194,.5);
+    }
+
+    .hint{
+      position:absolute;
+      right:12px; bottom:12px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:12px;
+      color:var(--muted);
+      backdrop-filter: blur(6px);
+      max-width:min(520px, calc(100% - 24px));
+      z-index:6;
+    }
+    .hint code{
+      color:#d8e6ff;
+      background:rgba(255,255,255,.06);
+      padding:2px 6px;
+      border-radius:8px;
+    }
+
+    svg#map{
+      width:100%;
+      height:100%;
+      display:block;
+      background:radial-gradient(1200px 800px at 50% 40%, rgba(60,246,194,.06), rgba(0,0,0,0) 55%),
+                 linear-gradient(180deg, var(--map-bg), #05070e);
+      touch-action:none;
+    }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      padding:10px 14px;
+      border-top:1px solid rgba(255,255,255,.06);
+      background:rgba(0,0,0,.12);
+      align-items:center;
+    }
+    .tabBtn{
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.05);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .tabBtn.active{
+      color:var(--text);
+      border-color:rgba(124,77,255,.55);
+      background:rgba(124,77,255,.18);
+    }
+    .outWrap{
+      display:none;
+      padding:10px 14px 14px 14px;
+      border-top:1px solid rgba(255,255,255,.06);
+      background:rgba(0,0,0,.10);
+      height:34vh;
+      min-height:180px;
+      overflow:auto;
+    }
+    .outWrap.active{display:block}
+    textarea{
+      min-height:220px;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:11px;
+      line-height:1.35;
+      white-space:pre;
+      resize:vertical;
+    }
+    .miniBtns{display:flex;flex-wrap:wrap; gap:8px; margin:10px 0 0 0}
+    .log{
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      font-size:11px;
+      color:#cfe0ff;
+      opacity:.92;
+      white-space:pre-wrap;
+      line-height:1.35;
+    }
+
+    @media (max-width: 980px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; overflow:auto}
+      .canvasWrap{height:60vh}
+      .outWrap{height:auto}
+    }
+  
+    /* -------------------------
+       Parchment theme (UI + map palette)
+       ------------------------- */
+    body.parchment{
+      background:linear-gradient(180deg,#e9e0cf,#e7ddc8 55%,#e1d6bf);
+      color:#1b1f24;
+    }
+    body.parchment .panel{
+      background:linear-gradient(180deg,#f2eadb,#efe4d2);
+      border-color:rgba(0,0,0,.12);
+      color:#1b1f24;
+    }
+    body.parchment .viewer{
+      background:linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.01));
+      border-color:rgba(0,0,0,.12);
+    }
+    body.parchment .toolbar{
+      background:rgba(255,255,255,.70);
+      border-bottom-color:rgba(0,0,0,.10);
+    }
+    body.parchment input[type="text"], body.parchment input[type="number"], body.parchment select, body.parchment textarea{
+      background:#fffaf0;
+      border-color:rgba(0,0,0,.12);
+      color:#1b1f24;
+    }
+    body.parchment .sec h2, body.parchment label, body.parchment .sub, body.parchment .chip{
+      color:#3c4956;
+    }
+    body.parchment button{
+      border-color:rgba(0,0,0,.12);
+      color:#1b1f24;
+      background:rgba(167,139,250,.20);
+    }
+    body.parchment button.ghost{background:rgba(0,0,0,.06)}
+    body.parchment button.warn{background:rgba(140,45,45,.10)}
+    body.parchment .tabBtn{background:rgba(0,0,0,.06); border-color:rgba(0,0,0,.10); color:#1b1f24}
+    body.parchment .tabBtn.active{background:rgba(110,78,168,.18); border-color:rgba(110,78,168,.28)}
+
+    body.parchment .tabs{
+      border-top-color:rgba(0,0,0,.10);
+      background:rgba(255,255,255,.65);
+    }
+
+    /* Map palette overrides for parchment */
+    body.parchment{
+      --map-bg:#efe4d2;
+      --map-grid:rgba(0,0,0,.10);
+
+      --map-road:rgba(32,36,40,.58);
+      --map-road2:rgba(32,36,40,.34);
+
+      --map-wall:rgba(110,88,46,.92);
+      --map-ditch:rgba(60,45,30,.28);
+
+      --map-house-fill:rgba(32,36,40,.04);
+      --map-house-stroke:rgba(32,36,40,.16);
+
+      --map-work-fill:rgba(145,87,25,.10);
+      --map-work-stroke:rgba(145,87,25,.52);
+
+      --map-green-fill:rgba(45,120,65,.08);
+      --map-green-stroke:rgba(45,120,65,.60);
+      --map-green-rib:rgba(45,120,65,.55);
+
+      --map-wind:rgba(32,36,40,.35);
+      --map-wind2:rgba(32,36,40,.72);
+      --map-power:rgba(110,78,168,.75);
+
+      --map-water:rgba(35,110,165,.12);
+      --map-water-stroke:rgba(35,110,165,.70);
+
+      --map-label:rgba(32,36,40,.78);
+
+      --map-tract:rgba(32,36,40,.55);
+      --map-tract2:rgba(32,36,40,.30);
+
+      --map-forest-fill:rgba(90,140,90,.12);
+      --map-forest-stroke:rgba(45,120,65,.60);
+      --map-forest-text:rgba(40,80,50,.25);
+
+      --map-swamp-fill:rgba(55,130,180,.12);
+      --map-swamp-stroke:rgba(20,80,125,.40);
+      --map-swamp-text:rgba(20,80,125,.20);
+
+      --map-hill-stroke:rgba(60,45,30,.18);
+      --map-hill-text:rgba(32,36,40,.16);
+
+      --map-ruin-fill:rgba(140,45,45,.08);
+      --map-ruin-stroke:rgba(140,45,45,.55);
+      --map-ruin-text:rgba(40,40,40,.20);
+    }
+
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="panel left">
+    <div class="hdr">
+      <h1>Isotope Village Generator</h1>
+      <div class="sub">Деревня в сеттинге Изотопа: огромные теплицы, укрепления, поле ветряков, линии питания. Детализация — “карта/план” (SVG), экспорт SVG/JSON/PNG.</div>
+    </div>
+
+    <div class="controls" id="controls">
+      <div class="sec">
+        <h2>Сцена</h2>
+        <div class="row">
+          <div>
+            <label>Seed</label>
+            <input id="seed" type="text" value="amgalt-village-01"/>
+          </div>
+          <div>
+            <label>Биом</label>
+            <select id="biome">
+              <option value="plains">Равнины</option>
+              <option value="river">Речная долина</option>
+              <option value="coast">Побережье</option>
+              <option value="forest">Лесной край</option>
+              <option value="marsh">Болота</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Размер деревни</label>
+            <select id="size">
+              <option value="s">Малая</option>
+              <option value="m" selected>Средняя</option>
+              <option value="l">Крупная</option>
+            </select>
+          </div>
+          <div>
+            <label>Укрепления</label>
+            <select id="fort">
+              <option value="none">Нет</option>
+              <option value="palisade" selected>Частокол + ворота</option>
+              <option value="palisade_ditch">Частокол + ров</option>
+              <option value="earthwork">Земляные валы + частокол + ров</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Домов (плотность)</label>
+            <input id="density" type="range" min="0" max="100" value="65"/>
+          </div>
+          <div>
+            <label>Теплиц (гигантские)</label>
+            <input id="greenCount" type="range" min="1" max="8" value="4"/>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Ветряки (малые)</label>
+            <input id="windCount" type="range" min="0" max="80" value="35"/>
+          </div>
+          <div>
+            <label>Ветряки (крупные)</label>
+            <input id="windBig" type="range" min="0" max="8" value="2"/>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Вода / река</label>
+            <select id="waterMode">
+              <option value="auto" selected>Авто (по биому)</option>
+              <option value="none">Нет</option>
+              <option value="river">Река</option>
+              <option value="canal">Канал/кювет</option>
+            </select>
+          </div>
+          <div>
+            <label>Подписи объектов</label>
+            <select id="labels">
+              <option value="off" selected>Выключены</option>
+              <option value="on">Включены</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="btnGenerate">Сгенерировать</button>
+          <button class="ghost" id="btnRandom">Случайный seed</button>
+          <button class="ghost" id="btnResetView">Сбросить вид</button>
+        </div>
+
+        <div class="tog">
+          <input id="battleMeta" type="checkbox" checked/>
+          <span>Экспортировать метаданные для боя (укрытия/LoS/проходимость)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>Экспорт</h2>
+        <div class="btns">
+          <button class="good" id="btnSVG">Скачать SVG</button>
+          <button class="good" id="btnJSON">Скачать JSON</button>
+          <button class="good" id="btnPNG">Скачать PNG</button>
+        </div>
+        <div class="btns">
+          <button class="warn" id="btnCopySVG">Копировать SVG</button>
+          <button class="warn" id="btnCopyJSON">Копировать JSON</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>Слои</h2>
+        <div class="row">
+          <div>
+            <label>Показать сетку</label>
+            <select id="grid">
+              <option value="off" selected>Нет</option>
+              <option value="on">Да</option>
+            </select>
+          </div>
+          <div>
+            <label>Текстуры</label>
+            <select id="textures">
+              <option value="off" selected>Выключены</option>
+              <option value="on">Включены</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Ров/валики (декор)</label>
+            <select id="detail">
+              <option value="low">Низко</option>
+              <option value="med" selected>Средне</option>
+              <option value="high">Высоко</option>
+            </select>
+          </div>
+          <div>
+            <label>Тема</label>
+            <select id="theme">
+              <option value="dark" selected>Dark</option>
+              <option value="parchment">Parchment</option>
+            </select>
+          </div>
+        </div>
+        <div class="row one">
+          <div class="btns">
+            <button class="ghost" id="btnRecolor">Подчеркнуть теплицы (свечение)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>Заметки</h2>
+        <div class="sub" style="color:var(--muted); font-size:12px; line-height:1.4">
+          Движение карты: <b>ЛКМ/палец</b> — пан, <b>колесо/пинч</b> — зум. Экспорт PNG — рендер SVG в Canvas.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="canvasWrap panel">
+      <div class="topbar">
+        <div class="chip">
+          <span class="dot"></span>
+          <span>Seed: <b id="seedChip">—</b></span>
+          <span>Объекты: <b id="objChip">—</b></span>
+        </div>
+        <div class="chip">
+          <span>Зум: <b id="zoomChip">100%</b></span>
+          <span>VB: <b id="vbChip">—</b></span>
+        </div>
+      </div>
+
+      <svg id="map" viewBox="0 0 2000 1200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Isotope village map">
+        <defs>
+          <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.2" result="blur"/>
+            <feColorMatrix type="matrix" values="
+              1 0 0 0 0
+              0 1 0 0 0
+              0 0 1 0 0
+              0 0 0 .65 0" result="blur2"/>
+            <feMerge>
+              <feMergeNode in="blur2"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+
+          <pattern id="gridPattern" width="80" height="80" patternUnits="userSpaceOnUse">
+            <path d="M 80 0 L 0 0 0 80" fill="none" stroke="var(--map-grid)" stroke-width="1"/>
+          </pattern>
+          <g id="dynDefs"></g>
+        </defs>
+
+        <rect id="bgRect" x="0" y="0" width="2000" height="1200" fill="var(--map-bg)"></rect>
+
+        <rect id="gridRect" x="0" y="0" width="2000" height="1200" fill="url(#gridPattern)" opacity="0.0"></rect>
+
+        <g id="layer-nature"></g>
+        <g id="layer-water"></g>
+        <g id="layer-tract"></g>
+        <g id="layer-ditch"></g>
+        <g id="layer-walls"></g>
+        <g id="layer-roads"></g>
+        <g id="layer-power"></g>
+        <g id="layer-fields"></g>
+        <g id="layer-buildings"></g>
+        <g id="layer-greenhouses"></g>
+        <g id="layer-wind"></g>
+        <g id="layer-labels"></g>
+      </svg>
+
+      <div class="hint">
+        <div style="margin-bottom:6px;">Подсказка</div>
+        <div>Пан: <code>drag</code> • Зум: <code>wheel</code>/<code>pinch</code> • Экспорт: кнопки слева.</div>
+      </div>
+    </div>
+
+    <div class="tabs panel">
+      <button class="tabBtn active" data-tab="svgOut">SVG</button>
+      <button class="tabBtn" data-tab="jsonOut">JSON</button>
+      <button class="tabBtn" data-tab="logOut">LOG</button>
+      <div style="flex:1"></div>
+      <span style="color:var(--muted); font-size:12px">Вывод обновляется после генерации</span>
+    </div>
+
+    <div class="outWrap panel active" id="svgOut">
+      <label>SVG (текущая карта)</label>
+      <textarea id="svgText" spellcheck="false"></textarea>
+      <div class="miniBtns">
+        <button class="warn" id="btnCopySVG2">Копировать SVG</button>
+        <button class="good" id="btnSVG2">Скачать SVG</button>
+      </div>
+    </div>
+
+    <div class="outWrap panel" id="jsonOut">
+      <label>JSON (объекты/мета)</label>
+      <textarea id="jsonText" spellcheck="false"></textarea>
+      <div class="miniBtns">
+        <button class="warn" id="btnCopyJSON2">Копировать JSON</button>
+        <button class="good" id="btnJSON2">Скачать JSON</button>
+      </div>
+    </div>
+
+    <div class="outWrap panel" id="logOut">
+      <label>Log</label>
+      <div class="log" id="log"></div>
+      <div class="miniBtns">
+        <button class="ghost" id="btnClearLog">Очистить лог</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // -----------------------------
+  // Utilities: RNG + geometry
+  // -----------------------------
+  function xmur3(str){
+    let h = 1779033703 ^ str.length;
+    for (let i=0; i<str.length; i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= (h >>> 16);
+      return h >>> 0;
+    };
+  }
+  function mulberry32(a){
+    return function(){
+      a |= 0;
+      a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function rngFromSeed(seedStr){
+    const seedFn = xmur3(seedStr);
+    return mulberry32(seedFn());
+  }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+  function rnd(rng){ return (typeof rng==="function") ? rng() : Math.random(); }
+  function rndRange(rng,a,b){ return a + (b-a)*rng(); }
+  function rndInt(rng,a,b){ return Math.floor(rndRange(rng,a,b+1)); }
+  function pick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
+
+  function centroid(points){
+    let x=0,y=0;
+    for(const p of points){ x+=p.x; y+=p.y; }
+    return {x:x/points.length, y:y/points.length};
+  }
+
+  function chaikin(points, iterations){
+    let pts = points.slice();
+    for(let it=0; it<iterations; it++){
+      const res=[];
+      for(let i=0; i<pts.length; i++){
+        const p0=pts[i];
+        const p1=pts[(i+1)%pts.length];
+        const q={x:0.75*p0.x + 0.25*p1.x, y:0.75*p0.y + 0.25*p1.y};
+        const r={x:0.25*p0.x + 0.75*p1.x, y:0.25*p0.y + 0.75*p1.y};
+        res.push(q,r);
+      }
+      pts=res;
+    }
+    return pts;
+  }
+
+  function convexHull(points){
+    // Monotonic chain, returns CCW hull
+    const pts = points.slice().sort((a,b)=> a.x===b.x ? a.y-b.y : a.x-b.x);
+    if (pts.length <= 1) return pts;
+    const cross=(o,a,b)=> (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+    const lower=[];
+    for(const p of pts){
+      while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+      lower.push(p);
+    }
+    const upper=[];
+    for(let i=pts.length-1; i>=0; i--){
+      const p=pts[i];
+      while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+      upper.push(p);
+    }
+    upper.pop(); lower.pop();
+    return lower.concat(upper);
+  }
+
+  function scalePoly(poly, scale){
+    const c = centroid(poly);
+    return poly.map(p=>{
+      const vx=p.x-c.x, vy=p.y-c.y;
+      return {x:c.x + vx*scale, y:c.y + vy*scale};
+    });
+  }
+
+  function jitterPoly(poly, rng, amount){
+    const c = centroid(poly);
+    return poly.map(p=>{
+      const vx=p.x-c.x, vy=p.y-c.y;
+      const len=Math.hypot(vx,vy) || 1;
+      const nx=vx/len, ny=vy/len;
+      const j = (rng()*2-1)*amount;
+      return {x:p.x + nx*j, y:p.y + ny*j};
+    });
+  }
+
+  function pointInPoly(pt, poly){
+    // ray casting
+    let inside=false;
+    for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+      const xi=poly[i].x, yi=poly[i].y;
+      const xj=poly[j].x, yj=poly[j].y;
+      const intersect = ((yi>pt.y)!=(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi+1e-9) + xi);
+      if(intersect) inside=!inside;
+    }
+    return inside;
+  }
+
+  function polyBBox(poly){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const p of poly){
+      minX=Math.min(minX,p.x); minY=Math.min(minY,p.y);
+      maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y);
+    }
+    return {minX,minY,maxX,maxY};
+  }
+  function bboxOverlap(a,b){
+    return !(a.maxX<b.minX || a.minX>b.maxX || a.maxY<b.minY || a.minY>b.maxY);
+  }
+
+
+  function expandBBox(bb, pad){
+    return {minX: bb.minX - pad, minY: bb.minY - pad, maxX: bb.maxX + pad, maxY: bb.maxY + pad};
+  }
+
+  function normalizeVec(vx, vy){
+    const len = Math.hypot(vx,vy) || 1;
+    return {x: vx/len, y: vy/len};
+  }
+
+  function pointSegDist(pt, a, b){
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const t = clamp(((pt.x - a.x)*vx + (pt.y - a.y)*vy) / (vx*vx + vy*vy + 1e-9), 0, 1);
+    const x = a.x + vx*t, y = a.y + vy*t;
+    return Math.hypot(pt.x - x, pt.y - y);
+  }
+
+
+  function closestPointOnSegment(pt, a, b){
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const t = clamp(((pt.x - a.x)*vx + (pt.y - a.y)*vy) / (vx*vx + vy*vy + 1e-9), 0, 1);
+    return {x: a.x + vx*t, y: a.y + vy*t, t};
+  }
+
+  function nearestPointOnPoly(pt, poly){
+    let best = {p: {x: poly[0].x, y: poly[0].y}, d: Infinity, i: 0, t: 0};
+    for(let i=0;i<poly.length;i++){
+      const a = poly[i], b = poly[(i+1)%poly.length];
+      const cp = closestPointOnSegment(pt, a, b);
+      const d = Math.hypot(pt.x - cp.x, pt.y - cp.y);
+      if(d < best.d){
+        best = {p:{x:cp.x, y:cp.y}, d, i, t:cp.t};
+      }
+    }
+    return best;
+  }
+
+  function nearestPointOnPolyline(pt, pts){
+    let best = {p: {x: pts[0].x, y: pts[0].y}, d: Infinity, i: 0, t: 0};
+    for(let i=0;i<pts.length-1;i++){
+      const a = pts[i], b = pts[i+1];
+      const cp = closestPointOnSegment(pt, a, b);
+      const d = Math.hypot(pt.x - cp.x, pt.y - cp.y);
+      if(d < best.d){
+        best = {p:{x:cp.x, y:cp.y}, d, i, t:cp.t};
+      }
+    }
+    return best;
+  }
+
+  function minDistPointToPolyline(pt, pts){
+    let best = Infinity;
+    for(let i=0;i<pts.length-1;i++){
+      const d = pointSegDist(pt, pts[i], pts[i+1]);
+      if(d < best) best = d;
+    }
+    return best;
+  }
+
+  function smoothClosed(poly, iters){
+    if(poly.length < 3) return poly.slice();
+    let pts = poly.slice();
+    for(let k=0;k<iters;k++){
+      const res=[];
+      for(let i=0;i<pts.length;i++){
+        const p0 = pts[i];
+        const p1 = pts[(i+1)%pts.length];
+        const q = {x:0.75*p0.x + 0.25*p1.x, y:0.75*p0.y + 0.25*p1.y};
+        const r = {x:0.25*p0.x + 0.75*p1.x, y:0.25*p0.y + 0.75*p1.y};
+        res.push(q, r);
+      }
+      pts = res;
+    }
+    return pts;
+  }
+
+  function blobPoly(cx, cy, r, rng, n, rough){
+    const pts=[];
+    const TAU = Math.PI*2;
+    const N = n || 22;
+    const R = r;
+    const rf = (rough==null) ? 0.26 : rough;
+    for(let i=0;i<N;i++){
+      const baseA = TAU*(i/N);
+      const a = baseA + (rng()*2-1)*(TAU/N*0.22);
+      const rr = R*(1 + (rng()*2-1)*rf);
+      pts.push({x: cx + Math.cos(a)*rr, y: cy + Math.sin(a)*rr});
+    }
+    return smoothClosed(pts, 2);
+  }
+
+  function minDistPointToPolyEdges(pt, poly){
+    let best = Infinity;
+    for(let i=0;i<poly.length;i++){
+      const a = poly[i], b = poly[(i+1)%poly.length];
+      const d = pointSegDist(pt, a, b);
+      if(d < best) best = d;
+    }
+    return best;
+  }
+
+  function polyAllInside(polyA, polyB){
+    for(const v of polyA){
+      if(!pointInPoly(v, polyB)) return false;
+    }
+    return true;
+  }
+
+  function polyAnyVertexInside(polyA, polyB){
+    for(const v of polyA){
+      if(pointInPoly(v, polyB)) return true;
+    }
+    return false;
+  }
+
+  function translatePoly(poly, dx, dy){
+    return poly.map(p=>({x:p.x+dx, y:p.y+dy}));
+  }
+
+  function pointPolylineMinDist(pt, points){
+    let best = Infinity;
+    for(let i=0;i<points.length-1;i++){
+      const d = pointSegDist(pt, points[i], points[i+1]);
+      if(d < best) best = d;
+    }
+    return best;
+  }
+
+  function rotatePoint(px,py,cx,cy,ang){
+    const s=Math.sin(ang), c=Math.cos(ang);
+    const x=px-cx, y=py-cy;
+    return {x: cx + x*c - y*s, y: cy + x*s + y*c};
+  }
+
+  function rectPoly(cx, cy, w, h, ang){
+    const hw=w/2, hh=h/2;
+    const pts = [
+      {x:cx-hw, y:cy-hh},
+      {x:cx+hw, y:cy-hh},
+      {x:cx+hw, y:cy+hh},
+      {x:cx-hw, y:cy+hh},
+    ];
+    return pts.map(p=>rotatePoint(p.x,p.y,cx,cy,ang));
+  }
+
+  function polyToPath(poly, closed=true){
+    if(!poly.length) return "";
+    let d = `M ${poly[0].x.toFixed(2)} ${poly[0].y.toFixed(2)}`;
+    for(let i=1;i<poly.length;i++){
+      d += ` L ${poly[i].x.toFixed(2)} ${poly[i].y.toFixed(2)}`;
+    }
+    if(closed) d += " Z";
+    return d;
+  }
+  function linePath(points){
+    if(!points.length) return "";
+    let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+    for(let i=1;i<points.length;i++){
+      d += ` L ${points[i].x.toFixed(2)} ${points[i].y.toFixed(2)}`;
+    }
+    return d;
+  }
+
+  function smoothPolyline(points, softness){
+    // simple corner-rounding via Chaikin on open polyline
+    if(points.length<3) return points.slice();
+    let pts = points.slice();
+    const iters = softness; // 1..3 reasonable
+    for(let k=0;k<iters;k++){
+      const res=[pts[0]];
+      for(let i=0;i<pts.length-1;i++){
+        const p0=pts[i], p1=pts[i+1];
+        const q={x:0.75*p0.x + 0.25*p1.x, y:0.75*p0.y + 0.25*p1.y};
+        const r={x:0.25*p0.x + 0.75*p1.x, y:0.25*p0.y + 0.75*p1.y};
+        res.push(q,r);
+      }
+      res.push(pts[pts.length-1]);
+      pts=res;
+    }
+    // remove duplicates near ends
+    return pts;
+  }
+
+  // -----------------------------
+  // DOM helpers
+  // -----------------------------
+  const $ = (sel)=>document.querySelector(sel);
+  const elNS = (name)=>document.createElementNS("http://www.w3.org/2000/svg", name);
+
+  function setAttrs(node, attrs){
+    for(const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+  }
+  function clear(node){
+    while(node.firstChild) node.removeChild(node.firstChild);
+  }
+  function logLine(s){
+    const t = new Date().toLocaleTimeString();
+    const logEl = $("#log");
+    logEl.textContent += `[${t}] ${s}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // -----------------------------
+  // Map state + rendering
+  // -----------------------------
+  const map = $("#map");
+  const layer = {
+    nature: $("#layer-nature"),
+    water: $("#layer-water"),
+    tract: $("#layer-tract"),
+    ditch: $("#layer-ditch"),
+    walls: $("#layer-walls"),
+    roads: $("#layer-roads"),
+    power: $("#layer-power"),
+    fields: $("#layer-fields"),
+    buildings: $("#layer-buildings"),
+    green: $("#layer-greenhouses"),
+    wind: $("#layer-wind"),
+    labels: $("#layer-labels"),
+  };
+
+  const dynDefs = $("#dynDefs");
+
+  const WORLD = {w:2000, h:1200};
+
+  let view = {x:0,y:0,w:WORLD.w,h:WORLD.h, zoom:1};
+  let isPanning=false;
+  let panStart=null;
+
+  function setViewBox(v){
+    view = v;
+    map.setAttribute("viewBox", `${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
+    $("#zoomChip").textContent = `${Math.round(100*(WORLD.w/v.w))}%`;
+    $("#vbChip").textContent = `${Math.round(v.x)} ${Math.round(v.y)} ${Math.round(v.w)} ${Math.round(v.h)}`;
+  }
+
+  function resetView(){
+    setViewBox({x:0,y:0,w:WORLD.w,h:WORLD.h, zoom:1});
+  }
+
+  function screenToWorld(clientX, clientY){
+    const r = map.getBoundingClientRect();
+    const nx = (clientX - r.left) / r.width;
+    const ny = (clientY - r.top) / r.height;
+    return {x: view.x + nx*view.w, y: view.y + ny*view.h};
+  }
+
+  map.addEventListener("pointerdown", (e)=>{
+    map.setPointerCapture(e.pointerId);
+    isPanning = true;
+    panStart = {pt: screenToWorld(e.clientX, e.clientY), vx:view.x, vy:view.y, id:e.pointerId};
+  });
+  map.addEventListener("pointermove", (e)=>{
+    if(!isPanning || !panStart || e.pointerId!==panStart.id) return;
+    const cur = screenToWorld(e.clientX, e.clientY);
+    const dx = cur.x - panStart.pt.x;
+    const dy = cur.y - panStart.pt.y;
+    setViewBox({
+      x: clamp(panStart.vx - dx, -200, WORLD.w-50),
+      y: clamp(panStart.vy - dy, -200, WORLD.h-50),
+      w: view.w, h:view.h, zoom:view.zoom
+    });
+  });
+  map.addEventListener("pointerup", (e)=>{
+    isPanning=false;
+    panStart=null;
+  });
+
+  map.addEventListener("wheel", (e)=>{
+    e.preventDefault();
+    const zoomFactor = Math.exp(-e.deltaY * 0.0012);
+    const pt = screenToWorld(e.clientX, e.clientY);
+    const newW = clamp(view.w / zoomFactor, 350, WORLD.w*1.2);
+    const newH = newW * (view.h / view.w);
+    const nx = (pt.x - view.x) / view.w;
+    const ny = (pt.y - view.y) / view.h;
+    const newX = pt.x - nx*newW;
+    const newY = pt.y - ny*newH;
+    setViewBox({
+      x: clamp(newX, -250, WORLD.w-50),
+      y: clamp(newY, -250, WORLD.h-50),
+      w: newW, h:newH, zoom: WORLD.w/newW
+    });
+  }, {passive:false});
+
+  // Basic pinch zoom (two pointers)
+  const pointers = new Map();
+  map.addEventListener("pointerdown", (e)=>{ pointers.set(e.pointerId, {x:e.clientX,y:e.clientY}); });
+  map.addEventListener("pointerup", (e)=>{ pointers.delete(e.pointerId); });
+  map.addEventListener("pointercancel", (e)=>{ pointers.delete(e.pointerId); });
+  map.addEventListener("pointermove", (e)=>{
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
+    if(pointers.size===2){
+      const pts = Array.from(pointers.values());
+      const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+      if(!map._pinch){ map._pinch = {d0:d, vb:{...view}}; return; }
+      const z = d / (map._pinch.d0 + 1e-9);
+      const vb0 = map._pinch.vb;
+      const newW = clamp(vb0.w / z, 350, WORLD.w*1.2);
+      const newH = newW * (vb0.h / vb0.w);
+      // pinch center
+      const cx = (pts[0].x+pts[1].x)/2;
+      const cy = (pts[0].y+pts[1].y)/2;
+      const wpt = screenToWorld(cx, cy);
+      const nx = (wpt.x - vb0.x) / vb0.w;
+      const ny = (wpt.y - vb0.y) / vb0.h;
+      const newX = wpt.x - nx*newW;
+      const newY = wpt.y - ny*newH;
+      setViewBox({
+        x: clamp(newX, -250, WORLD.w-50),
+        y: clamp(newY, -250, WORLD.h-50),
+        w: newW, h: newH, zoom: WORLD.w/newW
+      });
+    } else {
+      map._pinch = null;
+    }
+  });
+
+  // -----------------------------
+  // Generator
+  // -----------------------------
+  function getSettings(){
+    return {
+      seed: $("#seed").value.trim() || "seed",
+      biome: $("#biome").value,
+      size: $("#size").value,
+      fort: $("#fort").value,
+      density: parseInt($("#density").value,10),
+      greenCount: parseInt($("#greenCount").value,10),
+      windCount: parseInt($("#windCount").value,10),
+      windBig: parseInt($("#windBig").value,10),
+      waterMode: $("#waterMode").value,
+      labels: $("#labels").value,
+      grid: $("#grid").value,
+      textures: $("#textures").value,
+      detail: $("#detail").value,
+      theme: $("#theme").value,
+      battleMeta: $("#battleMeta").checked,
+      glow: false
+    };
+  }
+
+  function randSeed(){
+    const a = Math.random().toString(16).slice(2,6);
+    const b = Math.random().toString(16).slice(2,6);
+    const c = Math.random().toString(16).slice(2,6);
+    return `iso-vil-${a}-${b}-${c}`;
+  }
+
+  function sizeParams(size){
+    if(size==="s") return {houseBudget: 120, shedBudget: 45, roadSoft:1, wallMargin:150, cluster:0.9};
+    if(size==="l") return {houseBudget: 320, shedBudget: 120, roadSoft:2, wallMargin:220, cluster:1.1};
+    return {houseBudget: 220, shedBudget: 85, roadSoft:2, wallMargin:190, cluster:1.0};
+  }
+
+  function shouldHaveWater(settings){
+    if(settings.waterMode==="none") return "none";
+    if(settings.waterMode==="river") return "river";
+    if(settings.waterMode==="canal") return "canal";
+    // auto
+    if(settings.biome==="river") return "river";
+    if(settings.biome==="marsh") return "canal";
+    if(settings.biome==="coast") return "river"; // draw coastline as wide river
+    return "none";
+  }
+
+  
+  function generate(settings){
+    const rng = rngFromSeed(settings.seed + "|" +
+      settings.size + "|" + settings.density + "|" + settings.fort + "|" + settings.biome + "|" + settings.greenCount + "|" + settings.detail);
+
+    const TAU = Math.PI*2;
+    const P = sizeParams(settings.size);
+
+    function angDiff(a,b){
+      let d = a-b;
+      while(d>Math.PI) d-=TAU;
+      while(d<-Math.PI) d+=TAU;
+      return d;
+    }
+    function pickWeighted(rng, items){
+      // items: [ [value, weight], ... ]
+      let sum=0;
+      for(const it of items) sum += Math.max(0, it[1]);
+      let r = rnd(rng)*sum;
+      for(const it of items){
+        r -= Math.max(0, it[1]);
+        if(r<=0) return it[0];
+      }
+      return items[items.length-1][0];
+    }
+
+    const objs=[];
+    let idCounter=1;
+    const nid=(prefix)=> `${prefix}_${(idCounter++).toString(36)}`;
+
+    // ===== Occupancy / collisions (polys + circles; real intersection, not bbox-only) =====
+    const occ = [];
+    function occAddPoly(poly, pad=0){
+      occ.push({kind:"poly", poly, bbox: polyBBox(poly), pad});
+    }
+    function occAddCircle(c, r, pad=0){
+      occ.push({kind:"circle", c, r, bbox:{minX:c.x-r, minY:c.y-r, maxX:c.x+r, maxY:c.y+r}, pad});
+    }
+
+    function segIntersect(a,b,c,d){
+      // Proper segment intersection (including collinear overlap)
+      function orient(p,q,r){ return (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x); }
+      function onSeg(p,q,r){
+        return Math.min(p.x,r.x)-1e-9<=q.x && q.x<=Math.max(p.x,r.x)+1e-9 &&
+               Math.min(p.y,r.y)-1e-9<=q.y && q.y<=Math.max(p.y,r.y)+1e-9;
+      }
+      const o1=orient(a,b,c), o2=orient(a,b,d), o3=orient(c,d,a), o4=orient(c,d,b);
+      if((o1>0 && o2<0 || o1<0 && o2>0) && (o3>0 && o4<0 || o3<0 && o4>0)) return true;
+      if(Math.abs(o1)<1e-9 && onSeg(a,c,b)) return true;
+      if(Math.abs(o2)<1e-9 && onSeg(a,d,b)) return true;
+      if(Math.abs(o3)<1e-9 && onSeg(c,a,d)) return true;
+      if(Math.abs(o4)<1e-9 && onSeg(c,b,d)) return true;
+      return false;
+    }
+    function polysIntersect(A,B){
+      if(!bboxOverlap(polyBBox(A), polyBBox(B))) return false;
+      for(let i=0;i<A.length;i++){
+        const a1=A[i], a2=A[(i+1)%A.length];
+        for(let j=0;j<B.length;j++){
+          const b1=B[j], b2=B[(j+1)%B.length];
+          if(segIntersect(a1,a2,b1,b2)) return true;
+        }
+      }
+      if(pointInPoly(A[0], B)) return true;
+      if(pointInPoly(B[0], A)) return true;
+      return false;
+    }
+    function polysTooClose(A,B,pad){
+      if(polysIntersect(A,B)) return true;
+      if(pad<=0) return false;
+      for(const v of A){ if(minDistPointToPolyEdges(v,B) < pad) return true; }
+      for(const v of B){ if(minDistPointToPolyEdges(v,A) < pad) return true; }
+      return false;
+    }
+
+    function occCanPlacePoly(poly, pad=0){
+      const bb = expandBBox(polyBBox(poly), pad);
+      for(const it of occ){
+        const bb2 = expandBBox(it.bbox, it.pad);
+        if(!bboxOverlap(bb, bb2)) continue;
+        if(it.kind==="circle"){
+          const rr = it.r + it.pad + pad;
+          // circle intersects/too-close to poly if center is close to edges or any vertex is close to center
+          if(minDistPointToPolyEdges(it.c, poly) < rr) return false;
+          for(const v of poly){ if(dist(v, it.c) < rr) return false; }
+          if(pointInPoly(it.c, poly)) return false;
+        } else {
+          if(polysTooClose(poly, it.poly, pad + it.pad)) return false;
+        }
+      }
+      return true;
+    }
+    function occCanPlaceCircle(c, r, pad=0){
+      const bb = {minX:c.x-r-pad, minY:c.y-r-pad, maxX:c.x+r+pad, maxY:c.y+r+pad};
+      for(const it of occ){
+        const bb2 = expandBBox(it.bbox, it.pad);
+        if(!bboxOverlap(bb, bb2)) continue;
+        if(it.kind==="circle"){
+          if(dist(c,it.c) < (r+pad+it.r+it.pad)) return false;
+        } else {
+          if(minDistPointToPolyEdges(c, it.poly) < (r+pad+it.pad)) return false;
+          for(const v of it.poly){ if(dist(c,v) < (r+pad+it.pad)) return false; }
+          if(pointInPoly(c, it.poly)) return false;
+        }
+      }
+      return true;
+    }
+
+    function addObj(o){
+      o.id = o.id || nid(o.type||"obj");
+      objs.push(o);
+      return o;
+    }
+
+    // ===== Wind / biome =====
+    const windDir = pick(rng, ["W","NW","N","NE","E","SW"]);
+    const windVec = ({W:{x:-1,y:0},E:{x:1,y:0},N:{x:0,y:-1},NE:{x:0.7,y:-0.7},NW:{x:-0.7,y:-0.7},SW:{x:-0.7,y:0.7}})[windDir];
+    const waterMode = shouldHaveWater(settings);
+
+    // ===== Layout variability (reduces “samey” silhouettes) =====
+    const layout = pickWeighted(rng, [
+      ["compact", 0.42],
+      ["elongated", 0.22],
+      ["kidney", 0.18],
+      ["clover", 0.12],
+      ["tight", 0.06],
+    ]);
+
+    const center = {x: WORLD.w*0.52 + rndRange(rng,-130,130), y: WORLD.h*0.52 + rndRange(rng,-110,110)};
+
+    // A spine direction (helps make villages less uniform and more “Watabou-ish”)
+    const spineAng = (layout==="elongated")
+      ? rndRange(rng, -0.45, 0.45) + (Math.abs(windVec.x)>0.5 ? Math.PI/2 : 0)
+      : rndRange(rng, -Math.PI, Math.PI);
+
+    const spine = {x: Math.cos(spineAng), y: Math.sin(spineAng)};
+    const nrm = {x: -spine.y, y: spine.x};
+
+    // Anchors
+    const plaza = {
+      x: center.x + rndRange(rng,-50,50) + spine.x*rndRange(rng,-35,55),
+      y: center.y + rndRange(rng,-45,45) + spine.y*rndRange(rng,-35,55)
+    };
+
+    const manor = {
+      x: plaza.x - spine.x*rndRange(rng, 110, 190) + nrm.x*rndRange(rng,-80,60),
+      y: plaza.y - spine.y*rndRange(rng, 110, 190) + nrm.y*rndRange(rng,-80,60)
+    };
+
+    let agro = {
+      x: plaza.x + spine.x*rndRange(rng, 170, 360) + nrm.x*rndRange(rng,-120,120),
+      y: plaza.y + spine.y*rndRange(rng, 170, 360) + nrm.y*rndRange(rng,-120,120)
+    };
+
+        // Main tract across the whole canvas + junction towards village (Watabou-like: one big through-road)
+    function makeTract(){
+      const mode = pickWeighted(rng, [
+        ["LR", 0.58],   // left -> right (most common)
+        ["TB", 0.14],   // top -> bottom
+        ["DL", 0.14],   // diag TL->BR
+        ["DR", 0.14],   // diag BL->TR
+      ]);
+
+      function edgePt(side){
+        if(side==="L") return {x: 0, y: rndRange(rng, WORLD.h*0.12, WORLD.h*0.88)};
+        if(side==="R") return {x: WORLD.w, y: rndRange(rng, WORLD.h*0.12, WORLD.h*0.88)};
+        if(side==="T") return {x: rndRange(rng, WORLD.w*0.12, WORLD.w*0.88), y: 0};
+        return {x: rndRange(rng, WORLD.w*0.12, WORLD.w*0.88), y: WORLD.h};
+      }
+
+      let A,B;
+      if(mode==="LR"){ A=edgePt("L"); B=edgePt("R"); }
+      else if(mode==="TB"){ A=edgePt("T"); B=edgePt("B"); }
+      else if(mode==="DL"){ A={x:0,y:rndRange(rng, WORLD.h*0.18, WORLD.h*0.44)}; B={x:WORLD.w,y:rndRange(rng, WORLD.h*0.56, WORLD.h*0.82)}; }
+      else { A={x:0,y:rndRange(rng, WORLD.h*0.56, WORLD.h*0.82)}; B={x:WORLD.w,y:rndRange(rng, WORLD.h*0.18, WORLD.h*0.44)}; }
+
+      // Build a gently curving polyline
+      const steps = (settings.size==="s") ? 4 : (settings.size==="l" ? 6 : 5);
+      const pts=[A];
+      for(let i=1;i<steps;i++){
+        const t=i/steps;
+        const x = lerp(A.x, B.x, t);
+        const y = lerp(A.y, B.y, t);
+        // sideways jitter, plus a small "terrain" meander
+        const j = (mode==="LR"||mode==="TB") ? 120 : 150;
+        const nx = (mode==="LR") ? 0 : (mode==="TB" ? 1 : 0.7);
+        const ny = (mode==="LR") ? 1 : (mode==="TB" ? 0 : 0.7);
+        pts.push({
+          x: x + (rnd(rng)*2-1)*j*nx,
+          y: y + (rnd(rng)*2-1)*j*ny
+        });
+      }
+      pts.push(B);
+
+      // Clamp points into world
+      for(const p of pts){
+        p.x = clamp(p.x, 0, WORLD.w);
+        p.y = clamp(p.y, 0, WORLD.h);
+      }
+
+      // Keep tract from cutting through settlement center: push intermediate points away if too close
+      const minD = (settings.size==="s") ? 260 : (settings.size==="l" ? 340 : 300);
+      for(let it=0; it<6; it++){
+        const np = nearestPointOnPolyline(plaza, pts);
+        if(np.d >= minD) break;
+        const away = normalizeVec(np.p.x - plaza.x, np.p.y - plaza.y);
+        const push = (minD - np.d) + rndRange(rng, 40, 90);
+        for(let i=1;i<pts.length-1;i++){
+          pts[i].x += away.x * push * 0.55;
+          pts[i].y += away.y * push * 0.55;
+          pts[i].x = clamp(pts[i].x, 0, WORLD.w);
+          pts[i].y = clamp(pts[i].y, 0, WORLD.h);
+        }
+      }
+
+      return smoothPolyline(pts, settings.detail==="high" ? 2 : 1);
+    }
+
+    const tractPts = makeTract();
+    addObj({type:"tract", layer:"tract", points: tractPts, meta:{movementCost:1.0, cover:"none"}});
+    // Reserve space near the tract so windmills/patches don’t sit on the road
+    (function occAddPolyline(pts, r, pad){
+      const step = Math.max(18, r*1.35);
+      for(let i=0;i<pts.length-1;i++){
+        const a=pts[i], b=pts[i+1];
+        const segLen = Math.hypot(b.x-a.x, b.y-a.y);
+        const n = Math.max(1, Math.ceil(segLen/step));
+        for(let k=0;k<=n;k++){
+          const t=k/n;
+          const x=lerp(a.x,b.x,t), y=lerp(a.y,b.y,t);
+          occAddCircle({x,y}, r, pad||0);
+        }
+      }
+    })(tractPts, (settings.size==="s")?18:22, 6);
+
+    // Gate anchor: pick the closest tract point to the plaza (the branch will go to the gatehouse on the wall)
+    const gate = nearestPointOnPolyline(plaza, tractPts).p;
+    // Pull anchors into world bounds
+    function clampPt(p){
+      p.x = clamp(p.x, 180, WORLD.w-180);
+      p.y = clamp(p.y, 160, WORLD.h-170);
+      return p;
+    }
+    clampPt(plaza); clampPt(manor); clampPt(agro);
+
+    // Power hub between gate and plaza
+    const powerHub = clampPt({
+      x: lerp(gate.x, plaza.x, 0.45) + rndRange(rng,-70,70),
+      y: lerp(gate.y, plaza.y, 0.45) + rndRange(rng,-70,70)
+    });
+
+    addObj({type:"anchor_plaza", layer:"meta", center: plaza});
+    addObj({type:"anchor_manor", layer:"meta", center: manor});
+    addObj({type:"anchor_agro", layer:"meta", center: agro});
+    addObj({type:"anchor_gate", layer:"meta", center: gate});
+
+    const powerHubObj = addObj({
+      type:"power_hub", layer:"power", center: powerHub,
+      poly: rectPoly(powerHub.x,powerHub.y, 64,44, rndRange(rng,-0.25,0.25)),
+      meta: {cover:"hard", blocksLoS:true}
+    });
+    occAddPoly(powerHubObj.poly, 14);
+
+    // ===== Water feature (river/coast/canal) =====
+    let waterPoly=null;
+    let waterCenterline=null;
+    let waterWidth=0;
+    let waterIsCoast=false;
+    if(waterMode!=="none"){
+      const isCoast = (settings.biome==="coast");
+      waterIsCoast = isCoast;
+      const y0 = isCoast ? WORLD.h*0.12 : clamp(plaza.y + rndRange(rng, -260, 260), WORLD.h*0.16, WORLD.h*0.56);
+      const amplitude = isCoast ? 40 : rndRange(rng, 60, 140);
+      const width = isCoast ? 240 : (waterMode==="canal" ? 70 : 150);
+      waterWidth = width;
+      const points=[];
+      const steps=10;
+      for(let i=0;i<=steps;i++){
+        const t=i/steps;
+        const x = lerp(-100, WORLD.w+100, t);
+        const y = y0 + Math.sin(t*Math.PI*2 + rndRange(rng,-0.4,0.4))*amplitude + rndRange(rng,-25,25);
+        points.push({x,y});
+      }
+      const smooth = smoothPolyline(points, 2);
+      waterCenterline = smooth;
+      const left=[], right=[];
+      for(let i=0;i<smooth.length;i++){
+        const p=smooth[i];
+        const pPrev=smooth[Math.max(0,i-1)];
+        const pNext=smooth[Math.min(smooth.length-1,i+1)];
+        const dx=pNext.x-pPrev.x, dy=pNext.y-pPrev.y;
+        const len=Math.hypot(dx,dy)||1;
+        const nx=-dy/len, ny=dx/len;
+        left.push({x:p.x+nx*width*0.5, y:p.y+ny*width*0.5});
+        right.push({x:p.x-nx*width*0.5, y:p.y-ny*width*0.5});
+      }
+      waterPoly = left.concat(right.reverse());
+      addObj({type: isCoast ? "coast_water" : "river", layer:"water", poly: waterPoly, meta:{blocksLoS:false, movementCost:2}});
+      // Reserve river/coast as an obstacle for buildings (but allow close banks)
+      occAddPoly(waterPoly, 6);
+      // nudge agro if it lands in water band
+      if(pointInPoly(agro, waterPoly)){
+        agro.y += 220;
+        clampPt(agro);
+      }
+    }
+
+    // ===== Organic wall polygon (more varied than convex-hull) =====
+    function organicWallFromAnchors(pts){
+      const c = centroid(pts);
+      let maxD = 0;
+      for(const p of pts){ maxD = Math.max(maxD, dist(c,p)); }
+
+      // base radius = anchor extent + margin
+      const margin = (settings.size==="l" ? 340 : (settings.size==="m" ? 300 : 260)) * P.cluster;
+      let baseR = maxD + margin;
+
+      // layout influences
+      const arBase = (layout==="elongated") ? rndRange(rng, 1.25, 1.65) : rndRange(rng, 0.80, 1.45);
+      const ar = clamp(arBase, 0.72, 1.72);
+      const arRot = rndRange(rng, 0, Math.PI);
+      const rot = rndRange(rng, 0, TAU);
+
+      const k1 = pick(rng, [2,3,4]);
+      const k2 = pick(rng, [5,6,7,8]);
+      const a1 = rndRange(rng, 0.06, layout==="tight" ? 0.10 : 0.16);
+      const a2 = rndRange(rng, 0.03, layout==="kidney" ? 0.10 : 0.07);
+      const phi1 = rndRange(rng, 0, TAU);
+      const phi2 = rndRange(rng, 0, TAU);
+
+      const N = Math.round(rndRange(rng, 18, settings.size==="s" ? 22 : 26));
+      const ptsOut=[];
+      const cr=Math.cos(arRot), sr=Math.sin(arRot);
+
+      for(let i=0;i<N;i++){
+        const ang = rot + (i/N)*TAU;
+
+        let r = baseR * (1 +
+          a1*Math.sin(k1*ang + phi1) +
+          a2*Math.sin(k2*ang + phi2) +
+          rndRange(rng, -0.05, 0.05)
+        );
+        r = clamp(r, baseR*0.78, baseR*1.22);
+
+        let vx = r*Math.cos(ang);
+        let vy = r*Math.sin(ang);
+
+        // rotate to local, scale, rotate back
+        const lx =  vx*cr + vy*sr;
+        const ly = -vx*sr + vy*cr;
+        const sx = ar;
+        const sy = 1/Math.max(0.70, ar);
+        const lxs = lx*sx;
+        const lys = ly*sy;
+        vx = lxs*cr - lys*sr;
+        vy = lxs*sr + lys*cr;
+
+        ptsOut.push({x:c.x+vx, y:c.y+vy});
+      }
+
+      // soften corners (Watabou-like)
+      const smooth1 = chaikin(ptsOut, layout==="tight" ? 1 : 2);
+      const smooth2 = (layout==="clover") ? chaikin(smooth1, 1) : smooth1;
+
+      // clamp to bounds
+      let wall = smooth2.map(p=>({x: clamp(p.x, 70, WORLD.w-70), y: clamp(p.y, 70, WORLD.h-70)}));
+
+      // Ensure all anchors inside: scale up gently if needed
+      for(let it=0; it<10; it++){
+        let ok=true;
+        for(const p of pts){
+          if(!pointInPoly(p, wall)){ ok=false; break; }
+        }
+        if(ok) break;
+        wall = scalePoly(wall, 1.03);
+        wall = wall.map(p=>({x: clamp(p.x, 70, WORLD.w-70), y: clamp(p.y, 70, WORLD.h-70)}));
+      }
+
+      // add subtle "kidney" indentation by pulling one arc inward
+      if(layout==="kidney"){
+        const cc = centroid(wall);
+        const pullAng = rndRange(rng, 0, TAU);
+        for(let i=0;i<wall.length;i++){
+          const p=wall[i];
+          const ang = Math.atan2(p.y-cc.y, p.x-cc.x);
+          const d = angDiff(ang, pullAng);
+          const wgt = Math.max(0, 1 - Math.abs(d)/(Math.PI*0.65));
+          if(wgt>0){
+            wall[i] = {x: lerp(p.x, cc.x, 0.10*wgt), y: lerp(p.y, cc.y, 0.10*wgt)};
+          }
+        }
+      }
+
+      // final mild jitter + smoothing (prevents obvious symmetry)
+      wall = jitterPoly(wall, rng, layout==="tight" ? 22 : 30);
+      wall = chaikin(wall, 1);
+
+      return wall;
+    }
+
+    const anchorPts = [
+      plaza, manor, agro, powerHub,
+      {x: manor.x + nrm.x*120, y: manor.y + nrm.y*120},
+      {x: agro.x  - nrm.x*120, y: agro.y  - nrm.y*120},
+      {x: plaza.x + nrm.x*90,  y: plaza.y + nrm.y*90},
+      {x: plaza.x - nrm.x*90,  y: plaza.y - nrm.y*90},
+      {x: gate.x, y: gate.y-110}
+    ].map(p=>({x:p.x, y:p.y}));
+
+    let wallPoly = organicWallFromAnchors(anchorPts);
+
+    // Inset polygon (keep-out) — prevents buildings from clipping palisade / gate
+    const wallInset = (settings.fort==="none") ? 0.968 : (settings.fort==="earthwork" ? 0.93 : 0.942);
+    let innerWall = scalePoly(wallPoly, wallInset);
+
+    const wallClear = (settings.fort==="none") ? 16 : 28; // min dist from wall edges for building vertices
+    const gateClearR = (settings.size==="s") ? 135 : (settings.size==="l" ? 185 : 160); // no buildings near gatehouse
+
+    function polyVertsFarFromWall(poly, wall, minD){
+      for(const v of poly){
+        if(minDistPointToPolyEdges(v, wall) < minD) return false;
+      }
+      return true;
+    }
+
+    function fitPolyInside(poly, container, pullTo, minWallDist, maxIter=90){
+      let cur = poly.slice();
+      for(let it=0; it<maxIter; it++){
+        const okInside = polyAllInside(cur, container);
+        const okWall = polyVertsFarFromWall(cur, wallPoly, minWallDist);
+        if(okInside && okWall) return cur;
+
+        // Pull towards pullTo and also nudge away from wall if too close
+        const cc = centroid(cur);
+        const dx = (pullTo.x-cc.x)*0.12;
+        const dy = (pullTo.y-cc.y)*0.12;
+        cur = cur.map(p=>({x:p.x+dx, y:p.y+dy}));
+
+        // if any vertex outside, shrink a bit
+        if(!okInside) cur = scalePoly(cur, 0.985);
+
+        // if too close to wall, shrink slightly
+        if(!okWall) cur = scalePoly(cur, 0.992);
+      }
+      return cur;
+    }
+
+    // Gate on wall
+    const gateOnWall = nearestPointOnPoly(gate, wallPoly).p;
+
+    addObj({type:"settlement_boundary", layer:"meta", poly: wallPoly, meta:{blocksLoS:false, movementCost:1}});
+
+    // Ditch polygon = scaled wall poly slightly outward
+    const ditchPoly = scalePoly(wallPoly, 1.035);
+
+    // Add wall / ditch objects
+    if(settings.fort!=="none"){
+      addObj({type:"ditch", layer:"ditch", poly: ditchPoly, meta:{movementCost:2, blocksLoS:false}});
+      if(settings.fort==="earthwork"){
+        addObj({type:"earthwork", layer:"ditch", poly: scalePoly(wallPoly, 1.015), meta:{movementCost:2, blocksLoS:false}});
+      }
+      addObj({type:"palisade", layer:"walls", poly: wallPoly, meta:{cover:"hard", blocksLoS:true}});
+
+      // Towers at a few vertices (avoid gate area)
+      const towerCount = settings.size==="l" ? 10 : (settings.size==="m" ? 8 : 6);
+      for(let i=0;i<towerCount;i++){
+        const idx = Math.floor(i*(wallPoly.length/towerCount));
+        const p = wallPoly[idx];
+        if(dist(p, gateOnWall) < 110) continue;
+        const towerObj = addObj({type:"watchtower", layer:"walls", center:{x:p.x,y:p.y}, r: 14 + (settings.size==="l"?3:0), meta:{cover:"hard", blocksLoS:true}});
+        occAddCircle(towerObj.center, towerObj.r, 16);
+      }
+
+      // Gatehouse
+      const gatehouseObj = addObj({
+        type:"gatehouse", layer:"walls", center:gateOnWall,
+        poly: rectPoly(gateOnWall.x, gateOnWall.y, 64, 34, rndRange(rng,-0.2,0.2)),
+        meta:{cover:"hard", blocksLoS:true}
+      });
+      occAddPoly(gatehouseObj.poly, 20);
+
+      // Branch road from the main tract into the gatehouse
+      const tractJoin = nearestPointOnPolyline(gateOnWall, tractPts).p;
+      const mid = {
+        x: lerp(tractJoin.x, gateOnWall.x, 0.55) + rndRange(rng,-55,55),
+        y: lerp(tractJoin.y, gateOnWall.y, 0.55) + rndRange(rng,-55,55)
+      };
+      addObj({type:"road_branch", layer:"roads", points: smoothPolyline([ tractJoin, mid, {x:gateOnWall.x, y:gateOnWall.y} ], 2), meta:{movementCost:1.0}});
+    }
+
+    // ===== Roads =====
+    const roadMain = smoothPolyline([gateOnWall,
+      {x: lerp(gateOnWall.x, plaza.x, 0.55), y: lerp(gateOnWall.y, plaza.y, 0.55)},
+      plaza, manor
+    ], P.roadSoft);
+
+    const roadAgro = smoothPolyline([plaza,
+      {x: lerp(plaza.x, agro.x, 0.5), y: lerp(plaza.y, agro.y, 0.5) + rndRange(rng,-60,60)},
+      agro
+    ], P.roadSoft);
+
+    addObj({type:"road_main", layer:"roads", points: roadMain, meta:{movementCost:1, blocksLoS:false}});
+    addObj({type:"road_agro", layer:"roads", points: roadAgro, meta:{movementCost:1, blocksLoS:false}});
+
+    // Ring-ish road: sample along wall poly and inset a little (kept inside)
+    const ring = [];
+    const cWall = centroid(wallPoly);
+    const inset = settings.fort==="none" ? 64 : 86;
+    for(let i=0;i<wallPoly.length;i+=4){
+      const p=wallPoly[i];
+      const vx=p.x-cWall.x, vy=p.y-cWall.y;
+      const len=Math.hypot(vx,vy)||1;
+      const q={x:p.x - vx/len*inset, y:p.y - vy/len*inset};
+      // ensure point stays inside innerWall
+      let qq=q;
+      if(!pointInPoly(qq, innerWall)){
+        qq = {x: lerp(qq.x, cWall.x, 0.18), y: lerp(qq.y, cWall.y, 0.18)};
+      }
+      ring.push(qq);
+    }
+    const ringRoad = smoothPolyline(ring, 2);
+    addObj({type:"road_ring", layer:"roads", points: ringRoad, meta:{movementCost:1, blocksLoS:false}});
+
+    // ===== Fields / plaza =====
+    const plazaPoly = rectPoly(plaza.x, plaza.y, 90, 70, rndRange(rng,-0.25,0.25));
+    addObj({type:"plaza", layer:"fields", center:plaza, poly: plazaPoly, meta:{movementCost:1, blocksLoS:false}});
+
+    // ===== Agro yard + greenhouses =====
+    const agroYaw = rndRange(rng, -0.35, 0.35) + (layout==="elongated" ? spineAng*0.25 : 0);
+    const yardW = (layout==="tight" ? 420 : (layout==="compact" ? 470 : 520)) * P.cluster * rndRange(rng,0.92,1.10);
+    const yardH = (layout==="tight" ? 260 : (layout==="compact" ? 300 : 330)) * P.cluster * rndRange(rng,0.92,1.08);
+
+    let agroYard = rectPoly(agro.x, agro.y, yardW, yardH, agroYaw);
+
+    // Pull yard fully inside walls and away from palisade
+    agroYard = fitPolyInside(agroYard, innerWall, plaza, wallClear + 14, 130);
+
+    addObj({type:"agro_yard", layer:"fields", poly: agroYard, meta:{movementCost:1.5, blocksLoS:false}});
+
+    // Place greenhouses in a slightly inset yard (keeps them away from edge and nearby housing)
+    const agroYardInner = fitPolyInside(scalePoly(agroYard, 0.93), innerWall, plaza, wallClear + 18, 70);
+
+    function randomInPoly(poly, tries=220){
+      const bb=polyBBox(poly);
+      for(let i=0;i<tries;i++){
+        const p={x:rndRange(rng,bb.minX,bb.maxX), y:rndRange(rng,bb.minY,bb.maxY)};
+        if(pointInPoly(p, poly)) return p;
+      }
+      return {x:(bb.minX+bb.maxX)/2, y:(bb.minY+bb.maxY)/2};
+    }
+
+    function placeBuildingIn(poly, w, h, ang, type, layerName, metaExtra, padOverride){
+      const pad = (padOverride!=null) ? padOverride : (type==="greenhouse" ? 14 : 9);
+      for(let t=0;t<520;t++){
+        const p = randomInPoly(poly, 260);
+        if(dist(p, gateOnWall) < gateClearR) continue;
+
+        const polyR = rectPoly(p.x,p.y,w,h,ang);
+
+        // must be fully inside the intended zone and inside inner walls
+        if(!polyAllInside(polyR, poly)) continue;
+        if(!polyAllInside(polyR, innerWall)) continue;
+
+        // avoid water overlap
+        if(waterPoly && polysIntersect(polyR, waterPoly)) continue;
+
+        // keep clearance from palisade edges
+        if(!polyVertsFarFromWall(polyR, wallPoly, wallClear)) continue;
+
+        // collision with already placed solids
+        if(!occCanPlacePoly(polyR, pad)) continue;
+
+        const obj = addObj({type, layer:layerName, center:p, poly:polyR, rotation:ang, meta:Object.assign({cover:"hard", blocksLoS:true}, metaExtra||{})});
+        occAddPoly(polyR, pad);
+        return obj;
+      }
+      return null;
+    }
+
+    // Greenhouses
+    const gh=[];
+    const ghCount = settings.greenCount;
+    const ghMainAngle = agroYaw + (Math.abs(windVec.x)>0.5 ? 0 : Math.PI/2) + rndRange(rng,-0.10,0.10);
+    const ghWBase = 210*P.cluster, ghHBase = 80*P.cluster;
+
+    for(let i=0;i<ghCount;i++){
+      const w = ghWBase * rndRange(rng,0.92,1.18);
+      const h = ghHBase * rndRange(rng,0.88,1.22);
+      const ang = ghMainAngle + rndRange(rng,-0.08,0.08);
+      const obj = placeBuildingIn(agroYardInner, w, h, ang, "greenhouse", "green", {tag:"greenhouse"}, 16);
+      if(obj) gh.push(obj);
+    }
+
+    // Greenhouse service blocks: near greenhouse ends (filters/pumps/accus)
+    const svcCount = Math.max(2, Math.round(ghCount*1.25));
+    for(let i=0;i<svcCount;i++){
+      const base = gh.length ? pick(rng, gh) : null;
+      const w = rndRange(rng, 34, 58), h = rndRange(rng, 22, 44);
+      let p = randomInPoly(agroYardInner, 220);
+      let ang = ghMainAngle + rndRange(rng,-0.6,0.6);
+      if(base){
+        const bb = polyBBox(base.poly);
+        const c = base.center;
+        const side = rndRange(rng,0,1) < 0.5 ? -1 : 1;
+        const off = rndRange(rng, 55, 95);
+        const along = rndRange(rng, -0.45, 0.45) * (bb.maxX-bb.minX);
+        const ax = Math.cos(base.rotation||0), ay = Math.sin(base.rotation||0);
+        const nx = -ay, ny = ax;
+        p = {x: c.x + ax*along + nx*off*side, y: c.y + ay*along + ny*off*side};
+        ang = (base.rotation||0) + rndRange(rng,-0.35,0.35);
+      }
+      const polyR = rectPoly(p.x,p.y,w,h,ang);
+      if(!polyAllInside(polyR, agroYard)) continue;
+      if(!polyAllInside(polyR, innerWall)) continue;
+      if(waterPoly && polysIntersect(polyR, waterPoly)) continue;
+      if(!polyVertsFarFromWall(polyR, wallPoly, wallClear)) continue;
+      if(!occCanPlacePoly(polyR, 10)) continue;
+      const obj = addObj({type:"agro_service", layer:"buildings", center:p, poly:polyR, rotation:ang, meta:{cover:"hard", blocksLoS:true, tag:"filters/pumps", isService:true}});
+      occAddPoly(polyR, 10);
+    }
+
+    // Add a keepout around the entire agro yard AFTER greenhouses are placed (prevents houses encroaching)
+    const agroKeep = fitPolyInside(scalePoly(agroYard, 1.08), innerWall, plaza, wallClear + 10, 60);
+    occAddPoly(agroKeep, 10);
+
+
+    // ===== Church of the Founders (mandatory) =====
+    (function placeChurch(){
+      const baseAng = Math.atan2(plaza.y - gateOnWall.y, plaza.x - gateOnWall.x);
+      const w = 108 * (settings.size==="l" ? 1.10 : 1.0);
+      const h = 74 * (settings.size==="l" ? 1.08 : 1.0);
+      const pad = 14;
+      const attempts = [
+        {dx: 110, dy: -40, sgn: 1},
+        {dx: -110, dy: -40, sgn: -1},
+        {dx: 90, dy: 90, sgn: 1},
+        {dx: -90, dy: 90, sgn: -1},
+      ];
+      for(const a of attempts){
+        const cx = plaza.x + a.dx + rndRange(rng, -18, 18);
+        const cy = plaza.y + a.dy + rndRange(rng, -18, 18);
+        const zone = fitPolyInside(rectPoly(cx, cy, 320, 240, rndRange(rng,-0.25,0.25)), innerWall, plaza, wallClear+14, 70);
+        const ang = baseAng + rndRange(rng, -0.20, 0.20);
+        const obj = placeBuildingIn(zone, w, h, ang, "church", "buildings", {tag:"church", blocksLoS:true, cover:"hard"}, pad);
+        if(obj){
+          // small annex / sacristy (no crosses; abstract)
+          const ax = obj.center.x + Math.cos(ang+Math.PI/2)* (h*0.33) + rndRange(rng,-6,6);
+          const ay = obj.center.y + Math.sin(ang+Math.PI/2)* (h*0.33) + rndRange(rng,-6,6);
+          const annex = rectPoly(ax, ay, 38, 28, ang + rndRange(rng,-0.25,0.25));
+          if(polyAllInside(annex, innerWall) && (!waterPoly || !polysIntersect(annex, waterPoly)) && occCanPlacePoly(annex, 10)){
+            addObj({type:"church_annex", layer:"buildings", center:{x:ax,y:ay}, poly:annex, rotation:ang, meta:{tag:"church", blocksLoS:true, cover:"hard"}});
+            occAddPoly(annex, 10);
+          }
+          return;
+        }
+      }
+      // fallback: try near manor
+      placeBuildingIn(fitPolyInside(rectPoly(manor.x, manor.y-90, 360, 260, rndRange(rng,-0.25,0.25)), innerWall, plaza, wallClear+14, 80),
+        w, h, baseAng + rndRange(rng,-0.35,0.35), "church", "buildings", {tag:"church", blocksLoS:true, cover:"hard"}, pad);
+    })();
+
+    // ===== Manor + workshops cluster =====
+    placeBuildingIn(fitPolyInside(rectPoly(manor.x, manor.y, 320, 240, rndRange(rng,-0.3,0.3)), innerWall, plaza, wallClear+10, 60),
+      120, 80, rndRange(rng,-0.5,0.5), "manor_house", "buildings", {tag:"manor"}, 12);
+
+    placeBuildingIn(fitPolyInside(rectPoly(manor.x+80, manor.y+40, 320, 240, rndRange(rng,-0.3,0.3)), innerWall, plaza, wallClear+10, 60),
+      90, 60, rndRange(rng,-0.5,0.5), "armory", "buildings", {tag:"armory"}, 12);
+
+    placeBuildingIn(fitPolyInside(rectPoly(powerHub.x, powerHub.y, 260, 220, rndRange(rng,-0.3,0.3)), innerWall, plaza, wallClear+10, 60),
+      86, 56, rndRange(rng,-0.5,0.5), "workshop", "buildings", {tag:"workshop"}, 12);
+
+    placeBuildingIn(fitPolyInside(rectPoly(gateOnWall.x, gateOnWall.y, 260, 220, rndRange(rng,-0.3,0.3)), innerWall, plaza, wallClear+10, 60),
+      72, 48, rndRange(rng,-0.5,0.5), "guard_house", "buildings", {tag:"guard"}, 12);
+
+    // ===== Houses along roads (frontage packing, Watabou-ish) =====
+    function sampleAlongPath(points, step, roadType){
+      const res=[];
+      for(let i=0;i<points.length-1;i++){
+        const a=points[i], b=points[i+1];
+        const segLen = Math.hypot(b.x-a.x,b.y-a.y);
+        const n = Math.max(1, Math.floor(segLen/step));
+        for(let k=0;k<=n;k++){
+          const t=k/n;
+          res.push({x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), a, b, roadType});
+        }
+      }
+      return res;
+    }
+    function tangent(s){
+      const dx=s.b.x-s.a.x, dy=s.b.y-s.a.y;
+      const len=Math.hypot(dx,dy)||1;
+      return {x:dx/len, y:dy/len};
+    }
+
+    function tryHouseAt(x,y,w,h,ang,type="house"){
+      const polyR = rectPoly(x,y,w,h,ang);
+
+      if(!polyAllInside(polyR, innerWall)) return false;
+      if(!polyVertsFarFromWall(polyR, wallPoly, wallClear)) return false;
+      if(dist({x,y}, gateOnWall) < gateClearR) return false;
+
+      // Keep out of plaza core
+      if(polysTooClose(polyR, plazaPoly, 16)) return false;
+
+      // Extra: ensure we don't touch agro yard keepout (even if occ padding missed)
+      if(polysTooClose(polyR, agroKeep, 10)) return false;
+
+      // avoid water overlap
+      if(waterPoly && polysIntersect(polyR, waterPoly)) return false;
+
+      if(!occCanPlacePoly(polyR, 7)) return false;
+
+      addObj({type, layer:"buildings", center:{x,y}, poly:polyR, rotation:ang, meta:{cover:"hard", blocksLoS:true, tag:type}});
+      occAddPoly(polyR, 7);
+      return true;
+    }
+
+    const baseStep = (settings.size==="l" ? 42 : (settings.size==="m" ? 38 : 34));
+    const samples = []
+      .concat(sampleAlongPath(roadMain, baseStep, "main"))
+      .concat(sampleAlongPath(roadAgro, baseStep, "agro"))
+      .concat(sampleAlongPath(ringRoad, baseStep+10, "ring"));
+
+    // Shuffle samples (prevents linear artifacts)
+    for(let i=samples.length-1;i>0;i--){
+      const j=Math.floor(rnd(rng)*(i+1));
+      const tmp=samples[i]; samples[i]=samples[j]; samples[j]=tmp;
+    }
+
+    const houseBudget = Math.round(P.houseBudget * (settings.density/70));
+    let housesPlaced = 0;
+
+    for(const s of samples){
+      if(housesPlaced >= houseBudget) break;
+
+      const t = tangent(s);
+      const n = {x:-t.y, y:t.x};
+
+      const roadOffset = (s.roadType==="main") ? rndRange(rng, 28, 44) : (s.roadType==="agro" ? rndRange(rng, 26, 40) : rndRange(rng, 24, 36));
+      const w = rndRange(rng, 26, 44) * (settings.size==="l" ? 1.05 : 1.0);
+      const h = rndRange(rng, 18, 34);
+
+      // Align to road tangent
+      const ang = Math.atan2(t.y, t.x) + rndRange(rng, -0.35, 0.35);
+
+      // Prefer the side that stays deeper inside inner wall (avoid wall collisions)
+      const candA = {x: s.x + n.x*roadOffset, y: s.y + n.y*roadOffset};
+      const candB = {x: s.x - n.x*roadOffset, y: s.y - n.y*roadOffset};
+
+      const aOk = pointInPoly(candA, innerWall) && polyVertsFarFromWall(rectPoly(candA.x,candA.y,w,h,ang), wallPoly, wallClear+6);
+      const bOk = pointInPoly(candB, innerWall) && polyVertsFarFromWall(rectPoly(candB.x,candB.y,w,h,ang), wallPoly, wallClear+6);
+
+      let placed=false;
+      if(aOk && bOk){
+        placed = (rnd(rng)<0.5)
+          ? tryHouseAt(candA.x,candA.y,w,h,ang,"house") || tryHouseAt(candB.x,candB.y,w,h,ang,"house")
+          : tryHouseAt(candB.x,candB.y,w,h,ang,"house") || tryHouseAt(candA.x,candA.y,w,h,ang,"house");
+      } else if(aOk){
+        placed = tryHouseAt(candA.x,candA.y,w,h,ang,"house");
+      } else if(bOk){
+        placed = tryHouseAt(candB.x,candB.y,w,h,ang,"house");
+      }
+
+      if(placed){
+        housesPlaced++;
+        // occasional tiny shed in the backyard (adds “watabou clutter”)
+        if(settings.detail!=="low" && rnd(rng) < 0.10){
+          const shedOff = rndRange(rng, 18, 28);
+          const sx = (placed && aOk ? candA.x : candB.x) + n.x*shedOff*rndRange(rng,-1,1);
+          const sy = (placed && aOk ? candA.y : candB.y) + n.y*shedOff*rndRange(rng,-1,1);
+          tryHouseAt(sx,sy, rndRange(rng,14,20), rndRange(rng,10,16), ang+rndRange(rng,-0.6,0.6), "hut");
+        }
+      }
+    }
+
+
+    // ===== Infill: reduce empty spaces inside the village =====
+    (function infillBuildings(){
+      const base = (settings.size==="l" ? 1.15 : (settings.size==="s" ? 0.95 : 1.0));
+      const target = Math.round((houseBudget - housesPlaced) * 0.85) + (settings.size==="l" ? 26 : (settings.size==="m" ? 18 : 12));
+      const types = [
+        ["shed", 22], ["barn", 16], ["house", 14], ["longhouse", 10],
+        ["workshop", 9], ["battery_hut", 9], ["stable", 8], ["pump_house", 6],
+        ["granary", 6]
+      ];
+      function tryInfill(type){
+        const ang = rndRange(rng, -Math.PI, Math.PI);
+        let w=34, h=22, pad=8, meta={cover:"hard", blocksLoS:true, tag:type};
+        if(type==="shed"){ w=rndRange(rng,16,24)*base; h=rndRange(rng,12,18)*base; pad=7; }
+        else if(type==="house"){ w=rndRange(rng,26,44)*base; h=rndRange(rng,18,34)*base; pad=8; }
+        else if(type==="longhouse"){ w=rndRange(rng,46,78)*base; h=rndRange(rng,18,30)*base; pad=9; }
+        else if(type==="barn"){ w=rndRange(rng,42,70)*base; h=rndRange(rng,26,44)*base; pad=10; }
+        else if(type==="stable"){ w=rndRange(rng,40,66)*base; h=rndRange(rng,22,38)*base; pad=10; }
+        else if(type==="workshop"){ w=rndRange(rng,46,74)*base; h=rndRange(rng,28,46)*base; pad=11; meta.tag="workshop"; }
+        else if(type==="battery_hut"){ w=rndRange(rng,26,40)*base; h=rndRange(rng,18,28)*base; pad=9; meta.tag="accu"; meta.blocksLoS=true; }
+        else if(type==="pump_house"){ w=rndRange(rng,28,44)*base; h=rndRange(rng,18,30)*base; pad=9; meta.tag="pumps"; }
+        else if(type==="granary"){ w=rndRange(rng,36,54)*base; h=rndRange(rng,22,34)*base; pad=10; meta.tag="granary"; }
+
+        for(let t=0;t<320;t++){
+          const p = randomInPoly(innerWall, 260);
+          if(dist(p, plaza) < 120) continue;
+          if(dist(p, gateOnWall) < gateClearR*0.85) continue;
+          if(polysTooClose(rectPoly(p.x,p.y,w,h,ang), plazaPoly, 14)) continue;
+          if(pointInPoly(p, agroKeep)) continue;
+          // keep some readability along the main roads
+          if(minDistPointToPolyline(p, roadMain) < 18) continue;
+          if(minDistPointToPolyline(p, roadAgro) < 16) continue;
+
+          const polyR = rectPoly(p.x,p.y,w,h,ang);
+          if(!polyAllInside(polyR, innerWall)) continue;
+          if(!polyVertsFarFromWall(polyR, wallPoly, wallClear)) continue;
+          if(waterPoly && polysIntersect(polyR, waterPoly)) continue;
+          if(!occCanPlacePoly(polyR, pad)) continue;
+
+          addObj({type, layer:"buildings", center:{x:p.x,y:p.y}, poly:polyR, rotation:ang, meta});
+          occAddPoly(polyR, pad);
+          return true;
+        }
+        return false;
+      }
+
+      for(let i=0;i<target;i++){
+        const type = pickWeighted(rng, types);
+        tryInfill(type);
+      }
+    })();
+
+    // ===== Optional field strips inside walls (variety) =====
+    const fieldPoly = innerWall;
+    const stripCount = (settings.detail==="high") ? 5 : 3;
+    for(let i=0;i<stripCount;i++){
+      const p = randomInPoly(innerWall, 260);
+      if(dist(p, plaza) < 160) continue;
+      if(pointInPoly(p, agroKeep)) continue;
+      const w = rndRange(rng, 120, 180)*P.cluster;
+      const h = rndRange(rng, 40, 70)*P.cluster;
+      const ang = rndRange(rng, -Math.PI, Math.PI);
+      const strip = rectPoly(p.x,p.y,w,h,ang);
+      if(!polyAllInside(strip, innerWall)) continue;
+      if(!polyVertsFarFromWall(strip, wallPoly, wallClear+10)) continue;
+      if(!occCanPlacePoly(strip, 6)) continue;
+      addObj({type:"field_strip", layer:"fields", poly: strip, meta:{movementCost:1.3, blocksLoS:false}});
+      occAddPoly(strip, 6);
+    }
+
+    // ===== Wind field (outside walls, windward) =====
+    // Define a wind field polygon as a deformed rectangle outside the wall on windward side
+    const wallC = centroid(wallPoly);
+    const wdir = {x: windVec.x, y: windVec.y};
+    const wfCenter = {
+      x: clamp(wallC.x + wdir.x*(settings.size==="l" ? 520 : 460), 140, WORLD.w-140),
+      y: clamp(wallC.y + wdir.y*(settings.size==="l" ? 380 : 340), 140, WORLD.h-140)
+    };
+    const wfW = (settings.size==="l" ? 760 : 640) * P.cluster;
+    const wfH = (settings.size==="l" ? 420 : 360) * P.cluster;
+    let windField = rectPoly(wfCenter.x, wfCenter.y, wfW, wfH, rndRange(rng,-0.25,0.25));
+    windField = jitterPoly(windField, rng, 26);
+    windField = chaikin(windField, 1);
+
+    addObj({type:"wind_field", layer:"fields", poly: windField, meta:{movementCost:1.2, blocksLoS:false}});
+
+    // Place turbines (keep away from walls and from each other)
+    const smallCount = settings.size==="l" ? 16 : (settings.size==="m" ? 12 : 9);
+    const bigCount = settings.size==="l" ? 3 : 2;
+
+    function placeTurbine(big=false){
+      const tries = 520;
+      const r = big ? 26 : 14;
+      for(let i=0;i<tries;i++){
+        const p = randomInPoly(windField, 280);
+        if(pointInPoly(p, wallPoly)) continue; // keep outside
+        if(minDistPointToPolyEdges(p, wallPoly) < (big ? 90 : 70)) continue; // keep away from wall line
+        if(!occCanPlaceCircle(p, r, big?18:12)) continue;
+        const obj = addObj({type: big ? "wind_turbine_big" : "wind_turbine_small", layer:"wind", center:p, meta:{blocksLoS:true, cover:"soft"}});
+        occAddCircle(p, r, big?18:12);
+        return obj;
+      }
+      return null;
+    }
+    for(let i=0;i<bigCount;i++) placeTurbine(true);
+    for(let i=0;i<smallCount;i++) placeTurbine(false);
+
+    // Track from gate to wind field (simple)
+    const track = smoothPolyline([gateOnWall, {x:lerp(gateOnWall.x, wfCenter.x, 0.35), y:lerp(gateOnWall.y, wfCenter.y, 0.35)}, wfCenter], 2);
+    addObj({type:"track_to_wind", layer:"roads", points: track, meta:{movementCost:1, blocksLoS:false}});
+
+    // Power poles + lines: connect powerHub to wind field center
+    const poleCount = 6;
+    const poles=[];
+    for(let i=0;i<=poleCount;i++){
+      const t=i/poleCount;
+      const p={x: lerp(powerHub.x, wfCenter.x, t), y: lerp(powerHub.y, wfCenter.y, t) + Math.sin(t*Math.PI)*rndRange(rng, -70, 70)};
+      if(waterPoly && pointInPoly(p, waterPoly)) continue;
+      if(!pointInPoly(p, innerWall) && pointInPoly(p, wallPoly)) continue; // if inside walls but too near, ok
+      if(!occCanPlaceCircle(p, 8, 6)) continue;
+      const poleObj = addObj({type:"power_pole", layer:"power", center:p, meta:{blocksLoS:false, cover:"soft"}});
+      occAddCircle(p, 8, 6);
+      poles.push(poleObj);
+    }
+    for(let i=0;i<poles.length-1;i++){
+      addObj({type:"power_line", layer:"power", a:poles[i].center, b:poles[i+1].center, meta:{blocksLoS:false}});
+    }
+
+    // Water wheel if river exists and detail not low
+    if(waterPoly && waterMode==="river" && settings.detail!=="low"){
+      // pick a point near top-left of settlement where water intersects
+      const bb = polyBBox(waterPoly);
+      const wpt = {x: clamp(bb.minX+140, 120, WORLD.w-120), y: clamp((bb.minY+bb.maxY)/2, 120, WORLD.h-120)};
+      if(!pointInPoly(wpt, wallPoly)){
+        const wheelObj = addObj({type:"water_wheel", layer:"power", center:wpt, meta:{blocksLoS:true, cover:"hard"}});
+        occAddCircle(wpt, 18, 10);
+      }
+    }
+
+
+    // ===== Dock / pier (if water is present) =====
+    if(waterPoly && waterCenterline){
+      (function placeDock(){
+        const ref = plaza;
+        const np = nearestPointOnPolyline(ref, waterCenterline);
+        const i = Math.min(waterCenterline.length-2, Math.max(0, np.i));
+        const a = waterCenterline[i], b = waterCenterline[i+1];
+        const tdir = normalizeVec(b.x-a.x, b.y-a.y);
+        const nrm = {x:-tdir.y, y:tdir.x};
+        const vv = {x: ref.x - np.p.x, y: ref.y - np.p.y};
+        const sign = (vv.x*nrm.x + vv.y*nrm.y) >= 0 ? 1 : -1;
+
+        // approximate bank point on "village side"
+        const bank = {
+          x: np.p.x + nrm.x*sign*(waterWidth*0.5 + 16),
+          y: np.p.y + nrm.y*sign*(waterWidth*0.5 + 16)
+        };
+        clampPt(bank);
+
+        // dock house a bit inland from the bank
+        let dh = {x: bank.x + nrm.x*sign*34, y: bank.y + nrm.y*sign*34};
+        clampPt(dh);
+
+        const angBank = Math.atan2(tdir.y, tdir.x);
+        const houseW = 74, houseH = 48;
+        const pierW = 18, pierH = 64;
+
+        // try a few nudges if we collide
+        for(let t=0;t<16;t++){
+          const hx = dh.x + rndRange(rng,-18,18);
+          const hy = dh.y + rndRange(rng,-18,18);
+          const housePoly = rectPoly(hx, hy, houseW, houseH, angBank + rndRange(rng,-0.18,0.18));
+          if(waterPoly && polysIntersect(housePoly, waterPoly)) continue;
+          if(!occCanPlacePoly(housePoly, 12)) continue;
+
+          // place the dock house (on bank)
+          addObj({type:"dock_house", layer:"buildings", center:{x:hx,y:hy}, poly:housePoly, rotation:angBank, meta:{tag:"dock", cover:"hard", blocksLoS:true}});
+          occAddPoly(housePoly, 12);
+
+          // pier extends into water (allowed to overlap water)
+          const px = hx - nrm.x*sign*(houseH*0.55);
+          const py = hy - nrm.y*sign*(houseH*0.55);
+          const pierPoly = rectPoly(px, py, pierW, pierH, angBank + Math.PI/2);
+          addObj({type:"dock_pier", layer:"buildings", center:{x:px,y:py}, poly:pierPoly, rotation:angBank + Math.PI/2, meta:{tag:"dock", cover:"hard", blocksLoS:false, isPier:true}});
+          occAddPoly(pierPoly, 6);
+
+          // a few huts around the dock house
+          const hutN = (settings.size==="l") ? 6 : 4;
+          for(let k=0;k<hutN;k++){
+            const offA = rndRange(rng, -Math.PI, Math.PI);
+            const offR = rndRange(rng, 54, 110);
+            const cx = hx + Math.cos(offA)*offR;
+            const cy = hy + Math.sin(offA)*offR;
+            const w = rndRange(rng, 18, 26);
+            const h = rndRange(rng, 12, 18);
+            const ang = angBank + rndRange(rng,-0.8,0.8);
+            const polyR = rectPoly(cx,cy,w,h,ang);
+            if(!polyAllInside(polyR, innerWall) && pointInPoly({x:cx,y:cy}, wallPoly) && settings.fort!=="none"){
+              // if forts exist, keep dock huts inside or right next to the wall gap; otherwise skip
+              if(minDistPointToPolyEdges({x:cx,y:cy}, wallPoly) > 120) continue;
+            }
+            if(waterPoly && polysIntersect(polyR, waterPoly)) continue;
+            if(!occCanPlacePoly(polyR, 8)) continue;
+            addObj({type:"dock_hut", layer:"buildings", center:{x:cx,y:cy}, poly:polyR, rotation:ang, meta:{tag:"dock", cover:"hard", blocksLoS:true}});
+            occAddPoly(polyR, 8);
+          }
+
+          // small path from gate/plaza towards dock (reads as “harbor lane”)
+          const join = nearestPointOnPolyline({x:hx,y:hy}, roadMain).p;
+          const dockRoad = smoothPolyline([join, {x: lerp(join.x,hx,0.5)+rndRange(rng,-20,20), y: lerp(join.y,hy,0.5)+rndRange(rng,-20,20)}, {x:hx,y:hy}], 2);
+          addObj({type:"road_dock", layer:"roads", points: dockRoad, meta:{movementCost:1, blocksLoS:false}});
+          return;
+        }
+      })();
+    }
+
+    // Meta
+    const meta = {
+      seed: settings.seed,
+      wind: windDir,
+      layout,
+      counts: {
+        houses: objs.filter(o=>o.type==="house").length,
+        greenhouses: objs.filter(o=>o.type==="greenhouse").length,
+        turbines: objs.filter(o=>o.type.startsWith("wind_turbine")).length
+      }
+    };
+
+        // ===== Natural surroundings (mutated forest, bogs, hills, ruins) =====
+    function canPlaceNature(poly){
+      // outside settlement + far from tract
+      if(polysIntersect(poly, scalePoly(wallPoly, 1.04))) return false;
+      if(pointInPoly(centroid(poly), scalePoly(wallPoly, 1.02))) return false;
+
+      // avoid main roads/tract
+      const minToTract = (settings.size==="s") ? 32 : 40;
+      for(const v of poly){
+        if(minDistPointToPolyline(v, tractPts) < minToTract) return false;
+      }
+
+      // keep a little gap from ditch / gatehouse and other occupied items
+      if(!occCanPlacePoly(poly, 10)) return false;
+      return true;
+    }
+
+    function addNature(type, poly, extraMeta){
+      const o = addObj({
+        type, layer:"nature",
+        poly,
+        center: centroid(poly),
+        meta: Object.assign({seed: Math.floor(rnd(rng)*1e9)}, extraMeta||{})
+      });
+      // occupy so patches don't overlap each other
+      occAddPoly(poly, 18);
+      return o;
+    }
+
+    function sampleRingPoint(rMin, rMax){
+      const a = rndRange(rng, -Math.PI, Math.PI);
+      const r = rndRange(rng, rMin, rMax);
+      const p = {x: center.x + Math.cos(a)*r, y: center.y + Math.sin(a)*r};
+      p.x = clamp(p.x, 120, WORLD.w-120);
+      p.y = clamp(p.y, 120, WORLD.h-120);
+      return p;
+    }
+
+    const ringMin = (settings.size==="s") ? 360 : (settings.size==="l" ? 520 : 440);
+    const ringMax = (settings.size==="s") ? 760 : (settings.size==="l" ? 1020 : 900);
+
+    const forestCount = (settings.size==="s") ? 4 : (settings.size==="l" ? 8 : 6);
+    const swampCount  = (settings.size==="s") ? 2 : (settings.size==="l" ? 4 : 3);
+    const hillCount   = (settings.size==="s") ? 2 : (settings.size==="l" ? 3 : 2);
+    const ruinCount   = (settings.size==="s") ? 2 : (settings.size==="l" ? 4 : 3);
+
+    // Forest patches (mutated) — prefer away from wind field
+    for(let i=0;i<forestCount;i++){
+      for(let tries=0; tries<60; tries++){
+        const c = sampleRingPoint(ringMin, ringMax);
+        if(fieldPoly && pointInPoly(c, scalePoly(fieldPoly, 1.02))) continue;
+        const r = rndRange(rng, 110, (settings.size==="l"?190:160));
+        let poly = blobPoly(c.x, c.y, r, rng, 24, 0.32);
+        poly = jitterPoly(poly, rng, 18);
+        if(!canPlaceNature(poly)) continue;
+        addNature("nature_forest", poly, {kind:"mutated"});
+        break;
+      }
+    }
+
+    // Swamps / bogs — often near water (if any)
+    for(let i=0;i<swampCount;i++){
+      for(let tries=0; tries<60; tries++){
+        let c = sampleRingPoint(ringMin*0.9, ringMax*0.95);
+        if(waterPoly){
+          const wp = nearestPointOnPoly(c, waterPoly).p;
+          // pull towards water a bit to read like “wet lowland”
+          c = {x: lerp(c.x, wp.x, 0.45), y: lerp(c.y, wp.y, 0.45)};
+        }
+        const r = rndRange(rng, 95, (settings.size==="l"?170:140));
+        let poly = blobPoly(c.x, c.y, r, rng, 22, 0.34);
+        poly = jitterPoly(poly, rng, 20);
+        if(!canPlaceNature(poly)) continue;
+        addNature("nature_swamp", poly, {});
+        break;
+      }
+    }
+
+    // Hills — drawn as contour lines (no solid fill)
+    for(let i=0;i<hillCount;i++){
+      for(let tries=0; tries<70; tries++){
+        const c = sampleRingPoint(ringMin*0.8, ringMax*1.05);
+        const r = rndRange(rng, 120, (settings.size==="l"?230:190));
+        let poly = blobPoly(c.x, c.y, r, rng, 24, 0.24);
+        poly = jitterPoly(poly, rng, 12);
+        if(!canPlaceNature(poly)) continue;
+        addNature("nature_hill", poly, {height: rndRange(rng, 0.4, 1.0)});
+        break;
+      }
+    }
+
+    // Ruins — prefer near the tract to feel “on the way”
+    for(let i=0;i<ruinCount;i++){
+      for(let tries=0; tries<90; tries++){
+        // pick a random point along a random tract segment, then offset sideways
+        const si = Math.floor(rnd(rng) * (tractPts.length-1));
+        const a = tractPts[si], b = tractPts[si+1];
+        const t = rnd(rng);
+        const base = {x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t)};
+        const dir = normalizeVec(b.x-a.x, b.y-a.y);
+        const nrm = {x:-dir.y, y:dir.x};
+        const off = rndRange(rng, 90, 240) * (rnd(rng)<0.5 ? -1 : 1);
+        const c = {x: base.x + nrm.x*off, y: base.y + nrm.y*off};
+        c.x = clamp(c.x, 140, WORLD.w-140);
+        c.y = clamp(c.y, 140, WORLD.h-140);
+
+        const r = rndRange(rng, 80, (settings.size==="l"?140:120));
+        let poly = blobPoly(c.x, c.y, r, rng, 18, 0.38);
+        poly = jitterPoly(poly, rng, 16);
+        if(!canPlaceNature(poly)) continue;
+        addNature("nature_ruins", poly, {ruinType: pick(rng, ["factory","farm","checkpoint","old_housing"])});
+        break;
+      }
+    }
+return {objs, meta, wallPoly, ditchPoly, waterPoly, fieldPoly, agroYard, plazaPoly};
+  }
+
+
+  // -----------------------------
+  // CityGen-style textures + parchment mode (ported)
+  // -----------------------------
+  function getCityPalette(theme){
+    if(theme==="parchment"){
+      return {
+        _isParch:true,
+        bg:"#efe4d2",
+        ink:"rgba(32,36,40,.82)",
+        ink2:"rgba(32,36,40,.55)",
+        ink3:"rgba(32,36,40,.14)",
+        water1:"rgba(55,130,180,.18)",
+        water2:"rgba(20,80,125,.20)",
+        earth1:"#e4d5ba",
+        earth2:"rgba(120,90,60,.35)",
+        earthSpeck:"rgba(60,40,20,.20)",
+        grass1:"rgba(90,140,90,.20)",
+        grass2:"rgba(40,80,50,.25)",
+        ash1:"rgba(80,80,80,.22)",
+        ash2:"rgba(40,40,40,.20)",
+        cobble1:"rgba(140,130,112,.30)",
+        cobble2:"rgba(70,62,52,.40)",
+        roof1:"rgba(160,92,66,.72)",
+        roof2:"rgba(92,48,34,.62)",
+        glass1:"rgba(90,170,195,.22)",
+        glass2:"rgba(30,90,120,.28)",
+        metal1:"rgba(120,122,126,.22)",
+        metal2:"rgba(50,52,56,.30)",
+        stone1:"rgba(201,186,152,.92)",
+        stone2:"rgba(110,96,74,.55)",
+        ruin:"rgba(140,45,45,.65)",
+        ruinFill:"rgba(140,45,45,.10)",
+        wall:"rgba(110,88,46,.92)",
+        wallFill:"#c9b28a",
+        wood1:"#d6b68a",
+        wood2:"rgba(110,88,46,.55)"
+      };
+    }
+    return {
+      _isParch:false,
+      bg:"#0a0d13",
+      ink:"rgba(230,233,239,.78)",
+      ink2:"rgba(230,233,239,.45)",
+      ink3:"rgba(230,233,239,.20)",
+      water1:"rgba(89,167,255,.12)",
+      water2:"rgba(0,0,0,.35)",
+      earth1:"#0f1011",
+      earth2:"rgba(210,180,140,.08)",
+      earthSpeck:"rgba(0,0,0,.45)",
+      grass1:"rgba(123,211,137,.08)",
+      grass2:"rgba(123,211,137,.16)",
+      ash1:"rgba(230,233,239,.08)",
+      ash2:"rgba(0,0,0,.35)",
+      cobble1:"rgba(230,233,239,.14)",
+      cobble2:"rgba(0,0,0,.45)",
+      roof1:"rgba(200,90,70,.22)",
+      roof2:"rgba(90,30,24,.45)",
+      glass1:"rgba(89,167,255,.10)",
+      glass2:"rgba(89,167,255,.24)",
+      metal1:"rgba(230,233,239,.12)",
+      metal2:"rgba(0,0,0,.35)",
+      stone1:"rgba(230,233,239,.12)",
+      stone2:"rgba(0,0,0,.35)",
+      ruin:"rgba(255,107,107,.55)",
+      ruinFill:"rgba(255,107,107,.10)",
+      wall:"rgba(230,233,239,.52)",
+      wallFill:"rgba(230,233,239,.12)",
+      wood1:"rgba(230,200,160,.12)",
+      wood2:"rgba(0,0,0,.35)"
+    };
+  }
+
+  function ensureCityTextureDefs(dynDefsNode, seedU32, theme){
+    // ids are stable; clear() already happened upstream
+    const P = getCityPalette(theme);
+    const isParch = !!P._isParch;
+    const texScale = isParch ? 0.18 : 0.26;
+    const texPT = "scale(" + texScale + ")";
+
+    const seed = (seedU32 % 999) + 1;
+
+    // paper noise filter (multiply, subtle)
+    const f = elNS("filter");
+    setAttrs(f,{id:"paperNoise",x:"-10%",y:"-10%",width:"120%",height:"120%"});
+    const turb = elNS("feTurbulence");
+    setAttrs(turb,{type:"fractalNoise",baseFrequency:"0.9",numOctaves:"2",seed:String(seed),result:"noise"});
+    const cm = elNS("feColorMatrix");
+    setAttrs(cm,{in:"noise",type:"matrix",values:"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.10 0",result:"n2"});
+    const blend = elNS("feBlend");
+    setAttrs(blend,{in:"SourceGraphic",in2:"n2",mode:"multiply"});
+    f.appendChild(turb); f.appendChild(cm); f.appendChild(blend);
+    dynDefsNode.appendChild(f);
+
+    function addPattern(id, w, h, transform, builder){
+      const p = elNS("pattern");
+      setAttrs(p,{id,patternUnits:"userSpaceOnUse",width:String(w),height:String(h),patternTransform:transform||""});
+      builder(p);
+      dynDefsNode.appendChild(p);
+    }
+    function addRect(parent, x,y,w,h, attrs){
+      const r = elNS("rect");
+      setAttrs(r, Object.assign({x:String(x),y:String(y),width:String(w),height:String(h)}, attrs||{}));
+      parent.appendChild(r);
+    }
+    function addPath(parent, d, attrs){
+      const p = elNS("path");
+      setAttrs(p, Object.assign({d}, attrs||{}));
+      parent.appendChild(p);
+    }
+    function addCircle(parent, cx,cy,r, attrs){
+      const c = elNS("circle");
+      setAttrs(c, Object.assign({cx:String(cx),cy:String(cy),r:String(r)}, attrs||{}));
+      parent.appendChild(c);
+    }
+
+    addPattern("texEarth", 60, 60, texPT, (p)=>{
+      addRect(p,0,0,60,60,{fill:P.earth1});
+      addPath(p,"M -10 16 L 70 16 M -10 40 L 70 40",{stroke:P.earth2,"stroke-width":"10",opacity:"0.10"});
+      addPath(p,"M 0 0 L 60 60 M 60 0 L 0 60",{stroke:P.earth2,"stroke-width":"5",opacity:"0.05"});
+      addCircle(p,12,20,1.8,{fill:P.earthSpeck,opacity:"0.20"});
+      addCircle(p,34,46,1.4,{fill:P.earthSpeck,opacity:"0.18"});
+      addCircle(p,50,30,1.6,{fill:P.earthSpeck,opacity:"0.16"});
+      addCircle(p,22,54,1.2,{fill:P.earthSpeck,opacity:"0.14"});
+    });
+
+    addPattern("texGrass", 56, 56, texPT, (p)=>{
+      addRect(p,0,0,56,56,{fill:P.earth1});
+      addPath(p,"M 0 8 L 56 8 M 0 20 L 56 20 M 0 32 L 56 32 M 0 44 L 56 44",{stroke:P.grass2,"stroke-width":"8",opacity:"0.16"});
+      addPath(p,"M 6 0 L 6 56 M 22 0 L 22 56 M 38 0 L 38 56 M 54 0 L 54 56",{stroke:P.grass1,"stroke-width":"4",opacity:"0.12"});
+    });
+
+    addPattern("texAsh", 56, 56, texPT, (p)=>{
+      addRect(p,0,0,56,56,{fill:P.earth1});
+      addPath(p,"M -10 18 L 66 18 M -10 40 L 66 40",{stroke:P.ash1,"stroke-width":"12",opacity:"0.14"});
+      addPath(p,"M 0 0 L 56 56 M 56 0 L 0 56",{stroke:P.ash2,"stroke-width":"4",opacity:"0.06"});
+      addCircle(p,14,16,2.0,{fill:P.ash2,opacity:"0.16"});
+      addCircle(p,40,44,2.6,{fill:P.ash2,opacity:"0.14"});
+      addCircle(p,48,26,1.7,{fill:P.ash2,opacity:"0.18"});
+    });
+
+    addPattern("texRubble", 96, 96, texPT, (p)=>{
+      addRect(p,0,0,96,96,{fill:P.earth1});
+      addPath(p,"M 6 18 C 20 6, 40 8, 54 20 C 66 30, 84 26, 92 14 L 92 34 C 78 44, 62 42, 48 34 C 36 28, 20 30, 6 38 Z",{fill:P.earth2,opacity:"0.38"});
+      addPath(p,"M 10 78 C 26 60, 44 58, 58 70 C 72 82, 88 78, 94 66 L 94 92 L 10 92 Z",{fill:P.earth2,opacity:"0.30"});
+      addPath(p,"M 8 10 L 22 18 L 36 12 L 52 22 L 70 16 L 88 24",{stroke:P.ash2,"stroke-width":"2.2",opacity:"0.34","stroke-linecap":"round","stroke-linejoin":"round"});
+      addPath(p,"M 14 48 L 28 40 L 44 46 L 58 38 L 78 44 L 90 40",{stroke:P.ash2,"stroke-width":"1.9",opacity:"0.30","stroke-linecap":"round","stroke-linejoin":"round"});
+      addPath(p,"M 18 86 L 30 74 L 42 78 L 60 66 L 76 72 L 88 62",{stroke:P.ash2,"stroke-width":"1.7",opacity:"0.26","stroke-linecap":"round","stroke-linejoin":"round"});
+      addPath(p,"M 10 24 L 24 16 L 34 26 L 20 34 Z",{fill:P.stone2,opacity:"0.48"});
+      addPath(p,"M 40 18 L 58 14 L 64 26 L 46 30 Z",{fill:P.stone2,opacity:"0.44"});
+      addPath(p,"M 70 28 L 88 22 L 92 34 L 74 40 Z",{fill:P.stone2,opacity:"0.40"});
+      addPath(p,"M 18 56 L 34 50 L 40 64 L 22 68 Z",{fill:P.stone2,opacity:"0.46"});
+      addPath(p,"M 52 52 L 70 48 L 76 60 L 58 66 Z",{fill:P.stone2,opacity:"0.42"});
+      addPath(p,"M 78 54 L 92 50 L 94 60 L 80 64 Z",{fill:P.stone2,opacity:"0.38"});
+      addRect(p,12,40,10,5,{rx:"1",ry:"1",fill:P.ruin,opacity:"0.16"});
+      addRect(p,30,34,8,4,{rx:"1",ry:"1",fill:P.ruin,opacity:"0.12"});
+      addRect(p,64,40,11,5,{rx:"1",ry:"1",fill:P.ruin,opacity:"0.14"});
+      addRect(p,74,70,9,4,{rx:"1",ry:"1",fill:P.ruin,opacity:"0.12"});
+      addCircle(p,16,30,1.6,{fill:P.earthSpeck,opacity:"0.20"});
+      addCircle(p,44,36,2.1,{fill:P.earthSpeck,opacity:"0.16"});
+      addCircle(p,84,46,1.4,{fill:P.earthSpeck,opacity:"0.22"});
+      addCircle(p,26,62,1.8,{fill:P.earthSpeck,opacity:"0.18"});
+      addCircle(p,68,78,2.0,{fill:P.earthSpeck,opacity:"0.16"});
+      addCircle(p,88,86,1.6,{fill:P.earthSpeck,opacity:"0.18"});
+    });
+
+    addPattern("texCobble", 24, 24, texPT, (p)=>{
+      addRect(p,0,0,24,24,{fill:P.cobble1});
+      addRect(p,2,3,8,6,{rx:"2",ry:"2",fill:"rgba(255,255,255,.04)",stroke:P.cobble2,"stroke-width":"1.0",opacity:"0.40"});
+      addRect(p,12,2,10,7,{rx:"2",ry:"2",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"1.0",opacity:"0.35"});
+      addRect(p,3,12,9,8,{rx:"2",ry:"2",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"1.0",opacity:"0.35"});
+      addRect(p,14,12,8,9,{rx:"2",ry:"2",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"1.0",opacity:"0.32"});
+      addPath(p,"M 0 11 L 24 11",{stroke:P.cobble2,"stroke-width":"0.8",opacity:"0.18"});
+    });
+
+    addPattern("texCobbleFine", 16, 16, texPT, (p)=>{
+      addRect(p,0,0,16,16,{fill:P.cobble1});
+      addRect(p,1.5,2,5.5,4.5,{rx:"1.6",ry:"1.6",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"0.9",opacity:"0.35"});
+      addRect(p,8,1.5,6.5,5,{rx:"1.6",ry:"1.6",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"0.9",opacity:"0.32"});
+      addRect(p,2,8,6,6,{rx:"1.6",ry:"1.6",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"0.9",opacity:"0.32"});
+      addRect(p,9.5,8,5,6,{rx:"1.6",ry:"1.6",fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":"0.9",opacity:"0.30"});
+    });
+
+    addPattern("texTileRoof", 22, 12, texPT, (p)=>{
+      addRect(p,0,0,22,12,{fill:P.roof1});
+      addPath(p,"M 0 4 Q 3 1 6 4 T 12 4 T 18 4 T 24 4",{stroke:P.roof2,"stroke-width":"1.0",fill:"none",opacity:"0.55"});
+      addPath(p,"M 0 8 Q 3 5 6 8 T 12 8 T 18 8 T 24 8",{stroke:P.roof2,"stroke-width":"1.0",fill:"none",opacity:"0.50"});
+      addPath(p,"M 0 0 L 0 12 M 11 0 L 11 12 M 22 0 L 22 12",{stroke:P.roof2,"stroke-width":"0.8",opacity:"0.20"});
+    });
+
+    addPattern("texGlassRoof", 20, 20, texPT, (p)=>{
+      addRect(p,0,0,20,20,{fill:P.glass1});
+      addPath(p,"M 0 0 L 20 0 L 20 20 L 0 20 Z",{stroke:P.glass2,"stroke-width":"1.0",fill:"none",opacity:"0.45"});
+      addPath(p,"M 0 10 L 20 10 M 10 0 L 10 20",{stroke:P.glass2,"stroke-width":"0.9",opacity:"0.28"});
+      addPath(p,"M 2 2 L 8 2",{stroke:"rgba(255,255,255,.18)","stroke-width":"1.0",opacity:"0.55"});
+      addPath(p,"M 12 12 L 18 12",{stroke:"rgba(255,255,255,.14)","stroke-width":"1.0",opacity:"0.45"});
+    });
+
+    addPattern("texMetalRoof", 16, 16, texPT + " rotate(25)", (p)=>{
+      addRect(p,0,0,16,16,{fill:P.metal1});
+      addPath(p,"M 0 0 L 0 16 M 4 0 L 4 16 M 8 0 L 8 16 M 12 0 L 12 16 M 16 0 L 16 16",{stroke:P.metal2,"stroke-width":"1.0",opacity:"0.45"});
+    });
+
+    addPattern("texStone", 28, 28, texPT, (p)=>{
+      addRect(p,0,0,28,28,{fill:P.stone1});
+      addPath(p,"M 0 8 L 28 8 M 0 16 L 28 16 M 0 24 L 28 24",{stroke:P.stone2,"stroke-width":"1.2",opacity:"0.18"});
+      addPath(p,"M 6 0 L 6 8 M 14 8 L 14 16 M 22 16 L 22 24",{stroke:P.stone2,"stroke-width":"1.0",opacity:"0.14"});
+      addRect(p,1,1,10,6,{fill:"rgba(255,255,255,.03)",stroke:P.stone2,"stroke-width":"0.9",opacity:"0.22"});
+      addRect(p,13,9,13,6,{fill:"rgba(255,255,255,.02)",stroke:P.stone2,"stroke-width":"0.9",opacity:"0.20"});
+      addRect(p,2,17,14,6,{fill:"rgba(255,255,255,.02)",stroke:P.stone2,"stroke-width":"0.9",opacity:"0.20"});
+    });
+
+    addPattern("texStoneFloor", 24, 24, texPT, (p)=>{
+      addRect(p,0,0,24,24,{fill:P.stone1});
+      addPath(p,"M 0 0 L 24 0 L 24 24 L 0 24 Z",{stroke:P.stone2,"stroke-width":"1.2",fill:"none",opacity:"0.20"});
+      addPath(p,"M 0 12 L 24 12 M 12 0 L 12 24",{stroke:P.stone2,"stroke-width":"1.0",opacity:"0.16"});
+      addPath(p,"M 6 0 L 6 12 M 18 12 L 18 24",{stroke:P.stone2,"stroke-width":"0.9",opacity:"0.12"});
+    });
+
+    addPattern("texWater", 32, 16, texPT, (p)=>{
+      addRect(p,0,0,32,16,{fill:P.water1});
+      addPath(p,"M 0 8 C 4 5, 8 11, 12 8 S 20 5, 24 8 S 28 11, 32 8",{stroke:P.water2,"stroke-width":"1.2",fill:"none",opacity:"0.35"});
+      addPath(p,"M 0 3 C 4 1, 8 5, 12 3 S 20 1, 24 3 S 28 5, 32 3",{stroke:"rgba(255,255,255,.10)","stroke-width":"1.0",fill:"none",opacity:"0.25"});
+    });
+
+    // Swamp: earth + watery stains
+    addPattern("texSwamp", 64, 64, texPT, (p)=>{
+      addRect(p,0,0,64,64,{fill:P.earth1});
+      addPath(p,"M 6 20 C 18 10, 32 12, 44 22 C 56 32, 58 44, 46 52 C 34 60, 18 56, 10 44 C 4 34, 2 28, 6 20 Z",{fill:P.water1,opacity:"0.22"});
+      addPath(p,"M 18 10 C 26 6, 34 8, 40 14",{stroke:P.water2,"stroke-width":"2.0",opacity:"0.18","stroke-linecap":"round"});
+      addCircle(p,14,46,2.2,{fill:P.water2,opacity:"0.10"});
+      addCircle(p,38,40,1.8,{fill:P.water2,opacity:"0.10"});
+      addCircle(p,48,28,2.0,{fill:P.water2,opacity:"0.10"});
+    });
+
+    // Wood / palisade: vertical boards
+    addPattern("texWood", 22, 22, texPT, (p)=>{
+      addRect(p,0,0,22,22,{fill:P.wood1});
+      addPath(p,"M 2 0 L 2 22 M 7 0 L 7 22 M 12 0 L 12 22 M 17 0 L 17 22 M 22 0 L 22 22",{stroke:P.wood2,"stroke-width":"1.2",opacity:"0.45"});
+      addPath(p,"M 0 6 L 22 6 M 0 16 L 22 16",{stroke:"rgba(0,0,0,.12)","stroke-width":"0.9",opacity:"0.25"});
+    });
+
+  }
+
+
+
+function render(gen, settings){
+    // Clear layers
+    for(const k in layer) clear(layer[k]);
+    clear(dynDefs);
+
+    const theme = settings.theme || "dark";
+    const useTex = (settings.textures==="on");
+    const seedU = xmur3(settings.seed + "|tex")();
+    if(useTex) ensureCityTextureDefs(dynDefs, seedU, theme);
+
+    // Background (explicit rect so SVG export keeps the look)
+    const bg = $("#bgRect");
+    bg.setAttribute("fill", useTex ? "url(#texEarth)" : "var(--map-bg)");
+    if(useTex) bg.setAttribute("filter","url(#paperNoise)");
+    else bg.removeAttribute("filter");
+
+    // Grid
+    $("#gridRect").setAttribute("opacity", settings.grid==="on" ? "0.28" : "0.0");
+    // Nature / terrain (around the village)
+    function rngForId(id){
+      return rngFromSeed(settings.seed + "|" + id);
+    }
+    function makeClip(id, poly){
+      const clipId = "clip_"+id;
+      const cp = elNS("clipPath"); cp.setAttribute("id", clipId);
+      const path = elNS("path"); path.setAttribute("d", polyToPath(poly,true));
+      cp.appendChild(path);
+      dynDefs.appendChild(cp);
+      return clipId;
+    }
+    function drawTextureLines(g, clipId, rng, bb, count, wiggle, stroke, sw){
+      const gg = elNS("g");
+      gg.setAttribute("clip-path", `url(#${clipId})`);
+      for(let i=0;i<count;i++){
+        const x0 = rndRange(rng, bb.minX, bb.maxX);
+        const y0 = rndRange(rng, bb.minY, bb.maxY);
+        const len = rndRange(rng, 14, 44);
+        const a = rndRange(rng, -Math.PI, Math.PI);
+        const dx = Math.cos(a)*len;
+        const dy = Math.sin(a)*len;
+        const k = (wiggle||0);
+        const p = elNS("path");
+        const mx = x0 + dx*0.5 + (rnd(rng)*2-1)*k;
+        const my = y0 + dy*0.5 + (rnd(rng)*2-1)*k;
+        p.setAttribute("d", `M ${x0.toFixed(2)} ${y0.toFixed(2)} Q ${mx.toFixed(2)} ${my.toFixed(2)} ${(x0+dx).toFixed(2)} ${(y0+dy).toFixed(2)}`);
+        p.setAttribute("fill","none");
+        p.setAttribute("stroke", stroke);
+        p.setAttribute("stroke-width", sw);
+        p.setAttribute("stroke-linecap","round");
+        p.setAttribute("opacity","0.55");
+        gg.appendChild(p);
+      }
+      g.appendChild(gg);
+    }
+    function drawDots(g, clipId, rng, bb, count, fill, r0){
+      const gg = elNS("g");
+      gg.setAttribute("clip-path", `url(#${clipId})`);
+      for(let i=0;i<count;i++){
+        const c = elNS("circle");
+        c.setAttribute("cx", rndRange(rng, bb.minX, bb.maxX).toFixed(2));
+        c.setAttribute("cy", rndRange(rng, bb.minY, bb.maxY).toFixed(2));
+        const rr = (r0||1.2) * rndRange(rng, 0.6, 1.4);
+        c.setAttribute("r", rr.toFixed(2));
+        c.setAttribute("fill", fill);
+        c.setAttribute("opacity","0.55");
+        gg.appendChild(c);
+      }
+      g.appendChild(gg);
+    }
+
+    function drawHatch(g, clipId, rng, bb, angle, spacing, stroke, sw, opacity){
+      const gg = elNS("g");
+      gg.setAttribute("clip-path", `url(#${clipId})`);
+      const a = angle || 0;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // project bbox corners to rotated axis to find range
+      const pts = [
+        {x:bb.minX,y:bb.minY},{x:bb.maxX,y:bb.minY},{x:bb.maxX,y:bb.maxY},{x:bb.minX,y:bb.maxY}
+      ];
+      let minU=Infinity,maxU=-Infinity,minV=Infinity,maxV=-Infinity;
+      for(const p of pts){
+        const u = p.x*ca + p.y*sa;
+        const v = -p.x*sa + p.y*ca;
+        minU=Math.min(minU,u); maxU=Math.max(maxU,u);
+        minV=Math.min(minV,v); maxV=Math.max(maxV,v);
+      }
+      const step = Math.max(3, spacing||6);
+      for(let v=minV-40; v<=maxV+40; v+=step){
+        // line in rotated space: u from minU..maxU at constant v
+        const x1 = (minU)*ca + (v)*(-sa);
+        const y1 = (minU)*sa + (v)*(ca);
+        const x2 = (maxU)*ca + (v)*(-sa);
+        const y2 = (maxU)*sa + (v)*(ca);
+        const p = elNS("path");
+        p.setAttribute("d", `M ${x1.toFixed(2)} ${y1.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+        p.setAttribute("fill","none");
+        p.setAttribute("stroke", stroke);
+        p.setAttribute("stroke-width", sw);
+        p.setAttribute("stroke-linecap","round");
+        p.setAttribute("opacity", (opacity!=null?opacity:0.55));
+        gg.appendChild(p);
+      }
+      g.appendChild(gg);
+    }
+
+    // Base ground texture (global subtle noise) — replaced by CityGen paper texture on bgRect
+    if(false && settings.textures==="on"){
+      const rr = rngFromSeed(settings.seed + "|ground");
+      const g = elNS("g");
+      const count = (settings.detail==="high") ? 1600 : (settings.detail==="med" ? 1100 : 750);
+      for(let i=0;i<count;i++){
+        const c = elNS("circle");
+        c.setAttribute("cx", rndRange(rr, 0, WORLD.w).toFixed(2));
+        c.setAttribute("cy", rndRange(rr, 0, WORLD.h).toFixed(2));
+        c.setAttribute("r", (rndRange(rr, 0.6, 1.6)).toFixed(2));
+        c.setAttribute("fill", "rgba(255,255,255,.035)");
+        c.setAttribute("opacity", "0.55");
+        g.appendChild(c);
+      }
+      layer.nature.appendChild(g);
+    }
+
+
+    for(const o of gen.objs.filter(x=>x.layer==="nature")){
+      const bb = polyBBox(o.poly);
+      const clipId = makeClip(o.id, o.poly);
+      const rr = rngForId(o.id);
+
+      if(o.type==="nature_forest"){
+        drawPoly(layer.nature, o.poly, {
+          fill:(useTex ? "url(#texGrass)" : "var(--map-forest-fill)"),
+          stroke:"var(--map-forest-stroke)",
+          "stroke-width":2.2,
+          opacity:0.95,
+          "stroke-linejoin":"round"
+        });
+        // Texture overlay for forest patches (optional)
+        if(false && settings.textures==="on" && settings.detail!=="low"){
+          drawTextureLines(layer.nature, clipId, rr, bb, settings.detail==="high" ? 120 : 80, 10, "var(--map-forest-text)", 1.35);
+          drawDots(layer.nature, clipId, rr, bb, settings.detail==="high" ? 160 : 110, "rgba(47,227,192,.22)", 1.05);
+        }
+
+        // Individual mutated trees (each tree is a separate symbol)
+        const gTrees = elNS("g");
+        gTrees.setAttribute("clip-path", `url(#${clipId})`);
+        const area = Math.max(1, (bb.maxX-bb.minX) * (bb.maxY-bb.minY));
+        const density = (settings.detail==="high" ? 0.00014 : (settings.detail==="med" ? 0.00011 : 0.00008));
+        const tTarget = Math.floor(area * density * (settings.textures==="on" ? 1.10 : 0.95));
+        const minD = (settings.detail==="high") ? 11 : (settings.detail==="med" ? 12 : 13);
+        const pts=[];
+        const tries = Math.min(5200, Math.max(1200, tTarget*40));
+        for(let i=0;i<tries && pts.length<tTarget;i++){
+          const x = rndRange(rr, bb.minX, bb.maxX);
+          const y = rndRange(rr, bb.minY, bb.maxY);
+          const p0 = {x,y};
+          if(!pointInPoly(p0, o.poly)) continue;
+
+          let ok=true;
+          // cheap spacing: compare to a small random subset when list grows
+          const checkN = (pts.length<80) ? pts.length : 80;
+          for(let k=0;k<checkN;k++){
+            const q = pts[(pts.length-1-k)];
+            if((x-q.x)*(x-q.x)+(y-q.y)*(y-q.y) < minD*minD){ ok=false; break; }
+          }
+          if(!ok) continue;
+
+          pts.push(p0);
+
+          const s = rndRange(rr, 6.0, 11.0) * (settings.detail==="high" ? 1.05 : 1.0);
+          const spikes = 6 + Math.floor(rnd(rr)*4);
+          const a0 = rndRange(rr, 0, Math.PI*2);
+          let d = "";
+          for(let k=0;k<spikes;k++){
+            const a = a0 + (k/spikes)*Math.PI*2;
+            const rr0 = s * (0.65 + rnd(rr)*0.55) * (k%2 ? 1.00 : 0.78);
+            const px = x + Math.cos(a)*rr0;
+            const py = y + Math.sin(a)*rr0;
+            d += (k===0 ? "M " : " L ") + px.toFixed(2) + " " + py.toFixed(2);
+          }
+          d += " Z";
+          const tp = elNS("path");
+          tp.setAttribute("d", d);
+          tp.setAttribute("fill", "rgba(12,22,26,.92)");
+          tp.setAttribute("stroke", "rgba(47,227,192,.12)");
+          tp.setAttribute("stroke-width", "0.9");
+          tp.setAttribute("opacity", settings.textures==="on" ? "0.88" : "0.74");
+          gTrees.appendChild(tp);
+
+          // occasional "mutated spine" stroke
+          if(settings.textures==="on" && rnd(rr) < 0.22){
+            const a = rndRange(rr, -Math.PI, Math.PI);
+            const len = rndRange(rr, 10, 18);
+            const p = elNS("path");
+            const x2 = x + Math.cos(a)*len;
+            const y2 = y + Math.sin(a)*len;
+            p.setAttribute("d", `M ${x.toFixed(2)} ${y.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+            p.setAttribute("fill","none");
+            p.setAttribute("stroke","rgba(47,227,192,.10)");
+            p.setAttribute("stroke-width","1.0");
+            p.setAttribute("stroke-linecap","round");
+            p.setAttribute("opacity","0.75");
+            gTrees.appendChild(p);
+          }
+        }
+        layer.nature.appendChild(gTrees);
+      }
+      else if(o.type==="nature_swamp"){
+        drawPoly(layer.nature, o.poly, {
+          fill:(useTex ? "url(#texSwamp)" : "var(--map-swamp-fill)"),
+          stroke:"var(--map-swamp-stroke)",
+          "stroke-width":2.1,
+          opacity:0.92,
+          "stroke-linejoin":"round"
+        });
+        if(false && settings.textures==="on" && settings.detail!=="low"){
+          // wavy water-weed lines
+          const gg = elNS("g");
+          gg.setAttribute("clip-path", `url(#${clipId})`);
+          const cN = (settings.detail==="high") ? 55 : 34;
+          for(let i=0;i<cN;i++){
+            const x0 = rndRange(rr, bb.minX, bb.maxX);
+            const y0 = rndRange(rr, bb.minY, bb.maxY);
+            const len = rndRange(rr, 30, 70);
+            const a = rndRange(rr, -Math.PI, Math.PI);
+            const dx = Math.cos(a)*len, dy = Math.sin(a)*len;
+            const p = elNS("path");
+            const w1 = (rnd(rr)*2-1)*12;
+            const w2 = (rnd(rr)*2-1)*12;
+            p.setAttribute("d", `M ${x0.toFixed(2)} ${y0.toFixed(2)} C ${(x0+dx*0.33+w1).toFixed(2)} ${(y0+dy*0.33-w1).toFixed(2)} ${(x0+dx*0.66+w2).toFixed(2)} ${(y0+dy*0.66-w2).toFixed(2)} ${(x0+dx).toFixed(2)} ${(y0+dy).toFixed(2)}`);
+            p.setAttribute("fill","none");
+            p.setAttribute("stroke","var(--map-swamp-text)");
+            p.setAttribute("stroke-width","1.3");
+            p.setAttribute("opacity","0.55");
+            gg.appendChild(p);
+          }
+          layer.nature.appendChild(gg);
+          drawDots(layer.nature, clipId, rr, bb, settings.detail==="high" ? 120 : 80, "rgba(46,80,124,.35)", 1.0);
+        }
+      }
+      else if(o.type==="nature_hill"){
+        // draw contours (topographic)
+        drawPoly(layer.nature, o.poly, {
+          fill:"none",
+          stroke:"var(--map-hill-stroke)",
+          "stroke-width":2.1,
+          opacity:0.85,
+          "stroke-linejoin":"round"
+        });
+        const steps = (settings.detail==="high") ? 7 : 5;
+        for(let k=1;k<=steps;k++){
+          const s2 = 1 - k*(0.09 + (settings.detail==="high"?0.01:0.015));
+          const p2 = scalePoly(o.poly, s2);
+          drawPoly(layer.nature, p2, {fill:"none", stroke:"var(--map-hill-text)", "stroke-width":1.3, opacity:0.55});
+        }
+      }
+      else if(o.type==="nature_ruins"){
+        drawPoly(layer.nature, o.poly, {
+          fill:(useTex ? "url(#texRubble)" : "var(--map-ruin-fill)"),
+          stroke:"var(--map-ruin-stroke)",
+          "stroke-width":2.0,
+          opacity:0.90,
+          "stroke-linejoin":"round",
+          "stroke-dasharray":"10 7"
+        });
+        if(false && settings.textures==="on" && settings.detail!=="low"){
+          // broken walls / rubble
+          drawTextureLines(layer.nature, clipId, rr, bb, settings.detail==="high" ? 95 : 65, 6, "var(--map-ruin-text)", 1.6);
+          drawDots(layer.nature, clipId, rr, bb, settings.detail==="high" ? 140 : 95, "rgba(95,112,143,.25)", 1.1);
+          // a few interior rectangles as “foundations”
+          const gg = elNS("g");
+          gg.setAttribute("clip-path", `url(#${clipId})`);
+          const fN = (settings.detail==="high") ? 10 : 7;
+          for(let i=0;i<fN;i++){
+            const cx = rndRange(rr, bb.minX, bb.maxX);
+            const cy = rndRange(rr, bb.minY, bb.maxY);
+            const w = rndRange(rr, 18, 55);
+            const h = rndRange(rr, 14, 45);
+            const ang = rndRange(rr, -0.5, 0.5);
+            const poly = rectPoly(cx,cy,w,h,ang);
+            const p = elNS("path");
+            p.setAttribute("d", polyToPath(poly,true));
+            p.setAttribute("fill","none");
+            p.setAttribute("stroke","rgba(207,224,255,.25)");
+            p.setAttribute("stroke-width","1.5");
+            p.setAttribute("opacity","0.55");
+            gg.appendChild(p);
+          }
+          layer.nature.appendChild(gg);
+        }
+      }
+    }
+
+
+    // helper draw
+    function drawPath(g, d, attrs){
+      const p = elNS("path");
+      setAttrs(p, Object.assign({d}, attrs||{}));
+      g.appendChild(p);
+      return p;
+    }
+    function drawPoly(g, poly, attrs){
+      return drawPath(g, polyToPath(poly,true), attrs);
+    }
+    function drawCircle(g, cx, cy, r, attrs){
+      const c = elNS("circle");
+      setAttrs(c, Object.assign({cx,cy,r}, attrs||{}));
+      g.appendChild(c);
+      return c;
+    }
+    function drawLine(g, a, b, attrs){
+      const l = elNS("line");
+      setAttrs(l, Object.assign({x1:a.x,y1:a.y,x2:b.x,y2:b.y}, attrs||{}));
+      g.appendChild(l);
+      return l;
+    }
+    function drawText(g, x, y, text, attrs){
+      const t = elNS("text");
+      t.textContent = text;
+      setAttrs(t, Object.assign({x,y}, attrs||{}));
+      g.appendChild(t);
+      return t;
+    }
+
+    // Styles by layer
+    // Water
+    for(const o of gen.objs.filter(x=>x.layer==="water")){
+      drawPoly(layer.water, o.poly, {
+        fill: (useTex ? "url(#texWater)" : "var(--map-water)"),
+        stroke: "var(--map-water-stroke)",
+        "stroke-width": 2.2,
+        opacity: 0.95
+      });
+
+      if(false && settings.textures==="on"){
+        const bb = polyBBox(o.poly);
+        const clipId = makeClip(o.id + "_water", o.poly);
+        const rr = rngForId(o.id + "|water");
+        // subtle wavelets / flow lines
+        const lines = (settings.detail==="high") ? 170 : (settings.detail==="med" ? 120 : 80);
+        drawTextureLines(layer.water, clipId, rr, bb, lines, 18, "rgba(120,160,220,.12)", 1.2);
+        // a few larger arcs
+        drawTextureLines(layer.water, clipId, rr, bb, (settings.detail==="high") ? 42 : 26, 26, "rgba(180,210,255,.10)", 1.6);
+      }
+    }
+
+
+    // Wall/ditch cuts where the river crosses the fortifications
+    let wallCutMaskId = null;
+    const waterObjForCut = gen.objs.find(x=>x.layer==="water");
+    if(waterObjForCut && gen.wallPoly && polysIntersect(waterObjForCut.poly, gen.wallPoly)){
+      wallCutMaskId = "mask_wallcut";
+      const mask = elNS("mask");
+      mask.setAttribute("id", wallCutMaskId);
+      mask.setAttribute("maskUnits", "userSpaceOnUse");
+
+      const r = elNS("rect");
+      r.setAttribute("x","0"); r.setAttribute("y","0");
+      r.setAttribute("width", WORLD.w);
+      r.setAttribute("height", WORLD.h);
+      r.setAttribute("fill","white");
+      mask.appendChild(r);
+
+      const p = elNS("path");
+      p.setAttribute("d", polyToPath(waterObjForCut.poly,true));
+      p.setAttribute("fill","black");
+      p.setAttribute("stroke","black");
+      p.setAttribute("stroke-width", "28");
+      p.setAttribute("stroke-linejoin", "round");
+      p.setAttribute("opacity", "1");
+      mask.appendChild(p);
+
+      dynDefs.appendChild(mask);
+    }
+
+
+
+    // Main tract across the map (below village roads)
+    for(const o of gen.objs.filter(x=>x.layer==="tract")){
+      drawPath(layer.tract, linePath(o.points), {
+        fill:"none",
+        stroke:(useTex ? "url(#texCobble)" : "var(--map-tract)"),
+        "stroke-width": (settings.size==="s") ? 10 : (settings.size==="l" ? 14 : 12),
+        opacity:0.78,
+        "stroke-linecap":"round",
+        "stroke-linejoin":"round"
+      });
+      // inner darker lane
+      drawPath(layer.tract, linePath(o.points), {
+        fill:"none",
+        stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-tract2)"),
+        "stroke-width": (settings.size==="s") ? 4.5 : (settings.size==="l" ? 6.5 : 5.5),
+        opacity:0.85,
+        "stroke-linecap":"round",
+        "stroke-linejoin":"round"
+      });
+      if(settings.detail==="high"){
+        // subtle “wheel ruts”
+        const rr = rngFromSeed(settings.seed + "|" + o.id + "|ruts");
+        for(let i=0;i<48;i++){
+          const si = Math.floor(rnd(rr) * (o.points.length-1));
+          const a=o.points[si], b=o.points[si+1];
+          const t=rnd(rr);
+          const x=lerp(a.x,b.x,t), y=lerp(a.y,b.y,t);
+          const dir = normalizeVec(b.x-a.x, b.y-a.y);
+          const nrm = {x:-dir.y, y:dir.x};
+          const off = rndRange(rr, -6, 6);
+          const len = rndRange(rr, 10, 22);
+          const p0 = {x: x + nrm.x*off - dir.x*len*0.5, y: y + nrm.y*off - dir.y*len*0.5};
+          const p1 = {x: x + nrm.x*off + dir.x*len*0.5, y: y + nrm.y*off + dir.y*len*0.5};
+          drawPath(layer.tract, linePath([p0,p1]), {fill:"none", stroke:"rgba(0,0,0,.35)", "stroke-width":1.5, opacity:0.55, "stroke-linecap":"round"});
+        }
+      }
+    }
+
+    // Ditch / earthwork
+    const ditchObjs = gen.objs.filter(x=>x.layer==="ditch");
+    const cutMaskAttr = wallCutMaskId ? {mask:`url(#${wallCutMaskId})`} : {};
+    for(const o of ditchObjs){
+      if(o.type==="ditch"){
+        drawPoly(layer.ditch, o.poly, Object.assign({fill:"none", stroke:"var(--map-ditch)", "stroke-width": 4.0, "stroke-dasharray":"10 8", opacity:0.75}, cutMaskAttr));
+      } else if(o.type==="earthwork"){
+        drawPoly(layer.ditch, o.poly, Object.assign({fill:"none", stroke:"var(--map-ditch)", "stroke-width": 7.0, opacity:0.45}, cutMaskAttr));
+      }
+    }
+
+    // Walls
+    const wallMaskAttr = wallCutMaskId ? {mask:`url(#${wallCutMaskId})`} : {};
+    for(const o of gen.objs.filter(x=>x.layer==="walls")){
+      if(o.type==="palisade"){
+        drawPoly(layer.walls, o.poly, Object.assign({fill:"none", stroke:(useTex ? "url(#texWood)" : "var(--map-wall)"), "stroke-width": 6.0, opacity:0.92, "stroke-linejoin":"round"}, wallMaskAttr));
+        // add inner thin stroke for "stakes" impression
+        if(settings.textures==="on" && settings.detail!=="low"){
+          drawPoly(layer.walls, o.poly, Object.assign({fill:"none", stroke:"rgba(0,0,0,.55)", "stroke-width": 2.0, opacity:0.65, "stroke-dasharray":"6 6"}, wallMaskAttr));
+          // extra stake ticks for a more "wooden palisade" feel
+          const rr = rngForId(o.id + "|walltex");
+          const C = centroid(o.poly);
+          const tickN = (settings.detail==="high") ? 220 : (settings.detail==="med" ? 160 : 110);
+          for(let k=0;k<tickN;k++){
+            const si = Math.floor(rnd(rr) * o.poly.length);
+            const a = o.poly[si];
+            const b = o.poly[(si+1)%o.poly.length];
+            const t = rnd(rr);
+            const mx = lerp(a.x,b.x,t), my = lerp(a.y,b.y,t);
+            const dir = normalizeVec(b.x-a.x, b.y-a.y);
+            const nrm0 = {x:-dir.y, y:dir.x};
+            const mid = {x:mx,y:my};
+            const test = {x: mid.x + nrm0.x*4, y: mid.y + nrm0.y*4};
+            const out = (dist(test, C) > dist(mid, C)) ? nrm0 : {x:-nrm0.x, y:-nrm0.y};
+            const len = rndRange(rr, 4, 10) * (settings.detail==="high" ? 1.0 : 0.9);
+            const p0 = {x: mid.x - out.x*1.5, y: mid.y - out.y*1.5};
+            const p1 = {x: mid.x + out.x*len, y: mid.y + out.y*len};
+            const l = drawLine(layer.walls, p0, p1, Object.assign({stroke:"rgba(255,255,255,.06)", "stroke-width":1.1, opacity:0.55, "stroke-linecap":"round"}, wallMaskAttr));
+          }
+        }
+      } else if(o.type==="watchtower"){
+        drawCircle(layer.walls, o.center.x, o.center.y, o.r, {fill:"rgba(0,0,0,.35)", stroke:"var(--map-wall)", "stroke-width":2.2, opacity:0.95});
+      } else if(o.type==="gatehouse"){
+        drawPoly(layer.walls, o.poly, {fill:"rgba(0,0,0,.35)", stroke:"var(--map-wall)", "stroke-width":2.6, opacity:0.95});
+        drawCircle(layer.walls, o.center.x, o.center.y, 7, {fill:"rgba(0,0,0,.4)", stroke:"var(--map-wall)", "stroke-width":1.8, opacity:0.9});
+      }
+
+    // If no fortifications selected, draw a faint settlement boundary
+    if(settings.fort==="none"){
+      drawPoly(layer.walls, gen.wallPoly, {fill:"none", stroke:"rgba(167,179,199,.22)", "stroke-width":3.0, "stroke-dasharray":"14 12", opacity:0.70, "stroke-linejoin":"round"});
+    }
+
+    }
+
+    // Roads
+    const roadStyles = {
+      road_main: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road)"), w: 14, op:0.95},
+      road_agro: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 12, op:0.90},
+      road_ring: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 10, op:0.75},
+      track_to_wind: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 8, op:0.55, dash:"9 10"},
+      road_out: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 9, op:0.55, dash:"10 10"},
+      road_dock: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 9, op:0.72},
+      road_branch: {stroke:(useTex ? "url(#texCobbleFine)" : "var(--map-road2)"), w: 9, op:0.62},
+    };
+    for(const o of gen.objs.filter(x=>x.layer==="roads")){
+      const st = roadStyles[o.type] || {stroke:"var(--map-road2)", w: 8, op:0.6};
+      drawPath(layer.roads, linePath(o.points), {
+        fill:"none",
+        stroke: st.stroke,
+        "stroke-width": st.w,
+        opacity: st.op,
+        "stroke-linecap":"round",
+        "stroke-linejoin":"round",
+        "stroke-dasharray": st.dash || "none"
+      });
+      // subtle edge highlight
+      if(settings.detail!=="low" && (o.type==="road_main" || o.type==="road_agro")){
+        drawPath(layer.roads, linePath(o.points), {
+          fill:"none",
+          stroke: "rgba(255,255,255,.06)",
+          "stroke-width": Math.max(2, st.w-9),
+          opacity: 0.75,
+          "stroke-linecap":"round",
+          "stroke-linejoin":"round"
+        });
+      }
+    }
+
+    // Fields + plaza + wind-field + strips
+    for(const o of gen.objs.filter(x=>x.layer==="fields")){
+      if(o.type==="plaza"){
+        drawPoly(layer.fields, o.poly, {fill:"rgba(255,255,255,.03)", stroke:"rgba(255,255,255,.10)", "stroke-width":2, opacity:0.95});
+        drawCircle(layer.fields, o.center.x, o.center.y, 10, {fill:"rgba(0,0,0,.25)", stroke:"rgba(255,255,255,.12)", "stroke-width":1.6});
+      } else if(o.type==="agro_yard"){
+        drawPoly(layer.fields, o.poly, {fill:"rgba(60,246,194,.03)", stroke:"rgba(60,246,194,.14)", "stroke-width":2.0, opacity:0.95, "stroke-dasharray":"12 10"});
+      } else if(o.type==="wind_field"){
+        drawPoly(layer.fields, o.poly, {fill:"rgba(167,179,199,.03)", stroke:"rgba(167,179,199,.10)", "stroke-width":2.0, opacity:0.85, "stroke-dasharray":"8 10"});
+      } else if(o.type==="field_strip"){
+        drawPoly(layer.fields, o.poly, {fill:"rgba(255,211,107,.03)", stroke:"rgba(255,211,107,.10)", "stroke-width":1.6, opacity:0.75});
+      }
+    }
+
+    // Buildings (houses, barns, workshops, services)
+    for(const o of gen.objs.filter(x=>x.layer==="buildings")){
+      const isWork = ["workshop","armory","guard_house","manor_house","pump_house","battery_hut","agro_service"].includes(o.type);
+      const isChurch = (o.type==="church" || o.type==="church_annex");
+      const isDock = o.type.startsWith("dock_");
+      let fill, stroke;
+
+      if(useTex){
+        if(o.type==="dock_pier"){
+          fill = "url(#texWood)";
+        }else if(o.type==="dock_house" || o.type==="dock_hut"){
+          fill = "url(#texTileRoof)";
+        }else if(isWork){
+          fill = "url(#texMetalRoof)";
+        }else{
+          // houses, huts, church (roof), etc.
+          fill = "url(#texTileRoof)";
+        }
+
+        stroke = isChurch ? "rgba(110,78,168,.70)"
+               : (isDock ? "var(--map-water-stroke)"
+               : (isWork ? "var(--map-work-stroke)" : "var(--map-house-stroke)"));
+      }else{
+        fill = isChurch ? "rgba(124,77,255,.06)"
+             : (isDock ? "rgba(26,43,72,.22)"
+             : (isWork ? "var(--map-work-fill)" : "var(--map-house-fill)"));
+
+        stroke = isChurch ? "rgba(124,77,255,.65)"
+               : (isDock ? "var(--map-water-stroke)"
+               : (isWork ? "var(--map-work-stroke)" : "var(--map-house-stroke)"));
+      }
+
+      drawPoly(layer.buildings, o.poly, {fill, stroke, "stroke-width": isChurch ? 2.3 : 1.9, opacity:0.96, "stroke-linejoin":"round"});
+
+      // roof ridge / church marker
+      if(settings.detail!=="low"){
+        const c = o.center || centroid(o.poly);
+        const ang = o.rotation || 0;
+        if(["house","barn","shed","hut","longhouse","stable","granary","dock_hut","dock_house"].includes(o.type)){
+          const a = rotatePoint(c.x-10, c.y, c.x,c.y,ang);
+          const b = rotatePoint(c.x+10, c.y, c.x,c.y,ang);
+          drawLine(layer.buildings, a,b, {stroke:"rgba(255,255,255,.06)", "stroke-width":1.2, opacity:0.75});
+        }
+        if(isChurch){
+          drawCircle(layer.buildings, c.x, c.y, 7, {fill:"rgba(0,0,0,.25)", stroke:"rgba(124,77,255,.55)", "stroke-width":1.8, opacity:0.9});
+          // five-point abstract star (no crosses)
+          const star = elNS("path");
+          const r1=7.2, r2=3.3;
+          let d="";
+          for(let k=0;k<10;k++){
+            const a = -Math.PI/2 + k*Math.PI/5;
+            const rr = (k%2===0) ? r1 : r2;
+            const x = c.x + Math.cos(a)*rr;
+            const y = c.y + Math.sin(a)*rr;
+            d += (k===0? "M ":" L ")+x.toFixed(2)+" "+y.toFixed(2);
+          }
+          d+=" Z";
+          star.setAttribute("d", d);
+          star.setAttribute("fill","rgba(124,77,255,.18)");
+          star.setAttribute("stroke","rgba(124,77,255,.38)");
+          star.setAttribute("stroke-width","1.0");
+          star.setAttribute("opacity","0.85");
+          layer.buildings.appendChild(star);
+        }
+      }
+
+      // Textures mode: roof tiles / planks / masonry hatching — replaced by CityGen patterns
+      if(false && settings.textures==="on"){
+        const clipId = makeClip(o.id + "_b", o.poly);
+        const bb = polyBBox(o.poly);
+        const rr = rngForId(o.id + "|btex");
+        const ang = (o.rotation||0);
+
+        if(o.type==="dock_pier"){
+          // planks across the pier
+          drawHatch(layer.buildings, clipId, rr, bb, ang, 4.6, "rgba(255,255,255,.05)", 1.1, 0.65);
+          drawHatch(layer.buildings, clipId, rr, bb, ang+Math.PI/2, 16, "rgba(0,0,0,.15)", 1.2, 0.45);
+        } else if(isWork || isChurch){
+          drawHatch(layer.buildings, clipId, rr, bb, ang+Math.PI/2, 6.8, "rgba(255,255,255,.05)", 1.2, 0.60);
+          drawDots(layer.buildings, clipId, rr, bb, (settings.detail==="high") ? 38 : 24, "rgba(0,0,0,.15)", 1.1);
+        } else {
+          drawHatch(layer.buildings, clipId, rr, bb, ang, 6.0, "rgba(255,255,255,.045)", 1.1, 0.58);
+          if(settings.detail!=="low") drawHatch(layer.buildings, clipId, rr, bb, ang+Math.PI/2, 18, "rgba(0,0,0,.12)", 1.2, 0.38);
+        }
+      }
+    }
+
+    // Greenhouses (clipped ribs)
+    for(const o of gen.objs.filter(x=>x.layer==="green")){
+      const clipId = `ghclip_${o.id}`;
+      const cp = elNS("clipPath");
+      setAttrs(cp, {id: clipId});
+      const pth = elNS("path");
+      setAttrs(pth, {d: polyToPath(o.poly,true)});
+      cp.appendChild(pth);
+      dynDefs.appendChild(cp);
+
+      drawPoly(layer.green, o.poly, {
+        fill:(useTex ? "url(#texGlassRoof)" : "var(--map-green-fill)"),
+        stroke:"var(--map-green-stroke)",
+        "stroke-width":2.4,
+        opacity:0.98,
+        filter: settings.glow ? "url(#softGlow)" : "none"
+      });
+
+      const gRibs = elNS("g");
+      setAttrs(gRibs, {"clip-path":`url(#${clipId})`});
+      layer.green.appendChild(gRibs);
+
+      // ribs (stay inside greenhouse footprint)
+      const bb = polyBBox(o.poly);
+      const c = o.center;
+      const ang = o.rotation || 0;
+      const ribCount = settings.detail==="high" ? 9 : (settings.detail==="med" ? 7 : 5);
+      const L = Math.max(bb.maxX-bb.minX, bb.maxY-bb.minY) * 0.85;
+      for(let i=0;i<ribCount;i++){
+        const t = (i+1)/(ribCount+1);
+        const x = lerp(bb.minX, bb.maxX, t);
+        const a = rotatePoint(x, c.y-L*0.55, c.x,c.y,ang);
+        const b = rotatePoint(x, c.y+L*0.55, c.x,c.y,ang);
+        drawLine(gRibs, a,b, {stroke:"var(--map-green-rib)", "stroke-width":1.2, opacity:0.40});
+      }
+
+      // end cap / service hatch
+      if(settings.detail!=="low"){
+        drawCircle(gRibs, c.x, c.y, 6, {fill:"rgba(60,246,194,.10)", stroke:"rgba(60,246,194,.35)", "stroke-width":1.4, opacity:0.9});
+      }
+    }
+
+    // Wind turbines
+    function drawTurbine(o, big){
+      const c=o.center;
+      const r = big ? 22 : 12;
+      const mast = big ? 18 : 12;
+      drawCircle(layer.wind, c.x, c.y, r, {fill:"rgba(0,0,0,.22)", stroke: big ? "var(--map-wind2)" : "var(--map-wind)", "stroke-width":1.8, opacity:0.95});
+      drawLine(layer.wind, {x:c.x, y:c.y-r}, {x:c.x, y:c.y+r}, {stroke:"rgba(255,255,255,.08)", "stroke-width":1.2, opacity:0.6});
+      // blades (top-down stylized)
+      const a1={x:c.x, y:c.y-r};
+      const a2=rotatePoint(c.x, c.y-r, c.x,c.y, 2.09);
+      const a3=rotatePoint(c.x, c.y-r, c.x,c.y, 4.18);
+      drawLine(layer.wind, c, a1, {stroke: big ? "var(--map-wind2)" : "var(--map-wind)", "stroke-width":1.6, opacity:0.85});
+      drawLine(layer.wind, c, a2, {stroke: big ? "var(--map-wind2)" : "var(--map-wind)", "stroke-width":1.6, opacity:0.85});
+      drawLine(layer.wind, c, a3, {stroke: big ? "var(--map-wind2)" : "var(--map-wind)", "stroke-width":1.6, opacity:0.85});
+      // mast hint
+      drawLine(layer.wind, {x:c.x, y:c.y+r}, {x:c.x, y:c.y+r+mast}, {stroke:"rgba(255,255,255,.07)", "stroke-width":1.4, opacity:0.5});
+    }
+    for(const o of gen.objs.filter(x=>x.layer==="wind")){
+      if(o.type==="wind_turbine_small") drawTurbine(o,false);
+      if(o.type==="wind_turbine_big") drawTurbine(o,true);
+    }
+
+    // Power: hub, poles, lines, huts, water wheel
+    for(const o of gen.objs.filter(x=>x.layer==="power")){
+      if(o.type==="power_hub"){
+        drawPoly(layer.power, o.poly, {fill:"rgba(255,211,107,.08)", stroke:"rgba(255,211,107,.35)", "stroke-width":2.0, opacity:0.95});
+        drawCircle(layer.power, o.center.x, o.center.y, 7, {fill:"rgba(255,211,107,.12)", stroke:"rgba(255,211,107,.45)", "stroke-width":1.6, opacity:0.95});
+      } else if(o.type==="charging_hut"){
+        drawPoly(layer.power, o.poly, {fill:"rgba(255,211,107,.04)", stroke:"rgba(255,211,107,.22)", "stroke-width":1.8, opacity:0.9});
+      } else if(o.type==="power_pole"){
+        drawCircle(layer.power, o.center.x, o.center.y, o.r, {fill:"rgba(255,211,107,.10)", stroke:"rgba(255,211,107,.25)", "stroke-width":1.3, opacity:0.9});
+      } else if(o.type==="power_line"){
+        const pts = smoothPolyline([o.a, {x: lerp(o.a.x,o.b.x,0.5), y: lerp(o.a.y,o.b.y,0.5) + 40}, o.b], 2);
+        drawPath(layer.power, linePath(pts), {fill:"none", stroke:"rgba(255,211,107,.35)", "stroke-width":2.0, opacity:0.75, "stroke-dasharray":"8 8", "stroke-linecap":"round"});
+      } else if(o.type==="water_wheel"){
+        drawCircle(layer.power, o.center.x, o.center.y, o.r, {fill:"rgba(255,255,255,.03)", stroke:"rgba(255,211,107,.28)", "stroke-width":2.0, opacity:0.9});
+        drawCircle(layer.power, o.center.x, o.center.y, 5, {fill:"rgba(255,211,107,.12)", stroke:"rgba(255,211,107,.38)", "stroke-width":1.6, opacity:0.95});
+        // spokes
+        for(let k=0;k<8;k++){
+          const a=rotatePoint(o.center.x, o.center.y-o.r, o.center.x,o.center.y, k*(Math.PI/4));
+          drawLine(layer.power, o.center, a, {stroke:"rgba(255,211,107,.22)", "stroke-width":1.4, opacity:0.85});
+        }
+      }
+    }
+
+    // Labels
+    if(settings.labels==="on"){
+      const textStyle = {
+        "font-size": "12",
+        "font-family": "ui-monospace, Menlo, Consolas, monospace",
+        "fill": "var(--map-label)",
+        "opacity": "0.82"
+      };
+      for(const o of gen.objs){
+        if(!o.center) continue;
+        if(o.layer==="meta") continue;
+        if(["field_strip","wind_field","agro_yard"].includes(o.type)) continue;
+        const t = `${o.type}`;
+        drawText(layer.labels, o.center.x+8, o.center.y-8, t, textStyle);
+      }
+    }
+
+    // Update chips
+    $("#seedChip").textContent = settings.seed;
+    $("#objChip").textContent = String(gen.objs.length);
+  }
+
+  // -----------------------------
+  // Export
+  // -----------------------------
+  function serializeSVG(){
+    // Clone the SVG so exports don't include transient UI
+    const clone = map.cloneNode(true);
+    // Ensure viewBox is set
+    clone.setAttribute("viewBox", map.getAttribute("viewBox"));
+
+    // Set explicit width/height for export
+    clone.setAttribute("width", WORLD.w);
+    clone.setAttribute("height", WORLD.h);
+
+    // Inline CSS variables (minimal) to make export portable
+    const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = `
+      :root{
+        --map-bg:${getComputedStyle(document.documentElement).getPropertyValue('--map-bg').trim()};
+        --map-grid:${getComputedStyle(document.documentElement).getPropertyValue('--map-grid').trim()};
+        --map-road:${getComputedStyle(document.documentElement).getPropertyValue('--map-road').trim()};
+        --map-road2:${getComputedStyle(document.documentElement).getPropertyValue('--map-road2').trim()};
+        --map-wall:${getComputedStyle(document.documentElement).getPropertyValue('--map-wall').trim()};
+        --map-ditch:${getComputedStyle(document.documentElement).getPropertyValue('--map-ditch').trim()};
+        --map-house-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-house-fill').trim()};
+        --map-house-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-house-stroke').trim()};
+        --map-work-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-work-fill').trim()};
+        --map-work-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-work-stroke').trim()};
+        --map-green-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-green-fill').trim()};
+        --map-green-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-green-stroke').trim()};
+        --map-green-rib:${getComputedStyle(document.documentElement).getPropertyValue('--map-green-rib').trim()};
+        --map-wind:${getComputedStyle(document.documentElement).getPropertyValue('--map-wind').trim()};
+        --map-wind2:${getComputedStyle(document.documentElement).getPropertyValue('--map-wind2').trim()};
+        --map-power:${getComputedStyle(document.documentElement).getPropertyValue('--map-power').trim()};
+
+        --map-tract:${getComputedStyle(document.documentElement).getPropertyValue('--map-tract').trim()};
+        --map-tract2:${getComputedStyle(document.documentElement).getPropertyValue('--map-tract2').trim()};
+        --map-forest-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-forest-fill').trim()};
+        --map-forest-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-forest-stroke').trim()};
+        --map-forest-text:${getComputedStyle(document.documentElement).getPropertyValue('--map-forest-text').trim()};
+        --map-swamp-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-swamp-fill').trim()};
+        --map-swamp-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-swamp-stroke').trim()};
+        --map-swamp-text:${getComputedStyle(document.documentElement).getPropertyValue('--map-swamp-text').trim()};
+        --map-hill-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-hill-stroke').trim()};
+        --map-hill-text:${getComputedStyle(document.documentElement).getPropertyValue('--map-hill-text').trim()};
+        --map-ruin-fill:${getComputedStyle(document.documentElement).getPropertyValue('--map-ruin-fill').trim()};
+        --map-ruin-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-ruin-stroke').trim()};
+        --map-ruin-text:${getComputedStyle(document.documentElement).getPropertyValue('--map-ruin-text').trim()};
+        --map-water:${getComputedStyle(document.documentElement).getPropertyValue('--map-water').trim()};
+        --map-water-stroke:${getComputedStyle(document.documentElement).getPropertyValue('--map-water-stroke').trim()};
+        --map-label:${getComputedStyle(document.documentElement).getPropertyValue('--map-label').trim()};
+      }
+    `;
+    clone.insertBefore(style, clone.firstChild);
+
+    const xml = new XMLSerializer().serializeToString(clone);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  }
+
+  function downloadText(filename, text, mime){
+    const blob = new Blob([text], {type: mime || "text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 8000);
+  }
+
+  function buildJSON(gen, settings){
+    const payload = {
+      meta: gen.meta,
+      settings: {
+        seed: settings.seed,
+        biome: settings.biome,
+        size: settings.size,
+        fort: settings.fort,
+        density: settings.density,
+        greenCount: settings.greenCount,
+        windCount: settings.windCount,
+        windBig: settings.windBig,
+        waterMode: gen.meta.waterMode,
+        grid: settings.grid,
+        detail: settings.detail
+      },
+      objects: gen.objs.map(o=>{
+        const out = {
+          id: o.id,
+          type: o.type,
+          layer: o.layer || "default"
+        };
+        if(o.center) out.center = {x:+o.center.x.toFixed(2), y:+o.center.y.toFixed(2)};
+        if(o.poly) out.polygon = o.poly.map(p=>({x:+p.x.toFixed(2), y:+p.y.toFixed(2)}));
+        if(o.points) out.polyline = o.points.map(p=>({x:+p.x.toFixed(2), y:+p.y.toFixed(2)}));
+        if(o.r!=null) out.radius = +o.r.toFixed(2);
+        if(o.a && o.b) out.segment = {a:{x:+o.a.x.toFixed(2), y:+o.a.y.toFixed(2)}, b:{x:+o.b.x.toFixed(2), y:+o.b.y.toFixed(2)}};
+        if(o.rotation!=null) out.rotation = +o.rotation.toFixed(4);
+        if(settings.battleMeta && o.meta) out.battle = o.meta;
+        return out;
+      })
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  async function copyToClipboard(text){
+    try{
+      await navigator.clipboard.writeText(text);
+      logLine("Скопировано в буфер обмена.");
+    } catch(err){
+      logLine("Не удалось скопировать (браузер/разрешения).");
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try{ document.execCommand("copy"); logLine("Скопировано через fallback."); } catch(e){}
+      ta.remove();
+    }
+  }
+
+  function svgToPng(svgText, width, height, scale=1){
+    return new Promise((resolve,reject)=>{
+      const svgBlob = new Blob([svgText], {type:"image/svg+xml;charset=utf-8"});
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = ()=>{
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(width*scale);
+        canvas.height = Math.round(height*scale);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        // background (match svg background)
+        ctx.fillStyle = "#05070e";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob)=>{
+          if(!blob){ reject(new Error("toBlob failed")); return; }
+          resolve(blob);
+        }, "image/png");
+      };
+      img.onerror = (e)=>{ URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
+  // -----------------------------
+  // Tabs
+  // -----------------------------
+  document.querySelectorAll(".tabBtn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tabBtn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.getAttribute("data-tab");
+      document.querySelectorAll(".outWrap").forEach(w=>w.classList.remove("active"));
+      $("#"+tab).classList.add("active");
+    });
+  });
+
+  $("#btnClearLog").addEventListener("click", ()=>{ $("#log").textContent=""; });
+
+  // -----------------------------
+  // Main
+  // -----------------------------
+  let lastGen = null;
+  let lastSettings = null;
+
+  function updateOutputs(){
+    if(!lastGen || !lastSettings) return;
+    const svgStr = serializeSVG();
+    const jsonStr = buildJSON(lastGen, lastSettings);
+    $("#svgText").value = svgStr;
+    $("#jsonText").value = jsonStr;
+  }
+
+  function runGeneration(){
+    const settings = getSettings();
+    settings.glow = !!(lastSettings && lastSettings.glow); // keep glow toggle if exists
+    lastSettings = settings;
+
+    document.body.classList.toggle("parchment", settings.theme==="parchment");
+
+    logLine(`Генерация: seed="${settings.seed}" biome=${settings.biome} size=${settings.size} fort=${settings.fort} green=${settings.greenCount} wind=${settings.windCount}+${settings.windBig}`);
+    const gen = generate(settings);
+    lastGen = gen;
+
+    render(gen, settings);
+    updateOutputs();
+  }
+
+  // Buttons
+  $("#btnGenerate").addEventListener("click", runGeneration);
+  $("#btnRandom").addEventListener("click", ()=>{
+    $("#seed").value = randSeed();
+    runGeneration();
+  });
+  $("#btnResetView").addEventListener("click", ()=>resetView());
+
+  function doDownloadSVG(){
+    if(!lastGen || !lastSettings) return;
+    const svgStr = $("#svgText").value || serializeSVG();
+    downloadText(`isotope_village_${lastSettings.seed}.svg`, svgStr, "image/svg+xml;charset=utf-8");
+    logLine("SVG сохранён.");
+  }
+  function doDownloadJSON(){
+    if(!lastGen || !lastSettings) return;
+    const jsonStr = $("#jsonText").value || buildJSON(lastGen, lastSettings);
+    downloadText(`isotope_village_${lastSettings.seed}.json`, jsonStr, "application/json;charset=utf-8");
+    logLine("JSON сохранён.");
+  }
+  async function doDownloadPNG(){
+    if(!lastGen || !lastSettings) return;
+    const svgStr = $("#svgText").value || serializeSVG();
+    const scale = 2; // retina-like
+    try{
+      const blob = await svgToPng(svgStr, WORLD.w, WORLD.h, scale);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `isotope_village_${lastSettings.seed}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 8000);
+      logLine("PNG сохранён.");
+    }catch(e){
+      logLine("PNG экспорт не удался (браузер мог заблокировать).");
+    }
+  }
+
+  $("#btnSVG").addEventListener("click", doDownloadSVG);
+  $("#btnJSON").addEventListener("click", doDownloadJSON);
+  $("#btnPNG").addEventListener("click", doDownloadPNG);
+  $("#btnSVG2").addEventListener("click", doDownloadSVG);
+  $("#btnJSON2").addEventListener("click", doDownloadJSON);
+
+  $("#btnCopySVG").addEventListener("click", ()=>copyToClipboard($("#svgText").value || serializeSVG()));
+  $("#btnCopyJSON").addEventListener("click", ()=>copyToClipboard($("#jsonText").value || buildJSON(lastGen,lastSettings)));
+  $("#btnCopySVG2").addEventListener("click", ()=>copyToClipboard($("#svgText").value || serializeSVG()));
+  $("#btnCopyJSON2").addEventListener("click", ()=>copyToClipboard($("#jsonText").value || buildJSON(lastGen,lastSettings)));
+
+  $("#btnRecolor").addEventListener("click", ()=>{
+    if(!lastSettings) lastSettings = getSettings();
+    lastSettings.glow = !lastSettings.glow;
+    $("#btnRecolor").textContent = lastSettings.glow ? "Убрать свечение теплиц" : "Подчеркнуть теплицы (свечение)";
+    if(lastGen){
+      render(lastGen, lastSettings);
+      updateOutputs();
+    }
+  });
+
+  // live grid toggle updates without full regen
+  $("#grid").addEventListener("change", ()=>{
+    const s=getSettings();
+    $("#gridRect").setAttribute("opacity", s.grid==="on" ? "0.28" : "0.0");
+    if(lastGen && lastSettings){
+      lastSettings.grid = s.grid;
+      updateOutputs();
+    }
+  });
+
+
+  // live textures toggle updates without full regen
+  $("#textures").addEventListener("change", ()=>{
+    const s=getSettings();
+    if(lastGen && lastSettings){
+      lastSettings.textures = s.textures;
+      render(lastGen, lastSettings);
+      updateOutputs();
+    }
+  });
+
+  // live theme toggle updates without full regen
+  $("#theme").addEventListener("change", ()=>{
+    const s=getSettings();
+    document.body.classList.toggle("parchment", s.theme==="parchment");
+    if(lastGen && lastSettings){
+      lastSettings.theme = s.theme;
+      render(lastGen, lastSettings);
+      updateOutputs();
+    }else{
+      runGeneration();
+    }
+  });
+
+  // Initial
+  resetView();
+  runGeneration();
+
+})();
+</script>
+</body>
+</html>

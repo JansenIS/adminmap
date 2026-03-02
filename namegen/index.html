@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Генератор имён (RU) — средневековый</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#111826;
+      --panel2:#0f1622;
+      --text:#e7eefc;
+      --muted:#9fb0cf;
+      --accent:#6aa7ff;
+      --border:rgba(255,255,255,.10);
+      --danger:#ff6a6a;
+      --ok:#7dffb2;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 700px at 20% -10%, rgba(106,167,255,.18), transparent 55%),
+                  radial-gradient(900px 600px at 90% 0%, rgba(125,255,178,.10), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      line-height:1.35;
+    }
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 18px 14px 40px;
+    }
+    h1{
+      font-size: 18px;
+      margin: 0 0 10px;
+      font-weight: 700;
+      letter-spacing:.2px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 900px){
+      .row{ grid-template-columns: 360px 1fr; }
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+    }
+    .card h2{
+      margin:0 0 10px;
+      font-size: 13px;
+      letter-spacing:.2px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .muted{ color: var(--muted); }
+    .small{ font-size: 12px; }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .checks{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 8px 0 6px;
+    }
+    label.chk{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      padding: 10px;
+      border:1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(0,0,0,.18);
+      user-select:none;
+    }
+    label.chk input{ margin-top: 2px; }
+    .pill{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding: 7px 10px;
+      border:1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(0,0,0,.16);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .btns{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    button{
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing:.2px;
+    }
+    button.primary{
+      background: linear-gradient(180deg, rgba(106,167,255,.22), rgba(106,167,255,.12));
+      border-color: rgba(106,167,255,.35);
+    }
+    button.secondary{
+      background: linear-gradient(180deg, rgba(125,255,178,.18), rgba(125,255,178,.10));
+      border-color: rgba(125,255,178,.30);
+    }
+    button:disabled{
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    .out{
+      font-family: var(--mono);
+      font-size: 16px;
+      padding: 14px;
+      border-radius: 14px;
+      border:1px dashed rgba(255,255,255,.22);
+      background: rgba(0,0,0,.25);
+      min-height: 54px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .out .name{
+      overflow-wrap:anywhere;
+      flex: 1 1 auto;
+    }
+    .out .meta{
+      flex: 0 0 auto;
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .status{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border:1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(0,0,0,.16);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .status.ok{ border-color: rgba(125,255,178,.30); }
+    .status.bad{ border-color: rgba(255,106,106,.35); color: rgba(255,200,200,.95); }
+    .file{
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    input[type="file"]{
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.22);
+      color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+    .inline{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top: 8px;
+    }
+    .inline input[type="checkbox"]{ transform: translateY(1px); }
+    code{ font-family: var(--mono); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Генератор имён (RU) — средневековый</h1>
+
+    <div class="row">
+      <div class="card">
+        <h2>Данные</h2>
+        <div class="file">
+          <div class="small muted">
+            Вариант 1: положи <code>medieval_name_generator_ru_male_unique_v2.json</code> рядом с этой HTML-страницей и открой через локальный сервер (или из папки сайта).
+            Вариант 2: просто выбери JSON через файл-пикер ниже (работает и при <code>file://</code>).
+          </div>
+          <input id="fileInput" type="file" accept=".json,application/json" />
+          <div id="status" class="status bad">Данные не загружены. Выбери JSON-файл или открой страницу через сервер рядом с JSON.</div>
+        </div>
+
+        <h2 style="margin-top:14px;">Культуры</h2>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" class="culture" value="spanish" checked /> <div><div><b>Испанская</b></div><div class="small muted">spanish</div></div></label>
+          <label class="chk"><input type="checkbox" class="culture" value="french" checked /> <div><div><b>Французская</b></div><div class="small muted">french</div></div></label>
+          <label class="chk"><input type="checkbox" class="culture" value="german" checked /> <div><div><b>Немецкая</b></div><div class="small muted">german</div></div></label>
+          <label class="chk"><input type="checkbox" class="culture" value="english" checked /> <div><div><b>Английская</b></div><div class="small muted">english</div></div></label>
+        </div>
+
+        <div class="inline">
+          <input id="mixToggle" type="checkbox" checked />
+          <label for="mixToggle" class="small muted">Смешивать при выборе нескольких культур (имя и фамилия могут быть из разных культур)</label>
+        </div>
+
+        <div class="btns">
+          <button id="btnName" class="primary" disabled>Сгенерировать полное имя</button>
+          <button id="btnElemental" class="secondary" disabled>Сгенерировать полное элементное имя</button>
+          <button id="btnCopy" disabled>Скопировать</button>
+        </div>
+
+        <div class="status small" style="margin-top:12px;">
+          Советы: если выбран 1 чекбокс — генерация идёт внутри культуры. Если выбрано несколько — при включённом «смешивать» берётся имя из одной выбранной культуры, фамилия — из другой (случайно).
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Результат</h2>
+        <div class="out">
+          <div class="name" id="output">—</div>
+          <div class="meta" id="meta">—</div>
+        </div>
+
+        <div class="grid2" style="margin-top:12px;">
+          <div class="pill"><span class="muted">Имена:</span> <span id="cntNames">—</span></div>
+          <div class="pill"><span class="muted">Фамилии:</span> <span id="cntSurnames">—</span></div>
+          <div class="pill"><span class="muted">Элементные фамилии:</span> <span id="cntElem">—</span></div>
+          <div class="pill"><span class="muted">Выбрано культур:</span> <span id="cntSel">—</span></div>
+        </div>
+
+        <div class="status small" style="margin-top:12px;">
+          Формат JSON ожидается такой:
+          <div class="muted" style="margin-top:6px;">
+            <code>{"spanish":{"names":[...],"surnames":[...]},...,"elemental_surnames":{"spanish":[...],...}}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  const CULTURES = ["spanish","french","german","english"];
+  const CULTURE_LABEL = {
+    spanish: "Испанская",
+    french: "Французская",
+    german: "Немецкая",
+    english: "Английская",
+  };
+
+  const el = (id) => document.getElementById(id);
+
+  const statusEl = el("status");
+  const fileInput = el("fileInput");
+  const btnName = el("btnName");
+  const btnElemental = el("btnElemental");
+  const btnCopy = el("btnCopy");
+  const outEl = el("output");
+  const metaEl = el("meta");
+  const mixToggle = el("mixToggle");
+
+  const cntNames = el("cntNames");
+  const cntSurn = el("cntSurnames");
+  const cntElem = el("cntElem");
+  const cntSel = el("cntSel");
+
+  let DATA = null;
+  let lastGenerated = "";
+
+  function setStatus(kind, text){
+    statusEl.classList.remove("ok","bad");
+    statusEl.classList.add(kind);
+    statusEl.textContent = text;
+  }
+
+  function cryptoRandInt(max){
+    if (!max || max <= 0) return 0;
+    if (window.crypto && crypto.getRandomValues){
+      const u32 = new Uint32Array(1);
+      crypto.getRandomValues(u32);
+      return u32[0] % max;
+    }
+    return Math.floor(Math.random() * max);
+  }
+
+  function pick(arr){
+    if (!arr || !arr.length) return null;
+    return arr[cryptoRandInt(arr.length)];
+  }
+
+  function getSelectedCultures(){
+    const boxes = Array.from(document.querySelectorAll(".culture"));
+    const selected = boxes.filter(b => b.checked).map(b => b.value).filter(v => CULTURES.includes(v));
+    return selected;
+  }
+
+  function validateData(obj){
+    if (!obj || typeof obj !== "object") return "JSON не является объектом.";
+    for (const c of CULTURES){
+      if (!obj[c] || typeof obj[c] !== "object") return `Нет блока культуры: ${c}`;
+      if (!Array.isArray(obj[c].names) || !obj[c].names.length) return `Пустой или отсутствует массив names у ${c}`;
+      if (!Array.isArray(obj[c].surnames) || !obj[c].surnames.length) return `Пустой или отсутствует массив surnames у ${c}`;
+    }
+    if (!obj.elemental_surnames || typeof obj.elemental_surnames !== "object") return "Нет блока elemental_surnames.";
+    for (const c of CULTURES){
+      if (!Array.isArray(obj.elemental_surnames[c]) || !obj.elemental_surnames[c].length) return `Пустой или отсутствует elemental_surnames.${c}`;
+    }
+    return null;
+  }
+
+  function updateCounters(){
+    const selected = getSelectedCultures();
+    cntSel.textContent = String(selected.length);
+
+    if (!DATA){
+      cntNames.textContent = "—";
+      cntSurn.textContent = "—";
+      cntElem.textContent = "—";
+      btnName.disabled = true;
+      btnElemental.disabled = true;
+      btnCopy.disabled = true;
+      return;
+    }
+
+    // Sum counts over selected cultures (or all if none)
+    const use = selected.length ? selected : CULTURES;
+    let n=0, s=0, e=0;
+    for (const c of use){
+      n += (DATA[c]?.names?.length || 0);
+      s += (DATA[c]?.surnames?.length || 0);
+      e += (DATA.elemental_surnames?.[c]?.length || 0);
+    }
+    cntNames.textContent = String(n);
+    cntSurn.textContent = String(s);
+    cntElem.textContent = String(e);
+
+    const ok = selected.length > 0;
+    btnName.disabled = !ok;
+    btnElemental.disabled = !ok;
+    btnCopy.disabled = !lastGenerated;
+  }
+
+  function chooseCulturePair(selected){
+    // Returns {nameCulture, surnameCulture} based on selected + mixToggle
+    if (!selected.length) return null;
+    if (selected.length === 1) return { nameCulture: selected[0], surnameCulture: selected[0] };
+
+    if (!mixToggle.checked){
+      const c = pick(selected);
+      return { nameCulture: c, surnameCulture: c };
+    }
+    return { nameCulture: pick(selected), surnameCulture: pick(selected) };
+  }
+
+  function genFullName(){
+    const selected = getSelectedCultures();
+    if (!DATA || !selected.length){
+      setStatus("bad", "Выбери хотя бы одну культуру и загрузи JSON.");
+      return;
+    }
+    const pair = chooseCulturePair(selected);
+    const first = pick(DATA[pair.nameCulture].names);
+    const last = pick(DATA[pair.surnameCulture].surnames);
+
+    const full = `${first} ${last}`;
+    lastGenerated = full;
+    outEl.textContent = full;
+    metaEl.textContent = `Имя: ${CULTURE_LABEL[pair.nameCulture]} • Фамилия: ${CULTURE_LABEL[pair.surnameCulture]}`;
+    btnCopy.disabled = false;
+  }
+
+  function genElementalName(){
+    const selected = getSelectedCultures();
+    if (!DATA || !selected.length){
+      setStatus("bad", "Выбери хотя бы одну культуру и загрузи JSON.");
+      return;
+    }
+    // Имя берём из одной культуры, элементную фамилию — из другой/той же (в зависимости от mixToggle)
+    const pair = chooseCulturePair(selected);
+    const first = pick(DATA[pair.nameCulture].names);
+    const last = pick(DATA.elemental_surnames[pair.surnameCulture]);
+
+    const full = `${first} ${last}`;
+    lastGenerated = full;
+    outEl.textContent = full;
+    metaEl.textContent = `Имя: ${CULTURE_LABEL[pair.nameCulture]} • Элементная фамилия: ${CULTURE_LABEL[pair.surnameCulture]}`;
+    btnCopy.disabled = false;
+  }
+
+  async function copyToClipboard(){
+    if (!lastGenerated) return;
+    try{
+      await navigator.clipboard.writeText(lastGenerated);
+      setStatus("ok", "Скопировано в буфер обмена.");
+      setTimeout(() => {
+        if (DATA) setStatus("ok", "Данные загружены. Можно генерировать.");
+      }, 1200);
+    }catch(e){
+      setStatus("bad", "Не удалось скопировать. (В некоторых браузерах требуется HTTPS/сервер.)");
+    }
+  }
+
+  async function tryFetchDefault(){
+    try{
+      const res = await fetch("medieval_name_generator_ru_male_unique_v2.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const obj = await res.json();
+      const err = validateData(obj);
+      if (err) throw new Error(err);
+      DATA = obj;
+      setStatus("ok", "Данные загружены автоматически из medieval_name_generator_ru_male_unique_v2.json");
+      updateCounters();
+    }catch(e){
+      // Silent; user can load via picker
+      updateCounters();
+    }
+  }
+
+  function loadFromFile(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(String(reader.result || ""));
+        const err = validateData(obj);
+        if (err){
+          DATA = null;
+          setStatus("bad", "Ошибка структуры JSON: " + err);
+          updateCounters();
+          return;
+        }
+        DATA = obj;
+        setStatus("ok", "Данные загружены из выбранного файла.");
+        updateCounters();
+      }catch(e){
+        DATA = null;
+        setStatus("bad", "Ошибка чтения JSON: " + (e && e.message ? e.message : String(e)));
+        updateCounters();
+      }
+    };
+    reader.onerror = () => {
+      DATA = null;
+      setStatus("bad", "Ошибка чтения файла.");
+      updateCounters();
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  // Events
+  fileInput.addEventListener("change", (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (f) loadFromFile(f);
+  });
+
+  btnName.addEventListener("click", genFullName);
+  btnElemental.addEventListener("click", genElementalName);
+  btnCopy.addEventListener("click", copyToClipboard);
+
+  document.querySelectorAll(".culture").forEach(cb => {
+    cb.addEventListener("change", () => {
+      updateCounters();
+    });
+  });
+  mixToggle.addEventListener("change", updateCounters);
+
+  // Initial
+  updateCounters();
+  tryFetchDefault();
+})();
+</script>
+</body>
+</html>

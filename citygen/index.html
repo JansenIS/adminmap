@@ -1,0 +1,3157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Isotope City Generator — v12.1 (Field x2.6 + Highways + Coast Fix)</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#121722; --panel2:#0f141d;
+    --text:#e6e9ef; --muted:#9aa6b2;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,#06080c,#0b0d10 60%,#07090c);
+    color:var(--text);
+    overflow:hidden;
+  }
+  .app{display:grid;grid-template-columns:360px 1fr;gap:12px;height:100vh;padding:12px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;overflow:auto}
+  h1{font-size:16px;margin:0 0 10px 0;letter-spacing:.2px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  input[type="text"],input[type="number"],select{
+    width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);
+    background:#0b0f16;color:var(--text);outline:none
+  }
+  input[type="range"]{width:100%}
+  .row{display:flex;gap:10px}
+  .row>div{flex:1}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 6px}
+  .check{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(0,0,0,.18)}
+  .check input{margin-top:2px}
+  .check span{font-size:12px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  button{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+    background:rgba(167,139,250,.18);color:var(--text);cursor:pointer;font-weight:700;flex:1;min-width:140px
+  }
+  button.secondary{background:rgba(255,255,255,.06)}
+  .hint{font-size:12px;color:var(--muted);line-height:1.35;margin-top:10px}
+  .viewer{
+    background:radial-gradient(1100px 700px at 50% 12%, rgba(167,139,250,.14), transparent 58%),
+               linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-width:0
+  }
+  .toolbar{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.18)}
+  .stat{font-size:12px;color:var(--muted);white-space:nowrap}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .spacer{flex:1}
+  .canvasWrap{position:relative;flex:1;min-height:0}
+  svg{width:100%;height:100%;display:block;touch-action:none}
+  .legend{
+    position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:10px;font-size:12px;color:var(--text);
+    backdrop-filter:blur(6px)
+  }
+  .legend b{display:block;margin-bottom:6px}
+  .k{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .sw{width:14px;height:10px;border-radius:3px;border:1px solid rgba(255,255,255,.15)}
+  .lore{margin-top:12px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.20);white-space:pre-wrap;line-height:1.35;font-size:12px}
+  .small{font-size:11px;color:var(--muted)}
+
+  body.parchment{
+    background:linear-gradient(180deg,#e9e0cf,#e7ddc8 55%,#e1d6bf);
+    color:#1b1f24;
+  }
+  body.parchment .panel{
+    background:linear-gradient(180deg,#f2eadb,#efe4d2);
+    border-color:rgba(0,0,0,.12);
+    color:#1b1f24;
+  }
+  body.parchment input, body.parchment select{
+    background:#fffaf0;border-color:rgba(0,0,0,.12);color:#1b1f24;
+  }
+  body.parchment .check{background:rgba(255,255,255,.55);border-color:rgba(0,0,0,.10)}
+  body.parchment button{border-color:rgba(0,0,0,.12);color:#1b1f24;background:rgba(167,139,250,.20)}
+  body.parchment button.secondary{background:rgba(0,0,0,.06)}
+  body.parchment .viewer{
+    background:linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.01));
+    border-color:rgba(0,0,0,.12);
+  }
+  body.parchment .toolbar{background:rgba(255,255,255,.70);border-bottom-color:rgba(0,0,0,.10)}
+  body.parchment .legend{background:rgba(255,255,255,.78);border-color:rgba(0,0,0,.12);color:#1b1f24}
+  body.parchment .stat, body.parchment .hint, body.parchment label, body.parchment .small{color:#3c4956}
+  body.parchment .lore{background:rgba(255,255,255,.72);border-color:rgba(0,0,0,.12)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>Isotope City Generator — v12.1</h1>
+
+    <div class="row">
+      <div>
+        <label>Seed</label>
+        <input id="seed" type="text" value="amgalt-119"/>
+      </div>
+      <div>
+        <label>Размер</label>
+        <input id="size" type="number" min="10" max="90" step="1" value="24"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Тип поселения</label>
+        <select id="type">
+          <option value="free_city">Вольный город</option>
+          <option value="feudal_town">Феодальный город-замок</option>
+          <option value="church_fort">Орденская крепость</option>
+          <option value="bunker_outpost">Бункерный форпост «Утопия»</option>
+          <option value="mining_town">Рудничный/вилладиумный</option>
+          <option value="river_port">Речной порт</option>
+          <option value="coastal_hold">Прибрежная твердыня</option>
+        </select>
+      </div>
+      <div>
+        <label>Плотность улиц</label>
+        <input id="streetDensity" type="range" min="0" max="100" value="72"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Плотность зданий</label>
+        <input id="buildingDensity" type="range" min="0" max="100" value="82"/>
+      </div>
+      <div>
+        <label>Уровень руин</label>
+        <input id="ruins" type="range" min="0" max="100" value="30"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Сетка (качество)</label>
+        <select id="grid">
+          <option value="520">Fast</option>
+          <option value="780" selected>Balanced</option>
+          <option value="980">High</option>
+        </select>
+      </div>
+      <div>
+        <label>Тема</label>
+        <select id="theme">
+          <option value="dark" selected>Dark</option>
+          <option value="parchment">Parchment</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="checks">
+      <label class="check"><input id="optWalls" type="checkbox" checked/><span>Стены/ворота</span></label>
+      <label class="check"><input id="optKeep" type="checkbox" checked/><span>Внутренняя крепость</span></label>
+      <label class="check"><input id="optRiver" type="checkbox"/><span>Река/канал</span></label>
+      <label class="check"><input id="optCoast" type="checkbox"/><span>Берег/порт</span></label>
+      <label class="check"><input id="optGreen" type="checkbox" checked/><span>Теплицы/фильтры</span></label>
+      <label class="check"><input id="optTelegraph" type="checkbox" checked/><span>Телеграф</span></label>
+      <label class="check"><input id="optTextures" type="checkbox" checked/><span>Текстуры</span></label>
+      <label class="check"><input id="optReal" type="checkbox"/><span>Реалистичный режим</span></label>
+      <label class="check"><input id="optLabels" type="checkbox" checked/><span>Подписи</span></label>
+      <label class="check"><input id="optBuildings" type="checkbox" checked/><span>Здания</span></label>
+      <label class="check"><input id="optPosad" type="checkbox" checked/><span>Посад (пригород)</span></label>
+      <label class="check"><input id="optHighways" type="checkbox" checked/><span>Тракты</span></label>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Ширина посада</label>
+        <input id="posadWidth" type="range" min="40" max="520" value="180"/>
+      </div>
+      <div>
+        <label>Плотность посада</label>
+        <input id="posadDensity" type="range" min="0" max="100" value="62"/>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="btnGen">Сгенерировать</button>
+      <button id="btnRand" class="secondary">Случайный seed</button>
+      <button id="btnResetView" class="secondary">Сброс вида</button>
+      <button id="btnSvg" class="secondary">Скачать SVG</button>
+      <button id="btnJson" class="secondary">Скачать JSON</button>
+    </div>
+
+    <div class="hint">
+      Правила v9.1: фасадная застройка вдоль дорог + полное заполнение кварталов; мелкие улочки каждые 3 клетки решётки (макс. блок зданий ≤2×2); цитадель (если есть замок) находится внутри замка (во дворе).
+      <div class="small" style="margin-top:8px">Навигация: колесо — зум, drag — пан, двойной клик — центр.</div>
+    </div>
+
+    <div id="lore" class="lore"></div>
+  </aside>
+
+  <main class="viewer">
+    <div class="toolbar">
+      <div class="stat">Наведи: <span id="hover" class="mono">—</span></div>
+      <div class="spacer"></div>
+      <div class="stat">Blocks: <span id="blockStat" class="mono">—</span></div>
+      <div class="stat">Bld: <span id="bldStat" class="mono">—</span></div>
+      <div class="stat">Roads: <span id="roadStat" class="mono">—</span></div>
+      <div class="stat">Tracts: <span id="highwayStat" class="mono">—</span></div>
+      <div class="stat">Alleys: <span id="alleyStat" class="mono">—</span></div>
+      <div class="stat">Ind blocks: <span id="indStat" class="mono">—</span></div>
+      <div class="stat">Posad: <span id="posadStat" class="mono">—</span></div>
+      <div class="stat">Seed: <span id="seedStat" class="mono">—</span></div>
+    </div>
+
+    <div class="canvasWrap">
+      <svg id="svg" viewBox="0 0 2600 2600" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      <div class="legend">
+        <b>Легенда</b>
+        <div class="k"><span class="sw" style="background:rgba(230,233,239,.10);border-color:rgba(230,233,239,.22)"></span> блоки</div>
+        <div class="k"><span class="sw" style="background:rgba(230,233,239,.06);border-color:rgba(230,233,239,.18)"></span> здания</div>
+        <div class="k"><span class="sw" style="background:rgba(230,233,239,.20);border-color:rgba(230,233,239,.65)"></span> дороги</div>
+        <div class="k"><span class="sw" style="background:rgba(230,233,239,.12);border-color:rgba(230,233,239,.40)"></span> улочки</div>
+        <div class="k"><span class="sw" style="background:rgba(89,167,255,.18);border-color:rgba(89,167,255,.6)"></span> вода</div>
+        <div class="k"><span class="sw" style="background:rgba(244,211,94,.18);border-color:rgba(244,211,94,.6)"></span> стены</div>
+        <div class="k"><span class="sw" style="background:rgba(247,163,92,.14);border-color:rgba(247,163,92,.70)"></span> индустрия</div>
+        <div class="k"><span class="sw" style="background:rgba(120,175,120,.10);border-color:rgba(60,90,60,.45)"></span> посад</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   v9.1 — single-file generator
+============================================================ */
+
+/* ========================= Core math ========================= */
+const WORLD = 2600;
+const WORLD_C = WORLD * 0.5;
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function lerp(a,b,t){return a+(b-a)*t}
+function v(x,y){return {x,y}}
+function add(a,b){return {x:a.x+b.x,y:a.y+b.y}}
+function sub(a,b){return {x:a.x-b.x,y:a.y-b.y}}
+function mul(a,s){return {x:a.x*s,y:a.y*s}}
+function dot(a,b){return a.x*b.x+a.y*b.y}
+function len(a){return Math.hypot(a.x,a.y)}
+function norm(a){const L=len(a)||1;return {x:a.x/L,y:a.y/L}}
+function perp(a){return {x:-a.y,y:a.x}}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function polyArea(poly){let A=0;for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];A+=p.x*q.y-q.x*p.y}return A*0.5}
+function bbox(poly){let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;for(const p of poly){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}return {minX,minY,maxX,maxY}}
+function centroid(poly){
+  let A=0,cx=0,cy=0;
+  for(let i=0;i<poly.length;i++){
+    const p=poly[i],q=poly[(i+1)%poly.length];
+    const cross=p.x*q.y-q.x*p.y;
+    A+=cross; cx+=(p.x+q.x)*cross; cy+=(p.y+q.y)*cross;
+  }
+  A*=0.5;
+  if(Math.abs(A)<1e-6) return v(poly[0].x,poly[0].y);
+  return v(cx/(6*A),cy/(6*A));
+}
+function pointInPoly(pt, poly){
+  let c=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const a=poly[i],b=poly[j];
+    if(((a.y>pt.y)!=(b.y>pt.y)) && (pt.x < (b.x-a.x)*(pt.y-a.y)/(b.y-a.y+1e-12)+a.x)) c=!c;
+  }
+  return c;
+}
+
+/* ========================= RNG ========================= */
+function hashStringToU32(str){
+  let h=2166136261>>>0;
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}
+  return h>>>0;
+}
+function mulberry32(seed){
+  let t=seed>>>0;
+  return function(){
+    t+=0x6D2B79F5;
+    let x=t;
+    x=Math.imul(x^(x>>>15),1|x);
+    x^=x+Math.imul(x^(x>>>7),61|x);
+    return ((x^(x>>>14))>>>0)/4294967296;
+  }
+}
+function rndChoice(rng, arr){return arr[(rng()*arr.length)|0]}
+
+/* ========================= Geometry helpers ========================= */
+function chaikin(points,iters,closed){
+  let pts=points.slice();
+  for(let it=0;it<iters;it++){
+    const out=[];
+    const n=pts.length;
+    const L=closed?n:(n-1);
+    for(let i=0;i<L;i++){
+      const p=pts[i],q=pts[(i+1)%n];
+      out.push(v(0.75*p.x+0.25*q.x,0.75*p.y+0.25*q.y));
+      out.push(v(0.25*p.x+0.75*q.x,0.25*p.y+0.75*q.y));
+    }
+    if(!closed){out.unshift(pts[0]);out.push(pts[n-1])}
+    pts=out;
+  }
+  return pts;
+}
+function rdp(points, eps){
+  if(points.length<=3) return points;
+  const sq=x=>x*x;
+  const distToSeg2=(p,a,b)=>{
+    const abx=b.x-a.x,aby=b.y-a.y;
+    const apx=p.x-a.x,apy=p.y-a.y;
+    const ab2=abx*abx+aby*aby+1e-12;
+    let t=(apx*abx+apy*aby)/ab2; t=Math.max(0,Math.min(1,t));
+    const cx=a.x+abx*t,cy=a.y+aby*t;
+    return sq(p.x-cx)+sq(p.y-cy);
+  };
+  const keep=new Uint8Array(points.length); keep[0]=1; keep[points.length-1]=1;
+  const stack=[[0,points.length-1]];
+  const eps2=eps*eps;
+  while(stack.length){
+    const [s,e]=stack.pop();
+    let maxD=0,idx=-1;
+    for(let i=s+1;i<e;i++){
+      const d2=distToSeg2(points[i],points[s],points[e]);
+      if(d2>maxD){maxD=d2;idx=i}
+    }
+    if(maxD>eps2 && idx!==-1){keep[idx]=1; stack.push([s,idx],[idx,e])}
+  }
+  const out=[]; for(let i=0;i<points.length;i++) if(keep[i]) out.push(points[i]);
+  return out;
+}
+function convexHull(points){
+  const pts=points.slice().sort((a,b)=>(a.x-b.x)||(a.y-b.y));
+  if(pts.length<=3) return pts;
+  const cross=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+  const lower=[];
+  for(const p of pts){while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],p)<=0) lower.pop(); lower.push(p)}
+  const upper=[];
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i]; while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],p)<=0) upper.pop(); upper.push(p)}
+  upper.pop(); lower.pop();
+  return lower.concat(upper);
+}
+function segIntersect(a,b,c,d){
+  const cross=(p,q)=>p.x*q.y-p.y*q.x;
+  const r=sub(b,a), s=sub(d,c);
+  const denom=cross(r,s);
+  if(Math.abs(denom)<1e-9) return null;
+  const u=cross(sub(c,a),r)/denom;
+  const t=cross(sub(c,a),s)/denom;
+  if(t>=0&&t<=1&&u>=0&&u<=1) return add(a,mul(r,t));
+  return null;
+}
+function pointToSeg(pt,a,b){
+  const ab=sub(b,a), ap=sub(pt,a);
+  const ab2=dot(ab,ab)+1e-12;
+  let t=dot(ap,ab)/ab2; t=Math.max(0,Math.min(1,t));
+  const p=add(a,mul(ab,t));
+  return {p, t, d:dist(pt,p), dir:norm(ab)};
+}
+function sampleAlongPolyline(pts, step){
+  const out=[];
+  if(pts.length<2) return out;
+  let acc=0, i=0;
+  let a=pts[0];
+  out.push({p:v(a.x,a.y), t:v(1,0)});
+  while(i<pts.length-1){
+    const b=pts[i+1];
+    const d=dist(a,b);
+    if(d<1e-6){i++; a=b; continue;}
+    const dir=norm(sub(b,a));
+    if(acc+d>=step){
+      const tt=(step-acc)/d;
+      const p=v(lerp(a.x,b.x,tt), lerp(a.y,b.y,tt));
+      out.push({p, t:dir});
+      a=p; acc=0;
+    }else{
+      acc+=d; i++; a=b;
+    }
+  }
+  return out;
+}
+function closestPointOnPolyline(pt, pts){
+  let best=null, bestD=1e9;
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i],b=pts[i+1];
+    const res=pointToSeg(pt,a,b);
+    if(res.d<bestD){bestD=res.d; best={p:res.p, t:res.dir}}
+  }
+  return best;
+}
+function randomPointInPoly(rng, poly, bb, maxTry=64){
+  for(let k=0;k<maxTry;k++){
+    const x=lerp(bb.minX, bb.maxX, rng());
+    const y=lerp(bb.minY, bb.maxY, rng());
+    const p=v(x,y);
+    if(pointInPoly(p, poly)) return p;
+  }
+  return null;
+}
+
+/* ========================= Smooth road rendering ========================= */
+function catmullRomToBezierPath(pts){
+  if(!pts || pts.length<2) return "";
+  if(pts.length===2){
+    return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
+  }
+  const p = pts;
+  let d = `M ${p[0].x.toFixed(2)} ${p[0].y.toFixed(2)} `;
+  for(let i=0;i<p.length-1;i++){
+    const p0 = (i===0) ? p[i] : p[i-1];
+    const p1 = p[i];
+    const p2 = p[i+1];
+    const p3 = (i+2<p.length) ? p[i+2] : p[i+1];
+
+    const c1 = v(p1.x + (p2.x - p0.x)/6, p1.y + (p2.y - p0.y)/6);
+    const c2 = v(p2.x - (p3.x - p1.x)/6, p2.y - (p3.y - p1.y)/6);
+
+    d += `C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} `;
+  }
+  return d.trim();
+}
+
+/* ========================= Oriented grid helpers ========================= */
+function polyLongestEdgeAngle(poly){
+  let bestL=0, bestA=0;
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length];
+    const L=dist(a,b);
+    if(L>bestL){
+      bestL=L;
+      bestA=Math.atan2(b.y-a.y,b.x-a.x);
+    }
+  }
+  return bestA;
+}
+function projExtents(poly, ux, uy){
+  let minU=1e9,maxU=-1e9,minV=1e9,maxV=-1e9;
+  for(const p of poly){
+    const U=p.x*ux.x + p.y*ux.y;
+    const V=p.x*uy.x + p.y*uy.y;
+    minU=Math.min(minU,U); maxU=Math.max(maxU,U);
+    minV=Math.min(minV,V); maxV=Math.max(maxV,V);
+  }
+  return {minU,maxU,minV,maxV};
+}
+function fromUV(U,V, ux, uy){
+  return v(ux.x*U + uy.x*V, ux.y*U + uy.y*V);
+}
+
+/* ========================= Palette ========================= */
+function getPalette(theme){
+  if(theme==="parchment"){
+    return {
+      _isParch:true,
+      bg:"#efe4d2",
+      ink:"rgba(32,36,40,.82)",
+      ink2:"rgba(32,36,40,.55)",
+      ink3:"rgba(32,36,40,.14)",
+      roadMajor:"rgba(32,36,40,.82)",
+      roadMinor:"rgba(32,36,40,.24)",
+      roadIndustrial:"rgba(32,36,40,.78)",
+      alley:"rgba(32,36,40,.16)",
+      water:"rgba(35,110,165,.70)",
+      waterFill:"rgba(35,110,165,.12)",
+      wall:"rgba(110,88,46,.92)",
+      wallFill:"#c9b28a",
+      wallShadow:"rgba(0,0,0,.12)",
+      bldFill:"rgba(32,36,40,.06)",
+      bldStroke:"rgba(32,36,40,.12)",
+      ruin:"rgba(140,45,45,.65)",
+      ruinFill:"rgba(140,45,45,.10)",
+      ind:"rgba(145,87,25,.78)",
+      indFill:"rgba(145,87,25,.16)",
+      green:"rgba(45,120,65,.68)",
+      greenFill:"rgba(45,120,65,.10)",
+      purple:"rgba(110,78,168,.75)",
+      purpleFill:"rgba(110,78,168,.10)",
+      earth1:"#e4d5ba",
+      earth2:"rgba(120,90,60,.35)",
+      earthSpeck:"rgba(60,40,20,.20)",
+      grass1:"rgba(90,140,90,.20)",
+      grass2:"rgba(40,80,50,.25)",
+      ash1:"rgba(80,80,80,.22)",
+      ash2:"rgba(40,40,40,.20)",
+      cobble1:"rgba(140,130,112,.30)",
+      cobble2:"rgba(70,62,52,.40)",
+      roof1:"rgba(160,92,66,.72)",
+      roof2:"rgba(92,48,34,.62)",
+      glass1:"rgba(90,170,195,.22)",
+      glass2:"rgba(30,90,120,.28)",
+      metal1:"rgba(120,122,126,.22)",
+      metal2:"rgba(50,52,56,.30)",
+      stone1:"rgba(201,186,152,.92)",
+      stone2:"rgba(110,96,74,.55)",
+      water1:"rgba(55,130,180,.18)",
+      water2:"rgba(20,80,125,.20)"
+    };
+  }
+  return {
+    _isParch:false,
+    bg:"#0a0d13",
+    ink:"rgba(230,233,239,.78)",
+    ink2:"rgba(230,233,239,.45)",
+    ink3:"rgba(230,233,239,.20)",
+    roadMajor:"rgba(230,233,239,.72)",
+    roadMinor:"rgba(230,233,239,.22)",
+    roadIndustrial:"rgba(230,233,239,.62)",
+    alley:"rgba(230,233,239,.14)",
+    water:"rgba(89,167,255,.55)",
+    waterFill:"rgba(89,167,255,.10)",
+    wall:"rgba(244,211,94,.78)",
+    wallFill:"rgba(244,211,94,.18)",
+    wallShadow:"rgba(0,0,0,.35)",
+    bldFill:"rgba(230,233,239,.06)",
+    bldStroke:"rgba(230,233,239,.16)",
+    ruin:"rgba(255,107,107,.55)",
+    ruinFill:"rgba(255,107,107,.10)",
+    ind:"rgba(247,163,92,.70)",
+    indFill:"rgba(247,163,92,.14)",
+    green:"rgba(123,211,137,.55)",
+    greenFill:"rgba(123,211,137,.10)",
+    purple:"rgba(167,139,250,.70)",
+    purpleFill:"rgba(167,139,250,.10)",
+    earth1:"#0f1011",
+    earth2:"rgba(210,180,140,.08)",
+    earthSpeck:"rgba(0,0,0,.45)",
+    grass1:"rgba(123,211,137,.08)",
+    grass2:"rgba(123,211,137,.16)",
+    ash1:"rgba(230,233,239,.08)",
+    ash2:"rgba(0,0,0,.35)",
+    cobble1:"rgba(230,233,239,.14)",
+    cobble2:"rgba(0,0,0,.45)",
+    roof1:"rgba(200,90,70,.22)",
+    roof2:"rgba(90,30,24,.45)",
+    glass1:"rgba(89,167,255,.10)",
+    glass2:"rgba(89,167,255,.24)",
+    metal1:"rgba(230,233,239,.12)",
+    metal2:"rgba(0,0,0,.35)",
+    stone1:"rgba(230,233,239,.12)",
+    stone2:"rgba(0,0,0,.35)",
+    water1:"rgba(89,167,255,.12)",
+    water2:"rgba(0,0,0,.35)"
+  };
+}
+
+/* ========================= World gen ========================= */
+function genOutline(rng, size){
+  const cx=WORLD_C,cy=WORLD_C;
+  const base=338+size*6.1;
+  const n=46;
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const ang=(i/n)*Math.PI*2;
+    const noise=(rng()*2-1)*(34+size*1.05);
+    const r=base+noise;
+    pts.push(v(cx+Math.cos(ang)*r, cy+Math.sin(ang)*r));
+  }
+  for(let i=0;i<7;i++){
+    const ang=rng()*Math.PI*2;
+    const r=base+(rng()*0.9+0.1)*(62+size*1.2);
+    pts.push(v(cx+Math.cos(ang)*r, cy+Math.sin(ang)*r));
+  }
+  return convexHull(pts);
+}
+function pickGates(rng, outline, k){
+  const c=centroid(outline);
+  const gates=[];
+  for(let i=0;i<k;i++){
+    const ang=(i/k)*Math.PI*2 + (rng()*2-1)*(Math.PI/(k*2));
+    const dir=v(Math.cos(ang),Math.sin(ang));
+    let best=null,score=-1e9;
+    for(const p of outline){
+      const s=dot(sub(p,c),dir);
+      if(s>score){score=s;best=p}
+    }
+    if(best && !gates.some(g=>dist(g,best)<28)) gates.push(best);
+  }
+  while(gates.length<k){
+    const p=outline[(rng()*outline.length)|0];
+    if(!gates.some(g=>dist(g,p)<28)) gates.push(p);
+  }
+  return gates;
+}
+function noisyPolyline(rng, a, b, segments, wobble){
+  const pts=[a];
+  for(let i=1;i<segments;i++){
+    const t=i/segments;
+    const p=v(lerp(a.x,b.x,t), lerp(a.y,b.y,t));
+    const d=sub(b,a);
+    const n=norm(perp(d));
+    const w=(rng()*2-1)*wobble*(0.45+0.95*Math.sin(Math.PI*t));
+    pts.push(add(p,mul(n,w)));
+  }
+  pts.push(b);
+  return pts;
+}
+function genRiver(rng, outline){
+  const c=centroid(outline);
+  const a=outline[(rng()*outline.length)|0];
+  const b=outline[((rng()*outline.length)|0 + (outline.length/2|0))%outline.length];
+  const mid=add(c,v((rng()*2-1)*150,(rng()*2-1)*110));
+  const p1=noisyPolyline(rng,a,mid,7,86);
+  const p2=noisyPolyline(rng,mid,b,7,86);
+  return p1.concat(p2.slice(1));
+}
+function genCoast(rng){
+  // Sea is below the coastline (y grows downward).
+  const y = WORLD*0.72 + (rng()*2-1)*(WORLD*0.045);
+  const x0 = -WORLD*0.05;
+  const x1 = WORLD*1.05;
+  const pts=[];
+  const n=20;
+  for(let i=0;i<=n;i++){
+    const t=i/n;
+    const x=lerp(x0,x1,t);
+    const yy=y + Math.sin(t*Math.PI*2*1.05 + rng()*0.7)*(WORLD*0.018) + (rng()*2-1)*(WORLD*0.006);
+    pts.push(v(x,yy));
+  }
+  return pts;
+}
+
+/* ========================= Fortress ========================= */
+function genFortress(rng, outline, center, type){
+  const bias=(type==="feudal_town"||type==="church_fort")?0.55:0.35;
+  const fc=add(center, v((rng()*2-1)*80*bias,(rng()*2-1)*70*bias));
+  const baseR=(type==="church_fort")?95:(type==="feudal_town"?105:85);
+
+  const pts=[];
+  const n=12;
+  for(let i=0;i<n;i++){
+    const ang=(i/n)*Math.PI*2 + (rng()*2-1)*0.10;
+    const rr=baseR+(rng()*2-1)*22;
+    pts.push(v(fc.x+Math.cos(ang)*rr, fc.y+Math.sin(ang)*rr));
+  }
+  const safe=pts.filter(p=>pointInPoly(p,outline));
+  const poly=(safe.length>=6)?safe:pts;
+  const sorted=poly.slice().sort((a,b)=>Math.atan2(a.y-fc.y,a.x-fc.x)-Math.atan2(b.y-fc.y,b.x-fc.x));
+  const outer=sorted.concat([sorted[0]]);
+
+  const yardR=baseR*0.58;
+  const ypts=[];
+  for(let i=0;i<10;i++){
+    const ang=(i/10)*Math.PI*2 + (rng()*2-1)*0.14;
+    const rr=yardR+(rng()*2-1)*18;
+    ypts.push(v(fc.x+Math.cos(ang)*rr, fc.y+Math.sin(ang)*rr));
+  }
+  const yard=ypts.slice().sort((a,b)=>Math.atan2(a.y-fc.y,a.x-fc.x)-Math.atan2(b.y-fc.y,b.x-fc.x));
+  const yardClosed=yard.concat([yard[0]]);
+
+  const keepAng=(rng()*2-1)*0.40;
+  const keep={cx:fc.x,cy:fc.y,w:baseR*0.92,h:baseR*0.68,ang:keepAng};
+
+  return {center:fc, outer, yard:yardClosed, keep};
+}
+
+/* ========================= Streets (growth + merge polylines) ========================= */
+function buildStreetsGrowth(rng, outline, center, gates, density, river, fortress){
+  const nodes=[];
+  const segs=[];
+  const fronts=[];
+
+  const densityF=density/100;
+
+  const snapNodeDist=10;
+  const snapSegDist=9;
+
+  const stepMinor=lerp(26, 40, densityF);
+  const stepMajor=lerp(38, 54, densityF);
+  const stepIndustrial=lerp(46, 66, densityF);
+
+  const maxSegs=clamp(Math.floor(260 + density*5.4), 260, 980);
+
+  const isInside=(p)=>pointInPoly(p, outline);
+  const isInFort=(p)=>fortress?pointInPoly(p, fortress.outer.slice(0,-1)):false;
+
+  const addNode=(p)=>{
+    for(let i=0;i<nodes.length;i++){
+      if(dist(nodes[i],p)<snapNodeDist) return i;
+    }
+    nodes.push(v(p.x,p.y));
+    return nodes.length-1;
+  };
+  const addSeg=(ai,bi,kind,width)=>{
+    if(ai===bi) return;
+    for(const s of segs){
+      if((s.a===ai && s.b===bi) || (s.a===bi && s.b===ai)) return;
+    }
+    segs.push({a:ai,b:bi,kind,width});
+  };
+  const splitSegAtPoint=(segIndex, pNode)=>{
+    const s=segs[segIndex];
+    const a=s.a, b=s.b;
+    const kind=s.kind, width=s.width;
+    segs.splice(segIndex,1);
+    addSeg(a,pNode,kind,width);
+    addSeg(pNode,b,kind,width);
+  };
+
+  const segmentHit=(aP,bP, ignoreNode)=>{
+    for(let i=0;i<nodes.length;i++){
+      if(i===ignoreNode) continue;
+      if(dist(nodes[i], bP) < snapNodeDist) return {type:"node", nodeIndex:i, point:nodes[i]};
+    }
+    for(let si=0; si<segs.length; si++){
+      const s=segs[si];
+      if(s.a===ignoreNode || s.b===ignoreNode) continue;
+      const A=nodes[s.a], B=nodes[s.b];
+      const ip=segIntersect(aP,bP,A,B);
+      if(ip){
+        if(dist(ip,aP) < 4) continue;
+        if(dist(ip,A) < snapNodeDist) return {type:"node", nodeIndex:s.a, point:A};
+        if(dist(ip,B) < snapNodeDist) return {type:"node", nodeIndex:s.b, point:B};
+        return {type:"seg", segIndex:si, point:ip};
+      }
+    }
+    let best=null;
+    for(let si=0; si<segs.length; si++){
+      const s=segs[si];
+      if(s.a===ignoreNode || s.b===ignoreNode) continue;
+      const A=nodes[s.a], B=nodes[s.b];
+      const pr=pointToSeg(bP,A,B);
+      if(pr.d < snapSegDist){
+        if(!best || pr.d < best.d){
+          best={segIndex:si, point:pr.p, d:pr.d};
+        }
+      }
+    }
+    if(best) return {type:"seg", segIndex:best.segIndex, point:best.point};
+    return null;
+  };
+
+  const crossesRiverTooMuch=(aP,bP)=>{
+    if(!river) return false;
+    let crosses=0;
+    for(let i=0;i<river.length-1;i++){
+      if(segIntersect(aP,bP,river[i],river[i+1])){crosses++; if(crosses>1) return true;}
+    }
+    return false;
+  };
+
+  const steer=(pos, dir, kind, attractors)=>{
+    const toC = norm(sub(pos, center));
+    const tang = perp(toC);
+
+    let wTang, wRad, wAtt, noise, bend;
+    if(kind==="major"){ wTang=0.30; wRad=0.18; wAtt=0.28; noise=0.14; bend=0.16; }
+    else if(kind==="industrial"){ wTang=0.18; wRad=0.12; wAtt=0.48; noise=0.10; bend=0.10; }
+    else { wTang=0.62; wRad=0.10; wAtt=0.14; noise=0.22; bend=0.20; }
+
+    let bestA=null, bestD=1e9;
+    for(const a of attractors){
+      const d=dist(pos,a);
+      if(d<bestD){bestD=d; bestA=a;}
+    }
+    let att=v(0,0);
+    if(bestA && bestD < 360){
+      att = norm(sub(bestA,pos));
+      att = mul(att, clamp(1.0 - bestD/360, 0, 1));
+    }
+
+    const angNoise = (rng()*2-1) * noise;
+    const ca=Math.cos(angNoise), sa=Math.sin(angNoise);
+    const d2=v(dir.x*ca - dir.y*sa, dir.x*sa + dir.y*ca);
+
+    let nd = mul(d2, 0.58);
+    nd = add(nd, mul(tang, wTang));
+    nd = add(nd, mul(toC, wRad*(rng()<0.50?-1:1)));
+    nd = add(nd, mul(att, wAtt));
+    nd = norm(nd);
+
+    const bb = (rng()*2-1) * bend;
+    const cb=Math.cos(bb), sb=Math.sin(bb);
+    nd = norm(v(nd.x*cb - nd.y*sb, nd.x*sb + nd.y*cb));
+
+    return nd;
+  };
+
+  // Rings
+  const ringCount = density>62 ? 2 : 1;
+  const ringNodes=[];
+  for(let rIdx=0;rIdx<ringCount;rIdx++){
+    const n=(density>62?20:16) + rIdx*4;
+    const baseR=(rIdx===0?160:280)+density*0.46+(rng()*2-1)*10;
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const ang=(i/n)*Math.PI*2 + (rng()*2-1)*0.12;
+      const rr=baseR+(rng()*2-1)*(18+rIdx*10);
+      const p=v(center.x+Math.cos(ang)*rr, center.y+Math.sin(ang)*rr);
+      if(isInside(p) && !isInFort(p)) pts.push(addNode(p));
+    }
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      addSeg(a,b,"ring", lerp(10,13,densityF));
+    }
+    ringNodes.push(...pts);
+  }
+
+  const cNode=addNode(center);
+  const gateNodes=gates.map(g=>addNode(g));
+
+  // Industrial hubs: 3
+  const hubs=[];
+  for(let k=0;k<3;k++){
+    let hp=null;
+    for(let t=0;t<120;t++){
+      const ang=rng()*Math.PI*2;
+      const rr=lerp(300, 440, rng());
+      const p=v(center.x+Math.cos(ang)*rr, center.y+Math.sin(ang)*rr);
+      if(isInside(p) && !isInFort(p)) { hp=p; break; }
+    }
+    if(hp) hubs.push(hp);
+  }
+  const hubNodes=hubs.map(p=>addNode(p));
+
+  // gates
+  for(const g of gateNodes){
+    let best=-1, bestD=1e9;
+    for(const rn of ringNodes){
+      const d=dist(nodes[g], nodes[rn]);
+      if(d<bestD){bestD=d; best=rn}
+    }
+    if(best!==-1){
+      addSeg(g,best,"major", lerp(12,15,densityF));
+      addSeg(best,cNode,"major", lerp(12,15,densityF));
+    }else{
+      addSeg(g,cNode,"major", lerp(12,15,densityF));
+    }
+  }
+
+  // hubs connections
+  for(const h of hubNodes){
+    let bestGate=-1, bestD=1e9;
+    for(const g of gateNodes){
+      const d=dist(nodes[h], nodes[g]);
+      if(d<bestD){bestD=d; bestGate=g}
+    }
+    if(bestGate!==-1){
+      addSeg(h,bestGate,"industrial", lerp(22,30,densityF));
+    }
+    let bestRing=-1, brD=1e9;
+    for(const rn of ringNodes){
+      const d=dist(nodes[h], nodes[rn]);
+      if(d<brD){brD=d; bestRing=rn}
+    }
+    if(bestRing!==-1 && brD<220){
+      addSeg(h,bestRing,"industrial", lerp(20,28,densityF));
+    }else{
+      addSeg(h,cNode,"industrial", lerp(20,28,densityF));
+    }
+  }
+
+  // Attractors
+  const attractors=[center, add(center,v(55,-35)), add(center,v(-35,55))];
+  for(const h of hubs) attractors.push(h);
+  if(river){
+    attractors.push(add(center,v(0,140)));
+    attractors.push(add(center,v(0,-160)));
+  }
+  if(fortress){
+    attractors.push(fortress.center);
+  }
+
+  // seed fronts
+  const seedFronts = Math.min( clamp(Math.floor(22 + density*0.28), 22, 56), ringNodes.length );
+  for(let i=0;i<seedFronts;i++){
+    const ni = ringNodes[(rng()*ringNodes.length)|0];
+    const pos=nodes[ni];
+    const toC=norm(sub(pos,center));
+    const tang=perp(toC);
+    const sign = (rng()<0.5)?-1:1;
+    let d1=norm(add(mul(tang,sign), mul(toC,(rng()*2-1)*0.20)));
+    fronts.push({node:ni, dir:d1, kind:"minor", w:lerp(5.5,8.4,densityF), age:0});
+    if(rng()<0.25){
+      let d2=norm(add(mul(tang,-sign), mul(toC,(rng()*2-1)*0.20)));
+      fronts.push({node:ni, dir:d2, kind:"minor", w:lerp(5.5,8.4,densityF), age:0});
+    }
+  }
+  for(const g of gateNodes){
+    const pos=nodes[g];
+    const d=norm(sub(center,pos));
+    fronts.push({node:g, dir:d, kind:"major", w:lerp(12,15,densityF), age:0});
+  }
+  for(const h of hubNodes){
+    const d=norm(sub(center, nodes[h]));
+    fronts.push({node:h, dir:d, kind:"industrial", w:lerp(20,28,densityF), age:0});
+  }
+
+  // growth loop
+  let guard=0;
+  while(fronts.length && segs.length < maxSegs && guard++ < maxSegs*10){
+    const fi=(rng()*fronts.length)|0;
+    const f=fronts[fi];
+    const fromNode=f.node;
+    const fromP=nodes[fromNode];
+
+    const maxAge = (f.kind==="industrial") ? 16 + density*0.18 : (f.kind==="major" ? 16 + density*0.16 : 15 + density*0.14);
+    if(f.age > maxAge){
+      fronts.splice(fi,1);
+      continue;
+    }
+
+    const step = (f.kind==="industrial") ? stepIndustrial : (f.kind==="major" ? stepMajor : stepMinor);
+    let dir = steer(fromP, f.dir, f.kind, attractors);
+
+    let toP=null;
+    let ok=false;
+    for(let attempt=0; attempt<10; attempt++){
+      const cand=add(fromP, mul(dir, step*(0.85 + rng()*0.35)));
+      if(!isInside(cand)){
+        const rot=(rng()<0.5?1:-1) * (0.7 + rng()*0.7);
+        const ca=Math.cos(rot), sa=Math.sin(rot);
+        dir=norm(v(dir.x*ca - dir.y*sa, dir.x*sa + dir.y*ca));
+        continue;
+      }
+      if(isInFort(cand)){
+        const rot=(rng()<0.5?1:-1) * (0.9 + rng()*0.6);
+        const ca=Math.cos(rot), sa=Math.sin(rot);
+        dir=norm(v(dir.x*ca - dir.y*sa, dir.x*sa + dir.y*ca));
+        continue;
+      }
+      if(f.kind==="minor" && crossesRiverTooMuch(fromP,cand)){
+        const rot=(rng()<0.5?1:-1) * (0.8 + rng()*0.6);
+        const ca=Math.cos(rot), sa=Math.sin(rot);
+        dir=norm(v(dir.x*ca - dir.y*sa, dir.x*sa + dir.y*ca));
+        continue;
+      }
+      toP=cand; ok=true; break;
+    }
+    if(!ok || !toP){
+      fronts.splice(fi,1);
+      continue;
+    }
+
+    const hit = segmentHit(fromP, toP, fromNode);
+    let endNode=-1;
+
+    if(hit && hit.type==="node"){
+      endNode=hit.nodeIndex;
+      addSeg(fromNode,endNode,f.kind,f.w);
+    } else if(hit && hit.type==="seg"){
+      const ip=hit.point;
+      const ipNode=addNode(ip);
+      const s=segs[hit.segIndex];
+      const A=nodes[s.a], B=nodes[s.b];
+      if(dist(ip,A)>snapNodeDist && dist(ip,B)>snapNodeDist){
+        splitSegAtPoint(hit.segIndex, ipNode);
+      }
+      addSeg(fromNode, ipNode, f.kind, f.w);
+      endNode=ipNode;
+    } else {
+      endNode=addNode(toP);
+      addSeg(fromNode,endNode,f.kind,f.w);
+    }
+
+    fronts[fi]={node:endNode, dir:dir, kind:f.kind, w:f.w, age:f.age+1};
+
+    let pBranch;
+    if(f.kind==="industrial") pBranch = clamp(0.03 + densityF*0.06 - f.age*0.003, 0.01, 0.10);
+    else if(f.kind==="major") pBranch = clamp(0.03 + densityF*0.07 - f.age*0.003, 0.01, 0.10);
+    else pBranch = clamp(0.07 + densityF*0.15 - f.age*0.004, 0.03, 0.18);
+
+    if(rng() < pBranch && segs.length < maxSegs){
+      const sign=(rng()<0.5)?-1:1;
+      const rot=sign*(0.80 + rng()*0.55);
+      const ca=Math.cos(rot), sa=Math.sin(rot);
+      const bdir=norm(v(dir.x*ca - dir.y*sa, dir.x*sa + dir.y*ca));
+      fronts.push({node:endNode, dir:bdir, kind:"minor", w:lerp(5.5,8.4,densityF), age:0});
+    }
+  }
+
+  // merge segments into polylines
+  const adj = new Map();
+  const degByKind = new Map();
+  const keyNK=(n,k)=>n+"|"+k;
+
+  for(let si=0; si<segs.length; si++){
+    const s=segs[si];
+    if(!adj.has(s.a)) adj.set(s.a, []);
+    if(!adj.has(s.b)) adj.set(s.b, []);
+    adj.get(s.a).push({to:s.b, si});
+    adj.get(s.b).push({to:s.a, si});
+    degByKind.set(keyNK(s.a,s.kind), (degByKind.get(keyNK(s.a,s.kind))||0)+1);
+    degByKind.set(keyNK(s.b,s.kind), (degByKind.get(keyNK(s.b,s.kind))||0)+1);
+  }
+
+  const used = new Uint8Array(segs.length);
+  const degree=(n, kind)=>degByKind.get(keyNK(n,kind))||0;
+
+  function pickNext(n, prev, kind){
+    const lst = adj.get(n) || [];
+    let best=null, bestScore=-1e9;
+    const pn = (prev===-1) ? null : nodes[prev];
+    const cn = nodes[n];
+    const vPrev = pn ? norm(sub(cn, pn)) : null;
+
+    for(const e of lst){
+      const s=segs[e.si];
+      if(used[e.si]) continue;
+      if(s.kind!==kind) continue;
+      if(e.to===prev) continue;
+      let score=0;
+      if(vPrev){
+        const vNext = norm(sub(nodes[e.to], cn));
+        score = dot(vPrev, vNext);
+      }
+      if(score>bestScore){bestScore=score; best=e;}
+    }
+    if(best) return best;
+
+    for(const e of lst){
+      const s=segs[e.si];
+      if(used[e.si]) continue;
+      if(s.kind!==kind) continue;
+      if(e.to===prev) continue;
+      return e;
+    }
+    for(const e of lst){
+      const s=segs[e.si];
+      if(used[e.si]) continue;
+      if(s.kind!==kind) continue;
+      return e;
+    }
+    return null;
+  }
+
+  const polylines=[];
+  for(let si=0; si<segs.length; si++){
+    if(used[si]) continue;
+    const s=segs[si];
+    const kind=s.kind;
+
+    let start=s.a;
+    if(degree(s.a,kind)===2 && degree(s.b,kind)!==2) start=s.b;
+
+    const pts=[nodes[start]];
+    let cur=start;
+    let prev=-1;
+
+    let e = (s.a===cur) ? {to:s.b, si} : {to:s.a, si};
+
+    while(e){
+      used[e.si]=1;
+      const next=e.to;
+      pts.push(nodes[next]);
+      prev=cur; cur=next;
+      if(degree(cur,kind)!==2) break;
+      const ne = pickNext(cur, prev, kind);
+      if(!ne) break;
+      e=ne;
+    }
+
+    if(degree(start,kind)===2){
+      let backEdge=null;
+      const lst=adj.get(start) || [];
+      for(const ee of lst){
+        const ss=segs[ee.si];
+        if(used[ee.si]) continue;
+        if(ss.kind!==kind) continue;
+        backEdge=ee; break;
+      }
+      if(backEdge){
+        const bpts=[nodes[backEdge.to]];
+        let bcur=backEdge.to;
+        let bprev=start;
+        used[backEdge.si]=1;
+        while(true){
+          if(degree(bcur,kind)!==2) break;
+          const ne = pickNext(bcur, bprev, kind);
+          if(!ne) break;
+          used[ne.si]=1;
+          bpts.push(nodes[ne.to]);
+          bprev=bcur; bcur=ne.to;
+        }
+        bpts.reverse();
+        polylines.push({kind, width:s.width, pts:bpts.concat(pts)});
+        continue;
+      }
+    }
+
+    polylines.push({kind, width:s.width, pts});
+  }
+
+  // smooth polylines
+  const roads=[];
+  for(const pl of polylines){
+    const pts=pl.pts;
+    if(pts.length<2) continue;
+    const iters = (pl.kind==="industrial") ? 2 : (pl.kind==="major" ? 2 : (pl.kind==="ring" ? 1 : 1));
+    let sm = chaikin(pts, iters, false);
+    sm = rdp(sm, 1.8);
+    if(sm.length===2){
+      const a=sm[0], b=sm[1];
+      sm=[a, v((a.x+b.x)/2,(a.y+b.y)/2), b];
+    }
+    roads.push({kind:pl.kind, width:pl.width, pts:sm});
+  }
+
+  return {roads, hubs};
+}
+
+/* ========================= Rasterization ========================= */
+function worldToGrid(x,y, cs, N){return {i:clamp((x/cs)|0,0,N-1), j:clamp((y/cs)|0,0,N-1)}}
+function idx(i,j,N){return j*N+i}
+function stampDisk(mask,i0,j0,r,N){
+  const r2=r*r;
+  for(let dj=-r;dj<=r;dj++){
+    const j=j0+dj; if(j<0||j>=N) continue;
+    for(let di=-r;di<=r;di++){
+      const i=i0+di; if(i<0||i>=N) continue;
+      if(di*di+dj*dj<=r2) mask[idx(i,j,N)]=1;
+    }
+  }
+}
+function rasterizePolyline(mask, pts, widthWorld, cs, N){
+  const r=Math.max(1, Math.ceil((widthWorld*0.5)/cs));
+  const step=cs*0.55;
+  for(let k=0;k<pts.length-1;k++){
+    const a=pts[k],b=pts[k+1];
+    const d=dist(a,b);
+    const steps=Math.max(1, Math.ceil(d/step));
+    for(let s=0;s<=steps;s++){
+      const t=s/steps;
+      const x=lerp(a.x,b.x,t), y=lerp(a.y,b.y,t);
+      const g=worldToGrid(x,y,cs,N);
+      stampDisk(mask,g.i,g.j,r,N);
+    }
+  }
+}
+function rasterizeInside(inside, outline, cs, N){
+  for(let j=0;j<N;j++){
+    const y=(j+0.5)*cs;
+    for(let i=0;i<N;i++){
+      const x=(i+0.5)*cs;
+      inside[idx(i,j,N)] = pointInPoly(v(x,y), outline) ? 1 : 0;
+    }
+  }
+}
+function rasterizePolygonFill(mask, polyClosed, cs, N){
+  const poly=polyClosed.slice(0,-1);
+  const bb=bbox(poly);
+  const i0=clamp(((bb.minX/cs)|0)-2,0,N-1);
+  const i1=clamp(((bb.maxX/cs)|0)+2,0,N-1);
+  const j0=clamp(((bb.minY/cs)|0)-2,0,N-1);
+  const j1=clamp(((bb.maxY/cs)|0)+2,0,N-1);
+  for(let j=j0;j<=j1;j++){
+    const y=(j+0.5)*cs;
+    for(let i=i0;i<=i1;i++){
+      const x=(i+0.5)*cs;
+      if(pointInPoly(v(x,y), poly)) mask[idx(i,j,N)]=1;
+    }
+  }
+}
+function rasterizeCoastWater(water, coast, cs, N){
+  const shoreY=new Float32Array(N); shoreY.fill(WORLD);
+  for(let k=0;k<coast.length-1;k++){
+    const a=coast[k],b=coast[k+1];
+    let x0=a.x,y0=a.y,x1=b.x,y1=b.y;
+    if(x1<x0){[x0,x1]=[x1,x0];[y0,y1]=[y1,y0]}
+    const i0=clamp((x0/cs)|0,0,N-1);
+    const i1=clamp((x1/cs)|0,0,N-1);
+    for(let i=i0;i<=i1;i++){
+      const x=(i+0.5)*cs;
+      const t=(x1-x0)<1e-6?0:clamp((x-x0)/(x1-x0),0,1);
+      const y=lerp(y0,y1,t);
+      shoreY[i]=Math.min(shoreY[i],y);
+    }
+  }
+  for(let j=0;j<N;j++){
+    const y=(j+0.5)*cs;
+    for(let i=0;i<N;i++) if(y>shoreY[i]) water[idx(i,j,N)]=1;
+  }
+  return shoreY;
+}
+
+/* ========================= Highways / Tracts ========================= */
+function lineRectIntersections(p, d, minX, minY, maxX, maxY){
+  const hits=[];
+  const push=(t,x,y)=>{
+    if(x>=minX-1e-6 && x<=maxX+1e-6 && y>=minY-1e-6 && y<=maxY+1e-6) hits.push({t,p:v(x,y)});
+  };
+  if(Math.abs(d.x)>1e-9){
+    let t=(minX-p.x)/d.x; push(t, minX, p.y+d.y*t);
+    t=(maxX-p.x)/d.x; push(t, maxX, p.y+d.y*t);
+  }
+  if(Math.abs(d.y)>1e-9){
+    let t=(minY-p.y)/d.y; push(t, p.x+d.x*t, minY);
+    t=(maxY-p.y)/d.y; push(t, p.x+d.x*t, maxY);
+  }
+  hits.sort((a,b)=>a.t-b.t);
+  const out=[];
+  for(const h of hits){
+    if(!out.length || dist(out[out.length-1].p, h.p)>1e-5) out.push(h);
+  }
+  return out;
+}
+
+function polylineEntersPoly(pts, poly){
+  for(const p of pts){
+    if(pointInPoly(p, poly)) return true;
+  }
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1];
+    const d=dist(a,b);
+    const steps=Math.max(1, Math.ceil(d/45));
+    for(let s=1;s<steps;s++){
+      const t=s/steps;
+      const p=v(lerp(a.x,b.x,t), lerp(a.y,b.y,t));
+      if(pointInPoly(p, poly)) return true;
+    }
+  }
+  return false;
+}
+
+function clampPolylineToLand(pts, shoreY, cs, N, margin){
+  if(!shoreY) return pts;
+  const out=[];
+  for(const p of pts){
+    const i=clamp((p.x/cs)|0, 0, N-1);
+    const yMax = shoreY[i]-margin;
+    out.push(v(p.x, Math.min(p.y, yMax)));
+  }
+  return out;
+}
+
+function genHighways(rng, center, cityPoly, coast, shoreY, cs, N){
+  const highways=[];
+  const minX=0, minY=0, maxX=WORLD, maxY=WORLD;
+
+  const cityR = avgRadius(cityPoly, center);
+  const count = 2 + (rng()<0.45?1:0);
+
+  for(let k=0;k<count;k++){
+    for(let att=0; att<50; att++){
+      const baseAng = (rng()<0.5 ? 0 : Math.PI/2) + (rng()*2-1)*0.35 + k*0.18;
+      const dir = v(Math.cos(baseAng), Math.sin(baseAng));
+      const n = perp(dir);
+
+      const offSign = (rng()<0.5)?-1:1;
+      const off = offSign * (cityR + 240 + rng()*640);
+      const mid = add(center, mul(n, off));
+
+      const hits=lineRectIntersections(mid, dir, minX, minY, maxX, maxY);
+      if(hits.length<2) continue;
+      const a=hits[0].p, b=hits[hits.length-1].p;
+
+      const wob = 140 + rng()*260;
+      const m1 = add(mid, mul(n, (rng()*2-1)*wob));
+      const m2 = add(mid, mul(n, (rng()*2-1)*wob));
+
+      let pts = noisyPolyline(rng, a, m1, 7, 0).concat(noisyPolyline(rng, m1, m2, 7, 0).slice(1)).concat(noisyPolyline(rng, m2, b, 7, 0).slice(1));
+      pts = chaikin(pts, 1, false);
+      pts = rdp(pts, 2.0);
+
+      if(polylineEntersPoly(pts, cityPoly)) continue;
+      if(coast && shoreY) pts = clampPolylineToLand(pts, shoreY, cs, N, 32);
+
+      pts = pts.filter(p=>p.x>=-5 && p.x<=WORLD+5 && p.y>=-5 && p.y<=WORLD+5);
+      if(pts.length<2) continue;
+
+      highways.push({kind:"highway", width:28, pts});
+      break;
+    }
+  }
+
+  return highways;
+}
+
+/* ========================= Flood fill blocks ========================= */
+function floodRegions(regionId, inside, road, water, N){
+  const q=new Int32Array(N*N);
+  let rid=0;
+  const regions=[];
+  for(let j=0;j<N;j++){
+    for(let i=0;i<N;i++){
+      const p=idx(i,j,N);
+      if(regionId[p]!==0) continue;
+      if(inside[p]===0) continue;
+      if(road[p]===1 || water[p]===1) continue;
+      rid++;
+      let qh=0,qt=0;
+      q[qt++]=p; regionId[p]=rid;
+      let cells=0,sumI=0,sumJ=0,minI=i,maxI=i,minJ=j,maxJ=j;
+      while(qh<qt){
+        const cur=q[qh++];
+        const ci=cur%N, cj=(cur/N)|0;
+        cells++; sumI+=ci; sumJ+=cj;
+        if(ci<minI)minI=ci; if(ci>maxI)maxI=ci; if(cj<minJ)minJ=cj; if(cj>maxJ)maxJ=cj;
+        if(ci>0){const n1=cur-1; if(regionId[n1]===0 && inside[n1]&& !road[n1] && !water[n1]){regionId[n1]=rid;q[qt++]=n1}}
+        if(ci<N-1){const n2=cur+1; if(regionId[n2]===0 && inside[n2]&& !road[n2] && !water[n2]){regionId[n2]=rid;q[qt++]=n2}}
+        if(cj>0){const n3=cur-N; if(regionId[n3]===0 && inside[n3]&& !road[n3] && !water[n3]){regionId[n3]=rid;q[qt++]=n3}}
+        if(cj<N-1){const n4=cur+N; if(regionId[n4]===0 && inside[n4]&& !road[n4] && !water[n4]){regionId[n4]=rid;q[qt++]=n4}}
+      }
+      regions.push({id:rid,cells,minI,maxI,minJ,maxJ,cI:sumI/cells+0.5,cJ:sumJ/cells+0.5});
+    }
+  }
+  return regions;
+}
+function extractRegionPolygon(regionId, rid, bb, cs, N){
+  const next=new Map();
+  const VN=N+1;
+  const key=(x,y)=>x+y*VN;
+  const addEdge=(x0,y0,x1,y1)=>{
+    const k0=key(x0,y0);
+    if(!next.has(k0)) next.set(k0,key(x1,y1));
+  };
+  for(let j=bb.minJ;j<=bb.maxJ;j++){
+    for(let i=bb.minI;i<=bb.maxI;i++){
+      const p=idx(i,j,N);
+      if(regionId[p]!==rid) continue;
+      if(j===0 || regionId[p-N]!==rid) addEdge(i,j,i+1,j);
+      if(i===N-1 || regionId[p+1]!==rid) addEdge(i+1,j,i+1,j+1);
+      if(j===N-1 || regionId[p+N]!==rid) addEdge(i+1,j+1,i,j+1);
+      if(i===0 || regionId[p-1]!==rid) addEdge(i,j+1,i,j);
+    }
+  }
+  const loops=[];
+  while(next.size){
+    const start=next.keys().next().value;
+    let cur=start;
+    const loop=[];
+    let guard=0;
+    while(guard++<200000){
+      const end=next.get(cur);
+      next.delete(cur);
+      loop.push(cur);
+      cur=end;
+      if(cur===start) break;
+      if(!next.has(cur)) break;
+    }
+    if(loop.length<6) continue;
+    const pts=loop.map(k=>{
+      const vx=k%VN;
+      const vy=(k/VN)|0;
+      return v(vx*cs, vy*cs);
+    });
+    loops.push({pts, area:Math.abs(polyArea(pts))});
+  }
+  if(!loops.length) return null;
+  loops.sort((a,b)=>b.area-a.area);
+  let poly=rdp(loops[0].pts, cs*1.35);
+  if(dist(poly[0],poly[poly.length-1])>1e-6) poly.push(v(poly[0].x,poly[0].y));
+  return poly;
+}
+
+/* ========================= Districts ========================= */
+function districtStyle(name, P){
+  switch(name){
+    case "Цитадель": return {fill:P.wallFill, stroke:P.wall};
+    case "Храмовый квартал": return {fill:P.purpleFill, stroke:P.purple};
+    case "Рынок": return {fill:"rgba(141,228,255,.10)", stroke:"rgba(141,228,255,.60)"};
+    case "Цеха и мануфактуры": return {fill:P.indFill, stroke:P.ind};
+    case "Тепличный пояс": return {fill:P.greenFill, stroke:P.green};
+    case "Карантин/лазарет": return {fill:"rgba(255,209,102,.10)", stroke:"rgba(255,209,102,.70)"};
+    case "Трущобы/руины": return {fill:P.ruinFill, stroke:P.ruin};
+    case "Доки/порт": return {fill:P.waterFill, stroke:P.water};
+    case "Центр": return {fill:P.ink3, stroke:P.ink2};
+    default: return {fill:P.ink3, stroke:P.ink3};
+  }
+}
+function assignDistrictsBase(rng, blocks, center, opt, hasFortress){
+  const arr=blocks.map(b=>({id:b.id,d:dist(b.centroid,center),y:b.centroid.y}));
+  arr.sort((a,b)=>a.d-b.d);
+  const map=new Map();
+  for(const b of blocks) map.set(b.id,"Жилые блоки");
+
+  if(arr.length){
+    if(hasFortress){
+      map.set(arr[0].id,"Центр");
+      if(arr[1]) map.set(arr[1].id,"Храмовый квартал");
+      for(let i=2;i<Math.min(2+Math.floor(blocks.length*0.06),arr.length);i++) map.set(arr[i].id,"Рынок");
+    }else{
+      map.set(arr[0].id,"Цитадель");
+      if(arr[1]) map.set(arr[1].id,"Храмовый квартал");
+      for(let i=2;i<Math.min(2+Math.floor(blocks.length*0.05),arr.length);i++) map.set(arr[i].id,"Рынок");
+    }
+  }
+
+  if(opt.green){
+    let wantG=Math.max(3,Math.floor(blocks.length*0.11));
+    const d55=arr[Math.floor(arr.length*0.55)]?.d ?? 0;
+    const d92=arr[Math.floor(arr.length*0.92)]?.d ?? 1e9;
+    for(const it of arr){
+      if(wantG<=0) break;
+      if(map.get(it.id)!=="Жилые блоки") continue;
+      if(it.d>d55 && it.d<d92){map.set(it.id,"Тепличный пояс"); wantG--}
+    }
+  }
+
+  let wantR=Math.max(3,Math.floor(blocks.length*(0.10+opt.ruins*0.002)));
+  for(let i=arr.length-1;i>=0 && wantR>0;i--){
+    const it=arr[i];
+    if(map.get(it.id)==="Жилые блоки"){map.set(it.id,"Трущобы/руины"); wantR--}
+  }
+
+  let wantQ=clamp(Math.floor(1+opt.ruins/60),1,3);
+  const d60=arr[Math.floor(arr.length*0.60)]?.d ?? 0;
+  for(const it of arr){
+    if(wantQ<=0) break;
+    if(map.get(it.id)!=="Жилые блоки") continue;
+    if(it.d>d60){map.set(it.id,"Карантин/лазарет"); wantQ--}
+  }
+
+  if(opt.coast){
+    const byY=arr.slice().sort((a,b)=>b.y-a.y);
+    let wantP=Math.max(3,Math.floor(blocks.length*0.07));
+    for(const it of byY){
+      if(wantP<=0) break;
+      const cur=map.get(it.id);
+      if(cur==="Жилые блоки"){map.set(it.id,"Доки/порт"); wantP--}
+    }
+  }
+
+  return map;
+}
+function forceIndustryDistricts(distMap, blocks, hubs){
+  if(!hubs || !hubs.length) return 0;
+
+  for(const h of hubs){
+    const scored = blocks.map(b=>({b, d:dist(b.centroid, h)})).sort((a,b)=>a.d-b.d);
+    let take=0;
+    for(const it of scored){
+      if(take>=6) break;
+      const cur = distMap.get(it.b.id);
+      if(cur==="Цитадель" || cur==="Храмовый квартал" || cur==="Рынок") continue;
+      distMap.set(it.b.id, "Цеха и мануфактуры");
+      take++;
+    }
+  }
+
+  for(const b of blocks){
+    const cur = distMap.get(b.id);
+    if(cur==="Цитадель" || cur==="Храмовый квартал" || cur==="Рынок") continue;
+    let near=false;
+    for(const h of hubs){
+      if(dist(b.centroid, h) < 200){ near=true; break; }
+    }
+    if(near){
+      distMap.set(b.id, "Цеха и мануфактуры");
+    }
+  }
+
+  let marked=0;
+  for(const b of blocks) if(distMap.get(b.id)==="Цеха и мануфактуры") marked++;
+  return marked;
+}
+
+/* ========================= Buildings + Alleys ========================= */
+function obbAxes(r){
+  const ca=Math.cos(r.ang), sa=Math.sin(r.ang);
+  return {ux:v(ca,sa), uy:v(-sa,ca)};
+}
+function obbOverlap(r1,r2,pad){
+  const a1=obbAxes(r1), a2=obbAxes(r2);
+  const d=sub(v(r2.cx,r2.cy), v(r1.cx,r1.cy));
+  const axes=[a1.ux,a1.uy,a2.ux,a2.uy];
+  for(const ax of axes){
+    const dp=Math.abs(dot(d,ax));
+    const r1p=r1.hx*Math.abs(dot(a1.ux,ax))+r1.hy*Math.abs(dot(a1.uy,ax));
+    const r2p=r2.hx*Math.abs(dot(a2.ux,ax))+r2.hy*Math.abs(dot(a2.uy,ax));
+    if(dp>(r1p+r2p+pad)) return false;
+  }
+  return true;
+}
+function rectCorners(r){
+  const ca=Math.cos(r.ang), sa=Math.sin(r.ang);
+  const dx=[-r.hx,r.hx,r.hx,-r.hx], dy=[-r.hy,-r.hy,r.hy,r.hy];
+  const pts=[];
+  for(let i=0;i<4;i++){
+    const x=r.cx + dx[i]*ca - dy[i]*sa;
+    const y=r.cy + dx[i]*sa + dy[i]*ca;
+    pts.push(v(x,y));
+  }
+  return pts;
+}
+function inFortressPoly(p, fortressOuter){
+  if(!fortressOuter) return false;
+  return pointInPoly(p, fortressOuter.slice(0,-1));
+}
+function isRoadNear(roadMask,x,y,cs,N,rad){
+  const g=worldToGrid(x,y,cs,N);
+  for(let dj=-rad;dj<=rad;dj++){
+    const jj=g.j+dj; if(jj<0||jj>=N) continue;
+    for(let di=-rad;di<=rad;di++){
+      const ii=g.i+di; if(ii<0||ii>=N) continue;
+      if(roadMask[idx(ii,jj,N)]===1) return true;
+    }
+  }
+  return false;
+}
+function placeBuildingsAndAlleysForBlock(rng, blockPolyClosed, district, opt, roadMask, cs, N, fortress){
+  const buildings=[];
+  const alleys=[];
+
+  const poly=blockPolyClosed.slice(0,-1);
+  const area=Math.abs(polyArea(poly));
+  if(area<900) return {buildings, alleys};
+
+  const dens=opt.buildingDensity/100;
+
+  // orientation by longest edge
+  const theta=polyLongestEdgeAngle(poly);
+  const ux=v(Math.cos(theta), Math.sin(theta));
+  const uy=v(-Math.sin(theta), Math.cos(theta));
+  const ex=projExtents(poly, ux, uy);
+
+  let cell=lerp(30, 20, dens);
+  if(district==="Цеха и мануфактуры") cell=lerp(44, 32, dens);
+  if(district==="Трущобы/руины") cell=lerp(26, 18, dens);
+
+  const every=3;
+  const alleyW = (district==="Цеха и мануфактуры") ? 8.0 : 5.5;
+
+  // (A) Frontage: dense buildings near road-facing edges
+  const edgeGap = lerp(1.0, 0.25, dens);
+  const rowsFront = (district==="Цеха и мануфактуры") ? 2 : (dens>0.72 ? 3 : 2);
+
+  for(let row=0; row<rowsFront; row++){
+    const setback = (district==="Цеха и мануфактуры" ? 12 : 8) + row*(district==="Цеха и мануфактуры" ? 10 : 7);
+    for(let i=0;i<poly.length;i++){
+      const a=poly[i], b=poly[(i+1)%poly.length];
+      const L=dist(a,b);
+      if(L<20) continue;
+
+      const mid=v((a.x+b.x)/2,(a.y+b.y)/2);
+      if(!isRoadNear(roadMask, mid.x, mid.y, cs, N, 2)) continue;
+
+      const tunit=norm(sub(b,a));
+      let nvec=perp(tunit);
+      const test=add(mid,mul(nvec,6));
+      if(!pointInPoly(test, poly)) nvec=mul(nvec,-1);
+
+      const ang=Math.atan2(tunit.y,tunit.x);
+      let s=0;
+      while(s < L-2){
+        let w,d;
+        if(district==="Цеха и мануфактуры"){ w=lerp(26, 52, rng()); d=lerp(18, 34, rng()); }
+        else if(district==="Трущобы/руины"){ w=lerp(10, 18, rng()); d=lerp(8, 14, rng()); }
+        else { w=lerp(12, 24, rng()); d=lerp(10, 18, rng()); }
+
+        const cx=a.x+tunit.x*(s+w*0.5) + nvec.x*setback;
+        const cy=a.y+tunit.y*(s+w*0.5) + nvec.y*setback;
+
+        const r={cx,cy,hx:w*0.5,hy:d*0.5,ang};
+        const corners=rectCorners(r);
+
+        let ok=true;
+        for(const p of corners){
+          if(!pointInPoly(p, poly)){ok=false;break}
+          if(inFortressPoly(p, fortress?.outer)){ok=false;break}
+        }
+        if(ok){
+          for(const exb of buildings){if(obbOverlap(r,exb,1.8)){ok=false;break}}
+        }
+        if(ok){buildings.push(r); s += w + edgeGap;}
+        else { s += Math.max(4, w*0.25); }
+      }
+    }
+  }
+
+  // Oriented grid extents
+  const U0 = ex.minU - cell*0.75, U1 = ex.maxU + cell*0.75;
+  const V0 = ex.minV - cell*0.75, V1 = ex.maxV + cell*0.75;
+  const cols = Math.max(1, Math.floor((U1-U0)/cell));
+  const rows = Math.max(1, Math.floor((V1-V0)/cell));
+
+  // Alley clipping helper
+  function buildClippedLine(isVertical, lineIndex){
+    const segs=[];
+    const step=cell*0.35;
+    const maxSteps = Math.ceil(((isVertical? (V1-V0):(U1-U0)))/step);
+    let inRun=false;
+    let cur=[];
+    for(let s=0; s<=maxSteps; s++){
+      const t=s/maxSteps;
+      let U,V;
+      if(isVertical){
+        U=U0 + lineIndex*cell + cell*0.5;
+        V=lerp(V0,V1,t);
+      }else{
+        U=lerp(U0,U1,t);
+        V=V0 + lineIndex*cell + cell*0.5;
+      }
+      const p=fromUV(U,V,ux,uy);
+      const inside = pointInPoly(p, poly) && !inFortressPoly(p, fortress?.outer);
+      if(inside){
+        if(!inRun){inRun=true; cur=[p];}
+        else cur.push(p);
+      }else{
+        if(inRun){
+          if(cur.length>=2) segs.push(cur);
+          inRun=false; cur=[];
+        }
+      }
+    }
+    if(inRun && cur.length>=2) segs.push(cur);
+    return segs;
+  }
+
+  // record alleys
+  for(let i=0;i<cols;i++){
+    if(i%every===2){
+      const segs=buildClippedLine(true, i);
+      for(const seg of segs) alleys.push({kind:"alley", width:alleyW, pts:seg});
+    }
+  }
+  for(let j=0;j<rows;j++){
+    if(j%every===2){
+      const segs=buildClippedLine(false, j);
+      for(const seg of segs) alleys.push({kind:"alley", width:alleyW, pts:seg});
+    }
+  }
+
+  // fill buildings in non-alley cells (hard rule => no 3x3 or 3x2 solid masses)
+  const pad = (district==="Цеха и мануфактуры") ? 2.6 : 1.6;
+
+  for(let j=0;j<rows;j++){
+    for(let i=0;i<cols;i++){
+      const isAlley = (i%every===2) || (j%every===2);
+      if(isAlley) continue;
+
+      const U=U0 + i*cell + cell*0.5;
+      const V=V0 + j*cell + cell*0.5;
+      const p=fromUV(U,V,ux,uy);
+      if(!pointInPoly(p, poly)) continue;
+      if(inFortressPoly(p, fortress?.outer)) continue;
+
+      // don't place if cell center lies on raster road
+      const g=worldToGrid(p.x,p.y,cs,N);
+      if(roadMask[idx(g.i,g.j,N)]===1) continue;
+
+      let bw = cell * (district==="Цеха и мануфактуры" ? 0.90 : 0.86);
+      let bd = cell * (district==="Цеха и мануфактуры" ? 0.84 : 0.82);
+
+      const jitterU = (rng()*2-1) * cell*0.05;
+      const jitterV = (rng()*2-1) * cell*0.05;
+      const pp=fromUV(U+jitterU, V+jitterV, ux, uy);
+
+      // industry: allow up to 2-cell halls, but still broken by alleys (never >=3)
+      if(district==="Цеха и мануфактуры" && rng()<0.16){
+        const multU = (rng()<0.45? 1:2);
+        const multV = (rng()<0.70? 1:2);
+        bw = cell * 0.92 * multU;
+        bd = cell * 0.86 * multV;
+      }
+
+      const ang=theta;
+      const r={cx:pp.x, cy:pp.y, hx:bw*0.5, hy:bd*0.5, ang};
+      const corners=rectCorners(r);
+
+      let ok=true;
+      for(const q of corners){
+        if(!pointInPoly(q, poly)){ok=false;break}
+        if(inFortressPoly(q, fortress?.outer)){ok=false;break}
+      }
+      if(ok){
+        for(const exb of buildings){ if(obbOverlap(r, exb, pad)){ ok=false; break; } }
+      }
+      if(ok){
+        buildings.push(r);
+      }else{
+        // fallback smaller
+        const r2={cx:p.x, cy:p.y, hx:(cell*0.62)*0.5, hy:(cell*0.62)*0.5, ang};
+        const cc=rectCorners(r2);
+        let ok2=true;
+        for(const q of cc){ if(!pointInPoly(q, poly) || inFortressPoly(q, fortress?.outer)){ ok2=false; break; } }
+        if(ok2){
+          for(const exb of buildings){ if(obbOverlap(r2, exb, 1.2)){ ok2=false; break; } }
+        }
+        if(ok2) buildings.push(r2);
+      }
+    }
+  }
+
+  return {buildings, alleys};
+}
+
+/* ========================= Citadel inside castle ========================= */
+function placeCitadelBuildings(rng, fortress){
+  const buildings=[];
+  const alleys=[];
+
+  const yard=fortress.yard.slice(0,-1);
+  const theta=fortress.keep.ang;
+  const ux=v(Math.cos(theta), Math.sin(theta));
+  const uy=v(-Math.sin(theta), Math.cos(theta));
+  const ex=projExtents(yard, ux, uy);
+
+  const cell=22;
+  const every=3;
+  const alleyW=5.5;
+
+  const U0=ex.minU - cell*0.5, U1=ex.maxU + cell*0.5;
+  const V0=ex.minV - cell*0.5, V1=ex.maxV + cell*0.5;
+  const cols=Math.max(1, Math.floor((U1-U0)/cell));
+  const rows=Math.max(1, Math.floor((V1-V0)/cell));
+
+  const c=fortress.center;
+  const openR=32;
+
+  function buildClippedLine(isVertical, lineIndex){
+    const segs=[];
+    const step=cell*0.35;
+    const maxSteps = Math.ceil(((isVertical? (V1-V0):(U1-U0)))/step);
+    let inRun=false;
+    let cur=[];
+    for(let s=0; s<=maxSteps; s++){
+      const t=s/maxSteps;
+      let U,V;
+      if(isVertical){
+        U=U0 + lineIndex*cell + cell*0.5;
+        V=lerp(V0,V1,t);
+      }else{
+        U=lerp(U0,U1,t);
+        V=V0 + lineIndex*cell + cell*0.5;
+      }
+      const p=fromUV(U,V,ux,uy);
+      const inside = pointInPoly(p, yard) && (dist(p,c)>openR);
+      if(inside){
+        if(!inRun){inRun=true; cur=[p];}
+        else cur.push(p);
+      }else{
+        if(inRun){
+          if(cur.length>=2) segs.push(cur);
+          inRun=false; cur=[];
+        }
+      }
+    }
+    if(inRun && cur.length>=2) segs.push(cur);
+    return segs;
+  }
+
+  // alleys
+  for(let i=0;i<cols;i++){
+    if(i%every===2){
+      const segs=buildClippedLine(true, i);
+      for(const seg of segs) alleys.push({kind:"alley", width:alleyW, pts:seg});
+    }
+  }
+  for(let j=0;j<rows;j++){
+    if(j%every===2){
+      const segs=buildClippedLine(false, j);
+      for(const seg of segs) alleys.push({kind:"alley", width:alleyW, pts:seg});
+    }
+  }
+
+  // barracks along yard edges
+  for(let i=0;i<yard.length;i++){
+    const a=yard[i], b=yard[(i+1)%yard.length];
+    const L=dist(a,b);
+    if(L<26) continue;
+    const tunit=norm(sub(b,a));
+    let nvec=perp(tunit);
+    const mid=v((a.x+b.x)/2,(a.y+b.y)/2);
+    const test=add(mid,mul(nvec,8));
+    if(!pointInPoly(test, yard)) nvec=mul(nvec,-1);
+
+    const ang=Math.atan2(tunit.y,tunit.x);
+    let s=0;
+    while(s < L-2){
+      const w=lerp(18, 28, rng());
+      const d=lerp(10, 16, rng());
+      const cx=a.x+tunit.x*(s+w*0.5) + nvec.x*10;
+      const cy=a.y+tunit.y*(s+w*0.5) + nvec.y*10;
+      const p=v(cx,cy);
+      if(dist(p,c) < openR+10){ s+=w+1.0; continue; }
+
+      const r={cx,cy,hx:w*0.5,hy:d*0.5,ang};
+      const corners=rectCorners(r);
+      let ok=true;
+      for(const q of corners){ if(!pointInPoly(q, yard)) { ok=false; break; } }
+      if(ok){
+        for(const exb of buildings){ if(obbOverlap(r, exb, 1.8)){ ok=false; break; } }
+      }
+      if(ok) buildings.push(r);
+      s += w + 0.6;
+    }
+  }
+
+  // interior fill (non-alley cells)
+  for(let j=0;j<rows;j++){
+    for(let i=0;i<cols;i++){
+      const isAlley = (i%every===2) || (j%every===2);
+      if(isAlley) continue;
+      const U=U0 + i*cell + cell*0.5;
+      const V=V0 + j*cell + cell*0.5;
+      const p=fromUV(U,V,ux,uy);
+      if(!pointInPoly(p, yard)) continue;
+      if(dist(p,c) < openR) continue;
+
+      const bw=cell*0.78;
+      const bd=cell*0.78;
+      const r={cx:p.x, cy:p.y, hx:bw*0.5, hy:bd*0.5, ang:theta};
+      const corners=rectCorners(r);
+      let ok=true;
+      for(const q of corners){ if(!pointInPoly(q, yard) || dist(q,c)<openR){ ok=false; break; } }
+      if(ok){
+        for(const exb of buildings){ if(obbOverlap(r, exb, 1.4)){ ok=false; break; } }
+      }
+      if(ok) buildings.push(r);
+    }
+  }
+
+  return {buildings, alleys, polygon:fortress.yard, center:fortress.center};
+}
+
+/* ========================= SVG utils ========================= */
+function clearSVG(svg){while(svg.firstChild) svg.removeChild(svg.firstChild)}
+function el(tag, attrs={}, children=[]){
+  const n=document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for(const k in attrs){if(attrs[k]!==undefined && attrs[k]!==null) n.setAttribute(k,String(attrs[k]))}
+  for(const c of children) n.appendChild(c);
+  return n;
+}
+function textEl(x,y,txt,cls="",anchor="middle"){
+  return el("text",{x,y,"text-anchor":anchor,class:cls},[document.createTextNode(txt)]);
+}
+function linePath(pts){
+  if(!pts || pts.length===0) return "";
+  let d=`M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} `;
+  for(let i=1;i<pts.length;i++) d+=`L ${pts[i].x.toFixed(2)} ${pts[i].y.toFixed(2)} `;
+  return d.trim();
+}
+function polyPath(polyClosed){
+  if(!polyClosed || polyClosed.length===0) return "";
+  let d=`M ${polyClosed[0].x.toFixed(2)} ${polyClosed[0].y.toFixed(2)} `;
+  for(let i=1;i<polyClosed.length;i++) d+=`L ${polyClosed[i].x.toFixed(2)} ${polyClosed[i].y.toFixed(2)} `;
+  return (d+"Z");
+}
+function downloadText(filename, text, mime="text/plain"){
+  const blob=new Blob([text],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},250);
+}
+function getSVGText(svg){
+  const clone=svg.cloneNode(true);
+  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  clone.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` + new XMLSerializer().serializeToString(clone);
+}
+
+/* ========================= Fortifications rendering ========================= */
+function renderFortifiedWall(g, polyClosed, gatePts, mode, P){
+  const poly=polyClosed.slice(0);
+  if(dist(poly[0],poly[poly.length-1])>1e-6) poly.push(v(poly[0].x,poly[0].y));
+
+  const isParch = !!P._isParch;
+  const opSolid = isParch ? 1.0 : 0.95;
+  const opOutline = 1.0;
+  const opInner = isParch ? 0.42 : 0.55;
+  const opShadow = isParch ? 0.10 : 0.22;
+
+  const wallW=(mode==="city")?16:12;
+  const innerW=(mode==="city")?3.6:3.0;
+
+  g.appendChild(el("path",{d:linePath(poly),fill:"none",stroke:P.wallShadow,"stroke-width":(wallW+10),"stroke-linecap":"round","stroke-linejoin":"round",opacity:opShadow}));
+  g.appendChild(el("path",{d:linePath(poly),fill:"none",stroke:(P.wallFillTex||P.wallFill),"stroke-width":wallW,"stroke-linecap":"round","stroke-linejoin":"round",opacity:(P._isParch?1.0:0.95)}));
+  g.appendChild(el("path",{d:linePath(poly),fill:"none",stroke:P.wall,"stroke-width":3.6,"stroke-linecap":"round","stroke-linejoin":"round",opacity:opOutline}));
+  g.appendChild(el("path",{d:linePath(poly),fill:"none",stroke:P.ink3,"stroke-width":innerW,"stroke-linecap":"round","stroke-linejoin":"round",opacity:opInner}));
+
+  const samples=sampleAlongPolyline(poly,(mode==="city")?115:78);
+  const tr=(mode==="city")?10:8;
+  for(let i=2;i<samples.length-2;i++){
+    if(i%2!==0) continue;
+    const p=samples[i].p;
+    g.appendChild(el("circle",{cx:p.x,cy:p.y,r:tr,fill:P.wallFill,stroke:P.wall,"stroke-width":2.2,opacity:(P._isParch?1.0:0.95)}));
+    g.appendChild(el("circle",{cx:p.x,cy:p.y,r:tr*0.58,fill:"rgba(0,0,0,.18)",stroke:P.ink3,"stroke-width":1.0,opacity:.65}));
+  }
+
+  const crenStep=(mode==="city")?14:12;
+  const cren=sampleAlongPolyline(poly,crenStep);
+  const cw=(mode==="city")?6.2:5.6, ch=(mode==="city")?4.6:4.0, off=(mode==="city")?9.0:7.0;
+  for(let i=0;i<cren.length;i++){
+    if(i%2===1) continue;
+    const p=cren[i].p, t=cren[i].t, n=perp(t);
+    const cx=p.x+n.x*off, cy=p.y+n.y*off;
+    const ang=Math.atan2(t.y,t.x)*180/Math.PI;
+    g.appendChild(el("rect",{
+      x:(cx-cw/2).toFixed(2), y:(cy-ch/2).toFixed(2),
+      width:cw.toFixed(2), height:ch.toFixed(2),
+      fill:P.wallFill, stroke:P.wall,"stroke-width":1.2,
+      transform:`rotate(${ang.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})`,
+      opacity:(isParch?1.0:0.90)
+    }));
+  }
+
+  if(gatePts && gatePts.length && mode==="city"){
+    for(const gp of gatePts){
+      const cp=closestPointOnPolyline(gp, poly);
+      if(!cp) continue;
+      const p=cp.p, t=cp.t, n=perp(t);
+      const ang=Math.atan2(t.y,t.x)*180/Math.PI;
+      const towerR=12;
+      const t1=add(p,mul(t,-10)), t2=add(p,mul(t,10));
+      g.appendChild(el("circle",{cx:t1.x,cy:t1.y,r:towerR,fill:P.wallFill,stroke:P.wall,"stroke-width":2.4,opacity:opOutline}));
+      g.appendChild(el("circle",{cx:t2.x,cy:t2.y,r:towerR,fill:P.wallFill,stroke:P.wall,"stroke-width":2.4,opacity:opOutline}));
+      const ghC=add(p,mul(n,-1.5));
+      const ghW=28, ghD=12;
+      g.appendChild(el("rect",{
+        x:(ghC.x-ghW/2).toFixed(2), y:(ghC.y-ghD/2).toFixed(2),
+        width:ghW.toFixed(2), height:ghD.toFixed(2),
+        fill:"rgba(0,0,0,.18)", stroke:P.wall,"stroke-width":1.8,
+        transform:`rotate(${ang.toFixed(2)} ${ghC.x.toFixed(2)} ${ghC.y.toFixed(2)})`,
+        opacity:(isParch?1.0:0.95)
+      }));
+      const archC=add(p,mul(n,0.5));
+      g.appendChild(el("rect",{
+        x:(archC.x-6).toFixed(2), y:(archC.y-3.5).toFixed(2),
+        width:"12", height:"7",
+        fill:"rgba(0,0,0,.60)", stroke:P.ink3,"stroke-width":1.0,
+        transform:`rotate(${ang.toFixed(2)} ${archC.x.toFixed(2)} ${archC.y.toFixed(2)})`,
+        opacity:(isParch?1.0:0.90)
+      }));
+    }
+  }
+}
+function renderKeepComplex(g, fortress, P){
+  renderFortifiedWall(g, fortress.outer, [], "fortress", P);
+  const yard=chaikin(fortress.yard.slice(0,-1),1,true).concat([fortress.yard[0]]);
+  g.appendChild(el("path",{d:linePath(yard),fill:"none",stroke:P.ink3,"stroke-width":2.2,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.65}));
+  const k=fortress.keep;
+  const cx=k.cx, cy=k.cy, w=k.w, h=k.h, ang=k.ang*180/Math.PI;
+  g.appendChild(el("rect",{
+    x:(cx-w/2).toFixed(2), y:(cy-h/2).toFixed(2), width:w.toFixed(2), height:h.toFixed(2),
+    fill:"rgba(0,0,0,.18)", stroke:P.ink2,"stroke-width":2.0,
+    transform:`rotate(${ang.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})`, opacity:.95
+  }));
+  const ca=Math.cos(k.ang), sa=Math.sin(k.ang);
+  const corners=[v(-w/2,-h/2),v(w/2,-h/2),v(w/2,h/2),v(-w/2,h/2)].map(p=>v(cx+p.x*ca-p.y*sa, cy+p.x*sa+p.y*ca));
+  for(const p of corners){
+    g.appendChild(el("circle",{cx:p.x,cy:p.y,r:7.2,fill:P.wallFill,stroke:P.wall,"stroke-width":2.0,opacity:(P._isParch?1.0:0.95)}));
+  }
+  g.appendChild(el("circle",{cx:cx,cy:cy,r:10.5,fill:P.purpleFill,stroke:P.purple,"stroke-width":2.0,opacity:.85}));
+}
+
+/* ========================= Names + Lore ========================= */
+const NAME_A=["Ам","Брун","Кляйн","Вальд","Грюн","Шварц","Рот","Хайль","Крон","Ной","Хох","Фельс","Драх","Готт","Штайн","Альт","Зальц","Люд","Виндиш"];
+const NAME_B=["гальт","бург","штадт","дорф","вальд","маркт","фурт","берг","хайм","хафен","тор","штейн","фельд","рин"];
+function genCityName(rng){
+  const a=rndChoice(rng,NAME_A), b=rndChoice(rng,NAME_B);
+  return a.toLowerCase().includes(b.toLowerCase())?a:(a+b);
+}
+const HOUSE_P=["фон","де","эр","ван","О'"];
+const HOUSE_S=["Вестен","Кассен","Ульц","Рабель","Глум","Лемонталь","Альде","Регулус","де Гри","Савар","Сурвейлер","Форель","Бо'Алти"];
+function genRuler(rng,type){
+  const p=rndChoice(rng,HOUSE_P), s=rndChoice(rng,HOUSE_S);
+  return type==="free_city" ? `Совет цехов «${s}»` : `${p} ${s}`;
+}
+const CH=[{w:45,d:"Канон: Собор/епископат держит центр."},{w:20,d:"Чистота: запреты, контроль ремёсел, «очищение» руин."},{w:20,d:"Возрождение: дисциплина, саморазвитие, терпимость к цехам."},{w:15,d:"Реформация: приходская автономия, умеренный прогресс."}];
+function wChoice(rng,arr){
+  const sum=arr.reduce((a,i)=>a+i.w,0);
+  let r=rng()*sum;
+  for(const it of arr){r-=it.w; if(r<=0) return it}
+  return arr[arr.length-1];
+}
+function makeLore(rng, city){
+  const br=wChoice(rng,CH).d;
+  const pop=Math.round((city.size*city.size)*(22+rng()*12));
+  const gov=city.type==="free_city" ? "Совет и цеха правят, но церковь давит судами." :
+            city.type==="church_fort" ? "Орден и храм управляют городом." :
+            "Малый Дом держит домен; вассальные конфликты тлеют.";
+  const hook=rndChoice(rng,[
+    "Воруют фильтры — улицы «темнеют», стража режет торговлю.",
+    "Под рынком нашли довоенный ход, оттуда тянет озоном.",
+    "Инквизитор требует закрыть мануфактуры — «ересь прогресса».",
+    "Карантинный пост исчез ночью вместе с караваном.",
+    "Воротный дом заперт: кто-то подкупил стражу у стены."
+  ]);
+  return `Город: ${city.name} (${city.kindLabel})
+Население (оценка): ~${pop}
+Правящая сила: ${city.ruler}
+Церковь: ${br}
+Социальный контур: ${gov}
+Периметр: ${city.opt.walls?"крепостные стены, воротные дома, дозоры.":"баррикады/дозоры."}
+Крючок: ${hook}`;
+}
+
+
+
+/* ========================= Posad (suburbs) =========================
+   Ring settlement just outside city walls.
+   Uses simplified village-style placement:
+   - outer ring track
+   - gate spurs + farm tracks
+   - houses/barns/workshops/greenhouses
+   - fields + rubble patches + windmills
+============================================================ */
+
+function scalePolyAbout(poly, c, s){
+  return poly.map(p=>v(c.x + (p.x-c.x)*s, c.y + (p.y-c.y)*s));
+}
+function avgRadius(poly, c){
+  let sum=0;
+  for(const p of poly) sum += dist(p,c);
+  return sum / Math.max(1, poly.length);
+}
+function minDistPointToPolyline(pt, pts){
+  let best=1e9;
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1];
+    const res=pointToSeg(pt,a,b);
+    if(res.d<best) best=res.d;
+  }
+  return best;
+}
+function minDistPointToAnyRoad(pt, roads){
+  let best=1e9;
+  for(const r of roads){
+    const d=minDistPointToPolyline(pt, r.pts);
+    if(d<best) best=d;
+  }
+  return best;
+}
+function randomPointInRing(rng, outerPoly, innerPoly, bb, maxTry=96){
+  for(let k=0;k<maxTry;k++){
+    const x=lerp(bb.minX, bb.maxX, rng());
+    const y=lerp(bb.minY, bb.maxY, rng());
+    const p=v(x,y);
+    if(!pointInPoly(p, outerPoly)) continue;
+    if(pointInPoly(p, innerPoly)) continue;
+    return p;
+  }
+  return null;
+}
+function blobPoly(rng, c, r0, n=14, jag=0.30){
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const ang=(i/n)*Math.PI*2 + (rng()*2-1)*0.18;
+    const rr=r0*(1 + (rng()*2-1)*jag);
+    pts.push(v(c.x+Math.cos(ang)*rr, c.y+Math.sin(ang)*rr));
+  }
+  pts.sort((a,b)=>Math.atan2(a.y-c.y,a.x-c.x)-Math.atan2(b.y-c.y,b.x-c.x));
+  const sm=chaikin(pts,2,true);
+  return sm.concat([sm[0]]);
+}
+function rectPoly(cx,cy,w,h,ang){
+  const r={cx,cy,hx:w*0.5,hy:h*0.5,ang};
+  const pts=rectCorners(r);
+  pts.push(v(pts[0].x, pts[0].y));
+  return pts;
+}
+
+function genPosad(rng, wallClosed, center, gates, river, coast, shoreY, cs, N, opt){
+  const wallPoly = wallClosed.slice(0,-1);
+
+  const band = clamp(opt.posadWidth||180, 40, 520);
+  const densF = clamp(opt.posadDensity||60, 0, 100)/100;
+
+  const rAvg = avgRadius(wallPoly, center);
+  const s = (rAvg + band)/Math.max(1e-6, rAvg);
+  const outerPoly = scalePolyAbout(wallPoly, center, s);
+  const outerClosed = outerPoly.concat([outerPoly[0]]);
+
+  const bb=bbox(outerPoly);
+
+  const inSea = (p)=>{
+    if(!coast || !shoreY) return false;
+    const i=clamp((p.x/cs)|0, 0, N-1);
+    return p.y > shoreY[i];
+  };
+
+  const riverClear = 18 + 12;
+  const tooCloseToRiver = (p)=>{
+    if(!river) return false;
+    return minDistPointToPolyline(p, river) < riverClear;
+  };
+
+  const inRing = (p)=>{
+    if(p.x<0 || p.x>WORLD || p.y<0 || p.y>WORLD) return false;
+    if(inSea(p)) return false;
+    if(tooCloseToRiver(p)) return false;
+    return pointInPoly(p, outerPoly) && !pointInPoly(p, wallPoly);
+  };
+
+  const roads=[];
+
+  // Outer ring track
+  const ringOff = clamp(band*0.26, 26, 74);
+  const ringSamp = sampleAlongPolyline(wallClosed, 22);
+  const ringPts=[];
+  for(const s0 of ringSamp){
+    const p=s0.p, t=s0.t;
+    let n=perp(t);
+    const test=add(p,mul(n,8));
+    if(pointInPoly(test, wallPoly)) n=mul(n,-1);
+    const q=add(p,mul(n,ringOff));
+    if(inRing(q)) ringPts.push(q);
+  }
+  if(ringPts.length>=12){
+    let sm=chaikin(ringPts, 1, true);
+    sm=rdp(sm, 2.2);
+    if(dist(sm[0],sm[sm.length-1])>1e-6) sm.push(v(sm[0].x, sm[0].y));
+    roads.push({kind:"posad_ring", width:16, pts:sm});
+  }
+
+  // Gate spurs
+  const spurCount = Math.min(8, Math.max(3, gates.length));
+  const picked=[];
+  for(let k=0;k<spurCount;k++){
+    const g=gates[k%gates.length];
+    if(picked.some(p=>dist(p,g)<24)) continue;
+    picked.push(g);
+
+    const dir=norm(sub(g, center));
+    const tang=perp(dir);
+
+    const cp = closestPointOnPolyline(g, wallClosed);
+    const start = cp ? cp.p : g;
+
+    const end = add(start, add(mul(dir, band*0.88 + 70 + rng()*50), mul(tang, (rng()*2-1)*(30+band*0.10))));
+    const mid = add(start, add(mul(dir, band*0.46 + 40), mul(tang, (rng()*2-1)*(44+band*0.14))));
+
+    const p1=noisyPolyline(rng, start, mid, 5, 34+band*0.10);
+    const p2=noisyPolyline(rng, mid, end, 5, 34+band*0.10);
+    let pts=p1.concat(p2.slice(1));
+    pts=chaikin(pts,2,false);
+    pts=rdp(pts, 1.8);
+
+    const clipped=[];
+    for(const p of pts){
+      if(inRing(p)) clipped.push(p);
+    }
+    if(clipped.length>=2){
+      roads.push({kind:"posad_spur", width:18, pts:clipped});
+    }
+  }
+
+  // Farm tracks
+  const minorCount = Math.floor(3 + densF*8);
+  for(let i=0;i<minorCount;i++){
+    const a = randomPointInRing(rng, outerPoly, wallPoly, bb, 90);
+    const b = randomPointInRing(rng, outerPoly, wallPoly, bb, 90);
+    if(!a || !b) continue;
+    const dAB = dist(a,b);
+    if(dAB < 120 || dAB > 420) continue;
+    const pts = noisyPolyline(rng, a, b, 7, 26+band*0.07);
+    let sm = chaikin(pts, 1, false);
+    sm = rdp(sm, 2.0);
+    const clipped=[];
+    for(const p of sm){ if(inRing(p)) clipped.push(p); }
+    if(clipped.length>=2) roads.push({kind:"posad_minor", width:12, pts:clipped});
+  }
+
+  const buildings=[];
+  const patches=[];
+  const windmills=[];
+
+  const canPlaceRect=(r, pad=2.0)=>{
+    const corners=rectCorners(r);
+    for(const p of corners){
+      if(!inRing(p)) return false;
+      if(minDistPointToAnyRoad(p, roads) < 7.0) return false;
+    }
+    for(const ex of buildings){
+      const exr={cx:ex.cx,cy:ex.cy,hx:ex.hx,hy:ex.hy,ang:ex.ang};
+      if(obbOverlap(r, exr, pad)) return false;
+    }
+    return true;
+  };
+
+  // frontage buildings
+  const step = lerp(32, 18, densF);
+  const offBase = lerp(22, 14, densF);
+
+  for(const rd of roads){
+    const sam = sampleAlongPolyline(rd.pts, step);
+    for(const s0 of sam){
+      if(rng() > (0.52 + densF*0.40)) continue;
+      const p=s0.p, t=s0.t;
+      let n=perp(t);
+      const side = (rng()<0.5)?-1:1;
+      n = mul(n, side);
+
+      const dWall = minDistPointToPolyline(p, wallClosed);
+      const nearWall = dWall < band*0.32;
+
+      let w = nearWall ? lerp(10, 18, rng()) : lerp(12, 24, rng());
+      let d = nearWall ? lerp(8, 14, rng()) : lerp(10, 20, rng());
+      let kind = 'house';
+
+      if(rd.kind==="posad_spur" && rng()<0.22){ kind='workshop'; w=lerp(18, 34, rng()); d=lerp(14, 26, rng()); }
+      else if(!nearWall && rng()<0.18){ kind='barn'; w=lerp(18, 32, rng()); d=lerp(14, 24, rng()); }
+      else if(rng()<0.10){ kind='hut'; w=lerp(9, 16, rng()); d=lerp(8, 14, rng()); }
+
+      const ang = Math.atan2(t.y,t.x) + (rng()*2-1)*0.28;
+      const cx = p.x + n.x*(offBase + rng()*7);
+      const cy = p.y + n.y*(offBase + rng()*7);
+      const r={cx,cy,hx:w*0.5,hy:d*0.5,ang};
+
+      if(!canPlaceRect(r, 2.4)) continue;
+      buildings.push({cx:r.cx, cy:r.cy, hx:r.hx, hy:r.hy, ang:r.ang, kind});
+    }
+  }
+
+  // greenhouses
+  const ghCount = Math.floor(2 + densF*6);
+  for(let gi=0; gi<ghCount; gi++){
+    let placed=false;
+    for(let t=0;t<140;t++){
+      const p = randomPointInRing(rng, outerPoly, wallPoly, bb, 120);
+      if(!p) continue;
+      const dWall = minDistPointToPolyline(p, wallClosed);
+      if(dWall < band*0.40) continue;
+      if(minDistPointToAnyRoad(p, roads) > 55) continue;
+
+      const w = lerp(54, 98, rng());
+      const d = lerp(20, 42, rng());
+      const ang = rng()*Math.PI*2;
+      const r={cx:p.x, cy:p.y, hx:w*0.5, hy:d*0.5, ang};
+      if(!canPlaceRect(r, 3.0)) continue;
+      buildings.push({cx:r.cx, cy:r.cy, hx:r.hx, hy:r.hy, ang:r.ang, kind:'greenhouse'});
+      placed=true;
+      break;
+    }
+    if(!placed) break;
+  }
+
+  // fields/parcels
+  const fieldCount = Math.floor(10 + densF*26);
+  for(let fi=0; fi<fieldCount; fi++){
+    const p = randomPointInRing(rng, outerPoly, wallPoly, bb, 120);
+    if(!p) continue;
+    const dWall = minDistPointToPolyline(p, wallClosed);
+    if(dWall < band*0.24 && rng()<0.75) continue;
+    if(minDistPointToAnyRoad(p, roads) < 14) continue;
+
+    const w = lerp(60, 180, rng());
+    const d = lerp(26, 70, rng());
+    const ang = rng()*Math.PI*2;
+    const poly = rectPoly(p.x, p.y, w, d, ang);
+
+    let ok=true;
+    for(const q of poly.slice(0,4)){
+      if(!inRing(q)) { ok=false; break; }
+      if(minDistPointToAnyRoad(q, roads) < 10) { ok=false; break; }
+    }
+    if(!ok) continue;
+
+    for(const b of buildings){
+      if(dist(v(b.cx,b.cy), p) < Math.max(w,d)*0.60) { ok=false; break; }
+    }
+    if(!ok) continue;
+
+    const kind = (rng()<0.25) ? 'pasture' : 'field';
+    patches.push({kind, poly});
+  }
+
+  // rubble patches
+  const rubbleCount = Math.floor(1 + densF*3 + clamp(opt.ruins||0,0,100)/60);
+  for(let ri=0; ri<rubbleCount; ri++){
+    const p = randomPointInRing(rng, outerPoly, wallPoly, bb, 140);
+    if(!p) continue;
+    if(minDistPointToAnyRoad(p, roads) < 18) continue;
+    const dWall = minDistPointToPolyline(p, wallClosed);
+    if(dWall > band*0.80 && rng()<0.65) continue;
+    const poly = blobPoly(rng, p, lerp(36, 86, rng()), 12 + ((rng()*6)|0), 0.38);
+
+    let ok=true;
+    for(const q of poly.slice(0,-1)){
+      if(!inRing(q)) { ok=false; break; }
+    }
+    if(!ok) continue;
+    patches.push({kind:'rubble', poly});
+  }
+
+  // windmills
+  const wmCount = Math.floor(1 + densF*4);
+  for(let wi=0; wi<wmCount; wi++){
+    let placed=false;
+    for(let t=0;t<160;t++){
+      const p = randomPointInRing(rng, outerPoly, wallPoly, bb, 160);
+      if(!p) continue;
+      const dWall = minDistPointToPolyline(p, wallClosed);
+      if(dWall < band*0.62) continue;
+      if(minDistPointToAnyRoad(p, roads) < 22) continue;
+
+      let ok=true;
+      for(const b of buildings){
+        if(dist(v(b.cx,b.cy), p) < 52) { ok=false; break; }
+      }
+      if(!ok) continue;
+      for(const w0 of windmills){
+        if(dist(v(w0.x,w0.y), p) < 120) { ok=false; break; }
+      }
+      if(!ok) continue;
+
+      windmills.push({x:p.x, y:p.y, r:9 + rng()*5, ang:rng()*Math.PI*2});
+      placed=true;
+      break;
+    }
+    if(!placed) break;
+  }
+
+  return {
+    band,
+    outer: outerClosed,
+    roads,
+    buildings,
+    patches,
+    windmills
+  };
+}
+/* ========================= Build city ========================= */
+function buildCity(params){
+  const seedU=hashStringToU32(params.seedStr);
+  const rng=mulberry32(seedU);
+
+  const outline=genOutline(rng, params.size);
+  const outlineSmoothOpen=chaikin(outline,2,true);
+  const outlineSmooth=outlineSmoothOpen.concat([outlineSmoothOpen[0]]);
+  const center=centroid(outline);
+
+  const river=params.river ? genRiver(rng, outlineSmoothOpen) : null;
+  const coast=params.coast ? genCoast(rng) : null;
+
+  const gateCount=params.walls ? clamp(Math.round(3 + params.streetDensity/35 + rng()*2),2,8) : 0;
+  const gates=params.walls ? pickGates(rng, outline, gateCount) : pickGates(rng, outline, clamp(Math.round(3 + params.streetDensity/40),2,7));
+
+  const fortress=params.keep ? genFortress(rng, outlineSmoothOpen, center, params.type) : null;
+
+  const street=buildStreetsGrowth(rng, outlineSmoothOpen, center, gates, params.streetDensity, river, fortress);
+  const roads=street.roads;
+  const hubs=street.hubs || [];
+
+  const N=params.gridN;
+  const cs=WORLD/N;
+  const inside=new Uint8Array(N*N);
+  const roadMask=new Uint8Array(N*N);
+  const waterMask=new Uint8Array(N*N);
+  const regionId=new Uint32Array(N*N);
+
+  rasterizeInside(inside, outlineSmoothOpen, cs, N);
+
+  let shoreY=null;
+  if(coast) shoreY=rasterizeCoastWater(waterMask, coast, cs, N);
+  if(river) rasterizePolyline(waterMask, river, 18, cs, N);
+
+  for(const r of roads){
+    const w = (r.kind==="industrial") ? Math.max(r.width, 28) : r.width;
+    rasterizePolyline(roadMask, r.pts, w, cs, N);
+  }
+
+  if(fortress){
+    rasterizePolygonFill(roadMask, fortress.outer, cs, N);
+    rasterizePolyline(roadMask, fortress.outer, 9.0, cs, N);
+  }
+  if(params.walls) rasterizePolyline(roadMask, outlineSmooth, 5.0, cs, N);
+
+  const regions=floodRegions(regionId, inside, roadMask, waterMask, N);
+
+  const blocks=[];
+  const minCells=Math.max(50, Math.floor(N*0.33));
+  for(const r of regions){
+    if(r.cells<minCells) continue;
+    const poly=extractRegionPolygon(regionId, r.id, r, cs, N);
+    if(!poly || poly.length<6) continue;
+    const c=v(r.cI*cs, r.cJ*cs);
+    const area=Math.abs(polyArea(poly.slice(0,-1)));
+    if(area<900) continue;
+    blocks.push({id:r.id, poly, centroid:c, area, bb:r});
+  }
+
+  const distMap=assignDistrictsBase(rng, blocks, center, params, !!fortress);
+  const indCount=forceIndustryDistricts(distMap, blocks, hubs);
+
+  // Citadel inside castle — FIXED seed (valid hex constant)
+  let citadel=null;
+  if(fortress){
+    const crng=mulberry32(((seedU ^ 0xC17AD3E1)>>>0));
+    citadel=placeCitadelBuildings(crng, fortress);
+  }
+
+  // Buildings + Alleys
+  const buildingsByBlock=new Map();
+  const alleysAll=[];
+  let bldTotal=0;
+
+  if(params.buildings && params.buildingDensity>0){
+    for(const b of blocks){
+      const d=distMap.get(b.id) || "Жилые блоки";
+      const brng=mulberry32(((seedU ^ (b.id*2654435761))>>>0));
+      const res=placeBuildingsAndAlleysForBlock(brng, b.poly, d, params, roadMask, cs, N, fortress);
+      buildingsByBlock.set(b.id, res.buildings);
+      for(const al of res.alleys) alleysAll.push(al);
+      bldTotal += res.buildings.length;
+    }
+  }
+
+  if(citadel && params.buildings){
+    bldTotal += citadel.buildings.length;
+    for(const al of citadel.alleys) alleysAll.push(al);
+  }
+
+  const kindLabel=({
+    free_city:"Вольный город",
+    feudal_town:"Феодальный город",
+    church_fort:"Орденская крепость",
+    bunker_outpost:"Бункерный форпост",
+    mining_town:"Рудничный городок",
+    river_port:"Речной порт",
+    coastal_hold:"Прибрежная твердыня"
+  })[params.type] || "Город";
+
+  const name=genCityName(rng);
+  const ruler=genRuler(rng, params.type);
+
+  const bridges=[];
+  if(river){
+    const majors=roads.filter(r=>r.kind==="major" || r.kind==="industrial");
+    for(const rd of majors){
+      for(let i=0;i<rd.pts.length-1;i++){
+        const a=rd.pts[i], b=rd.pts[i+1];
+        for(let j=0;j<river.length-1;j++){
+          const c=river[j], d=river[j+1];
+          const p=segIntersect(a,b,c,d);
+          if(p){bridges.push({x:p.x,y:p.y,ang:Math.atan2(b.y-a.y,b.x-a.x)}); if(bridges.length>=8) break;}
+        }
+        if(bridges.length>=8) break;
+      }
+      if(bridges.length>=8) break;
+    }
+  }
+
+  let quay=null;
+  if(coast){
+    const cs2=chaikin(coast,2,false);
+    const p0=cs2[Math.floor(cs2.length*0.55)];
+    const p1=cs2[Math.floor(cs2.length*0.78)];
+    quay=[add(p0,v(0,-18)), add(p1,v(0,-18))];
+  }
+
+  const landmarks=[];
+  const addLM=(kind, pos)=>landmarks.push({kind,x:pos.x,y:pos.y});
+  addLM("Центр", center);
+  if(params.telegraph) addLM("Телеграф", add(center,v(260,-230)));
+  if(params.green) addLM("Фильтры", add(center,v(-220,250)));
+  if(params.coast && coast){
+    const cs2=chaikin(coast,2,false);
+    const p=cs2[Math.floor(cs2.length*0.78)];
+    addLM("Порт", v(p.x, p.y-36));
+  }
+  if(params.river) addLM("Мост", add(center,v(20,110)));
+  if(fortress) addLM("Замок", fortress.center);
+  for(const h of hubs) addLM("Пром-хаб", h);
+
+  // Highways / major tracts outside the city
+  let highways=[];
+  if(params.highways){
+    const hrng=mulberry32(((seedU ^ 0x9E3779B9)>>>0));
+    highways = genHighways(hrng, center, outlineSmoothOpen, coast, shoreY, cs, N);
+  }
+
+  // Posad (suburbs) around walls
+  let posad=null;
+  if(params.posad){
+    const prng=mulberry32(((seedU ^ 0x51A3D09D)>>>0));
+    posad=genPosad(prng, outlineSmooth, center, gates, river, coast, shoreY, cs, N, params);
+  }
+
+  return {
+    seedStr:params.seedStr, seedU32:seedU,
+    name,ruler,kindLabel,
+    size:params.size, type:params.type,
+    opt:params,
+    outline, outlineSmoothOpen, outlineSmooth,
+    center,gates,roads,river,coast,shoreY,
+    fortress,
+    citadel,
+    blocks, distMap,
+    buildingsByBlock,
+    alleysAll,
+    bldTotal,
+    bridges, quay, landmarks,
+    highways,
+    posad,
+    posadBldCount: posad?posad.buildings.length:0,
+    posadRoadCount: posad?posad.roads.length:0,
+    roadCount: roads.length,
+    indCount,
+    alleyCount: alleysAll.length
+  };
+}
+
+/* ========================= Render ========================= */
+function renderCity(svg, city, ui, theme){
+  const P=getPalette(theme);
+  const real = !!city.opt.real;
+  const isParch = theme==="parchment";
+  const texScale = isParch ? 0.11 : 0.16;
+  const texPT = "scale(" + texScale + ")";
+  // texture hooks for fortifications in realistic mode
+  P.wallFillTex = real ? "url(#texStone)" : null;
+  P.wallStrokeTex = real ? "url(#texStone)" : null;
+  P.waterFillTex = real ? "url(#texWater)" : null;
+
+  clearSVG(svg);
+
+  const defs=el("defs",{},[
+    el("filter",{id:"paperNoise",x:"-10%",y:"-10%",width:"120%",height:"120%"},[
+      el("feTurbulence",{type:"fractalNoise",baseFrequency:"0.9",numOctaves:"2",seed:String((city.seedU32%999)+1),result:"noise"}),
+      el("feColorMatrix",{in:"noise",type:"matrix",values:"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.10 0",result:"n2"}),
+      el("feBlend",{in:"SourceGraphic",in2:"n2",mode:"multiply"})
+    ]),
+    el("pattern",{id:"hRuin",patternUnits:"userSpaceOnUse",width:"10",height:"10",patternTransform:"rotate(25)"},[
+      el("path",{d:"M 0 0 L 0 10",stroke:P.ruin,"stroke-width":"2",opacity:"0.32"})
+    ]),
+    el("pattern",{id:"hInd",patternUnits:"userSpaceOnUse",width:"12",height:"12",patternTransform:"rotate(-20)"},[
+      el("path",{d:"M 0 0 L 0 12",stroke:P.ind,"stroke-width":"2",opacity:"0.26"})
+    ]),
+    el("filter",{id:"bldShadow",x:"-30%",y:"-30%",width:"160%",height:"160%"},[
+      el("feDropShadow",{"dx":"1.1","dy":"1.4","stdDeviation":"1.1","flood-color":"rgba(0,0,0,.45)","flood-opacity":"1"})
+    ]),
+    el("pattern",{id:"texEarth",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"60",height:"60"},[
+      el("rect",{x:0,y:0,width:60,height:60,fill:P.earth1}),
+      el("path",{d:"M -10 16 L 70 16 M -10 40 L 70 40",stroke:P.earth2,"stroke-width":10,opacity:"0.10"}),
+      el("path",{d:"M 0 0 L 60 60 M 60 0 L 0 60",stroke:P.earth2,"stroke-width":5,opacity:"0.05"}),
+      el("circle",{cx:12,cy:20,r:1.8,fill:P.earthSpeck,opacity:"0.20"}),
+      el("circle",{cx:34,cy:46,r:1.4,fill:P.earthSpeck,opacity:"0.18"}),
+      el("circle",{cx:50,cy:30,r:1.6,fill:P.earthSpeck,opacity:"0.16"}),
+      el("circle",{cx:22,cy:54,r:1.2,fill:P.earthSpeck,opacity:"0.14"})
+    ]),
+    el("pattern",{id:"texTrack",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"64",height:"64"},[
+      el("rect",{x:0,y:0,width:64,height:64,fill:P.earth1}),
+      el("path",{d:"M -10 20 L 74 20 M -10 44 L 74 44",stroke:P.earth2,"stroke-width":12,opacity:"0.10"}),
+      el("path",{d:"M 0 8 Q 8 2 16 8 T 32 8 T 48 8 T 64 8",stroke:P.earth2,"stroke-width":2.2,fill:"none",opacity:"0.18"}),
+      el("path",{d:"M 0 56 Q 10 50 20 56 T 40 56 T 60 56",stroke:P.earth2,"stroke-width":2.0,fill:"none",opacity:"0.16"}),
+      el("circle",{cx:12,cy:18,r:1.6,fill:P.earthSpeck,opacity:"0.22"}),
+      el("circle",{cx:30,cy:48,r:1.4,fill:P.earthSpeck,opacity:"0.18"}),
+      el("circle",{cx:54,cy:30,r:1.5,fill:P.earthSpeck,opacity:"0.16"})
+    ]),
+    el("pattern",{id:"texGrass",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"56",height:"56"},[
+      el("rect",{x:0,y:0,width:56,height:56,fill:P.earth1}),
+      el("path",{d:"M 0 8 L 56 8 M 0 20 L 56 20 M 0 32 L 56 32 M 0 44 L 56 44",stroke:P.grass2,"stroke-width":8,opacity:"0.16"}),
+      el("path",{d:"M 6 0 L 6 56 M 22 0 L 22 56 M 38 0 L 38 56 M 54 0 L 54 56",stroke:P.grass1,"stroke-width":4,opacity:"0.12"})
+    ]),
+    el("pattern",{id:"texAsh",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"56",height:"56"},[
+      el("rect",{x:0,y:0,width:56,height:56,fill:P.earth1}),
+      el("path",{d:"M -10 18 L 66 18 M -10 40 L 66 40",stroke:P.ash1,"stroke-width":12,opacity:"0.14"}),
+      el("path",{d:"M 0 0 L 56 56 M 56 0 L 0 56",stroke:P.ash2,"stroke-width":4,opacity:"0.06"}),
+      el("circle",{cx:14,cy:16,r:2.0,fill:P.ash2,opacity:"0.16"}),
+      el("circle",{cx:40,cy:44,r:2.6,fill:P.ash2,opacity:"0.14"}),
+      el("circle",{cx:48,cy:26,r:1.7,fill:P.ash2,opacity:"0.18"})
+    ]),
+    el("pattern",{id:"texRubble",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"96",height:"96"},[
+      // base ash/earth
+      el("rect",{x:0,y:0,width:96,height:96,fill:P.earth1}),
+      // broad soot wash (non-symmetric blobs)
+      el("path",{d:"M 6 18 C 20 6, 40 8, 54 20 C 66 30, 84 26, 92 14 L 92 34 C 78 44, 62 42, 48 34 C 36 28, 20 30, 6 38 Z",fill:P.earth2,opacity:"0.38"}),
+      el("path",{d:"M 10 78 C 26 60, 44 58, 58 70 C 72 82, 88 78, 94 66 L 94 92 L 10 92 Z",fill:P.earth2,opacity:"0.30"}),
+
+      // cracks (varied directions)
+      el("path",{d:"M 8 10 L 22 18 L 36 12 L 52 22 L 70 16 L 88 24",stroke:P.ash2,"stroke-width":2.2,opacity:"0.34","stroke-linecap":"round","stroke-linejoin":"round"}),
+      el("path",{d:"M 14 48 L 28 40 L 44 46 L 58 38 L 78 44 L 90 40",stroke:P.ash2,"stroke-width":1.9,opacity:"0.30","stroke-linecap":"round","stroke-linejoin":"round"}),
+      el("path",{d:"M 18 86 L 30 74 L 42 78 L 60 66 L 76 72 L 88 62",stroke:P.ash2,"stroke-width":1.7,opacity:"0.26","stroke-linecap":"round","stroke-linejoin":"round"}),
+
+      // rubble slabs (many, irregular, varied opacity) — breaks symmetry by being numerous and offset
+      el("path",{d:"M 10 24 L 24 16 L 34 26 L 20 34 Z",fill:P.stone2,opacity:"0.48"}),
+      el("path",{d:"M 40 18 L 58 14 L 64 26 L 46 30 Z",fill:P.stone2,opacity:"0.44"}),
+      el("path",{d:"M 70 28 L 88 22 L 92 34 L 74 40 Z",fill:P.stone2,opacity:"0.40"}),
+
+      el("path",{d:"M 18 56 L 34 50 L 40 64 L 22 68 Z",fill:P.stone2,opacity:"0.46"}),
+      el("path",{d:"M 52 52 L 70 48 L 76 60 L 58 66 Z",fill:P.stone2,opacity:"0.42"}),
+      el("path",{d:"M 78 54 L 92 50 L 94 60 L 80 64 Z",fill:P.stone2,opacity:"0.38"}),
+
+      el("path",{d:"M 8 74 L 22 70 L 26 82 L 12 86 Z",fill:P.stone2,opacity:"0.44"}),
+      el("path",{d:"M 32 74 L 48 68 L 54 82 L 36 88 Z",fill:P.stone2,opacity:"0.40"}),
+      el("path",{d:"M 56 74 L 74 70 L 80 84 L 62 90 Z",fill:P.stone2,opacity:"0.36"}),
+
+      // broken bricks (scattered)
+      el("rect",{x:12,y:40,width:10,height:5,rx:1,ry:1,fill:P.ruin,opacity:"0.16"}),
+      el("rect",{x:30,y:34,width:8,height:4,rx:1,ry:1,fill:P.ruin,opacity:"0.12"}),
+      el("rect",{x:64,y:40,width:11,height:5,rx:1,ry:1,fill:P.ruin,opacity:"0.14"}),
+      el("rect",{x:74,y:70,width:9,height:4,rx:1,ry:1,fill:P.ruin,opacity:"0.12"}),
+
+      // specks (fine noise)
+      el("circle",{cx:16,cy:30,r:1.6,fill:P.earthSpeck,opacity:"0.20"}),
+      el("circle",{cx:44,cy:36,r:2.1,fill:P.earthSpeck,opacity:"0.16"}),
+      el("circle",{cx:84,cy:46,r:1.4,fill:P.earthSpeck,opacity:"0.22"}),
+      el("circle",{cx:26,cy:62,r:1.8,fill:P.earthSpeck,opacity:"0.18"}),
+      el("circle",{cx:68,cy:78,r:2.0,fill:P.earthSpeck,opacity:"0.16"}),
+      el("circle",{cx:88,cy:86,r:1.6,fill:P.earthSpeck,opacity:"0.18"})
+
+    ]),
+    el("pattern",{id:"texCobble",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"24",height:"24"},[
+      el("rect",{x:0,y:0,width:24,height:24,fill:P.cobble1}),
+      el("rect",{x:2,y:3,width:8,height:6,rx:2,ry:2,fill:"rgba(255,255,255,.04)",stroke:P.cobble2,"stroke-width":1.0,opacity:"0.40"}),
+      el("rect",{x:12,y:2,width:10,height:7,rx:2,ry:2,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":1.0,opacity:"0.35"}),
+      el("rect",{x:3,y:12,width:9,height:8,rx:2,ry:2,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":1.0,opacity:"0.35"}),
+      el("rect",{x:14,y:12,width:8,height:9,rx:2,ry:2,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":1.0,opacity:"0.32"}),
+      el("path",{d:"M 0 11 L 24 11",stroke:P.cobble2,"stroke-width":0.8,opacity:"0.18"})
+    ]),
+    el("pattern",{id:"texCobbleFine",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"16",height:"16"},[
+      el("rect",{x:0,y:0,width:16,height:16,fill:P.cobble1}),
+      el("rect",{x:1.5,y:2,width:5.5,height:4.5,rx:1.6,ry:1.6,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":0.9,opacity:"0.35"}),
+      el("rect",{x:8,y:1.5,width:6.5,height:5,rx:1.6,ry:1.6,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":0.9,opacity:"0.32"}),
+      el("rect",{x:2,y:8,width:6,height:6,rx:1.6,ry:1.6,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":0.9,opacity:"0.32"}),
+      el("rect",{x:9.5,y:8,width:5,height:6,rx:1.6,ry:1.6,fill:"rgba(255,255,255,.03)",stroke:P.cobble2,"stroke-width":0.9,opacity:"0.30"})
+    ]),
+    el("pattern",{id:"texTileRoof",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"22",height:"12"},[
+      el("rect",{x:0,y:0,width:22,height:12,fill:P.roof1}),
+      el("path",{d:"M 0 4 Q 3 1 6 4 T 12 4 T 18 4 T 24 4",stroke:P.roof2,"stroke-width":1.0,fill:"none",opacity:"0.55"}),
+      el("path",{d:"M 0 8 Q 3 5 6 8 T 12 8 T 18 8 T 24 8",stroke:P.roof2,"stroke-width":1.0,fill:"none",opacity:"0.50"}),
+      el("path",{d:"M 0 0 L 0 12 M 11 0 L 11 12 M 22 0 L 22 12",stroke:P.roof2,"stroke-width":0.8,opacity:"0.20"})
+    ]),
+    el("pattern",{id:"texGlassRoof",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"20",height:"20"},[
+      el("rect",{x:0,y:0,width:20,height:20,fill:P.glass1}),
+      el("path",{d:"M 0 0 L 20 0 L 20 20 L 0 20 Z",stroke:P.glass2,"stroke-width":1.0,fill:"none",opacity:"0.45"}),
+      el("path",{d:"M 0 10 L 20 10 M 10 0 L 10 20",stroke:P.glass2,"stroke-width":0.9,opacity:"0.28"}),
+      el("path",{d:"M 2 2 L 8 2",stroke:"rgba(255,255,255,.18)","stroke-width":1.0,opacity:"0.55"}),
+      el("path",{d:"M 12 12 L 18 12",stroke:"rgba(255,255,255,.14)","stroke-width":1.0,opacity:"0.45"})
+    ]),
+    el("pattern",{id:"texMetalRoof",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"16",height:"16",patternTransform:"rotate(25)"},[
+      el("rect",{x:0,y:0,width:16,height:16,fill:P.metal1}),
+      el("path",{d:"M 0 0 L 0 16 M 4 0 L 4 16 M 8 0 L 8 16 M 12 0 L 12 16 M 16 0 L 16 16",stroke:P.metal2,"stroke-width":1.0,opacity:"0.45"})
+    ]),
+    el("pattern",{id:"texStone",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"28",height:"28"},[
+      el("rect",{x:0,y:0,width:28,height:28,fill:P.stone1}),
+      el("path",{d:"M 0 8 L 28 8 M 0 16 L 28 16 M 0 24 L 28 24",stroke:P.stone2,"stroke-width":1.2,opacity:"0.18"}),
+      el("path",{d:"M 6 0 L 6 8 M 14 8 L 14 16 M 22 16 L 22 24",stroke:P.stone2,"stroke-width":1.0,opacity:"0.14"}),
+      el("rect",{x:1,y:1,width:10,height:6,fill:"rgba(255,255,255,.03)",stroke:P.stone2,"stroke-width":0.9,opacity:"0.22"}),
+      el("rect",{x:13,y:9,width:13,height:6,fill:"rgba(255,255,255,.02)",stroke:P.stone2,"stroke-width":0.9,opacity:"0.20"}),
+      el("rect",{x:2,y:17,width:14,height:6,fill:"rgba(255,255,255,.02)",stroke:P.stone2,"stroke-width":0.9,opacity:"0.20"})
+    ]),
+    el("pattern",{id:"texStoneFloor",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"24",height:"24"},[
+      el("rect",{x:0,y:0,width:24,height:24,fill:P.stone1}),
+      el("path",{d:"M 0 0 L 24 0 L 24 24 L 0 24 Z",stroke:P.stone2,"stroke-width":1.2,fill:"none",opacity:"0.20"}),
+      el("path",{d:"M 0 12 L 24 12 M 12 0 L 12 24",stroke:P.stone2,"stroke-width":1.0,opacity:"0.16"}),
+      el("path",{d:"M 6 0 L 6 12 M 18 12 L 18 24",stroke:P.stone2,"stroke-width":0.9,opacity:"0.12"})
+    ]),
+    el("pattern",{id:"texWater",patternUnits:"userSpaceOnUse",patternTransform:texPT,width:"32",height:"16"},[
+      el("rect",{x:0,y:0,width:32,height:16,fill:P.water1}),
+      el("path",{d:"M 0 8 C 4 5, 8 11, 12 8 S 20 5, 24 8 S 28 11, 32 8",stroke:P.water2,"stroke-width":1.2,fill:"none",opacity:"0.35"}),
+      el("path",{d:"M 0 3 C 4 1, 8 5, 12 3 S 20 1, 24 3 S 28 5, 32 3",stroke:"rgba(255,255,255,.10)","stroke-width":1.0,fill:"none",opacity:"0.25"})
+    ]),
+    el("path",{id:"titleArc",d:`M ${WORLD*0.20} ${WORLD*0.12} C ${WORLD*0.38} ${WORLD*0.04}, ${WORLD*0.62} ${WORLD*0.04}, ${WORLD*0.80} ${WORLD*0.12}`})
+  ]);
+  svg.appendChild(defs);
+
+  const bgFill = real ? "url(#texEarth)" : P.bg;
+
+  svg.appendChild(el("rect",{x:0,y:0,width:WORLD,height:WORLD,fill:bgFill,filter:(city.opt.textures?"url(#paperNoise)":null)}));
+
+  if(city.coast){
+    const cs=chaikin(city.coast,2,false);
+    // Sea polygon follows the coastline (no rectangular cutoff).
+    const seaClosed = cs.concat([v(WORLD, WORLD), v(0, WORLD), cs[0]]);
+    svg.appendChild(el("path",{d:polyPath(seaClosed),fill:(real?"url(#texWater)":P.waterFill),opacity:(real?0.85:1),stroke:"none"}));
+    // shoreline
+    svg.appendChild(el("path",{d:linePath(cs),fill:"none",stroke:(real?P.earth2:P.water),"stroke-width":(real?6:2.4),"stroke-linecap":"round",opacity:(P._isParch?0.85:0.75),"vector-effect":"non-scaling-stroke"}));
+  }
+  if(city.river){
+    const rs=chaikin(city.river,2,false);
+    svg.appendChild(el("path",{d:catmullRomToBezierPath(rs),fill:"none",stroke:(real?"url(#texWater)":P.waterFill),"stroke-width":15,"stroke-linecap":"round","stroke-linejoin":"round",opacity:(real?0.85:1)}));
+    svg.appendChild(el("path",{d:catmullRomToBezierPath(rs),fill:"none",stroke:P.water,"stroke-width":9,"stroke-linecap":"round","stroke-linejoin":"round",opacity:.62}));
+  }
+if(city.quay){
+  svg.appendChild(el("path",{d:linePath(city.quay),fill:"none",stroke:P.ink2,"stroke-width":2.2,"stroke-linecap":"round"}));
+}
+
+// posad (suburbs)
+if(city.posad){
+  const ps=city.posad;
+  const gP=el("g",{id:"posad"});
+
+  // parcels/patches
+  if(ps.patches && ps.patches.length){
+    for(const pa of ps.patches){
+      let fill=P.earth1;
+      let stroke=P.ink3;
+      let op=0.85;
+      if(pa.kind==="field"){
+        fill = real ? "url(#texEarth)" : "rgba(0,0,0,.04)";
+        stroke = P.ink3;
+        op = real ? 0.90 : 0.55;
+      }else if(pa.kind==="pasture"){
+        fill = real ? "url(#texGrass)" : "rgba(0,0,0,.03)";
+        stroke = P.ink3;
+        op = real ? 0.90 : 0.50;
+      }else if(pa.kind==="rubble"){
+        fill = real ? "url(#texRubble)" : (city.opt.textures ? "url(#hRuin)" : "rgba(0,0,0,.05)");
+        stroke = P.ink3;
+        op = real ? 0.95 : 0.65;
+      }
+      const poly=chaikin(pa.poly.slice(0,-1),1,true).concat([pa.poly[0]]);
+      gP.appendChild(el("path",{d:polyPath(poly),fill,stroke,opacity:op,"stroke-width":1.0,"vector-effect":"non-scaling-stroke"}));
+    }
+  }
+
+  // roads
+  if(ps.roads && ps.roads.length){
+    for(const r of ps.roads){
+      let w=1.6;
+      if(r.kind==="posad_ring") w=2.2;
+      if(r.kind==="posad_spur") w=2.4;
+      if(r.kind==="posad_minor") w=1.4;
+      const col = isParch ? "rgba(40,35,28,.55)" : P.ink2;
+      if(real){
+        gP.appendChild(el("path",{d:linePath(r.pts),fill:"none",stroke:col,"stroke-width":(w+1.8),"stroke-linecap":"round","stroke-linejoin":"round",opacity:0.22,"vector-effect":"non-scaling-stroke"}));
+        gP.appendChild(el("path",{d:linePath(r.pts),fill:"none",stroke:"url(#texCobbleFine)","stroke-width":(w+1.1),"stroke-linecap":"round","stroke-linejoin":"round",opacity:0.90,"vector-effect":"non-scaling-stroke"}));
+        gP.appendChild(el("path",{d:linePath(r.pts),fill:"none",stroke:col,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round",opacity:0.55,"vector-effect":"non-scaling-stroke"}));
+      }else{
+        gP.appendChild(el("path",{d:linePath(r.pts),fill:"none",stroke:col,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round","vector-effect":"non-scaling-stroke"}));
+      }
+    }
+  }
+
+  // buildings
+  if(ps.buildings && ps.buildings.length && city.opt.buildings){
+    for(const b of ps.buildings){
+      let fill = P.bldFill;
+      let stroke = P.bldStroke;
+      let op = 0.95;
+      if(real){
+        if(b.kind==="greenhouse") fill = "url(#texGlass)";
+        else if(b.kind==="workshop" || b.kind==="barn") fill = "url(#texMetal)";
+        else fill = "url(#texTileRoof)";
+        stroke = isParch ? "rgba(40,35,28,.35)" : P.ink3;
+        op = 0.98;
+      }
+      gP.appendChild(el("rect",{
+        x:(b.cx-b.hx).toFixed(2), y:(b.cy-b.hy).toFixed(2),
+        width:(b.hx*2).toFixed(2), height:(b.hy*2).toFixed(2),
+        fill, stroke,
+        "stroke-width":0.85, "vector-effect":"non-scaling-stroke",
+        opacity:op,
+        transform:`rotate(${(b.ang*180/Math.PI).toFixed(2)} ${b.cx.toFixed(2)} ${b.cy.toFixed(2)})`
+      }));
+    }
+  }
+
+  // windmills
+  if(ps.windmills && ps.windmills.length){
+    for(const w0 of ps.windmills){
+      const col = isParch ? "rgba(40,35,28,.55)" : P.ink2;
+      gP.appendChild(el("circle",{cx:w0.x,cy:w0.y,r:w0.r,fill:"none",stroke:col,"stroke-width":1.2,"vector-effect":"non-scaling-stroke",opacity:0.85}));
+      const a=w0.ang;
+      const arms=3;
+      for(let k=0;k<arms;k++){
+        const ang=a + k*(Math.PI*2/arms);
+        const x2=w0.x + Math.cos(ang)*(w0.r+12);
+        const y2=w0.y + Math.sin(ang)*(w0.r+12);
+        gP.appendChild(el("path",{d:`M ${w0.x.toFixed(2)} ${w0.y.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)}`,stroke:col,"stroke-width":1.2,"vector-effect":"non-scaling-stroke",opacity:0.85}));
+      }
+    }
+  }
+
+  svg.appendChild(gP);
+}
+
+
+// highways / major tracts
+  if(city.highways && city.highways.length){
+    const gH=el("g",{id:"highways"});
+    const useTex = real && city.opt.textures;
+    for(const hw of city.highways){
+      const baseW = isParch ? 10.0 : 12.0;
+      // soft shadow
+      gH.appendChild(el("path",{d:linePath(hw.pts),fill:"none",stroke:"rgba(0,0,0,.25)","stroke-width":(baseW+6),"stroke-linecap":"round","stroke-linejoin":"round",opacity:(isParch?0.20:0.35),"vector-effect":"non-scaling-stroke"}));
+      // body
+      gH.appendChild(el("path",{d:linePath(hw.pts),fill:"none",stroke:(useTex?"url(#texTrack)":(isParch?"rgba(60,50,36,.55)":P.roadMajor)),"stroke-width":baseW,"stroke-linecap":"round","stroke-linejoin":"round",opacity:(isParch?0.70:0.80),"vector-effect":"non-scaling-stroke"}));
+      // edge
+      gH.appendChild(el("path",{d:linePath(hw.pts),fill:"none",stroke:(isParch?"rgba(60,50,36,.60)":P.ink2),"stroke-width":(isParch?1.2:1.4),"stroke-linecap":"round","stroke-linejoin":"round",opacity:(isParch?0.55:0.70),"vector-effect":"non-scaling-stroke"}));
+    }
+    svg.appendChild(gH);
+  }
+
+// blocks
+  const gBlocks=el("g",{id:"blocks"});
+  let blockCount=0;
+  let indBlocks=0;
+
+  for(const b of city.blocks){
+    blockCount++;
+    const district=city.distMap.get(b.id)||"Жилые блоки";
+    if(district==="Цеха и мануфактуры") indBlocks++;
+    const st=districtStyle(district, P);
+
+    let fill=st.fill;
+    let stroke=st.stroke;
+
+    if(real){
+      stroke=P.ink3;
+      fill="none";
+      if(district==="Цеха и мануфактуры") fill="url(#texAsh)";
+      else if(district==="Тепличный пояс") fill="url(#texGrass)";
+      else if(district==="Трущобы/руины") fill="url(#texRubble)";
+    }else{
+      if(city.opt.textures){
+        // In parchment theme, prefer "real" textures even in schematic mode (no hatch-only).
+        if(district==="Трущобы/руины") fill = isParch ? "url(#texRubble)" : "url(#hRuin)";
+        else if(district==="Цеха и мануфактуры") fill = isParch ? "url(#texAsh)" : "url(#hInd)";
+        else if(district==="Тепличный пояс" && isParch) fill = "url(#texGrass)";
+      }
+    }
+
+    const smooth=chaikin(b.poly.slice(0,-1),1,true).concat([b.poly[0]]);
+    const path=el("path",{d:polyPath(smooth),fill,stroke,"stroke-width":1.0,"vector-effect":"non-scaling-stroke",opacity:(real?(district==="Трущобы/руины"?0.62:0.85):1)});
+    path.addEventListener("mousemove",()=>{ui.hover.textContent=`${district} · block ${b.id} · area ${Math.round(b.area)}`});
+    path.addEventListener("mouseleave",()=>{ui.hover.textContent="—"});
+    gBlocks.appendChild(path);
+
+    if(city.opt.labels && b.area>5200){
+      gBlocks.appendChild(textEl(b.centroid.x,b.centroid.y,district,"smallLabel","middle"));
+    }
+  }
+
+  // citadel polygon (inside)
+  if(city.citadel){
+    const st=districtStyle("Цитадель", P);
+    const smooth=chaikin(city.citadel.polygon.slice(0,-1),1,true).concat([city.citadel.polygon[0]]);
+    gBlocks.appendChild(el("path",{
+      d:polyPath(smooth),
+      fill:(real?"url(#texStoneFloor)":st.fill),
+      stroke:(real?P.ink2:st.stroke),
+      "stroke-width":1.2,
+      "vector-effect":"non-scaling-stroke",
+      opacity:0.95
+    }));
+    if(city.opt.labels){
+      gBlocks.appendChild(textEl(city.citadel.center.x, city.citadel.center.y, "Цитадель", "smallLabel", "middle"));
+    }
+  }
+
+  svg.appendChild(gBlocks);
+
+  // buildings
+  let bldCount=0;
+  if(city.opt.buildings){
+    const gB=el("g",{id:"buildings"});
+    for(const b of city.blocks){
+      const blds=city.buildingsByBlock.get(b.id)||[];
+      const district=city.distMap.get(b.id)||"Жилые блоки";
+      for(const r of blds){
+        bldCount++;
+        const bFill = real
+          ? (district==="Тепличный пояс" ? "url(#texGlassRoof)"
+             : (district==="Цеха и мануфактуры" ? "url(#texMetalRoof)"
+                : (district==="Трущобы/руины" ? "url(#texRubble)" : "url(#texTileRoof)")))
+          : P.bldFill;
+
+        const bStroke = real ? (isParch ? "rgba(32,36,40,.34)" : P.ink3) : P.bldStroke;
+        const bFilter = (real && !isParch) ? "url(#bldShadow)" : null;
+
+        gB.appendChild(el("rect",{
+          x:(r.cx-r.hx).toFixed(2), y:(r.cy-r.hy).toFixed(2),
+          width:(r.hx*2).toFixed(2), height:(r.hy*2).toFixed(2),
+          fill:bFill, stroke:bStroke,
+          filter:bFilter,
+          "stroke-width":(real ? (district==="Трущобы/руины"?1.10:0.95) : 0.85),"vector-effect":"non-scaling-stroke",
+          opacity:(district==="Трущобы/руины"?0.90:0.95),
+          transform:`rotate(${(r.ang*180/Math.PI).toFixed(2)} ${r.cx.toFixed(2)} ${r.cy.toFixed(2)})`
+        }));
+      }
+    }
+    if(city.citadel){
+      for(const r of city.citadel.buildings){
+        bldCount++;
+        gB.appendChild(el("rect",{
+          x:(r.cx-r.hx).toFixed(2), y:(r.cy-r.hy).toFixed(2),
+          width:(r.hx*2).toFixed(2), height:(r.hy*2).toFixed(2),
+          fill:(real?"url(#texTileRoof)":P.bldFill),
+          stroke:(real?(isParch?"rgba(32,36,40,.10)":P.ink3):P.bldStroke),
+          filter:((real && !isParch)?"url(#bldShadow)":null),
+          "stroke-width":(real?(isParch?0.55:0.90):0.90),"vector-effect":"non-scaling-stroke",
+          opacity:(real?(isParch?0.93:0.98):0.98),
+          transform:`rotate(${(r.ang*180/Math.PI).toFixed(2)} ${r.cx.toFixed(2)} ${r.cy.toFixed(2)})`
+        }));
+      }
+    }
+    svg.appendChild(gB);
+  }
+
+  // alleys
+  const gAlleys=el("g",{id:"alleys"});
+  for(const al of city.alleysAll){
+    const pts = al.pts.length>=3 ? al.pts : (al.pts.length===2 ? [al.pts[0], v((al.pts[0].x+al.pts[1].x)/2,(al.pts[0].y+al.pts[1].y)/2), al.pts[1]] : al.pts);
+    const d=catmullRomToBezierPath(pts);
+    gAlleys.appendChild(el("path",{
+      d, fill:"none",
+      stroke:(real?"url(#texCobbleFine)":P.alley), "stroke-width":1.25,
+      "stroke-linecap":"round","stroke-linejoin":"round",
+      "vector-effect":"non-scaling-stroke",
+      opacity:0.75
+    }));
+  }
+  svg.appendChild(gAlleys);
+
+  // roads
+  const gRoads=el("g",{id:"roads"});
+  for(const r of city.roads){
+    let w, col, op;
+    const useTex = real; // road texture in realistic mode
+    if(r.kind==="industrial"){
+      w=isParch?5.4:6.2; col=useTex ? "url(#texCobble)" : P.roadIndustrial; op=isParch?0.88:0.95;
+    } else if(r.kind==="major"){
+      w=isParch?3.1:3.6; col=useTex ? "url(#texCobble)" : P.roadMajor; op=isParch?0.82:0.90;
+    } else if(r.kind==="ring"){
+      w=isParch?2.3:2.8; col=useTex ? "url(#texCobbleFine)" : P.ink2; op=isParch?0.40:0.70;
+    } else {
+      w=isParch?1.5:1.9; col=useTex ? "url(#texCobbleFine)" : P.roadMinor; op=isParch?0.38:0.70;
+    }
+    const d=catmullRomToBezierPath(r.pts);
+    gRoads.appendChild(el("path",{d,fill:"none",stroke:col,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round","vector-effect":"non-scaling-stroke",opacity:op}));
+  }
+  svg.appendChild(gRoads);
+
+  // bridges
+  if(city.bridges.length){
+    const gBr=el("g",{id:"bridges"});
+    for(const br of city.bridges){
+      gBr.appendChild(el("rect",{
+        x:(br.x-12).toFixed(2), y:(br.y-3.5).toFixed(2), width:"24", height:"7",
+        fill:P.ink3, stroke:P.ink2,
+        "stroke-width":1.2,"vector-effect":"non-scaling-stroke",
+        transform:`rotate(${(br.ang*180/Math.PI).toFixed(2)} ${br.x.toFixed(2)} ${br.y.toFixed(2)})`
+      }));
+    }
+    svg.appendChild(gBr);
+  }
+
+  const PW = real ? Object.assign({}, P, { wallFill: "url(#texStone)" }) : P;
+
+  // fortress
+  if(city.fortress){
+    const gF=el("g",{id:"fortress"});
+    renderKeepComplex(gF, city.fortress, PW);
+    svg.appendChild(gF);
+  }
+
+  // city walls
+  if(city.opt.walls){
+    const gW=el("g",{id:"cityWalls"});
+    renderFortifiedWall(gW, city.outlineSmooth, city.gates, "city", PW);
+    svg.appendChild(gW);
+  }
+
+  // landmarks
+  const gLM=el("g",{id:"landmarks"});
+  for(const lm of city.landmarks){
+    gLM.appendChild(el("circle",{cx:lm.x,cy:lm.y,r:4.2,fill:P.purpleFill,stroke:P.purple,"stroke-width":2,"vector-effect":"non-scaling-stroke"}));
+    if(city.opt.labels) gLM.appendChild(textEl(lm.x+7,lm.y-7,lm.kind,"lmLabel","start"));
+  }
+  svg.appendChild(gLM);
+
+  // typography
+  svg.appendChild(el("style",{},[document.createTextNode(`
+    .smallLabel{ fill: ${P.ink2}; font-size: 10px; pointer-events:none; paint-order: stroke; stroke: ${isParch ? "rgba(0,0,0,0)" : "rgba(0,0,0,.35)"}; stroke-width: ${isParch ? "0px" : "3px"}; }
+    .lmLabel{ fill: ${P.ink}; font-size: 11px; pointer-events:none; paint-order: stroke; stroke: ${isParch ? "rgba(0,0,0,0)" : "rgba(0,0,0,.35)"}; stroke-width: ${isParch ? "0px" : "3px"}; }
+    .title{ fill: ${P.ink}; font-weight: 900; font-size: 18px; letter-spacing: .25px; paint-order: stroke; stroke: ${isParch ? "rgba(0,0,0,0)" : "rgba(0,0,0,.35)"}; stroke-width: ${isParch ? "0px" : "5px"}; }
+    .sub{ fill: ${P.ink2}; font-weight: 700; font-size: 11px; letter-spacing: .18px; paint-order: stroke; stroke: ${isParch ? "rgba(0,0,0,0)" : "rgba(0,0,0,.35)"}; stroke-width: ${isParch ? "0px" : "4px"}; }
+  `)]));
+
+  if(city.opt.labels){
+    const t=el("text",{class:"title"},[
+      el("textPath",{href:"#titleArc",startOffset:"50%","text-anchor":"middle"},[document.createTextNode(city.name)])
+    ]);
+    svg.appendChild(t);
+    svg.appendChild(textEl(WORLD*0.5, WORLD*0.086, `${city.kindLabel} · ${city.ruler}`,"sub","middle"));
+  }
+
+  ui.blockStat.textContent=String(blockCount);
+  ui.bldStat.textContent=String(bldCount);
+  ui.roadStat.textContent=String(city.roadCount);
+  if(ui.highwayStat) ui.highwayStat.textContent=String((city.highways||[]).length);
+  ui.indStat.textContent=String(indBlocks);
+  ui.alleyStat.textContent=String(city.alleyCount);
+  ui.posadStat.textContent=String(city.posadBldCount||0);
+}
+
+/* ========================= Pan/Zoom ========================= */
+function setupPanZoom(svg, getViewBox, setViewBox){
+  let dragging=false, last=null;
+  const toSvgPoint=(evt)=>{
+    const rect=svg.getBoundingClientRect();
+    const x=(evt.clientX-rect.left)/rect.width;
+    const y=(evt.clientY-rect.top)/rect.height;
+    const vb=getViewBox();
+    return v(vb.x + x*vb.w, vb.y + y*vb.h);
+  };
+  svg.addEventListener("pointerdown",(e)=>{dragging=true; svg.setPointerCapture(e.pointerId); last=toSvgPoint(e);});
+  svg.addEventListener("pointermove",(e)=>{
+    if(!dragging) return;
+    const cur=toSvgPoint(e);
+    const vb=getViewBox();
+    setViewBox({x:vb.x-(cur.x-last.x), y:vb.y-(cur.y-last.y), w:vb.w, h:vb.h});
+  });
+  svg.addEventListener("pointerup",()=>{dragging=false; last=null;});
+  svg.addEventListener("pointercancel",()=>{dragging=false; last=null;});
+  svg.addEventListener("wheel",(e)=>{
+    e.preventDefault();
+    const vb=getViewBox();
+    const p=toSvgPoint(e);
+    const zoom=e.deltaY>0?1.12:0.89;
+    const nw=vb.w*zoom, nh=vb.h*zoom;
+    const nx=p.x - (p.x-vb.x)*(nw/vb.w);
+    const ny=p.y - (p.y-vb.y)*(nh/vb.h);
+    setViewBox({x:nx,y:ny,w:nw,h:nh});
+  },{passive:false});
+  svg.addEventListener("dblclick",(e)=>{
+    const vb=getViewBox();
+    const p=toSvgPoint(e);
+    setViewBox({x:p.x-vb.w/2,y:p.y-vb.h/2,w:vb.w,h:vb.h});
+  });
+}
+
+/* ========================= UI wiring ========================= */
+const svg=document.getElementById("svg");
+const ui={
+  seed:document.getElementById("seed"),
+  size:document.getElementById("size"),
+  type:document.getElementById("type"),
+  streetDensity:document.getElementById("streetDensity"),
+  buildingDensity:document.getElementById("buildingDensity"),
+  ruins:document.getElementById("ruins"),
+  grid:document.getElementById("grid"),
+  theme:document.getElementById("theme"),
+  optWalls:document.getElementById("optWalls"),
+  optKeep:document.getElementById("optKeep"),
+  optRiver:document.getElementById("optRiver"),
+  optCoast:document.getElementById("optCoast"),
+  optGreen:document.getElementById("optGreen"),
+  optTelegraph:document.getElementById("optTelegraph"),
+  optTextures:document.getElementById("optTextures"),
+  optReal:document.getElementById("optReal"),
+  optLabels:document.getElementById("optLabels"),
+  optBuildings:document.getElementById("optBuildings"),
+  optPosad:document.getElementById("optPosad"),
+  optHighways:document.getElementById("optHighways"),
+  posadWidth:document.getElementById("posadWidth"),
+  posadDensity:document.getElementById("posadDensity"),
+  btnGen:document.getElementById("btnGen"),
+  btnRand:document.getElementById("btnRand"),
+  btnResetView:document.getElementById("btnResetView"),
+  btnSvg:document.getElementById("btnSvg"),
+  btnJson:document.getElementById("btnJson"),
+  lore:document.getElementById("lore"),
+  hover:document.getElementById("hover"),
+  seedStat:document.getElementById("seedStat"),
+  blockStat:document.getElementById("blockStat"),
+  bldStat:document.getElementById("bldStat"),
+  roadStat:document.getElementById("roadStat"),
+  highwayStat:document.getElementById("highwayStat"),
+  indStat:document.getElementById("indStat"),
+  alleyStat:document.getElementById("alleyStat"),
+  posadStat:document.getElementById("posadStat")
+};
+
+let lastCity=null;
+let viewBox={x:0,y:0,w:WORLD,h:WORLD};
+function setVB(vb){viewBox=vb; svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`)}
+function getVB(){return viewBox}
+setupPanZoom(svg,getVB,setVB);
+
+function render(){
+  const theme = ui.theme.value;
+  document.body.classList.toggle("parchment", theme==="parchment");
+
+  const seedStr=(ui.seed.value||"").trim()||"isotope-119";
+  const type=ui.type.value;
+  const params={
+    seedStr,
+    size:clamp(parseInt(ui.size.value||"24",10),10,90),
+    type,
+    streetDensity:clamp(parseInt(ui.streetDensity.value||"72",10),0,100),
+    buildingDensity:clamp(parseInt(ui.buildingDensity.value||"82",10),0,100),
+    ruins:clamp(parseInt(ui.ruins.value||"30",10),0,100),
+    gridN:clamp(parseInt(ui.grid.value||"780",10),420,1100),
+    walls:!!ui.optWalls.checked,
+    keep:!!ui.optKeep.checked,
+    river:!!ui.optRiver.checked,
+    coast:!!ui.optCoast.checked,
+    green:!!ui.optGreen.checked,
+    telegraph:!!ui.optTelegraph.checked,
+    textures:!!ui.optTextures.checked,
+    real:!!ui.optReal.checked,
+    labels:!!ui.optLabels.checked,
+    buildings:!!ui.optBuildings.checked,
+    posad:!!ui.optPosad.checked,
+    posadWidth:clamp(parseInt(ui.posadWidth.value||"180",10),40,520),
+    posadDensity:clamp(parseInt(ui.posadDensity.value||"62",10),0,100)
+  };
+  params.highways=!!(ui.optHighways && ui.optHighways.checked);
+  if(type==="coastal_hold") params.coast=true;
+  if(type==="river_port") params.river=true;
+
+  const city=buildCity(params);
+  lastCity=city;
+
+  renderCity(svg, city, ui, theme);
+  ui.seedStat.textContent=city.seedStr;
+
+  const lrng=mulberry32(city.seedU32 ^ 0xA5A5A5A5);
+  ui.lore.textContent=makeLore(lrng, city);
+}
+
+ui.btnGen.addEventListener("click",render);
+ui.btnRand.addEventListener("click",()=>{ui.seed.value=`seed-${Math.floor(Math.random()*1e9).toString(16)}-${Date.now().toString(16)}`;render()});
+ui.btnResetView.addEventListener("click",()=>setVB({x:0,y:0,w:WORLD,h:WORLD}));
+
+ui.btnSvg.addEventListener("click",()=>{
+  if(!lastCity) render();
+  const txt=getSVGText(svg);
+  const safe=(lastCity?.name||"isotope_city").replace(/[^\w\-а-яА-Я]+/g,"_");
+  downloadText(`${safe}_v12_1.svg`,txt,"image/svg+xml");
+});
+ui.btnJson.addEventListener("click",()=>{
+  if(!lastCity) render();
+  const safe=(lastCity?.name||"isotope_city").replace(/[^\w\-а-яА-Я]+/g,"_");
+  const payload={
+    schema:"isotope.city.v12_1_1.rules_alley_citadel",
+    seed:lastCity.seedStr,
+    name:lastCity.name,
+    kind:lastCity.kindLabel,
+    type:lastCity.type,
+    ruler:lastCity.ruler,
+    options:lastCity.opt,
+    outline:lastCity.outline,
+    gates:lastCity.gates,
+    roads:lastCity.roads.map(r=>({kind:r.kind,pts:r.pts,width:r.width})),
+    highways:(lastCity.highways||[]).map(r=>({kind:r.kind,pts:r.pts,width:r.width})),
+    alleys:lastCity.alleysAll.map(a=>({kind:a.kind,pts:a.pts,width:a.width})),
+    river:lastCity.river,
+    coast:lastCity.coast,
+    fortress:lastCity.fortress?{center:lastCity.fortress.center,outer:lastCity.fortress.outer,yard:lastCity.fortress.yard,keep:lastCity.fortress.keep}:null,
+    citadel:lastCity.citadel?{
+      polygon:lastCity.citadel.polygon,
+      center:lastCity.citadel.center,
+      buildings:lastCity.citadel.buildings.map(r=>({cx:r.cx,cy:r.cy,hx:r.hx,hy:r.hy,ang:r.ang}))
+    }:null,
+    blocks:lastCity.blocks.map(b=>({
+      id:b.id,
+      district:lastCity.distMap.get(b.id)||"Жилые блоки",
+      area:Math.round(b.area),
+      centroid:b.centroid,
+      polygon:b.poly,
+      buildings:(lastCity.buildingsByBlock.get(b.id)||[]).map(r=>({cx:r.cx,cy:r.cy,hx:r.hx,hy:r.hy,ang:r.ang}))
+    })),
+    bridges:lastCity.bridges,
+    landmarks:lastCity.landmarks,
+    posad:lastCity.posad,
+    indCount:lastCity.indCount
+  };
+  downloadText(`${safe}_v12_1.json`,JSON.stringify(payload,null,2),"application/json");
+});
+
+for(const id of ["streetDensity","buildingDensity","ruins","grid","theme","optWalls","optKeep","optRiver","optCoast","optGreen","optTelegraph","optTextures","optReal","optLabels","optBuildings","optPosad","optHighways","posadWidth","posadDensity","size","type"]){
+  const e=document.getElementById(id);
+  if(!e){ console.warn("UI element missing:", id); continue; }
+  e.addEventListener("change",render);
+  e.addEventListener("input",()=>{if(e.type==="range") render();});
+}
+
+render();
+</script>
+</body>
+</html>
