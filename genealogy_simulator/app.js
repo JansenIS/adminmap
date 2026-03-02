@@ -882,9 +882,8 @@ function layout() {
             for (let j = i + 1; j < unionParents.length; j++) {
               const a = unionParents[i];
               const b = unionParents[j];
-              const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])
-                .find((rel) => String(rel.union_id || '') === unionId);
-              if (!spouseRel && !(spousesById.get(a) || new Set()).has(b)) continue;
+              // Для parent_child с parents_union_id считаем родителей участниками союза,
+              // даже если отдельное spouse-ребро не попало в текущую выборку (например, при фильтре по роду).
               addFamily([a, b], childId, unionId);
               assignedToUnion = true;
               return;
@@ -1772,8 +1771,6 @@ function render({ preserveViewportAnchor = true } = {}) {
             for (let j = i + 1; j < unionParents.length; j++) {
               const leftParent = unionParents[i];
               const rightParent = unionParents[j];
-              const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && String(rel.union_id || '').trim() === unionId && ((rel.source_id === leftParent && rel.target_id === rightParent) || (rel.source_id === rightParent && rel.target_id === leftParent)));
-              if (!matchingSpouse) continue;
               const pairKey = `${relKey(leftParent, rightParent)}:${unionId}`;
               if (!families.has(pairKey)) {
                 const [parentA, parentB] = [leftParent, rightParent].sort((left, right) => {
