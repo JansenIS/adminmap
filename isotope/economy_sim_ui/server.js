@@ -12,6 +12,7 @@ const adminMapStatePath = path.join(projectRoot, "data", "map_state.json");
 const adminMapProvincesPath = path.join(projectRoot, "provinces.json");
 const simAdminDataDir = path.join(__dirname, "data");
 const simAdminOverridesPath = path.join(simAdminDataDir, "sim_admin_overrides.json");
+const simStartSnapshotPath = path.join(simAdminDataDir, "sim_start_snapshot.json");
 const mapImagePath = path.join(projectRoot, "map.png");
 const provincesMaskPath = path.join(projectRoot, "provinces_id.png");
 
@@ -115,6 +116,11 @@ function normalizeProvinceOverride(raw) {
   if (Number.isFinite(Number(raw.pop))) out.pop = Math.max(1, Math.round(Number(raw.pop)));
   if (Number.isFinite(Number(raw.infra))) out.infra = Math.max(0.1, Math.min(2.5, Number(raw.infra)));
   if (Number.isFinite(Number(raw.gdpWeight))) out.gdpWeight = Math.max(0.05, Math.min(8, Number(raw.gdpWeight)));
+  if (typeof raw.marketMode === "string") {
+    const mm = raw.marketMode.trim();
+    if (["normal", "off_market", "black_market", "exchange"].includes(mm)) out.marketMode = mm;
+  }
+
   if (Array.isArray(raw.buildings)) {
     out.buildings = raw.buildings
       .map((b) => {
@@ -282,6 +288,7 @@ function applySimAdminOverridesToEngine() {
     const n = normalizeProvinceOverride(ov);
     if (typeof n.pop === "number") st.pop = n.pop;
     if (typeof n.infra === "number") st.infra = n.infra;
+    if (typeof n.marketMode === "string") st.marketMode = n.marketMode;
     if (Array.isArray(n.buildings)) {
       st.buildings = n.buildings.map((b) => ({
         type: b.type,
@@ -289,6 +296,15 @@ function applySimAdminOverridesToEngine() {
         efficiency: Number.isFinite(Number(b.efficiency)) ? Math.max(0.25, Math.min(2.5, Number(b.efficiency))) : 1,
       }));
     }
+    if (st.marketMode === "off_market" || st.marketMode === "exchange") {
+      st.buildings = [];
+      st.treasury = 0;
+      st.treasuryTradeTaxYear = 0;
+      st.treasuryTransitYear = 0;
+      st.treasuryExpenseYear = 0;
+      st.treasuryNetYear = 0;
+    }
+
     const infraForCap = Math.max(0.1, st.infra);
     st.transportCap = st.pop * infraForCap * 0.018;
     st.worldTransportCap = st.transportCap * 3 + (st.isCity ? 900 : 350);
@@ -310,6 +326,7 @@ function computeProvinceAdminStats(pid) {
     infra: st.infra,
     gdpWeight,
     effectiveGDP: st.gdpYear * gdpWeight,
+    marketMode: st.marketMode || "normal",
     buildings: (st.buildings || []).map((b) => ({
       type: b.type,
       count: Number(b.count || 0),
@@ -320,6 +337,10 @@ function computeProvinceAdminStats(pid) {
 }
 
 engine = makeEngine(baseConfig);
+const bootstrapStartSnapshot = loadJsonSafe(simStartSnapshotPath, null);
+if (bootstrapStartSnapshot && typeof engine.loadSnapshot === "function") {
+  engine.loadSnapshot(bootstrapStartSnapshot);
+}
 applySimAdminOverridesToEngine();
 
 
@@ -380,6 +401,10 @@ const server = http.createServer((req, res) => {
             treasuryTransitYear: st?.treasuryTransitYear ?? 0,
             treasuryExpenseYear: st?.treasuryExpenseYear ?? 0,
             treasuryNetYear: st?.treasuryNetYear ?? 0,
+            marketMode: st?.marketMode || "normal",
+            isOffMarket: (st?.marketMode || "normal") === "off_market",
+            isBlackMarket: (st?.marketMode || "normal") === "black_market",
+            isExchange: (st?.marketMode || "normal") === "exchange",
           };
         });
 
@@ -538,6 +563,7 @@ const server = http.createServer((req, res) => {
           treasuryTransitYear: st.treasuryTransitYear,
           treasuryExpenseYear: st.treasuryExpenseYear,
           treasuryNetYear: st.treasuryNetYear,
+          marketMode: st.marketMode || "normal",
           buildings: st.buildings,
           commodities: rows,
         });
@@ -572,9 +598,24 @@ const server = http.createServer((req, res) => {
         };
 
         engine = makeEngine(baseConfig);
+        const startSnapshot = loadJsonSafe(simStartSnapshotPath, null);
+        if (startSnapshot && typeof engine.loadSnapshot === "function") {
+          engine.loadSnapshot(startSnapshot);
+        }
         applySimAdminOverridesToEngine();
         const r = engine.report();
         return sendJson(res, 200, { ok: true, ...r, config: { ...baseConfig } });
+      }
+
+
+      if (pathname === "/api/admin/write-start-state" && req.method === "POST") {
+        const snapshot = engine.exportSnapshot();
+        saveJsonAtomic(simStartSnapshotPath, {
+          ...snapshot,
+          written_utc: new Date().toISOString(),
+          source: "sim-admin",
+        });
+        return sendJson(res, 200, { ok: true, path: simStartSnapshotPath });
       }
 
       if (pathname === "/api/snapshot") {

@@ -32,3 +32,7 @@ button { margin-top: 10px; background: linear-gradient(180deg,#0f7ac9,#0b5c99); 
 .sortBtn.desc::after { content: " ↓"; }
 .sortBtn.asc::after { content: " ↑"; }
 .tooltip { position: fixed; pointer-events: none; display:none; padding: 8px 10px; border-radius:10px; background: rgba(4,9,14,.95); border:1px solid #2f5578; font-size:12px; max-width:260px; }
+
+.chk { display:flex; align-items:center; gap:8px; font-size:13px; color:#cde1f3; margin:6px 0; }
+.chk input { width:auto; }
+.flagsBox { margin-top:10px; padding-top:4px; border-top:1px solid #1b3147; }
