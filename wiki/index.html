@@ -19,6 +19,16 @@
     .item h3 { margin:0; font-size:14px; }
     .item p { margin:6px 0 0; font-size:12px; color:#a6b4c5; }
     .card { border:1px solid #223041; background:#0d131b; border-radius:14px; padding:14px; min-height:220px; }
+    .section { margin-top:14px; padding-top:14px; border-top:1px solid #223041; }
+    .section h3 { margin:0 0 8px; font-size:15px; }
+    .kv { display:grid; grid-template-columns: 180px 1fr; gap:6px 10px; font-size:14px; }
+    .kv .k { color:#a6b4c5; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { display:inline-block; padding:4px 8px; border:1px solid #2b3f56; border-radius:999px; font-size:12px; color:#dbe7f5; background:#0b0f14; }
+    .related-list { margin:0; padding-left:18px; }
+    .related-list li { margin:5px 0; }
+    a.inline { color:#9bc7ff; text-decoration:none; }
+    a.inline:hover { text-decoration:underline; }
     .topnav { margin-top:8px; }
     .topnav a { color:#9bc7ff; text-decoration:none; font-size:13px; }
     .topnav a:hover { text-decoration:underline; }
@@ -48,6 +58,83 @@ let pages = [];
 let filtered = [];
 
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));}
+function link(href, text) {
+  if (!href) return escapeHtml(text || '—');
+  return `<a class="inline" href="#" data-wiki-link="${escapeHtml(href)}">${escapeHtml(text || href)}</a>`;
+}
+
+function renderProjectDetails(item) {
+  const kind = String(item.kind || '');
+  if (kind === 'character' && item.character) {
+    const c = item.character;
+    const relatives = Array.isArray(c.closest_relatives) ? c.closest_relatives : [];
+    return `
+      <div class="section">
+        <h3>Персонаж</h3>
+        <div class="kv">
+          <div class="k">Титул</div><div>${escapeHtml(c.title || '—')}</div>
+          <div class="k">Клан</div><div>${link(c.clan_wiki_link, c.clan || '—')}</div>
+          <div class="k">Годы жизни</div><div>${escapeHtml((c.birth_year ?? '—') + ' — ' + (c.death_year ?? '...'))}</div>
+        </div>
+      </div>
+      ${relatives.length ? `
+      <div class="section">
+        <h3>Близкие родственники</h3>
+        <ul class="related-list">${relatives.map(r => `<li>${escapeHtml(r.relation || 'relative')}: ${link(r.wiki_link, r.name || r.id)}</li>`).join('')}</ul>
+      </div>` : ''}
+    `;
+  }
+
+  if (kind === 'clan' && item.clan) {
+    const members = Array.isArray(item.clan.members) ? item.clan.members : [];
+    return `
+      <div class="section">
+        <h3>Клан</h3>
+        <div class="kv">
+          <div class="k">Название</div><div>${escapeHtml(item.clan.name || '—')}</div>
+          <div class="k">Участников</div><div>${members.length}</div>
+        </div>
+      </div>
+      ${members.length ? `<div class="section"><h3>Состав</h3><ul class="related-list">${members.map(m => `<li>${link(m.wiki_link, m.name || m.id)}${m.title ? ' — ' + escapeHtml(m.title) : ''}</li>`).join('')}</ul></div>` : ''}
+    `;
+  }
+
+  if (kind === 'entity' && item.entity) {
+    const ent = item.entity;
+    const pids = Array.isArray(ent.province_pids) ? ent.province_pids : [];
+    const provinces = Array.isArray(ent.children && ent.children.provinces) ? ent.children.provinces : [];
+    return `
+      <div class="section">
+        <h3>Сущность</h3>
+        <div class="kv">
+          <div class="k">Тип</div><div>${escapeHtml(ent.entity_type || '—')}</div>
+          <div class="k">Правитель</div><div>${escapeHtml(ent.ruler || '—')}</div>
+          <div class="k">Провинций</div><div>${pids.length}</div>
+        </div>
+      </div>
+      ${provinces.length ? `<div class="section"><h3>Провинции</h3><div class="chips">${provinces.map(pr => `<span class="chip">${link(pr.wiki_link, pr.name || ('#' + pr.pid))}</span>`).join('')}</div></div>` : ''}
+    `;
+  }
+
+  if (kind === 'province' && item.province) {
+    const pr = item.province;
+    const vassals = Array.isArray(pr.vassals) ? pr.vassals : [];
+    return `
+      <div class="section">
+        <h3>Провинция</h3>
+        <div class="kv">
+          <div class="k">ID</div><div>${escapeHtml(pr.pid || '—')}</div>
+          <div class="k">Владелец</div><div>${escapeHtml(pr.owner || '—')}</div>
+          <div class="k">Сюзерен</div><div>${escapeHtml(pr.suzerain || '—')}</div>
+          <div class="k">Рельеф</div><div>${escapeHtml(pr.terrain || '—')}</div>
+        </div>
+      </div>
+      ${vassals.length ? `<div class="section"><h3>Вассалы</h3><div class="chips">${vassals.map(v => `<span class="chip">${escapeHtml(v)}</span>`).join('')}</div></div>` : ''}
+    `;
+  }
+
+  return '';
+}
 
 function renderList() {
   const q = document.getElementById('search').value.trim().toLowerCase();
@@ -81,8 +168,20 @@ async function openPage(p) {
       <h2 style="margin-top:0;">${escapeHtml(item.title || p.title || 'Без названия')}</h2>
       <div class="muted">${escapeHtml(item.kind || p.kind)} · ${escapeHtml(item.page_key || p.page_key)}</div>
       <p>${escapeHtml(item.description || 'Описание отсутствует.')}</p>
-      <pre>${escapeHtml(JSON.stringify(item, null, 2))}</pre>
+      ${renderProjectDetails(item)}
     `;
+
+    card.querySelectorAll('[data-wiki-link]').forEach(el => {
+      el.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        const href = el.getAttribute('data-wiki-link');
+        if (!href) return;
+        const target = pages.find(pg => pg.wiki_link === href);
+        if (target) return openPage(target);
+        const fallback = { title: 'Страница', kind: '', page_key: '', wiki_link: href };
+        return openPage(fallback);
+      });
+    });
   } catch (e) {
     card.innerHTML = '<div class="muted">Ошибка загрузки страницы.</div>';
   }
