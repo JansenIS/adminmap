@@ -44,8 +44,9 @@ node ./server.js ../province_routing_data.json --port 8787
 
 - Основная админка карты: `http://<SERVER_IP>:8080/admin.html`
 - Публичная карта: `http://<SERVER_IP>:8080/index.html`
-- Симулятор-обзор: `http://<SERVER_IP>:8787/`
-- Sim-admin (редактор параметров провинций): `http://<SERVER_IP>:8787/sim-admin`
+- Симулятор-обзор (через основной веб-сервер): `http://<SERVER_IP>:8080/economics/`
+- Sim-admin (редактор параметров провинций): `http://<SERVER_IP>:8080/economics/sim-admin`
+- Прямой доступ к Node-сервису (внутренний): `http://127.0.0.1:8787/`
 
 ## Проверка после установки
 
