@@ -1404,7 +1404,9 @@ export class EconomyEngine {
 
     // деградация, если нет обслуживания
     for (const st of this.states) {
-      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
+      const isOffMarket = st.marketMode === "off_market";
+      const isExchange = st.marketMode === "exchange";
+      if (isOffMarket || isExchange) continue;
       let fail = 0;
 
       const pull = (cid, qty) => {
