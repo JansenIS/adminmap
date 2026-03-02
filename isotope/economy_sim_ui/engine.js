@@ -148,16 +148,10 @@ export class EconomyEngine {
     this.yearWindow = 365;
     this.yearProduced = new Float64Array(this.comCount);
     this.yearSold = new Float64Array(this.comCount);
-    this.yearProducedNoBlack = new Float64Array(this.comCount);
-    this.yearSoldNoBlack = new Float64Array(this.comCount);
     this.dayProducedHistory = [];
     this.daySoldHistory = [];
-    this.dayProducedNoBlackHistory = [];
-    this.daySoldNoBlackHistory = [];
     this._dayProduced = new Float64Array(this.comCount);
     this._daySold = new Float64Array(this.comCount);
-    this._dayProducedNoBlack = new Float64Array(this.comCount);
-    this._daySoldNoBlack = new Float64Array(this.comCount);
     this.provYearHistory = {
       gdp: [],
       imports: [],
@@ -169,52 +163,35 @@ export class EconomyEngine {
     };
   }
 
-  _recordProduced(cidx, qty, st = null) {
+  _recordProduced(cidx, qty) {
     if (!Number.isFinite(qty) || qty <= 0) return;
     this._dayProduced[cidx] += qty;
-    if (st?.marketMode !== "black_market") this._dayProducedNoBlack[cidx] += qty;
   }
 
-  _recordSold(cidx, qty, st = null) {
+  _recordSold(cidx, qty) {
     if (!Number.isFinite(qty) || qty <= 0) return;
     this._daySold[cidx] += qty;
-    if (st?.marketMode !== "black_market") this._daySoldNoBlack[cidx] += qty;
   }
 
   _rollYearStats() {
     const prod = Float64Array.from(this._dayProduced);
     const sold = Float64Array.from(this._daySold);
-    const prodNoBlack = Float64Array.from(this._dayProducedNoBlack);
-    const soldNoBlack = Float64Array.from(this._daySoldNoBlack);
     this.dayProducedHistory.push(prod);
     this.daySoldHistory.push(sold);
-    this.dayProducedNoBlackHistory.push(prodNoBlack);
-    this.daySoldNoBlackHistory.push(soldNoBlack);
 
     for (let i = 0; i < this.comCount; i++) {
       this.yearProduced[i] += prod[i];
       this.yearSold[i] += sold[i];
-      this.yearProducedNoBlack[i] += prodNoBlack[i];
-      this.yearSoldNoBlack[i] += soldNoBlack[i];
     }
 
     if (this.dayProducedHistory.length > this.yearWindow) {
       const oldProd = this.dayProducedHistory.shift();
       const oldSold = this.daySoldHistory.shift();
-      const oldProdNoBlack = this.dayProducedNoBlackHistory.shift();
-      const oldSoldNoBlack = this.daySoldNoBlackHistory.shift();
       for (let i = 0; i < this.comCount; i++) {
         this.yearProduced[i] -= oldProd[i];
         this.yearSold[i] -= oldSold[i];
-        this.yearProducedNoBlack[i] -= oldProdNoBlack[i];
-        this.yearSoldNoBlack[i] -= oldSoldNoBlack[i];
       }
     }
-
-    this._dayProduced.fill(0);
-    this._daySold.fill(0);
-    this._dayProducedNoBlack.fill(0);
-    this._daySoldNoBlack.fill(0);
   }
 
   _rollProvinceYearStats() {
@@ -1384,7 +1361,7 @@ export class EconomyEngine {
           const ci = idx[cid];
           const qty = out * count * factor;
           st.stock[ci] += qty;
-          this._recordProduced(ci, qty, st);
+          this._recordProduced(ci, qty);
         }
 
         remainingLabor -= needLabor * factor;
@@ -1413,7 +1390,7 @@ export class EconomyEngine {
         const i = idx[cid];
         const got = Math.min(st.stock[i], qty);
         st.stock[i] -= got;
-        this._recordSold(i, got, st);
+        this._recordSold(i, got);
         return got;
       };
 
@@ -1453,7 +1430,7 @@ export class EconomyEngine {
         if (ci == null) return 0;
         const got = Math.min(st.stock[ci], qty);
         st.stock[ci] -= got;
-        this._recordSold(ci, got, st);
+        this._recordSold(ci, got);
         return got;
       };
 
@@ -1549,7 +1526,7 @@ export class EconomyEngine {
         if (d > 0 && st.stock[i] > 0) {
           const before = st.stock[i];
           st.stock[i] *= 1 - d;
-          this._recordSold(i, Math.max(0, before - st.stock[i]), st);
+          this._recordSold(i, Math.max(0, before - st.stock[i]));
         }
       }
     }
@@ -1705,7 +1682,7 @@ export class EconomyEngine {
           if (canWorldShip(st, surplus, bulk)) {
             const expPrice = this._worldExportPrice(st, cidx);
             st.stock[cidx] -= surplus;
-            this._recordSold(cidx, surplus, st);
+            this._recordSold(cidx, surplus);
             st.worldTransportUsed += surplus * bulk;
             const money = surplus * expPrice;
             st.gdpTurnover += money;
@@ -1819,16 +1796,12 @@ export class EconomyEngine {
     return { day: this.day, topGDP, scarce, cheap, popTotal };
   }
 
-  globalTradeBalance(opts = {}) {
-    const includeBlackMarket = opts.includeBlackMarket !== false;
+  globalTradeBalance() {
     const rows = COMMODITIES.map((c, i) => {
       let stock = 0;
-      for (const st of this.states) {
-        if (!includeBlackMarket && st.marketMode === "black_market") continue;
-        stock += st.stock[i];
-      }
-      const produced = includeBlackMarket ? (this.yearProduced[i] || 0) : (this.yearProducedNoBlack[i] || 0);
-      const sold = includeBlackMarket ? (this.yearSold[i] || 0) : (this.yearSoldNoBlack[i] || 0);
+      for (const st of this.states) stock += st.stock[i];
+      const produced = this.yearProduced[i] || 0;
+      const sold = this.yearSold[i] || 0;
       return {
         id: c.id,
         name: c.name,
@@ -1844,7 +1817,6 @@ export class EconomyEngine {
     return {
       day: this.day,
       periodDays: Math.min(this.day, this.yearWindow),
-      includeBlackMarket,
       rows,
     };
   }
