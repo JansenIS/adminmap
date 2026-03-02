@@ -78,7 +78,8 @@ function resolvePhotoUrl(rawUrl, name = '') {
   if (/^https?:\/\//i.test(url)) {
     return `/api/genealogy/photo/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name || '')}`;
   }
-  return url;
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(url)) return url;
+  return `/${url.replace(/^\.?\//, '')}`;
 }
 
 function shortenText(value, maxLength = 30) {
