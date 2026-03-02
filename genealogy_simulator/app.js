@@ -882,8 +882,9 @@ function layout() {
             for (let j = i + 1; j < unionParents.length; j++) {
               const a = unionParents[i];
               const b = unionParents[j];
-              // Для parent_child с parents_union_id считаем родителей участниками союза,
-              // даже если отдельное spouse-ребро не попало в текущую выборку (например, при фильтре по роду).
+              const spouseRel = (spouseRelsByPair.get(relKey(a, b)) || [])
+                .find((rel) => String(rel.union_id || '') === unionId);
+              if (!spouseRel && !(spousesById.get(a) || new Set()).has(b)) continue;
               addFamily([a, b], childId, unionId);
               assignedToUnion = true;
               return;
@@ -1250,7 +1251,7 @@ function layout() {
   componentRows.forEach((rows) => {
     [...rows.keys()].forEach((g) => {
       (rows.get(g) || []).forEach((id) => {
-        pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 300 });
+        pos.set(id, { x: xById.get(id) || 0, y: 130 + g * 360 });
       });
     });
   });
@@ -1627,10 +1628,23 @@ function render({ preserveViewportAnchor = true } = {}) {
   svg.innerHTML = '';
 
   const NODE_RADIUS = 48;
-  const SPOUSE_RAIL_OFFSET = 16;
+  // Брачно-супружеский «рельс» должен жить в узкой зоне между низом круга (y+R)
+  // и началом подписей (y+~70). Поэтому треки по Y здесь нельзя наращивать без ограничений.
+  const SPOUSE_RAIL_OFFSET = 10;
   const SIBLING_RAIL_OFFSET = 16;
-  const CONNECTOR_DROP = 58;
   const CHILD_RAIL_PADDING = 16;
+
+  // Геометрия подписей: самый нижний baseline сейчас рисуется на y+120 (см. years),
+  // плюс запас под высоту шрифта и антиалиас.
+  const LABEL_BOTTOM_OFFSET = 120;
+  const LABEL_FONT_PAD = 16;
+  const ROUTE_PAD = 12;
+  const ROUTE_TOP_OFFSET = LABEL_BOTTOM_OFFSET + LABEL_FONT_PAD + ROUTE_PAD; // ~148px ниже центра ноды
+
+  // Межсемейные треки в коридоре между поколениями.
+  const CONNECTOR_RAIL_SPACING = 14;
+  const SIBLING_RAIL_SPACING = 16;
+  const MIN_CONN_SIB_GAP = 24;
   const generationById = computeGenerations(state.characters, state.relationships);
 
   const assignIntervalTracks = (intervals, eps = 6) => {
@@ -1709,7 +1723,6 @@ function render({ preserveViewportAnchor = true } = {}) {
   );
   const groupedParentChild = new Set();
   const families = new Map();
-  const parentChildEdgeKey = (rel) => `${rel.source_id}->${rel.target_id}:u:${String(rel.parents_union_id || '').trim()}`;
 
   const createPolyline = (points, className) => {
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
@@ -1729,12 +1742,8 @@ function render({ preserveViewportAnchor = true } = {}) {
       children: [...new Set(family.children)],
     });
     families.get(key).children.forEach((childId) => {
-      const parentAEdge = state.relationships.find((rel) => rel.type === 'parent_child' && rel.source_id === family.parentA && rel.target_id === childId);
-      if (parentAEdge) groupedParentChild.add(parentChildEdgeKey(parentAEdge));
-      if (family.parentB) {
-        const parentBEdge = state.relationships.find((rel) => rel.type === 'parent_child' && rel.source_id === family.parentB && rel.target_id === childId);
-        if (parentBEdge) groupedParentChild.add(parentChildEdgeKey(parentBEdge));
-      }
+      groupedParentChild.add(`${family.parentA}->${childId}`);
+      if (family.parentB) groupedParentChild.add(`${family.parentB}->${childId}`);
     });
   });
 
@@ -1753,57 +1762,13 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     parentsByChild.forEach((parents, childId) => {
       if (parents.length < 2) return;
-      const parentEdges = parentChildEdges.filter((edge) => edge.target_id === childId);
-      const parentsByUnion = new Map();
-
-      parentEdges.forEach((edge) => {
-        const unionId = String(edge.parents_union_id || '').trim();
-        if (!unionId) return;
-        if (!parentsByUnion.has(unionId)) parentsByUnion.set(unionId, new Set());
-        parentsByUnion.get(unionId).add(edge.source_id);
-      });
-
-      if (parentsByUnion.size) {
-        parentsByUnion.forEach((unionParentsSet, unionId) => {
-          const unionParents = [...unionParentsSet];
-          if (unionParents.length < 2) return;
-          for (let i = 0; i < unionParents.length; i++) {
-            for (let j = i + 1; j < unionParents.length; j++) {
-              const leftParent = unionParents[i];
-              const rightParent = unionParents[j];
-              const pairKey = `${relKey(leftParent, rightParent)}:${unionId}`;
-              if (!families.has(pairKey)) {
-                const [parentA, parentB] = [leftParent, rightParent].sort((left, right) => {
-                  const a = normalizeId(left);
-                  const b = normalizeId(right);
-                  if (typeof a === 'number' && typeof b === 'number') return a - b;
-                  return String(a).localeCompare(String(b));
-                });
-                families.set(pairKey, {
-                  parentA,
-                  parentB,
-                  children: [],
-                });
-              }
-              families.get(pairKey).children.push(childId);
-              parentEdges
-                .filter((edge) => edge.target_id === childId && (edge.source_id === leftParent || edge.source_id === rightParent) && String(edge.parents_union_id || '').trim() === unionId)
-                .forEach((edge) => groupedParentChild.add(parentChildEdgeKey(edge)));
-              return;
-            }
-          }
-        });
-      }
-
       for (let i = 0; i < parents.length; i++) {
         for (let j = i + 1; j < parents.length; j++) {
-          const leftParent = parents[i];
-          const rightParent = parents[j];
-          const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && ((rel.source_id === leftParent && rel.target_id === rightParent) || (rel.source_id === rightParent && rel.target_id === leftParent)));
+          const matchingSpouse = state.relationships.find((rel) => rel.type === 'spouses' && ((rel.source_id === parents[i] && rel.target_id === parents[j]) || (rel.source_id === parents[j] && rel.target_id === parents[i])));
           if (!matchingSpouse) continue;
-          const pairKey = `${relKey(leftParent, rightParent)}:${String(matchingSpouse.union_id || '')}`;
+          const pairKey = `${relKey(parents[i], parents[j])}:${String(matchingSpouse.union_id || '')}`;
           if (!families.has(pairKey)) {
-            const [parentA, parentB] = [leftParent, rightParent].sort((left, right) => {
+            const [parentA, parentB] = [parents[i], parents[j]].sort((left, right) => {
               const a = normalizeId(left);
               const b = normalizeId(right);
               if (typeof a === 'number' && typeof b === 'number') return a - b;
@@ -1816,9 +1781,8 @@ function render({ preserveViewportAnchor = true } = {}) {
             });
           }
           families.get(pairKey).children.push(childId);
-          parentEdges
-            .filter((edge) => edge.target_id === childId && (edge.source_id === leftParent || edge.source_id === rightParent))
-            .forEach((edge) => groupedParentChild.add(parentChildEdgeKey(edge)));
+          groupedParentChild.add(`${parents[i]}->${childId}`);
+          groupedParentChild.add(`${parents[j]}->${childId}`);
           return;
         }
       }
@@ -1826,7 +1790,7 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     // Однородительские связи, не вошедшие в «семейные юниты», тоже рисуем через общий sibling-rail.
     parentChildEdges.forEach((r) => {
-      if (groupedParentChild.has(parentChildEdgeKey(r))) return;
+      if (groupedParentChild.has(`${r.source_id}->${r.target_id}`)) return;
       const key = `single:${r.source_id}`;
       if (!families.has(key)) {
         families.set(key, {
@@ -1836,12 +1800,12 @@ function render({ preserveViewportAnchor = true } = {}) {
         });
       }
       families.get(key).children.push(r.target_id);
-      groupedParentChild.add(parentChildEdgeKey(r));
+      groupedParentChild.add(`${r.source_id}->${r.target_id}`);
     });
   }
 
   state.relationships.forEach(r => {
-    if (r.type === 'parent_child' && groupedParentChild.has(parentChildEdgeKey(r))) {
+    if (r.type === 'parent_child' && groupedParentChild.has(`${r.source_id}->${r.target_id}`)) {
       return;
     }
 
@@ -1852,7 +1816,7 @@ function render({ preserveViewportAnchor = true } = {}) {
       const minX = Math.min(a.x, b.x);
       const maxX = Math.max(a.x, b.x);
       const pairIndex = spouseLaneIndex.get(`${relKey(r.source_id, r.target_id)}:${String(r.union_id || '')}`) || 0;
-      const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET + pairIndex * 12;
+      const laneY = Math.max(a.y, b.y) + NODE_RADIUS + SPOUSE_RAIL_OFFSET + Math.min(pairIndex, 1) * 8;
       createPolyline([
         [minX, a.y + NODE_RADIUS],
         [minX, laneY],
@@ -1935,24 +1899,37 @@ function render({ preserveViewportAnchor = true } = {}) {
 
     if (!kids.length) return;
 
-    const parentLowY = p2 ? Math.max(p1.y, p2.y) : p1.y;
+        const parentLowY = p2 ? Math.max(p1.y, p2.y) : p1.y;
     const spouseLaneY = parentLowY + NODE_RADIUS + SPOUSE_RAIL_OFFSET;
     const marriageMidX = p2 ? (p1.x + p2.x) / 2 : p1.x;
+    // Для одиночного родителя уводим «порт» вправо, чтобы вертикаль не проходила через подписи.
+    const portX = p2 ? marriageMidX : (p1.x + NODE_RADIUS + 32);
+    const parentBottomY = parentLowY + NODE_RADIUS;
     const minChildY = Math.min(...kids.map(k => k.pos.y));
     const minChildTopY = Math.min(...kids.map(k => k.pos.y - NODE_RADIUS));
     const siblingMidX = kids[Math.floor(kids.length / 2)].pos.x;
+
+    // Коридор маршрутизации между поколениями: строго ниже подписей родителя и выше верхней точки круга ребёнка.
+    const corridorTop = parentLowY + ROUTE_TOP_OFFSET;
+    const corridorBottom = minChildTopY - CHILD_RAIL_PADDING;
 
     familyLayouts.push({
       key: familyKey,
       kids,
       spouseLaneY,
       marriageMidX,
+      portX,
+      parentBottomY,
+      parentAX: p1.x,
+      parentAY: p1.y,
+      hasCouple: !!p2,
       minChildY,
       minChildTopY,
       siblingMidX,
+      corridorTop,
+      corridorBottom,
       railStartX: Math.min(...kids.map(({ pos }) => pos.x)),
       railEndX: Math.max(...kids.map(({ pos }) => pos.x)),
-      parentLabelSafeY: parentLowY + NODE_RADIUS + 74,
       parentGeneration: generationById.get(family.parentA) ?? 0,
       childGeneration: generationById.get(kids[0].id) ?? (generationById.get(family.parentA) ?? 0) + 1,
     });
@@ -1962,26 +1939,41 @@ function render({ preserveViewportAnchor = true } = {}) {
     familyLayouts.map(fl => ({ id: `s:${fl.key}`, l: fl.railStartX, r: fl.railEndX, generation: fl.childGeneration }))
   );
   const connectorRailsTrack = trackByGeneration(
-    familyLayouts.map(fl => ({ id: `c:${fl.key}`, l: fl.marriageMidX, r: fl.siblingMidX, generation: fl.parentGeneration }))
+    familyLayouts.map(fl => ({ id: `c:${fl.key}`, l: fl.portX, r: fl.siblingMidX, generation: fl.parentGeneration }))
   );
 
   familyLayouts.forEach((fl) => {
     const connTrack = connectorRailsTrack.get(`c:${fl.key}`) || 0;
     const siblingTrack = siblingRailsTrack.get(`s:${fl.key}`) || 0;
-    const connYBase = Math.min(fl.spouseLaneY + CONNECTOR_DROP, fl.minChildTopY - CHILD_RAIL_PADDING - 20);
-    const minReadableRailY = (fl.parentLabelSafeY || fl.spouseLaneY) + 32;
-    const siblingRailBase = Math.min(
-      Math.max(connYBase + 28, fl.minChildY - 96, minReadableRailY),
-      fl.minChildTopY - CHILD_RAIL_PADDING
-    );
-    const siblingRailY = siblingRailBase - siblingTrack * 14;
-    const connYFloor = (fl.parentLabelSafeY || fl.spouseLaneY) + 4;
-    const connYCeil = siblingRailY - 24;
-    const connY = Math.max(connYFloor, Math.min(connYBase + connTrack * 12, connYCeil));
+
+    // Коридор между поколениями: строго ниже подписей родителя и выше круга ребёнка.
+    const corridorTop = fl.corridorTop;
+    const corridorBottom = fl.corridorBottom;
+
+    // Сиблинговый рельс — ближе к детям (низ коридора), коннекторный — ближе к родителю (верх коридора).
+    let siblingRailY = corridorBottom - siblingTrack * SIBLING_RAIL_SPACING;
+    let connY = corridorTop + connTrack * CONNECTOR_RAIL_SPACING;
+
+    // Развести рельсы по Y.
+    if (connY > siblingRailY - MIN_CONN_SIB_GAP) {
+      connY = siblingRailY - MIN_CONN_SIB_GAP;
+    }
+    connY = Math.max(corridorTop, connY);
+    siblingRailY = Math.min(corridorBottom, Math.max(connY + MIN_CONN_SIB_GAP, siblingRailY));
+
+    // Для одиночного родителя — «порт» вынесен вправо, чтобы вертикаль не резала подписи.
+    if (!fl.hasCouple && Math.abs(fl.portX - fl.parentAX) > 1) {
+      createPolyline([
+        [fl.parentAX, fl.parentBottomY],
+        [fl.portX, fl.parentBottomY],
+      ], 'edge-parent');
+    }
+
+    const startY = fl.hasCouple ? fl.spouseLaneY : fl.parentBottomY;
 
     createPolyline([
-      [fl.marriageMidX, fl.spouseLaneY],
-      [fl.marriageMidX, connY],
+      [fl.portX, startY],
+      [fl.portX, connY],
       [fl.siblingMidX, connY],
       [fl.siblingMidX, siblingRailY],
     ], 'edge-parent');
