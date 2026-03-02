@@ -878,7 +878,7 @@ export class EconomyEngine {
   _collectTransitTax(fromIdx, toIdx, movedQty, bulk) {
     if (!Number.isFinite(movedQty) || movedQty <= 0 || !Number.isFinite(bulk) || bulk <= 0) return;
     const route = this._shortestPathNodes(fromIdx, toIdx);
-    if (!route || route.length <= 2) return;
+    if (!route || route.length <= 1) return;
 
     const caravanLoad = movedQty * bulk;
     const d = this.dist(fromIdx, toIdx);
@@ -887,11 +887,30 @@ export class EconomyEngine {
     const totalFee = caravanLoad * d * this.fiscal.transitFeePerBulkDist;
     if (!Number.isFinite(totalFee) || totalFee <= 0) return;
 
-    const mids = route.length - 2;
-    const share = totalFee / mids;
+    const recipients = [];
+
     for (let r = 1; r < route.length - 1; r++) {
-      const st = this.states[route[r]];
+      const idx = route[r];
+      const st = this.states[idx];
       if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
+      recipients.push(idx);
+    }
+
+    // Для прямых соседей (или если транзитные узлы выключены) направляем
+    // дорожный сбор сторонам сделки, чтобы казна не теряла этот канал дохода.
+    if (!recipients.length) {
+      for (const idx of [fromIdx, toIdx]) {
+        const st = this.states[idx];
+        if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
+        recipients.push(idx);
+      }
+    }
+
+    if (!recipients.length) return;
+
+    const share = totalFee / recipients.length;
+    for (const idx of recipients) {
+      const st = this.states[idx];
       st.treasury += share;
       st.treasuryDaily += share;
       st.treasuryTransitDaily += share;
