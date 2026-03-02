@@ -66,6 +66,34 @@ async function fetchAdminProvincesFromApi(apiBase) {
   return byPid;
 }
 
+async function fetchAdminRealmsFromApi(apiBase) {
+  if (!apiBase) return null;
+  const normalizedBase = apiBase.replace(/\/+$/, "");
+  const realmTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+  const byType = { kingdoms: {}, great_houses: {}, minor_houses: {}, free_cities: {} };
+
+  for (const type of realmTypes) {
+    const url = `${normalizedBase}/api/realms/?type=${encodeURIComponent(type)}&profile=compact`;
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error(`api_realms_${type}_http_${res.status}`);
+
+    const payload = await res.json();
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const bucket = {};
+    for (const item of items) {
+      const id = String(item?.id || "").trim();
+      if (!id) continue;
+      bucket[id] = {
+        name: typeof item?.name === "string" ? item.name : id,
+        color: typeof item?.color === "string" ? item.color : "",
+      };
+    }
+    byType[type] = bucket;
+  }
+
+  return byType;
+}
+
 function loadProvinces(filePath) {
   const raw = fs.readFileSync(filePath, "utf-8");
   const data = JSON.parse(raw);
@@ -222,31 +250,42 @@ try {
 
 const adminMapProvinceMeta = loadJsonSafe(adminMapProvincesPath, { provinces: [] });
 let adminStateByPid = new Map();
+let adminRealmsByType = { kingdoms: {}, great_houses: {}, minor_houses: {}, free_cities: {} };
 let adminStateSource = "none";
 
 async function bootstrapAdminProvinceState() {
+  let loadedFromApi = false;
   if (adminApiBase) {
     try {
       const fromApi = await fetchAdminProvincesFromApi(adminApiBase);
-      if (fromApi && fromApi.size > 0) {
+      const realmsFromApi = await fetchAdminRealmsFromApi(adminApiBase);
+      if (fromApi && fromApi.size > 0 && realmsFromApi) {
         adminStateByPid = fromApi;
+        adminRealmsByType = realmsFromApi;
         adminStateSource = `api:${adminApiBase}`;
-        return;
+        loadedFromApi = true;
       }
     } catch (e) {
       console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(e?.message || e)}; fallback to ${adminMapStatePath}`);
     }
   }
 
+  if (loadedFromApi) return;
+
   const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
   adminStateByPid = new Map(
     Object.values(adminMapState.provinces || {}).map((p) => [Number(p.pid), p])
   );
+  adminRealmsByType = {
+    kingdoms: adminMapState?.kingdoms && typeof adminMapState.kingdoms === "object" ? adminMapState.kingdoms : {},
+    great_houses: adminMapState?.great_houses && typeof adminMapState.great_houses === "object" ? adminMapState.great_houses : {},
+    minor_houses: adminMapState?.minor_houses && typeof adminMapState.minor_houses === "object" ? adminMapState.minor_houses : {},
+    free_cities: adminMapState?.free_cities && typeof adminMapState.free_cities === "object" ? adminMapState.free_cities : {},
+  };
   adminStateSource = `file:${adminMapStatePath}`;
 }
 
 await bootstrapAdminProvinceState();
-const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
 
 for (const p of provinces) {
   const a = adminStateByPid.get(p.pid);
@@ -346,8 +385,8 @@ applySimAdminOverridesToEngine();
 
 
 
-function collectRealmItems(adminMapState, type) {
-  const bucket = adminMapState && typeof adminMapState === "object" ? adminMapState[type] : null;
+function collectRealmItems(realmsByType, type) {
+  const bucket = realmsByType && typeof realmsByType === "object" ? realmsByType[type] : null;
   if (!bucket || typeof bucket !== "object") return [];
   return Object.entries(bucket)
     .filter(([, realm]) => realm && typeof realm === "object")
@@ -436,10 +475,10 @@ const server = http.createServer((req, res) => {
           },
           provinces: rows,
           realms: {
-            kingdoms: collectRealmItems(adminMapState, "kingdoms"),
-            great_houses: collectRealmItems(adminMapState, "great_houses"),
-            minor_houses: collectRealmItems(adminMapState, "minor_houses"),
-            free_cities: collectRealmItems(adminMapState, "free_cities"),
+            kingdoms: collectRealmItems(adminRealmsByType, "kingdoms"),
+            great_houses: collectRealmItems(adminRealmsByType, "great_houses"),
+            minor_houses: collectRealmItems(adminRealmsByType, "minor_houses"),
+            free_cities: collectRealmItems(adminRealmsByType, "free_cities"),
           },
           buildingCatalog: Object.entries(BUILDINGS).map(([type, def]) => ({
             type,
