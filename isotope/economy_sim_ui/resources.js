@@ -228,7 +228,7 @@ export const BUILDINGS = {
     labor: 120,
     cap: 1.0,
     input: { filter_substrate: 6, villadium: 40 },
-    output: { villadium_filter_personal: 28, villadium_filter_ind: 3.5 },
+    output: { villadium_filter_personal: 52, villadium_filter_ind: 5.2 },
   },
   electrolyte: {
     name: "Мануфактура по производству электролита",
@@ -279,14 +279,14 @@ export const BUILDINGS = {
     labor: 60,
     cap: 1.0,
     input: { mutabryukva: 58, distilled_water: 14 },
-    output: { bread: 145 },
+    output: { bread: 210 },
   },
   canning: {
     name: "Консервные цеха",
     labor: 70,
     cap: 1.0,
     input: { meat: 52, steel: 0.8 },
-    output: { meat_cans: 82 },
+    output: { meat_cans: 120 },
   },
 
   fertilizer_plant: {
@@ -302,7 +302,7 @@ water_distillery: {
   labor: 55,
   cap: 1.0,
   input: { wood_raw: 1.5 },
-  output: { distilled_water: 110 },
+  output: { distilled_water: 180 },
 },
 
 chem_filter_substrate: {
@@ -445,7 +445,7 @@ wheel_works: {
     labor: 70,
     cap: 1.0,
     input: { cloth_peasant: 24, leather_tanned: 4 },
-    output: { clothes_peasant: 40 },
+    output: { clothes_peasant: 64 },
   },
   line_clothes_city: {
     name: "Линия городской одежды",

@@ -48,18 +48,18 @@ const EXPORT_BUFFER_MUL = 1.6; // сколько сверх target можно д
 const RESERVE_MUL = 0.55; // сколько от target держим как "непродаваемое" (минимум безопасности)
 
 const POP_NEEDS = {
-  bread: 0.00026,
-  mutabryukva: 0.00034,
-  meatCans: 0.00008,
-  meat: 0.00003,
-  water: 0.00042,
+  bread: 0.0002,
+  mutabryukva: 0.00024,
+  meatCans: 0.00005,
+  meat: 0.00002,
+  water: 0.0003,
   // Фильтры были заметно перетянуты (массовый структурный дефицит каждый тик).
   // Делаем более реалистичную длительность использования персонального фильтра.
-  filterBase: 0.05,
+  filterBase: 0.04,
   filterPerPopDiv: 10000,
-  filterPerPopMul: 0.28,
-  clothes: 1 / 12000,
-  clothFallback: 1 / 16000,
+  filterPerPopMul: 0.2,
+  clothes: 1 / 18000,
+  clothFallback: 1 / 22000,
 };
 
 export class EconomyEngine {
@@ -990,6 +990,7 @@ export class EconomyEngine {
 
     // Критические узлы цепочек (особенно high-tier компоненты/продукты)
     const critical = [
+      "farm_mutabryukva", "poultry_mutachicken", "bakery", "water_distillery", "textile", "tannery", "line_clothes_peasant", "canning",
       "smelter", "adv_smelter", "stamping", "smithy", "adv_smithy",
       "plastics", "rubber_works", "fertilizer_plant", "electrolyte", "chem_filter_substrate", "chem_electrolyte_chems",
       "electronics_basic", "electronics_adv", "microfab_mcu", "alloy_villadium", "life_core_fab", "life_support",
@@ -1011,7 +1012,6 @@ export class EconomyEngine {
     // Любые прочие типы зданий, если полностью отсутствуют
     for (const t of Object.keys(BUILDINGS)) {
       if (haveBuilding.has(t)) continue;
-      if (t.startsWith("farm_") || t.startsWith("poultry_") || t === "bakery" || t === "water_distillery") continue;
       const st = hubStates[rr % hubStates.length];
       rr++;
       add(st, t, 1);
