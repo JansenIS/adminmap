@@ -469,6 +469,16 @@
   const VB_W = 1000;
   const VB_H = 1200;
 
+  const COA_ASSET_BASE = (() => {
+    const { origin, pathname } = window.location;
+    if (pathname.endsWith("/")) return `${origin}${pathname}`;
+    const tail = pathname.split("/").pop() || "";
+    if (!tail.includes(".")) return `${origin}${pathname}/`;
+    return `${origin}${pathname.slice(0, pathname.lastIndexOf("/") + 1)}`;
+  })();
+
+  const resolveAssetUrl = (relativePath) => new URL(relativePath, COA_ASSET_BASE).toString();
+
   // ====== Catalog data ======
   async function loadJSON(path) {
     const res = await fetch(path);
@@ -513,14 +523,14 @@
   }
 
   const [shieldShapes, figureCatalog, heraldicFigureCatalog] = await Promise.all([
-    loadJSON("./shield_shapes.json"),
-    loadJSON("./figures.json"),
-    loadJSON("./heraldic_figures.json")
+    loadJSON(resolveAssetUrl("shield_shapes.json")),
+    loadJSON(resolveAssetUrl("figures.json")),
+    loadJSON(resolveAssetUrl("heraldic_figures.json"))
   ]);
 
   async function discoverFigureFilesFromDirectory() {
     const cacheBust = Date.now();
-    const candidates = ["./figures/", "./figures", "./figures/index.html", "./figures/index.json"];
+    const candidates = ["figures/", "figures", "figures/index.html", "figures/index.json"];
 
     const normalizeFigurePath = (href) => {
       if (!href) return null;
@@ -539,7 +549,7 @@
         filename = filePart;
       }
       filename = filename.replace(/&#39;/g, "'").replace(/&apos;/g, "'");
-      return `./figures/${filename}`;
+      return resolveAssetUrl(`figures/${filename}`);
     };
 
     const extractSvgPathsFromText = (text) => {
@@ -587,7 +597,8 @@
     };
 
     for (const url of candidates) {
-      const withBust = url.includes("?") ? `${url}&_=${cacheBust}` : `${url}?_=${cacheBust}`;
+      const resolved = resolveAssetUrl(url);
+      const withBust = resolved.includes("?") ? `${resolved}&_=${cacheBust}` : `${resolved}?_=${cacheBust}`;
       try {
         const res = await fetch(withBust, { cache: "no-store" });
         if (!res.ok) continue;
@@ -624,8 +635,14 @@
   }
 
   const normalizePath = (path) => {
-    const normalized = String(path || "").trim().toLowerCase();
-    return normalized.startsWith("./") ? normalized : `./${normalized.replace(/^\/+/, "")}`;
+    const normalized = String(path || "").trim();
+    if (!normalized) return "";
+    if (/^data:/i.test(normalized)) return normalized.toLowerCase();
+    try {
+      return resolveAssetUrl(normalized).toLowerCase();
+    } catch (_) {
+      return normalized.toLowerCase();
+    }
   };
 
   const uploadedFigureCatalog = [];
