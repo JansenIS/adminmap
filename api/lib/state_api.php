@@ -205,6 +205,7 @@ function api_build_provinces_index(array $state, array $refsByOwner = []): array
       'free_city_id' => (string)($pd['free_city_id'] ?? ''),
       'fill_rgba' => (is_array($pd['fill_rgba'] ?? null) && count($pd['fill_rgba']) === 4) ? array_values($pd['fill_rgba']) : null,
       'province_card_image' => (string)($pd['province_card_image'] ?? ''),
+      'wiki_description' => (string)($pd['wiki_description'] ?? ''),
     ];
 
     if (isset($pd['emblem_asset_id']) && is_string($pd['emblem_asset_id']) && trim($pd['emblem_asset_id']) !== '') {
@@ -293,7 +294,10 @@ function api_get_or_build_provinces_index(?array $state = null): array {
     if (is_string($raw) && trim($raw) !== '') {
       $decoded = json_decode($raw, true);
       if (is_array($decoded) && is_array($decoded['items'] ?? null)) {
-        return $decoded;
+        $first = $decoded['items'][0] ?? null;
+        if (!is_array($first) || array_key_exists('wiki_description', $first)) {
+          return $decoded;
+        }
       }
     }
   }
