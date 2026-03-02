@@ -314,7 +314,7 @@ const args = parseArgs(process.argv);
 const dataFile = args._[0] || path.resolve(__dirname, "../province_routing_data.json");
 const port = Number.parseInt(args.port || "8787", 10);
 const adminApiBase = String(args.adminApiBase || process.env.ADMINMAP_API_BASE || "").trim();
-const requireAdminApi = parseBoolFlag(args.requireAdminApi ?? process.env.ADMINMAP_REQUIRE_API, true);
+const requireAdminApi = parseBoolFlag(args.requireAdminApi ?? process.env.ADMINMAP_REQUIRE_API, false);
 
 let baseConfig = {
   seed: Number.parseInt(args.seed || "1", 10),

@@ -121,8 +121,8 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 Если нужен фоновый запуск после перезагрузки, добавь systemd unit для `node server.js ...`.
 
-По умолчанию сервер стартует в строгом режиме backend-only (`requireAdminApi=true`).
-Чтобы локально разрешить fallback на `provinces.json`, явно укажи `--requireAdminApi false` (или `ADMINMAP_REQUIRE_API=false`).
+По умолчанию сервер стартует в режиме fallback на локальный `provinces.json` (`requireAdminApi=false`).
+Для строгого backend-only режима явно укажи `--requireAdminApi true` (или `ADMINMAP_REQUIRE_API=true`).
 
 Источник провинций для симулятора:
 - при наличии `--adminApiBase` (или `ADMINMAP_API_BASE`) сервер читает провинции и реалмы из backend API (`<base>/api/provinces`, `<base>/api/realms`),
