@@ -66,6 +66,8 @@ export class EconomyEngine {
  *   baseExpensePerPop?: number,
  *   infraExpenseMul?: number,
  *   buildingExpenseMul?: number,
+ *   feudalExpenseMul?: number,
+ *   cityCitizenTaxPerPop?: number,
  *   expenseVolatility?: number
  *   expenseScale?: number
  * }} cfg
@@ -101,6 +103,8 @@ export class EconomyEngine {
       baseExpensePerPop: clamp((cfg.baseExpensePerPop ?? 0.0013) * this.moneyScale * expenseScale, 0.0, 0.2),
       infraExpenseMul: clamp((cfg.infraExpenseMul ?? 0.42) * this.moneyScale * expenseScale, 0.0, 4.0),
       buildingExpenseMul: clamp((cfg.buildingExpenseMul ?? 0.0024) * this.moneyScale * expenseScale, 0.0, 0.1),
+      feudalExpenseMul: clamp(cfg.feudalExpenseMul ?? 1.2, 1.0, 2.5),
+      cityCitizenTaxPerPop: clamp((cfg.cityCitizenTaxPerPop ?? 0.0011) * this.moneyScale * expenseScale, 0.0, 0.2),
       expenseVolatility: clamp(cfg.expenseVolatility ?? 0.18, 0.0, 1.0),
     };
 
@@ -870,6 +874,16 @@ export class EconomyEngine {
         st.treasuryNetDaily = 0;
         continue;
       }
+
+      if (st.isCity) {
+        const citizenTax = Math.max(0, st.pop * this.fiscal.cityCitizenTaxPerPop * clamp(0.8 + st.infra * 0.35, 0.8, 1.2));
+        if (citizenTax > 0) {
+          st.treasury += citizenTax;
+          st.treasuryDaily += citizenTax;
+          st.treasuryTradeTaxDaily += citizenTax;
+        }
+      }
+
       const popCost = st.pop * this.fiscal.baseExpensePerPop;
       const infraCost = st.pop * Math.max(0, st.infra) * this.fiscal.infraExpenseMul * 0.001;
 
@@ -884,8 +898,9 @@ export class EconomyEngine {
       const cycle = 1 + Math.sin((this.day + st.idx * 17) / 31) * (this.fiscal.expenseVolatility * 0.45);
       const noise = 1 + this.rng.nextNorm() * (this.fiscal.expenseVolatility * 0.18);
       const factor = clamp(cycle * noise, 0.72, 1.35);
+      const feudalExpenseMul = st.isCity ? 1 : this.fiscal.feudalExpenseMul;
 
-      const expense = Math.max(0, (popCost + infraCost + buildingCost) * factor);
+      const expense = Math.max(0, (popCost + infraCost + buildingCost) * factor * feudalExpenseMul);
       st.treasury -= expense;
       st.treasuryDaily -= expense;
       st.treasuryExpenseDaily += expense;
