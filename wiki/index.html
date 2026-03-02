@@ -37,7 +37,9 @@
     .topnav a:hover { text-decoration:underline; }
     pre { white-space:pre-wrap; word-break:break-word; font-size:12px; color:#dbe7f5; }
     .hero { margin-top:12px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#0b0f14; }
-    .hero img { width:100%; max-height:320px; object-fit:cover; display:block; }
+    .hero img { width:100%; max-height:520px; object-fit:contain; display:block; }
+    .character-photo { margin-top:12px; width:min(260px,100%); aspect-ratio:1/1; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; }
+    .character-photo img { width:100%; height:100%; object-fit:cover; display:block; }
     .lineage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
     .lineage-item { border:1px solid #223041; border-radius:10px; padding:8px; background:#0b0f14; display:flex; gap:8px; align-items:center; }
     .lineage-item img { width:44px; height:44px; object-fit:contain; border-radius:6px; border:1px solid #2b3f56; background:#09101a; }
@@ -93,6 +95,16 @@ function resolveStaticAssetUrl(rawUrl) {
   return url;
 }
 
+function resolveCharacterPhotoUrl(rawUrl, name) {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  if (/^data:image\//i.test(url) || /^blob:/i.test(url) || /^\/api\/genealogy\/photo\//.test(url)) return url;
+  if (/^https?:\/\//i.test(url)) {
+    return `/api/genealogy/photo/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(String(name || ''))}`;
+  }
+  return resolveStaticAssetUrl(url);
+}
+
 function emblemTag(svg, alt) {
   const src = String(svg || '').trim();
   if (!src) return '';
@@ -105,7 +117,9 @@ function renderProjectDetails(item) {
   if (kind === 'character' && item.character) {
     const c = item.character;
     const relatives = Array.isArray(c.closest_relatives) ? c.closest_relatives : [];
+    const photoUrl = resolveCharacterPhotoUrl(c.photo_url, c.name || item.title || '');
     return `
+      ${photoUrl ? `<div class="character-photo"><img src="${escapeHtml(photoUrl)}" alt="Фото персонажа" loading="lazy" /></div>` : ''}
       <div class="section">
         <h3>Персонаж</h3>
         <div class="kv">
