@@ -93,12 +93,17 @@ async function fetchAdminProvincesFromApi(apiBase) {
       if (!Number.isFinite(pid) || pid <= 0) continue;
       byPid.set(pid, {
         pid,
+        key: Number(row?.key || 0),
         name: typeof row?.name === "string" ? row.name : "",
         terrain: typeof row?.terrain === "string" ? row.terrain : "",
+        centroid: Array.isArray(row?.centroid) ? row.centroid : [0, 0],
+        bbox: Array.isArray(row?.bbox) ? row.bbox : null,
+        area_px: Number(row?.area_px || 0),
         kingdom_id: normalizeRealmId(row?.kingdom_id),
         great_house_id: normalizeRealmId(row?.great_house_id),
         minor_house_id: normalizeRealmId(row?.minor_house_id),
         free_city_id: normalizeRealmId(row?.free_city_id),
+        marketMode: typeof row?.marketMode === "string" ? row.marketMode : "",
       });
     }
 
@@ -685,21 +690,38 @@ const server = http.createServer((req, res) => {
         const provincesMeta = Array.isArray(adminMapProvinceMeta.provinces)
           ? adminMapProvinceMeta.provinces
           : [];
+        const provincesMetaByPid = new Map(
+          provincesMeta
+            .map((meta) => [Number(meta?.pid), meta])
+            .filter(([pid]) => Number.isFinite(pid) && pid > 0),
+        );
+        const allPids = new Set();
+        for (const p of provinces) allPids.add(Number(p.pid));
+        for (const pid of provincesMetaByPid.keys()) allPids.add(pid);
+        for (const pid of adminStateByPid.keys()) allPids.add(pid);
 
-        const rows = provincesMeta.map((meta) => {
-          const pid = Number(meta.pid);
+        const rows = [...allPids]
+          .filter((pid) => Number.isFinite(pid) && pid > 0)
+          .sort((a, b) => a - b)
+          .map((pid) => {
+          const meta = provincesMetaByPid.get(pid) || {};
+          const adminMeta = adminStateByPid.get(pid) || {};
           const idx = engine.pidToIndex.get(pid);
           const p = typeof idx === "number" ? provinces[idx] : null;
           const st = typeof idx === "number" ? engine.states[idx] : null;
           const stats = computeProvinceAdminStats(pid);
           return {
             pid,
-            key: Number(meta.key),
-            name: p?.name || meta.name || `PID ${pid}`,
-            terrain: p?.terrain || "",
-            centroid: Array.isArray(meta.centroid) ? meta.centroid : [0, 0],
-            bbox: Array.isArray(meta.bbox) ? meta.bbox : null,
-            area_px: Number(meta.area_px || 0),
+            key: Number(adminMeta.key || meta.key || 0),
+            name: p?.name || adminMeta.name || meta.name || `PID ${pid}`,
+            terrain: p?.terrain || adminMeta.terrain || "",
+            centroid: Array.isArray(adminMeta.centroid)
+              ? adminMeta.centroid
+              : (Array.isArray(meta.centroid) ? meta.centroid : [0, 0]),
+            bbox: Array.isArray(adminMeta.bbox)
+              ? adminMeta.bbox
+              : (Array.isArray(meta.bbox) ? meta.bbox : null),
+            area_px: Number(adminMeta.area_px || meta.area_px || 0),
             population: stats?.pop ?? st?.pop ?? 0,
             infra: stats?.infra ?? st?.infra ?? 0,
             gdpTurnover: st?.gdpYear ?? 0,
