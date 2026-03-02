@@ -10,7 +10,7 @@
   const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
   const modalProvinceMapImage = el("modalProvinceMapImage"); const modalKingdomHerald = el("modalKingdomHerald"); const modalKingdomName = el("modalKingdomName");
   const modalGreatHouseHerald = el("modalGreatHouseHerald"); const modalGreatHouseName = el("modalGreatHouseName"); const modalMinorHouseHerald = el("modalMinorHouseHerald");
-  const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle");
+  const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle"); const modalProvinceDescription = el("modalProvinceDescription");
   const personModal = el("personModal"); const personModalClose = el("personModalClose"); const personModalPhoto = el("personModalPhoto"); const personModalName = el("personModalName"); const personModalSuzerain = el("personModalSuzerain"); const personModalSeniors = el("personModalSeniors"); const personModalVassals = el("personModalVassals"); const personModalBio = el("personModalBio");
   const DEFAULT_STATE_URL = "data/map_state.json";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
@@ -571,6 +571,10 @@
     if (!pd) return;
 
     modalProvinceTitle.textContent = (pd.name || m.name || "Провинция").toUpperCase();
+    const wikiDescription = String(pd.wiki_description || "").trim();
+    if (modalProvinceDescription) {
+      modalProvinceDescription.textContent = wikiDescription || "Описание провинции пока не заполнено.";
+    }
 
     const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
     const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
