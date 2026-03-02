@@ -37,6 +37,11 @@ function parseBoolFlag(value, defaultValue = false) {
   return defaultValue;
 }
 
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function normalizeRealmId(value) {
   if (value === null || value === undefined) return "";
   const id = String(value).trim();
@@ -343,22 +348,37 @@ let adminStateSource = "none";
 async function bootstrapAdminProvinceState() {
   let loadedFromApi = false;
   if (adminApiBase) {
-    try {
-      const fromApi = await fetchAdminProvincesFromApi(adminApiBase);
-      const realmsFromApi = await fetchAdminRealmsFromApi(adminApiBase);
-      if (fromApi && fromApi.size > 0 && realmsFromApi) {
-        adminStateByPid = fromApi;
-        adminRealmsByType = realmsFromApi;
-        adminStateSource = `api:${adminApiBase}`;
-        loadedFromApi = true;
-      } else if (requireAdminApi) {
-        throw new Error("api_empty_payload");
+    const bootstrapAttempts = Math.max(1, Number.parseInt(String(process.env.ADMINMAP_API_BOOTSTRAP_ATTEMPTS || "15"), 10) || 15);
+    const bootstrapDelayMs = Math.max(100, Number.parseInt(String(process.env.ADMINMAP_API_BOOTSTRAP_DELAY_MS || "1000"), 10) || 1000);
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= bootstrapAttempts; attempt++) {
+      try {
+        const fromApi = await fetchAdminProvincesFromApi(adminApiBase);
+        const realmsFromApi = await fetchAdminRealmsFromApi(adminApiBase);
+        if (fromApi && fromApi.size > 0 && realmsFromApi) {
+          adminStateByPid = fromApi;
+          adminRealmsByType = realmsFromApi;
+          adminStateSource = `api:${adminApiBase}`;
+          loadedFromApi = true;
+          break;
+        }
+        lastErr = new Error("api_empty_payload");
+      } catch (e) {
+        lastErr = e;
       }
-    } catch (e) {
+
+      if (attempt < bootstrapAttempts) {
+        console.warn(`[economy-ui] admin API bootstrap attempt ${attempt}/${bootstrapAttempts} failed: ${String(lastErr?.message || lastErr)}; retry in ${bootstrapDelayMs}ms`);
+        await sleep(bootstrapDelayMs);
+      }
+    }
+
+    if (!loadedFromApi) {
       if (requireAdminApi) {
-        throw new Error(`[economy-ui] adminApiBase required but unavailable (${adminApiBase}): ${String(e?.message || e)}`);
+        throw new Error(`[economy-ui] adminApiBase required but unavailable (${adminApiBase}): ${String(lastErr?.message || lastErr || "unknown_error")}`);
       }
-      console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(e?.message || e)}; fallback to province metadata`);
+      console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(lastErr?.message || lastErr || "unknown_error")}; fallback to province metadata`);
     }
   } else if (requireAdminApi) {
     throw new Error("[economy-ui] adminApiBase is required, but not configured");

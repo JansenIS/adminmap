@@ -128,3 +128,4 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 - при наличии `--adminApiBase` (или `ADMINMAP_API_BASE`) сервер читает провинции и реалмы из backend API (`<base>/api/provinces`, `<base>/api/realms`),
 - при недоступности API использует только `provinces.json` как локальные метаданные,
 - для строгого backend-only режима включи `--requireAdminApi true` (или `ADMINMAP_REQUIRE_API=true`) — сервер завершится с ошибкой, если API недоступен/пуст.
+- при запуске через `systemd` можно задать ожидание готовности API: `ADMINMAP_API_BOOTSTRAP_ATTEMPTS` (по умолчанию `15`) и `ADMINMAP_API_BOOTSTRAP_DELAY_MS` (по умолчанию `1000`).
