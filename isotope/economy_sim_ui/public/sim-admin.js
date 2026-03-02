@@ -197,14 +197,14 @@ function buildRealmColorMaps(realms) {
 
 function realmColorForRow(row) {
   const mode = state.mapMode;
-  const isSpecial = row.isOffMarket || row.isBlackMarket || row.isExchange || row.isSpecialTerritory;
+  if (mode === "circles") return null;
 
+  const isSpecial = row.isOffMarket || row.isBlackMarket || row.isExchange || row.isSpecialTerritory;
   if (row.free_city_id) {
     const freeCityColor = state.realmColorsByMode?.free_cities?.get(String(row.free_city_id || ""));
     if (freeCityColor) return freeCityColor;
   }
   if (isSpecial) return "#ffd166";
-  if (mode === "circles") return null;
 
   const realmIdByMode = {
     kingdoms: row.kingdom_id,
@@ -250,14 +250,21 @@ function paintTerritoryOverlay() {
 function render() {
   if (!state.mapImg) return;
   ctx.clearRect(0, 0, state.width, state.height);
-  ctx.drawImage(state.mapImg, 0, 0, state.width, state.height);
-  paintTerritoryOverlay();
+
+  const circlesMode = state.mapMode === "circles";
+  if (circlesMode) {
+    ctx.fillStyle = "rgba(8,18,30,0.92)";
+    ctx.fillRect(0, 0, state.width, state.height);
+  } else {
+    ctx.drawImage(state.mapImg, 0, 0, state.width, state.height);
+    paintTerritoryOverlay();
+  }
 
   ctx.save();
-  ctx.shadowColor = "rgba(78,206,255,0.95)";
-  ctx.shadowBlur = 8;
-  ctx.strokeStyle = "rgba(90,220,255,0.95)";
-  ctx.lineWidth = 1.2;
+  ctx.shadowColor = circlesMode ? "rgba(0,0,0,0)" : "rgba(78,206,255,0.95)";
+  ctx.shadowBlur = circlesMode ? 0 : 8;
+  ctx.strokeStyle = circlesMode ? "rgba(120,240,255,0.75)" : "rgba(90,220,255,0.95)";
+  ctx.lineWidth = circlesMode ? 1.35 : 1.2;
 
   if (state.maskImg) {
     const off = document.createElement("canvas");
@@ -282,7 +289,7 @@ function render() {
           if (kk !== k) { border = true; break; }
         }
         if (border) {
-          dst[i] = 120; dst[i + 1] = 240; dst[i + 2] = 255; dst[i + 3] = 220;
+          dst[i] = 120; dst[i + 1] = 240; dst[i + 2] = 255; dst[i + 3] = circlesMode ? 205 : 220;
         }
       }
     }
@@ -293,22 +300,26 @@ function render() {
   }
   ctx.restore();
 
-  if (state.mapMode !== "circles") return;
+  if (!circlesMode) return;
 
   const scale = buildScale(state.rows.map(metricValue));
+  const fitScale = Math.min(
+    (UI.canvas.clientWidth || state.width) / Math.max(1, state.width),
+    (UI.canvas.clientHeight || state.height) / Math.max(1, state.height)
+  );
+  const radiusBoost = fitScale > 0 && fitScale < 1 ? (1 / fitScale) : 1;
+
   for (const row of state.rows) {
     const key = resolveRowKey(row.key);
     const [cx, cy] = state.anchorByKey.get(key) || state.centroidByKey.get(key) || row.centroid || [0, 0];
-    const r = radiusFor(row, scale);
+    const r = radiusFor(row, scale) * radiusBoost;
     ctx.beginPath();
-    const baseColor = realmColorForRow(row);
-    ctx.fillStyle = row.pid === state.selectedPid
-      ? "rgba(255,196,60,.95)"
-      : (baseColor ? rgbaFromHex(baseColor, 0.9) : "rgba(45,194,255,.9)");
-    ctx.shadowColor = row.pid === state.selectedPid ? "rgba(255,198,90,.9)" : "rgba(80,210,255,.95)";
-    ctx.shadowBlur = 12;
+    ctx.fillStyle = row.pid === state.selectedPid ? "rgba(255,196,60,.92)" : "rgba(45,194,255,.66)";
+    ctx.strokeStyle = row.pid === state.selectedPid ? "rgba(255,235,170,.98)" : "rgba(160,245,255,.96)";
+    ctx.lineWidth = (row.pid === state.selectedPid ? 2.2 : 1.55) * radiusBoost * 0.45;
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
   }
 }
 
