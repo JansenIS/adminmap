@@ -47,21 +47,6 @@ const COVER_BY_TIER = {
 const EXPORT_BUFFER_MUL = 1.6; // сколько сверх target можно держать (и продавать)
 const RESERVE_MUL = 0.55; // сколько от target держим как "непродаваемое" (минимум безопасности)
 
-const POP_NEEDS = {
-  bread: 0.00045,
-  mutabryukva: 0.0003,
-  meatCans: 0.00012,
-  meat: 0.00003,
-  water: 0.00065,
-  // Фильтры были заметно перетянуты (массовый структурный дефицит каждый тик).
-  // Делаем более реалистичную длительность использования персонального фильтра.
-  filterBase: 0.05,
-  filterPerPopDiv: 10000,
-  filterPerPopMul: 0.45,
-  clothes: 1 / 9000,
-  clothFallback: 1 / 25000,
-};
-
 export class EconomyEngine {
   /**
    * @param {{
@@ -520,18 +505,18 @@ export class EconomyEngine {
 
       fert = clamp(fert + this.rng.nextNorm() * 0.12, 0.05, 1.2);
 
-      const farmBase = (area / 95) * fert;
-      const farmCount = st.isCity ? Math.round(farmBase * 0.85) : Math.round(farmBase);
+      const farmBase = (area / 140) * fert;
+      const farmCount = st.isCity ? Math.round(farmBase * 0.6) : Math.round(farmBase);
 
       // фермы появляются только если условно "есть где"
       if (farmCount >= 1) {
         add(st, "farm_mutabryukva", clamp(farmCount, 1, st.isCity ? 2 : 6));
-        add(st, "poultry_mutachicken", clamp(Math.round(farmCount * 0.8), 1, st.isCity ? 2 : 6));
+        add(st, "poultry_mutachicken", clamp(Math.round(farmCount * 0.55), 1, st.isCity ? 1 : 4));
       }
 
       // вода — почти везде, но разной мощности
       if (BUILDINGS.water_distillery) {
-        const w = st.isCity ? 2 : (this.rng.next() < 0.65 ? 1 : 0);
+        const w = st.isCity ? 1 : (this.rng.next() < 0.45 ? 1 : 0);
         add(st, "water_distillery", w);
       }
 
@@ -580,12 +565,11 @@ export class EconomyEngine {
       const st = cityStates[k];
 
       // базовое городское: пекарня + консервы
-      add(st, "bakery", st.pop > 90000 ? 4 : 3);
-      if (st.pop > 45000 && this.rng.next() < 0.85) add(st, "canning", st.pop > 90000 ? 2 : 1);
+      add(st, "bakery", 2);
+      if (st.pop > 50000 && this.rng.next() < 0.7) add(st, "canning", 1);
 
       // фильтры — далеко не везде
-      add(st, "filters", 1);
-      if (st.pop > 85000 && this.rng.next() < 0.45) add(st, "filters", 1);
+      if (this.rng.next() < 0.35) add(st, "filters", 1);
 
       // выбираем специализации
       let specs = chooseSpecializations(st);
@@ -1049,16 +1033,16 @@ export class EconomyEngine {
       const pop = st.pop;
 
       // базовые потребности населения (в день)
-      if (!isOffMarket && !isExchange) dd[idx.bread] += pop * POP_NEEDS.bread;
-      if (!isOffMarket && !isExchange) dd[idx.mutabryukva] += pop * POP_NEEDS.mutabryukva;
-      if (!isOffMarket && !isExchange) dd[idx.meat_cans] += pop * POP_NEEDS.meatCans;
-      if (!isOffMarket && !isExchange) dd[idx.meat] += pop * POP_NEEDS.meat;
-      if (!isOffMarket && !isExchange) dd[idx.distilled_water] += pop * POP_NEEDS.water;
-      if (!isOffMarket && !isExchange) dd[idx.villadium_filter_personal] += Math.max(POP_NEEDS.filterBase, (pop / POP_NEEDS.filterPerPopDiv) * POP_NEEDS.filterPerPopMul);
-      if (!isOffMarket && !isExchange) dd[idx.clothes_peasant] += pop * POP_NEEDS.clothes;
+      if (!isOffMarket && !isExchange) dd[idx.bread] += pop * 0.0006;
+      if (!isOffMarket && !isExchange) dd[idx.mutabryukva] += pop * 0.00045;
+      if (!isOffMarket && !isExchange) dd[idx.meat_cans] += pop * 0.00018;
+      if (!isOffMarket && !isExchange) dd[idx.meat] += pop * 0.00003;
+      if (!isOffMarket && !isExchange) dd[idx.distilled_water] += pop * 0.0010;
+      if (!isOffMarket && !isExchange) dd[idx.villadium_filter_personal] += Math.max(0.15, (pop / 2000) * 0.85);
+      if (!isOffMarket && !isExchange) dd[idx.clothes_peasant] += pop / 9000;
 
       // если одежды не хватает — будет "дожирать" ткань
-      if (!isOffMarket && !isExchange) dd[idx.cloth_peasant] += pop * POP_NEEDS.clothFallback;
+      if (!isOffMarket && !isExchange) dd[idx.cloth_peasant] += pop / 25000;
 
       // ремонт/обслуживание (создаёт постоянный спрос и не даёт складам залипать на потолке)
       // простая модель: каждый объект слегка потребляет материалы
@@ -1377,14 +1361,14 @@ export class EconomyEngine {
       if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       const pop = st.pop;
 
-      const needBread = pop * POP_NEEDS.bread;
-      const needRoot = pop * POP_NEEDS.mutabryukva;
-      const needCans = pop * POP_NEEDS.meatCans;
-      const needMeat = pop * POP_NEEDS.meat;
-      const needWater = pop * POP_NEEDS.water;
+      const needBread = pop * 0.0006;
+      const needRoot = pop * 0.00045;
+      const needCans = pop * 0.00018;
+      const needMeat = pop * 0.00003;
+      const needWater = pop * 0.0010;
 
-      const needFilter = Math.max(POP_NEEDS.filterBase, (pop / POP_NEEDS.filterPerPopDiv) * POP_NEEDS.filterPerPopMul);
-      const needClothes = pop * POP_NEEDS.clothes;
+      const needFilter = Math.max(0.15, (pop / 2000) * 0.85);
+      const needClothes = pop / 9000;
 
       const take = (cid, qty) => {
         const i = idx[cid];
