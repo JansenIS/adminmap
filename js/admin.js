@@ -7,8 +7,7 @@
 
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
-  const btnToggleLegacyMode = el("toggleLegacyMode");
-
+  
   const selName = el("selName");
   const selPid = el("selPid");
   const selKey = el("selKey");
@@ -98,8 +97,7 @@
   alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
 
-  const STATE_URL_DEFAULT = "data/map_state.json";
-  const SAVE_ENDPOINT = "save_state.php";
+  const STATE_URL_DEFAULT = "/api/map/bootstrap/";
   const SAVE_TOKEN = "";
   const PROVINCE_PATCH_ENDPOINT = "/api/provinces/patch/";
   const PROVINCE_CARD_UPLOAD_ENDPOINT = "/api/provinces/card/upload/";
@@ -107,7 +105,6 @@
   const CHANGES_APPLY_ENDPOINT = "/api/changes/apply/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
   updateFlagsStatusText(APP_FLAGS);
-  syncLegacyModeButton(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
@@ -177,22 +174,6 @@
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
 
-  function navigateWithLegacyMode(enabled) {
-    const u = new URL(window.location.href);
-    const v = enabled ? "0" : "1";
-    u.searchParams.set("use_chunked_api", v);
-    u.searchParams.set("use_emblem_assets", v);
-    u.searchParams.set("use_partial_save", v);
-    u.searchParams.set("use_server_render", v);
-    window.location.href = u.toString();
-  }
-
-  function syncLegacyModeButton(flags) {
-    if (!btnToggleLegacyMode) return;
-    const legacy = !(flags && flags.USE_CHUNKED_API && flags.USE_EMBLEM_ASSETS && flags.USE_PARTIAL_SAVE && flags.USE_SERVER_RENDER);
-    btnToggleLegacyMode.textContent = legacy ? "Вернуться в backend-режим" : "Включить legacy-режим";
-  }
-
   function updateFlagsStatusText(flags) {
     if (!flagsStatusEl) return;
     const active = [];
@@ -200,7 +181,7 @@
     if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
     if (flags && flags.USE_PARTIAL_SAVE) active.push('USE_PARTIAL_SAVE');
     if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
-    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
+    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: backend';
   }
 
 
@@ -1123,10 +1104,6 @@
   function boot(map) {
     btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
     btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
-    if (btnToggleLegacyMode) btnToggleLegacyMode.addEventListener("click", () => {
-      const legacy = !(APP_FLAGS && APP_FLAGS.USE_CHUNKED_API && APP_FLAGS.USE_EMBLEM_ASSETS && APP_FLAGS.USE_PARTIAL_SAVE && APP_FLAGS.USE_SERVER_RENDER);
-      navigateWithLegacyMode(!legacy);
-    });
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
 
     viewModeSelect.addEventListener("change", () => applyLayerState(map));
@@ -1279,7 +1256,7 @@
     });
 
     btnExport.addEventListener("click", exportStateToTextarea);
-    btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "map_state.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
+    btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "backend_state_snapshot.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
     if (btnExportMigrated) btnExportMigrated.addEventListener("click", async () => {
       try {
         exportStateToTextarea();
@@ -1301,7 +1278,9 @@
     if (btnExportMinorHousesPng) btnExportMinorHousesPng.addEventListener("click", () => exportLayerPng(map, "minor_houses", "layer_minor_houses.png"));
     btnImport.addEventListener("click", () => importFile.click());
     importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); syncPeopleFromRealmRulers(); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
-    btnSaveServer.addEventListener("click", async () => { exportStateToTextarea(); const res = await fetch(SAVE_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify({ token: SAVE_TOKEN, state: JSON.parse(stateTA.value) }) }); if (!res.ok) alert("Ошибка сохранения"); else alert("Сохранено"); });
+    btnSaveServer.addEventListener("click", async () => {
+      alert("Legacy full-save отключен. Используйте PATCH/changes apply и кнопку 'Сохранить imported JSON как backend-вариант'.");
+    });
     if (btnSaveImportedBackend) btnSaveImportedBackend.addEventListener("click", async () => {
       try {
         exportStateToTextarea();
@@ -1383,13 +1362,8 @@
 
   async function loadInitialState(url) {
     const loader = window.AdminMapStateLoader;
-    const hasBackendOnlyLoader = !!(loader && typeof loader.loadStateBackendOnly === "function");
-    const preferBackendOnly = hasBackendOnlyLoader && !!(APP_FLAGS && APP_FLAGS.USE_CHUNKED_API);
-    const loaded = hasBackendOnlyLoader
-      ? (preferBackendOnly ? await loader.loadStateBackendOnly() : await loader.loadState(url))
-      : (loader
-        ? await loader.loadState(url)
-        : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} });
+    if (!loader || typeof loader.loadStateBackendOnly !== "function") throw new Error("AdminMapStateLoader.loadStateBackendOnly is required");
+    const loaded = await loader.loadStateBackendOnly();
     const obj = loaded.state; if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON");
     if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[admin] USE_CHUNKED_API enabled");
     if (loaded.flags && loaded.flags.USE_EMBLEM_ASSETS) console.info("[admin] USE_EMBLEM_ASSETS enabled");

@@ -128,10 +128,6 @@
     return map;
   }
 
-  async function loadStateLegacy(stateUrl) {
-    return fetchJson(stateUrl);
-  }
-
   async function loadStateChunked(flags) {
     const boot = await fetchJson("/api/map/bootstrap/");
     // Compact profile avoids heavyweight inline emblem_svg payload in realm lists.
@@ -181,27 +177,15 @@
         }
       }
     } catch (err) {
-      console.warn("[state-loader] emblem assets failed, fallback to legacy emblem_svg", err);
+      console.warn("[state-loader] emblem assets fetch failed", err);
     }
   }
 
   async function loadState(stateUrl) {
     const flags = getFlags();
-    let state;
-    if (flags.USE_CHUNKED_API) {
-      state = await loadStateChunked(flags);
-    } else {
-      try {
-        state = await loadStateLegacy(stateUrl);
-      } catch (legacyErr) {
-        console.warn("[state-loader] legacy map_state failed, fallback to chunked api", legacyErr);
-        state = await loadStateChunked(flags);
-        flags.USE_CHUNKED_API = true;
-      }
-    }
-
+    flags.USE_CHUNKED_API = true;
+    const state = await loadStateChunked(flags);
     await hydrateEmblemsIfNeeded(state, flags);
-
     return { state, flags };
   }
 

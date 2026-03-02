@@ -23,6 +23,7 @@
 - [~] Перевести сохранение админки на patch-first сценарий (провинции/realm), оставить full-save как fallback. (провинции+save realm уже частично на PATCH, требуется покрыть остальные операции realm)
 - [ ] Добавить UI-индикатор активных флагов (`USE_CHUNKED_API`, `USE_EMBLEM_ASSETS`, `USE_PARTIAL_SAVE`).
 - [ ] Добавить smoke e2e для legacy и API-режимов.
+- [~] Economy strict backend-only режим по умолчанию + CI smoke (positive/negative) добавлены; после стабилизации API оценить полное отключение metadata fallback.
 
 ### Этап 4 (серверный рендер)
 - [~] `GET /api/render/layer?mode=&version=` с кешированием по версии. (базовый endpoint добавлен, нужен PNG/tile рендер и stronger cache strategy)

@@ -8,7 +8,6 @@ import { BUILDINGS } from "./resources.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../..");
-const adminMapStatePath = path.join(projectRoot, "data", "map_state.json");
 const adminMapProvincesPath = path.join(projectRoot, "provinces.json");
 const simAdminDataDir = path.join(__dirname, "data");
 const simAdminOverridesPath = path.join(simAdminDataDir, "sim_admin_overrides.json");
@@ -29,12 +28,42 @@ function parseArgs(argv) {
   return out;
 }
 
+
+function parseBoolFlag(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  const raw = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return defaultValue;
+}
+
 function normalizeRealmId(value) {
   if (value === null || value === undefined) return "";
   const id = String(value).trim();
   return id;
 }
 
+
+function buildAdminStateFromProvinceMeta(metaPayload) {
+  const list = Array.isArray(metaPayload?.provinces) ? metaPayload.provinces : [];
+  const byPid = new Map();
+
+  for (const row of list) {
+    const pid = Number(row?.pid);
+    if (!Number.isFinite(pid) || pid <= 0) continue;
+    byPid.set(pid, {
+      pid,
+      name: typeof row?.name === "string" ? row.name : "",
+      terrain: typeof row?.terrain === "string" ? row.terrain : "",
+      kingdom_id: "",
+      great_house_id: "",
+      minor_house_id: "",
+      free_city_id: "",
+    });
+  }
+
+  return byPid;
+}
 
 async function fetchAdminProvincesFromApi(apiBase) {
   if (!apiBase) return null;
@@ -285,6 +314,7 @@ const args = parseArgs(process.argv);
 const dataFile = args._[0] || path.resolve(__dirname, "../province_routing_data.json");
 const port = Number.parseInt(args.port || "8787", 10);
 const adminApiBase = String(args.adminApiBase || process.env.ADMINMAP_API_BASE || "").trim();
+const requireAdminApi = parseBoolFlag(args.requireAdminApi ?? process.env.ADMINMAP_REQUIRE_API, true);
 
 let baseConfig = {
   seed: Number.parseInt(args.seed || "1", 10),
@@ -321,28 +351,32 @@ async function bootstrapAdminProvinceState() {
         adminRealmsByType = realmsFromApi;
         adminStateSource = `api:${adminApiBase}`;
         loadedFromApi = true;
+      } else if (requireAdminApi) {
+        throw new Error("api_empty_payload");
       }
     } catch (e) {
-      console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(e?.message || e)}; fallback to ${adminMapStatePath}`);
+      if (requireAdminApi) {
+        throw new Error(`[economy-ui] adminApiBase required but unavailable (${adminApiBase}): ${String(e?.message || e)}`);
+      }
+      console.warn(`[economy-ui] adminApiBase unavailable (${adminApiBase}): ${String(e?.message || e)}; fallback to province metadata`);
     }
+  } else if (requireAdminApi) {
+    throw new Error("[economy-ui] adminApiBase is required, but not configured");
   }
 
   if (loadedFromApi) return;
 
-  const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
-  adminStateByPid = new Map(
-    Object.values(adminMapState.provinces || {}).map((p) => [Number(p.pid), p])
-  );
-  adminRealmsByType = {
-    kingdoms: adminMapState?.kingdoms && typeof adminMapState.kingdoms === "object" ? adminMapState.kingdoms : {},
-    great_houses: adminMapState?.great_houses && typeof adminMapState.great_houses === "object" ? adminMapState.great_houses : {},
-    minor_houses: adminMapState?.minor_houses && typeof adminMapState.minor_houses === "object" ? adminMapState.minor_houses : {},
-    free_cities: adminMapState?.free_cities && typeof adminMapState.free_cities === "object" ? adminMapState.free_cities : {},
-  };
-  adminStateSource = `file:${adminMapStatePath}`;
+  adminStateByPid = buildAdminStateFromProvinceMeta(adminMapProvinceMeta);
+  adminRealmsByType = { kingdoms: {}, great_houses: {}, minor_houses: {}, free_cities: {} };
+  adminStateSource = `file:${adminMapProvincesPath}`;
 }
 
-await bootstrapAdminProvinceState();
+try {
+  await bootstrapAdminProvinceState();
+} catch (e) {
+  console.error(String(e?.message || e));
+  process.exit(1);
+}
 
 for (const p of provinces) {
   const a = adminStateByPid.get(p.pid);
@@ -939,6 +973,6 @@ const server = http.createServer((req, res) => {
 server.listen(port, "0.0.0.0", () => {
   console.log(`[economy-ui] loaded provinces=${provinces.length} from: ${dataFile}`);
   console.log(`[economy-ui] admin province source: ${adminStateSource}`);
-  console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps} expenseScale=${baseConfig.expenseScale}`);
+  console.log(`[economy-ui] config: seed=${baseConfig.seed} transportUnitCost=${baseConfig.transportUnitCost} tradeFriction=${baseConfig.tradeFriction} smoothSteps=${baseConfig.smoothSteps} expenseScale=${baseConfig.expenseScale} requireAdminApi=${requireAdminApi}`);
   console.log(`[economy-ui] open: http://localhost:${port}`);
 });

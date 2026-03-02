@@ -6,13 +6,13 @@
   const tooltip = el("tooltip");
   const flagsStatusEl = el("flagsStatus");
   const title = el("provTitle"); const pidEl = el("provPid"); const ownerEl = el("provOwner"); const suzerainEl = el("provSuzerain"); const seniorEl = el("provSenior"); const terrainEl = el("provTerrain"); const keyEl = el("provKey"); const modeListLabelEl = el("provModeListLabel"); const modeListEl = el("provModeList");
-  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap"); const toggleLegacyModeBtn = el("toggleLegacyMode");
+  const reloadBtn = el("reload"); const urlInput = el("stateUrl"); const viewModeSelect = el("viewMode"); const toggleProvEmblemsBtn = el("toggleProvEmblems"); const openMicroMapBtn = el("openMicroMap");
   const provinceModal = el("provinceModal"); const provinceModalClose = el("provinceModalClose");
   const modalProvinceMapImage = el("modalProvinceMapImage"); const modalKingdomHerald = el("modalKingdomHerald"); const modalKingdomName = el("modalKingdomName");
   const modalGreatHouseHerald = el("modalGreatHouseHerald"); const modalGreatHouseName = el("modalGreatHouseName"); const modalMinorHouseHerald = el("modalMinorHouseHerald");
   const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle"); const modalProvinceDescription = el("modalProvinceDescription");
   const personModal = el("personModal"); const personModalClose = el("personModalClose"); const personModalPhoto = el("personModalPhoto"); const personModalName = el("personModalName"); const personModalSuzerain = el("personModalSuzerain"); const personModalSeniors = el("personModalSeniors"); const personModalVassals = el("personModalVassals"); const personModalBio = el("personModalBio");
-  const DEFAULT_STATE_URL = "data/map_state.json";
+  const DEFAULT_STATE_URL = "/api/map/bootstrap/";
   const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
@@ -22,33 +22,13 @@
 
   function setTooltip(evt, text) { if (!text) { tooltip.style.display = "none"; return; } tooltip.textContent = text; tooltip.style.left = (evt.clientX + 12) + "px"; tooltip.style.top = (evt.clientY + 12) + "px"; tooltip.style.display = "block"; }
 
-  function isLegacyMode(flags) {
-    return !(flags && flags.USE_CHUNKED_API && flags.USE_EMBLEM_ASSETS && flags.USE_PARTIAL_SAVE && flags.USE_SERVER_RENDER);
-  }
-
-  function navigateWithLegacyMode(enabled) {
-    const u = new URL(window.location.href);
-    const v = enabled ? "0" : "1";
-    u.searchParams.set("use_chunked_api", v);
-    u.searchParams.set("use_emblem_assets", v);
-    u.searchParams.set("use_partial_save", v);
-    u.searchParams.set("use_server_render", v);
-    window.location.href = u.toString();
-  }
-
-  function syncLegacyModeButton(flags) {
-    if (!toggleLegacyModeBtn) return;
-    toggleLegacyModeBtn.textContent = isLegacyMode(flags) ? "Вернуться в backend-режим" : "Включить legacy-режим";
-  }
-
   function updateFlagsStatusText(flags) {
     if (!flagsStatusEl) return;
     const active = [];
     if (flags && flags.USE_CHUNKED_API) active.push('USE_CHUNKED_API');
     if (flags && flags.USE_EMBLEM_ASSETS) active.push('USE_EMBLEM_ASSETS');
     if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
-    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: legacy';
-    syncLegacyModeButton(flags || {});
+    flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: backend';
   }
 
 
@@ -636,7 +616,8 @@
 
   async function loadState(url) {
     const loader = window.AdminMapStateLoader;
-    const loaded = loader ? await loader.loadState(url) : { state: await (await fetch(url, { cache: "no-store" })).json(), flags: {} };
+    if (!loader || typeof loader.loadStateBackendOnly !== "function") throw new Error("AdminMapStateLoader.loadStateBackendOnly is required");
+    const loaded = await loader.loadStateBackendOnly();
     const obj = loaded.state;
     if (!obj || typeof obj !== "object" || !obj.provinces) throw new Error("Invalid state JSON (missing provinces).");
     if (loaded.flags && loaded.flags.USE_CHUNKED_API) console.info("[public] USE_CHUNKED_API enabled");
@@ -842,10 +823,6 @@
         window.open(url, "_blank", "noopener");
       });
       updateMicroMapButton();
-    }
-    if (toggleLegacyModeBtn) {
-      toggleLegacyModeBtn.addEventListener("click", () => navigateWithLegacyMode(!isLegacyMode(APP_FLAGS)));
-      syncLegacyModeButton(APP_FLAGS || {});
     }
     if (toggleProvEmblemsBtn) {
       toggleProvEmblemsBtn.addEventListener("click", () => {
