@@ -587,7 +587,7 @@
 
     const savedCardImage = String(pd.province_card_image || "").trim();
     if (savedCardImage) {
-      modalProvinceMapImage.src = savedCardImage;
+      modalProvinceMapImage.src = MapUtils.resolveStaticAssetUrl(savedCardImage);
       modalProvinceMapImage.style.visibility = "visible";
     } else {
       const maskedDataUri = await buildProvinceMaskedImage(map, key);

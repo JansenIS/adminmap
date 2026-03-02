@@ -370,7 +370,7 @@
   }
 
   function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
-  function setProvinceCardPreview(pd) { const pid = pd ? (Number(pd.pid) >>> 0) : 0; const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : ""; const src = String((pd && pd.province_card_image) || baseSrc || "").trim(); if (src) { provinceCardPreviewImg.src = src; provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
+  function setProvinceCardPreview(pd) { const pid = pd ? (Number(pd.pid) >>> 0) : 0; const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : ""; const src = String((pd && pd.province_card_image) || baseSrc || "").trim(); if (src) { provinceCardPreviewImg.src = MapUtils.resolveStaticAssetUrl(src); provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
   function getProvinceOwnerColor(pd) {
     if (pd && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length >= 3) return [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0];
     if (pd && pd.kingdom_id) {

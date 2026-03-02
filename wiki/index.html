@@ -13,7 +13,10 @@
     h1 { margin:0 0 10px; font-size:20px; }
     .muted { color:#a6b4c5; font-size:12px; }
     .search { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:10px; margin:10px 0; }
-    .list { display:grid; gap:8px; max-height: calc(100vh - 150px); overflow:auto; }
+    .filters { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+    .filter-btn { border:1px solid #2b3f56; border-radius:999px; background:#0b0f14; color:#dbe7f5; padding:5px 10px; font-size:12px; cursor:pointer; }
+    .filter-btn.active { border-color:#6aa9ff; color:#eaf4ff; background:#102033; }
+    .list { display:grid; gap:8px; max-height: calc(100vh - 220px); overflow:auto; }
     .item { border:1px solid #223041; border-radius:10px; padding:10px; background:#0b0f14; cursor:pointer; }
     .item:hover { border-color:#3d5a78; }
     .item h3 { margin:0; font-size:14px; }
@@ -47,6 +50,7 @@
       <div class="muted">Точка доступа к wiki-проекту</div>
       <div class="topnav"><a href="/">← На карту</a></div>
       <input id="search" class="search" type="search" placeholder="Поиск по страницам..." />
+      <div id="categoryFilters" class="filters"></div>
       <div id="stats" class="muted">Загрузка…</div>
       <div id="list" class="list"></div>
     </aside>
@@ -61,11 +65,32 @@
 <script>
 let pages = [];
 let filtered = [];
+let activeCategory = 'all';
+
+const CATEGORY_FILTERS = [
+  { id: 'all', label: 'Все', match: () => true },
+  { id: 'names', label: 'Имена', match: (p) => String(p.kind || '') === 'character' },
+  { id: 'clans', label: 'Рода', match: (p) => String(p.kind || '') === 'clan' },
+  { id: 'kingdoms', label: 'Королевства', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'kingdoms' },
+  { id: 'great_houses', label: 'Большие Дома', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'great_houses' },
+  { id: 'minor_houses', label: 'Малые Дома', match: (p) => (String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'minor_houses') || /vassal/i.test(String(p.page_key || '')) || /вассал/u.test(String(p.title || '')) },
+  { id: 'special_territories', label: 'Особые Территории', match: (p) => (String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'special_territories') || /особ/i.test(String(p.title || '')) || /special/i.test(String(p.page_key || '')) },
+  { id: 'free_cities', label: 'Вольные Города', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'free_cities' },
+];
 
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));}
 function link(href, text) {
   if (!href) return escapeHtml(text || '—');
   return `<a class="inline" href="#" data-wiki-link="${escapeHtml(href)}">${escapeHtml(text || href)}</a>`;
+}
+
+function resolveStaticAssetUrl(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  if (/^data:image\//i.test(url) || /^blob:/i.test(url) || /^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return url;
+  if (/^(people|provinces)\//i.test(url)) return '/' + url;
+  return url;
 }
 
 function emblemTag(svg, alt) {
@@ -139,7 +164,7 @@ function renderProjectDetails(item) {
     const pr = item.province;
     const vassals = Array.isArray(pr.vassals) ? pr.vassals : [];
     return `
-      ${pr.background_image ? `<div class="hero"><img src="${escapeHtml(pr.background_image)}" alt="Карточка провинции" /></div>` : ''}
+      ${pr.background_image ? `<div class="hero"><img src="${escapeHtml(resolveStaticAssetUrl(pr.background_image))}" alt="Карточка провинции" /></div>` : ''}
       <div class="section">
         <h3>Провинция</h3>
         <div class="lineage-grid">
@@ -161,13 +186,36 @@ function renderProjectDetails(item) {
   return '';
 }
 
+
+function renderCategoryFilters() {
+  const wrap = document.getElementById('categoryFilters');
+  if (!wrap) return;
+  wrap.innerHTML = CATEGORY_FILTERS.map((cat) => `
+    <button type="button" class="filter-btn ${cat.id === activeCategory ? 'active' : ''}" data-cat="${escapeHtml(cat.id)}">${escapeHtml(cat.label)}</button>
+  `).join('');
+  wrap.querySelectorAll('[data-cat]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = String(btn.getAttribute('data-cat') || 'all');
+      activeCategory = CATEGORY_FILTERS.some((c) => c.id === next) ? next : 'all';
+      renderCategoryFilters();
+      renderList();
+    });
+  });
+}
+
+function matchActiveCategory(page) {
+  const current = CATEGORY_FILTERS.find((cat) => cat.id === activeCategory) || CATEGORY_FILTERS[0];
+  return !!current.match(page);
+}
+
 function renderList() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   filtered = pages.filter(p => {
     const hay = [p.title,p.kind,p.page_key,p.entity_type,p.id].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
+    return hay.includes(q) && matchActiveCategory(p);
   });
-  document.getElementById('stats').textContent = `Найдено: ${filtered.length} / ${pages.length}`;
+  const active = CATEGORY_FILTERS.find((cat) => cat.id === activeCategory) || CATEGORY_FILTERS[0];
+  document.getElementById('stats').textContent = `Найдено: ${filtered.length} / ${pages.length} · Категория: ${active.label}`;
   const list = document.getElementById('list');
   list.innerHTML = filtered.map((p, i) => `
     <button type="button" class="item" data-i="${i}">
@@ -216,6 +264,7 @@ async function openPage(p) {
   const r = await fetch('/api/wiki/index.php');
   const j = await r.json();
   pages = Array.isArray(j.pages) ? j.pages : [];
+  renderCategoryFilters();
   renderList();
 })();
 
