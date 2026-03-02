@@ -4,6 +4,8 @@ const state = {
   byKey: new Map(),
   selectedPid: null,
   metric: "effectiveGDP",
+  mapMode: "circles",
+  realmColorsByMode: { kingdoms: new Map(), great_houses: new Map(), minor_houses: new Map() },
   activeTab: "map",
   treasurySort: { key: "treasury", dir: "desc" },
   mapImg: null,
@@ -19,6 +21,7 @@ const state = {
 
 const UI = {
   canvas: document.getElementById("mapCanvas"),
+  mapModeSelect: document.getElementById("mapModeSelect"),
   metricSelect: document.getElementById("metricSelect"),
   selPid: document.getElementById("selPid"),
   selName: document.getElementById("selName"),
@@ -151,10 +154,93 @@ function resolveRowKey(rowKey) {
   return k;
 }
 
+
+function normalizeHexColor(color, fallback = "#58697a") {
+  if (typeof color !== "string") return fallback;
+  const c = color.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(c)) return c;
+  if (/^#[0-9a-fA-F]{3}$/.test(c)) {
+    return `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
+  }
+  return fallback;
+}
+
+function rgbaFromHex(hex, alpha = 0.55) {
+  const n = normalizeHexColor(hex, "#58697a");
+  const r = Number.parseInt(n.slice(1, 3), 16);
+  const g = Number.parseInt(n.slice(3, 5), 16);
+  const b = Number.parseInt(n.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function buildRealmColorMaps(realms) {
+  const byMode = { kingdoms: new Map(), great_houses: new Map(), minor_houses: new Map() };
+  for (const mode of Object.keys(byMode)) {
+    const items = Array.isArray(realms?.[mode]) ? realms[mode] : [];
+    for (const item of items) {
+      const id = String(item?.id || "").trim();
+      if (!id) continue;
+      byMode[mode].set(id, normalizeHexColor(item?.color));
+    }
+  }
+  return byMode;
+}
+
+function realmColorForRow(row) {
+  const mode = state.mapMode;
+  const isSpecial = row.isOffMarket || row.isBlackMarket || row.isExchange || row.isSpecialTerritory;
+
+  if (row.free_city_id) {
+    const freeCityColor = state.realmColorsByMode?.free_cities?.get(String(row.free_city_id || ""));
+    if (freeCityColor) return freeCityColor;
+  }
+  if (isSpecial) return "#ffd166";
+  if (mode === "circles") return null;
+
+  const realmIdByMode = {
+    kingdoms: row.kingdom_id,
+    great_houses: row.great_house_id,
+    minor_houses: row.minor_house_id,
+  };
+  const realmId = realmIdByMode[mode];
+  if (!realmId) return null;
+  return state.realmColorsByMode?.[mode]?.get(String(realmId)) || null;
+}
+
+function paintTerritoryOverlay() {
+  if (!state.maskImg || state.mapMode === "circles") return;
+
+  const off = document.createElement("canvas");
+  off.width = state.width;
+  off.height = state.height;
+  const ox = off.getContext("2d", { willReadFrequently: true });
+
+  const img = ox.createImageData(state.width, state.height);
+  const out = img.data;
+
+  for (let i = 0, p = 0; i < state.keyPixels.length; i++, p += 4) {
+    const key = state.keyPixels[i] >>> 0;
+    if (!key) continue;
+    const row = state.byKey.get(key);
+    if (!row) continue;
+    const color = realmColorForRow(row);
+    if (!color) continue;
+    const hex = normalizeHexColor(color);
+    out[p] = Number.parseInt(hex.slice(1, 3), 16);
+    out[p + 1] = Number.parseInt(hex.slice(3, 5), 16);
+    out[p + 2] = Number.parseInt(hex.slice(5, 7), 16);
+    out[p + 3] = 120;
+  }
+
+  ox.putImageData(img, 0, 0);
+  ctx.drawImage(off, 0, 0, state.width, state.height);
+}
+
 function render() {
   if (!state.mapImg) return;
   ctx.clearRect(0, 0, state.width, state.height);
   ctx.drawImage(state.mapImg, 0, 0, state.width, state.height);
+  paintTerritoryOverlay();
 
   ctx.save();
   ctx.shadowColor = "rgba(78,206,255,0.95)";
@@ -194,13 +280,18 @@ function render() {
   }
   ctx.restore();
 
+  if (state.mapMode !== "circles") return;
+
   const scale = buildScale(state.rows.map(metricValue));
   for (const row of state.rows) {
     const key = resolveRowKey(row.key);
     const [cx, cy] = state.anchorByKey.get(key) || state.centroidByKey.get(key) || row.centroid || [0, 0];
     const r = radiusFor(row, scale);
     ctx.beginPath();
-    ctx.fillStyle = row.pid === state.selectedPid ? "rgba(255,196,60,.95)" : "rgba(45,194,255,.9)";
+    const baseColor = realmColorForRow(row);
+    ctx.fillStyle = row.pid === state.selectedPid
+      ? "rgba(255,196,60,.95)"
+      : (baseColor ? rgbaFromHex(baseColor, 0.9) : "rgba(45,194,255,.9)");
     ctx.shadowColor = row.pid === state.selectedPid ? "rgba(255,198,90,.9)" : "rgba(80,210,255,.95)";
     ctx.shadowBlur = 12;
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -402,6 +493,14 @@ async function loadAll() {
   state.buildingCatalog = Array.isArray(payload.buildingCatalog) ? payload.buildingCatalog : [];
   renderBuildingCatalogSelect();
   state.rows = payload.provinces || [];
+  state.realmColorsByMode = buildRealmColorMaps(payload.realms || {});
+  if (Array.isArray(payload.realms?.free_cities)) {
+    state.realmColorsByMode.free_cities = new Map(payload.realms.free_cities
+      .map((item) => [String(item?.id || "").trim(), normalizeHexColor(item?.color, "#ffd166")])
+      .filter(([id]) => id));
+  } else {
+    state.realmColorsByMode.free_cities = new Map();
+  }
   state.byPid = new Map(state.rows.map((r) => [r.pid, r]));
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
   await loadImages(payload.map.image, payload.map.mask);
@@ -435,6 +534,11 @@ UI.sortBtns.forEach((btn) => {
     }
     renderTreasuryTable();
   });
+});
+
+UI.mapModeSelect?.addEventListener("change", () => {
+  state.mapMode = UI.mapModeSelect.value || "circles";
+  render();
 });
 
 UI.metricSelect.addEventListener("change", () => {

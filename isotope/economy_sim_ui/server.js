@@ -246,6 +246,7 @@ async function bootstrapAdminProvinceState() {
 }
 
 await bootstrapAdminProvinceState();
+const adminMapState = loadJsonSafe(adminMapStatePath, { provinces: {} });
 
 for (const p of provinces) {
   const a = adminStateByPid.get(p.pid);
@@ -344,6 +345,19 @@ if (bootstrapStartSnapshot && typeof engine.loadSnapshot === "function") {
 applySimAdminOverridesToEngine();
 
 
+
+function collectRealmItems(adminMapState, type) {
+  const bucket = adminMapState && typeof adminMapState === "object" ? adminMapState[type] : null;
+  if (!bucket || typeof bucket !== "object") return [];
+  return Object.entries(bucket)
+    .filter(([, realm]) => realm && typeof realm === "object")
+    .map(([id, realm]) => ({
+      id: String(id),
+      name: String(realm.name || id),
+      color: typeof realm.color === "string" && realm.color.trim() ? realm.color.trim() : "#58697a",
+    }));
+}
+
 function getProvinceIndexByPid(pid) {
   const i = engine.pidToIndex.get(Number(pid));
   return typeof i === "number" ? i : -1;
@@ -402,6 +416,11 @@ const server = http.createServer((req, res) => {
             treasuryExpenseYear: st?.treasuryExpenseYear ?? 0,
             treasuryNetYear: st?.treasuryNetYear ?? 0,
             marketMode: st?.marketMode || "normal",
+            kingdom_id: typeof adminStateByPid.get(pid)?.kingdom_id === "string" ? adminStateByPid.get(pid).kingdom_id : "",
+            great_house_id: typeof adminStateByPid.get(pid)?.great_house_id === "string" ? adminStateByPid.get(pid).great_house_id : "",
+            minor_house_id: typeof adminStateByPid.get(pid)?.minor_house_id === "string" ? adminStateByPid.get(pid).minor_house_id : "",
+            free_city_id: typeof adminStateByPid.get(pid)?.free_city_id === "string" ? adminStateByPid.get(pid).free_city_id : "",
+            isSpecialTerritory: Boolean((adminStateByPid.get(pid)?.marketMode || "") === "special"),
             isOffMarket: (st?.marketMode || "normal") === "off_market",
             isBlackMarket: (st?.marketMode || "normal") === "black_market",
             isExchange: (st?.marketMode || "normal") === "exchange",
@@ -416,6 +435,12 @@ const server = http.createServer((req, res) => {
             height: Number((readPngSize(mapImagePath)?.height) || adminMapProvinceMeta.image?.height || 0),
           },
           provinces: rows,
+          realms: {
+            kingdoms: collectRealmItems(adminMapState, "kingdoms"),
+            great_houses: collectRealmItems(adminMapState, "great_houses"),
+            minor_houses: collectRealmItems(adminMapState, "minor_houses"),
+            free_cities: collectRealmItems(adminMapState, "free_cities"),
+          },
           buildingCatalog: Object.entries(BUILDINGS).map(([type, def]) => ({
             type,
             name: def?.name || type,
