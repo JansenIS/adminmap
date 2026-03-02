@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Энциклопедия мира</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e7eef7; }
+    .layout { display:grid; grid-template-columns: 360px 1fr; min-height:100vh; }
+    .sidebar { border-right:1px solid #223041; background:#0d131b; padding:14px; box-sizing:border-box; }
+    .content { padding:16px; }
+    h1 { margin:0 0 10px; font-size:20px; }
+    .muted { color:#a6b4c5; font-size:12px; }
+    .search { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:10px; margin:10px 0; }
+    .list { display:grid; gap:8px; max-height: calc(100vh - 150px); overflow:auto; }
+    .item { border:1px solid #223041; border-radius:10px; padding:10px; background:#0b0f14; cursor:pointer; }
+    .item:hover { border-color:#3d5a78; }
+    .item h3 { margin:0; font-size:14px; }
+    .item p { margin:6px 0 0; font-size:12px; color:#a6b4c5; }
+    .card { border:1px solid #223041; background:#0d131b; border-radius:14px; padding:14px; min-height:220px; }
+    .topnav { margin-top:8px; }
+    .topnav a { color:#9bc7ff; text-decoration:none; font-size:13px; }
+    .topnav a:hover { text-decoration:underline; }
+    pre { white-space:pre-wrap; word-break:break-word; font-size:12px; color:#dbe7f5; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>Энциклопедия</h1>
+      <div class="muted">Точка доступа к wiki-проекту</div>
+      <div class="topnav"><a href="/">← На карту</a></div>
+      <input id="search" class="search" type="search" placeholder="Поиск по страницам..." />
+      <div id="stats" class="muted">Загрузка…</div>
+      <div id="list" class="list"></div>
+    </aside>
+    <main class="content">
+      <div id="card" class="card">
+        <h2 style="margin-top:0;">Выберите страницу слева</h2>
+        <div class="muted">Поиск работает по названию, типу и ключу страницы.</div>
+      </div>
+    </main>
+  </div>
+
+<script>
+let pages = [];
+let filtered = [];
+
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));}
+
+function renderList() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  filtered = pages.filter(p => {
+    const hay = [p.title,p.kind,p.page_key,p.entity_type,p.id].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  document.getElementById('stats').textContent = `Найдено: ${filtered.length} / ${pages.length}`;
+  const list = document.getElementById('list');
+  list.innerHTML = filtered.map((p, i) => `
+    <button type="button" class="item" data-i="${i}">
+      <h3>${escapeHtml(p.title || p.page_key)}</h3>
+      <p>${escapeHtml(p.kind)} · ${escapeHtml(p.page_key)}</p>
+    </button>
+  `).join('');
+
+  list.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => openPage(filtered[Number(el.dataset.i)]));
+  });
+}
+
+async function openPage(p) {
+  const card = document.getElementById('card');
+  card.innerHTML = '<div class="muted">Загрузка страницы…</div>';
+  try {
+    const url = p.wiki_link || '/api/wiki/show/index.php?kind=' + encodeURIComponent(p.kind);
+    const r = await fetch(url);
+    const j = await r.json();
+    const item = j.item || {};
+    card.innerHTML = `
+      <h2 style="margin-top:0;">${escapeHtml(item.title || p.title || 'Без названия')}</h2>
+      <div class="muted">${escapeHtml(item.kind || p.kind)} · ${escapeHtml(item.page_key || p.page_key)}</div>
+      <p>${escapeHtml(item.description || 'Описание отсутствует.')}</p>
+      <pre>${escapeHtml(JSON.stringify(item, null, 2))}</pre>
+    `;
+  } catch (e) {
+    card.innerHTML = '<div class="muted">Ошибка загрузки страницы.</div>';
+  }
+}
+
+(async function init(){
+  const r = await fetch('/api/wiki/index.php');
+  const j = await r.json();
+  pages = Array.isArray(j.pages) ? j.pages : [];
+  renderList();
+})();
+
+document.getElementById('search').addEventListener('input', renderList);
+</script>
+</body>
+</html>
