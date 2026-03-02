@@ -129,6 +129,52 @@ function loadProvinces(filePath) {
   return { provinces, rawData: data };
 }
 
+function loadPidRemap(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return new Map();
+    const payload = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const src = payload?.pid_remap && typeof payload.pid_remap === "object" ? payload.pid_remap : payload;
+    if (!src || typeof src !== "object") return new Map();
+
+    const out = new Map();
+    for (const [fromRaw, toRaw] of Object.entries(src)) {
+      const from = Number(fromRaw);
+      const to = Number(toRaw);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0 || to <= 0 || from === to) continue;
+      out.set(from, to);
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+
+function applyPidRemapToProvinces(provinces, pidRemap) {
+  if (!(pidRemap instanceof Map) || pidRemap.size === 0) return provinces;
+
+  const seen = new Set();
+  for (const p of provinces) {
+    const srcPid = Number(p.pid);
+    const dstPid = pidRemap.get(srcPid) ?? srcPid;
+    p.pid = dstPid;
+    p.neighbors = (p.neighbors || []).map((n) => {
+      const srcNbPid = Number(n.pid);
+      const dstNbPid = pidRemap.get(srcNbPid) ?? srcNbPid;
+      return {
+        ...n,
+        pid: dstNbPid,
+      };
+    });
+
+    if (seen.has(dstPid)) {
+      console.warn(`[economy-ui] duplicate pid after remap: ${dstPid}`);
+    }
+    seen.add(dstPid);
+  }
+
+  return provinces;
+}
+
 function loadJsonSafe(filePath, fallbackValue) {
   try {
     if (!fs.existsSync(filePath)) return fallbackValue;
@@ -251,6 +297,8 @@ let baseConfig = {
 let provinces = [];
 try {
   provinces = loadProvinces(dataFile).provinces;
+  const pidRemap = loadPidRemap(path.join(projectRoot, "data", "hexmap_pid_remap.json"));
+  applyPidRemapToProvinces(provinces, pidRemap);
 } catch (e) {
   console.error("[server] failed to load province data:", e?.message || e);
   console.error("[server] dataFile:", dataFile);
