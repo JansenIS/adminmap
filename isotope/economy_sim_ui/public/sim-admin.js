@@ -86,7 +86,8 @@ function pickPidFromCanvasEvent(evt) {
   if (x < 0 || y < 0 || x >= state.width || y >= state.height) return null;
   const idx = y * state.width + x;
   const key = state.keyPixels[idx] >>> 0;
-  return state.byKey.get(key)?.pid ?? null;
+  const resolvedKey = resolveRowKey(key);
+  return state.byKey.get(key)?.pid ?? state.byKey.get(resolvedKey)?.pid ?? null;
 }
 
 function computeKeyCentroids() {
@@ -221,7 +222,8 @@ function paintTerritoryOverlay() {
   for (let i = 0, p = 0; i < state.keyPixels.length; i++, p += 4) {
     const key = state.keyPixels[i] >>> 0;
     if (!key) continue;
-    const row = state.byKey.get(key);
+    const resolvedKey = resolveRowKey(key);
+    const row = state.byKey.get(key) || state.byKey.get(resolvedKey);
     if (!row) continue;
     const color = realmColorForRow(row);
     if (!color) continue;
