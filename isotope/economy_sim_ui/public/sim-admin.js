@@ -303,24 +303,21 @@ function render() {
   if (!circlesMode) return;
 
   const scale = buildScale(state.rows.map(metricValue));
-  const fitScale = Math.min(
-    (UI.canvas.clientWidth || state.width) / Math.max(1, state.width),
-    (UI.canvas.clientHeight || state.height) / Math.max(1, state.height)
-  );
-  const radiusBoost = fitScale > 0 && fitScale < 1 ? (1 / fitScale) : 1;
 
   for (const row of state.rows) {
     const key = resolveRowKey(row.key);
     const [cx, cy] = state.anchorByKey.get(key) || state.centroidByKey.get(key) || row.centroid || [0, 0];
-    const r = radiusFor(row, scale) * radiusBoost;
+    const r = radiusFor(row, scale);
+    const selected = row.pid === state.selectedPid;
     ctx.beginPath();
-    ctx.fillStyle = row.pid === state.selectedPid ? "rgba(255,196,60,.92)" : "rgba(45,194,255,.66)";
-    ctx.strokeStyle = row.pid === state.selectedPid ? "rgba(255,235,170,.98)" : "rgba(160,245,255,.96)";
-    ctx.lineWidth = (row.pid === state.selectedPid ? 2.2 : 1.55) * radiusBoost * 0.45;
+    ctx.fillStyle = selected ? "rgba(255,196,60,.96)" : "rgba(45,194,255,.74)";
+    ctx.shadowColor = selected ? "rgba(255,214,130,.95)" : "rgba(105,235,255,.95)";
+    ctx.shadowBlur = selected ? 20 : 14;
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
   }
+  ctx.shadowColor = "rgba(0,0,0,0)";
+  ctx.shadowBlur = 0;
 }
 
 function setActiveTab(tab) {
