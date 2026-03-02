@@ -656,12 +656,12 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
     'name', 'owner', 'suzerain', 'senior', 'terrain',
     'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
     'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
-    'province_card_image',
+    'province_card_image', 'wiki_description',
   ];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
-    if (in_array($f, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image'], true) && !is_string($value)) {
+    if (in_array($f, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image','wiki_description'], true) && !is_string($value)) {
       return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
     }
     if ($f === 'vassals') {
@@ -687,11 +687,11 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
 }
 
 function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description'];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
-    if (in_array($f, ['name','ruler','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if (in_array($f, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
     if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
     if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
     if ($f === 'emblem_box') {
@@ -788,14 +788,14 @@ function api_patch_province(array $state, int $pid, array $changes): array {
     'name', 'owner', 'suzerain', 'senior', 'terrain',
     'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
     'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
-    'province_card_image',
+    'province_card_image', 'wiki_description',
   ];
 
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) {
       return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
     }
-    if (in_array((string)$field, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image'], true) && !is_string($value)) {
+    if (in_array((string)$field, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image','wiki_description'], true) && !is_string($value)) {
       return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     }
     if ($field === 'vassals' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassals'];
@@ -849,10 +849,10 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     return ['ok' => false, 'error' => 'not_found'];
   }
 
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description'];
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
-    if (in_array((string)$field, ['name','ruler','color','emblem_svg'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if (in_array((string)$field, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
     if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];
     if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
