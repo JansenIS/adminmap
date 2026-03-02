@@ -21,6 +21,26 @@ function parseArgs(argv) {
   return out;
 }
 
+function loadPidRemap(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return new Map();
+    const payload = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const src = payload?.pid_remap && typeof payload.pid_remap === "object" ? payload.pid_remap : payload;
+    if (!src || typeof src !== "object") return new Map();
+
+    const out = new Map();
+    for (const [fromRaw, toRaw] of Object.entries(src)) {
+      const from = Number(fromRaw);
+      const to = Number(toRaw);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0 || to <= 0 || from === to) continue;
+      out.set(from, to);
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+
 const args = parseArgs(process.argv);
 const file = args._[0] || "../province_routing_data.json";
 const years = args.years != null ? parseInt(args.years || "1", 10) : null;
@@ -41,6 +61,25 @@ const provinces = Object.values(provincesObj).map(p => ({
   area_px: p.area_px || 1000,
   free_city_id: p.free_city_id || "",
 }));
+
+const defaultRemapPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../data/hexmap_pid_remap.json");
+const pidRemapPath = String(args.pidRemap || defaultRemapPath);
+const pidRemap = loadPidRemap(pidRemapPath);
+
+if (pidRemap.size > 0) {
+  const seen = new Set();
+  for (const p of provinces) {
+    const srcPid = Number(p.pid);
+    const dstPid = pidRemap.get(srcPid) ?? srcPid;
+    p.pid = dstPid;
+    p.neighbors = (p.neighbors || []).map((n) => ({
+      ...n,
+      pid: pidRemap.get(Number(n.pid)) ?? Number(n.pid),
+    }));
+    if (seen.has(dstPid)) console.warn(`[economy] duplicate pid after remap: ${dstPid}`);
+    seen.add(dstPid);
+  }
+}
 
 // Важный момент: в JSON ключи строковые, но pid — число; соседей приводим к числам.
 for (const p of provinces) {
