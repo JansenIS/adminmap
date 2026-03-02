@@ -500,6 +500,16 @@
     return res.text();
   }
 
+  function absolutizeFigureSrc(path) {
+    const normalized = String(path || "").trim();
+    if (!normalized || /^data:/i.test(normalized)) return normalized;
+    try {
+      return resolveAssetUrl(normalized);
+    } catch (_) {
+      return normalized;
+    }
+  }
+
   function loadAdminCatalog() {
     try {
       const raw = localStorage.getItem("shieldgenAdminFigures");
@@ -513,7 +523,7 @@
           id: item.id || `admin_${idx}`,
           name: item.name || `SVG фигура ${idx + 1}`,
           kind: "external_svg",
-          src: item.src,
+          src: absolutizeFigureSrc(item.src),
           defaults: item.defaults || { s: 0.52, x: 0, y: 0 }
         }));
     } catch (err) {
@@ -522,11 +532,19 @@
     }
   }
 
-  const [shieldShapes, figureCatalog, heraldicFigureCatalog] = await Promise.all([
+  const [shieldShapes, figureCatalogRaw, heraldicFigureCatalogRaw] = await Promise.all([
     loadJSON(resolveAssetUrl("shield_shapes.json")),
     loadJSON(resolveAssetUrl("figures.json")),
     loadJSON(resolveAssetUrl("heraldic_figures.json"))
   ]);
+
+  const normalizeExternalSvgCatalog = (catalog) => (Array.isArray(catalog) ? catalog : []).map((fig) => {
+    if (!fig || fig.kind !== "external_svg" || !fig.src) return fig;
+    return { ...fig, src: absolutizeFigureSrc(fig.src) };
+  });
+
+  const figureCatalog = normalizeExternalSvgCatalog(figureCatalogRaw);
+  const heraldicFigureCatalog = normalizeExternalSvgCatalog(heraldicFigureCatalogRaw);
 
   async function discoverFigureFilesFromDirectory() {
     const cacheBust = Date.now();
