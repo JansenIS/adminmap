@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Админка фигур SVG · ShieldGen</title>
+  <style>
+    :root{--bg:#0f1115;--panel:#141822;--line:#2a3144;--text:#e8eaf0;--muted:#aab1c3;--accent:#7dd3fc;}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0b0d12,#0f1115);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    a{color:var(--accent);text-decoration:none}
+    .layout{max-width:1260px;margin:0 auto;padding:12px;display:grid;grid-template-columns:360px 1fr 320px;gap:12px}
+    @media (max-width:1120px){.layout{grid-template-columns:1fr}}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .panel h2{margin:0;padding:12px;border-bottom:1px solid var(--line);font-size:14px}
+    .content{padding:12px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select,button,textarea{width:100%;background:#0f1320;border:1px solid var(--line);color:var(--text);padding:9px 10px;border-radius:10px;font-size:13px}
+    textarea{min-height:140px;font-family:ui-monospace,monospace}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+    .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+    .btnrow button{width:auto;cursor:pointer}
+    .primary{border-color:#36506a}
+    .danger{border-color:#5a2a33;color:#ffd2da}
+    .list{display:grid;gap:8px}
+    .item{border:1px solid var(--line);border-radius:10px;padding:8px;background:rgba(12,15,24,.5);display:grid;grid-template-columns:62px 1fr auto;gap:8px;align-items:center}
+    .preview{width:56px;height:56px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;background:#0f1320;overflow:hidden}
+    .preview img{width:100%;height:100%;object-fit:contain;filter:brightness(0) saturate(100%) invert(87%) sepia(9%) saturate(268%) hue-rotate(186deg) brightness(99%) contrast(92%)}
+    .meta{font-size:12px;color:var(--muted)}
+    .hint{font-size:12px;color:var(--muted);line-height:1.4}
+    .paletteGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:8px}
+    .swatch{height:32px;border-radius:8px;border:1px solid var(--line);cursor:pointer;position:relative;padding:0}
+    .swatch.active{outline:2px solid #7dd3fc;outline-offset:1px;border-color:#7dd3fc}
+    .swatch::after{content:'✓';position:absolute;right:6px;top:4px;font-size:12px;font-weight:700;color:#0b0d12;opacity:0;}
+    .swatch.active::after{opacity:1}
+    .colorList{margin-top:10px;font-size:12px;color:var(--muted)}
+    code{color:#cfe8ff}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Админка SVG фигур</strong>
+    <span class="hint">Управление пользовательскими фигурами и допустимыми цветами для генератора щитов</span>
+    <a href="./coa_editor.html" style="margin-left:auto">← Вернуться в генератор</a>
+  </header>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Добавить / редактировать</h2>
+      <div class="content">
+        <div class="row">
+          <div><label>Название</label><input id="name" placeholder="Напр. Лев rampant" /></div>
+          <div><label>ID</label><input id="id" placeholder="lion_rampant" /></div>
+        </div>
+        <div class="row">
+          <div><label>Группа</label><select id="group"><option>Гербовые</option><option>Простые</option><option>Почётные</option></select></div>
+          <div><label>Масштаб по умолчанию</label><input id="scale" type="number" step="0.01" value="0.52" /></div>
+        </div>
+        <div class="btnrow" style="margin-bottom:10px">
+          <button id="pickFile">Загрузить SVG файл</button>
+          <input id="fileInput" type="file" accept=".svg,image/svg+xml" style="display:none" />
+        </div>
+        <label>SVG содержимое</label>
+        <textarea id="svgText" placeholder="<svg ...>...</svg>"></textarea>
+        <div class="btnrow" style="margin-top:10px">
+          <button class="primary" id="save">Сохранить фигуру</button>
+          <button id="clearForm">Очистить форму</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Каталог админки</h2>
+      <div class="content">
+        <div class="btnrow" style="margin-bottom:10px">
+          <button id="exportJson">Экспорт JSON</button>
+          <button id="clearAll" class="danger">Удалить все</button>
+        </div>
+        <div id="list" class="list"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Допустимые цвета</h2>
+      <div class="content">
+        <div class="hint">Выберите цвета, которые будут доступны в генераторе. Сохраняются в <code>localStorage/shieldgenAdminAllowedColors</code>.</div>
+        <div id="paletteGrid" class="paletteGrid"></div>
+        <div class="btnrow" style="margin-top:10px">
+          <button id="saveColors" class="primary">Сохранить цвета</button>
+          <button id="resetColors">Сбросить к умолчанию</button>
+        </div>
+        <div id="selectedColors" class="colorList"></div>
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const STORAGE_KEY = 'shieldgenAdminFigures';
+  const COLOR_KEY = 'shieldgenAdminAllowedColors';
+  const BASE_PALETTE = [
+    '#FFBB06', '#FFF500', '#F4C551', '#FFFFFF', '#B4BEBF',
+    '#35373B', '#5E3306', '#C07F55', '#6E2202', '#FE0000',
+    '#FF93B5', '#860000', '#00B357', '#02CC00', '#015601',
+    '#0000FE', '#5DC6F3', '#06186E', '#890098', '#C18CFE',
+    '#BF285B', '#FF7F00', '#FFA163', '#FF633D', '#000000'
+  ];
+
+  const q = (id) => document.getElementById(id);
+  const els = {
+    name:q('name'), id:q('id'), group:q('group'), scale:q('scale'), svgText:q('svgText'),
+    save:q('save'), clearForm:q('clearForm'), pickFile:q('pickFile'), fileInput:q('fileInput'),
+    list:q('list'), exportJson:q('exportJson'), clearAll:q('clearAll'),
+    paletteGrid:q('paletteGrid'), saveColors:q('saveColors'), resetColors:q('resetColors'), selectedColors:q('selectedColors')
+  };
+
+  let editingId = null;
+  let selectedColors = new Set(loadAllowedColors());
+
+  const read = () => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch (_) { return []; }
+  };
+  const write = (arr) => localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+
+  function loadAllowedColors() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(COLOR_KEY) || '[]');
+      if (!Array.isArray(parsed)) return BASE_PALETTE.slice();
+      const normalized = parsed
+        .map((c) => String(c || '').trim().toUpperCase())
+        .filter((c) => /^#[0-9A-F]{6}$/.test(c) && BASE_PALETTE.includes(c));
+      const uniq = [...new Set(normalized)];
+      return uniq.length ? uniq : BASE_PALETTE.slice();
+    } catch (_) {
+      return BASE_PALETTE.slice();
+    }
+  }
+
+  function saveAllowedColors(colors) {
+    const list = [...new Set(colors
+      .map((c) => String(c || '').trim().toUpperCase())
+      .filter((c) => /^#[0-9A-F]{6}$/.test(c) && BASE_PALETTE.includes(c))
+    )];
+    localStorage.setItem(COLOR_KEY, JSON.stringify(list.length ? list : BASE_PALETTE));
+  }
+
+  function toDataUri(svg) {
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+
+  function normalizeId(v) {
+    return (v || '').trim().toLowerCase().replace(/[^a-z0-9_\-]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function clearForm() {
+    editingId = null;
+    els.name.value = '';
+    els.id.value = '';
+    els.group.value = 'Гербовые';
+    els.scale.value = '0.52';
+    els.svgText.value = '';
+  }
+
+  function renderColorSummary() {
+    const items = [...selectedColors];
+    els.selectedColors.textContent = `Выбрано цветов: ${items.length}. ${items.join(', ')}`;
+  }
+
+  function renderColors() {
+    els.paletteGrid.innerHTML = '';
+    BASE_PALETTE.forEach((color) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'swatch' + (selectedColors.has(color) ? ' active' : '');
+      b.style.background = color;
+      b.title = color;
+      b.onclick = () => {
+        if (selectedColors.has(color)) {
+          if (selectedColors.size === 1) return;
+          selectedColors.delete(color);
+        } else {
+          selectedColors.add(color);
+        }
+        renderColors();
+      };
+      els.paletteGrid.appendChild(b);
+    });
+    renderColorSummary();
+  }
+
+  function render() {
+    const items = read();
+    els.list.innerHTML = '';
+    if (!items.length) {
+      els.list.innerHTML = '<div class="hint">Пока нет фигур. Добавьте первую через форму слева.</div>';
+      return;
+    }
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML = `
+        <div class="preview"><img alt="${item.name}" src="${item.src}"></div>
+        <div>
+          <div><strong>${item.name}</strong></div>
+          <div class="meta">id: ${item.id} · ${item.group} · scale: ${item.defaults?.s ?? 0.52}</div>
+        </div>
+        <div class="btnrow">
+          <button data-act="edit" data-id="${item.id}">Изменить</button>
+          <button data-act="delete" data-id="${item.id}" class="danger">Удалить</button>
+        </div>`;
+      els.list.appendChild(row);
+    });
+  }
+
+  function upsertFigure() {
+    const name = els.name.value.trim();
+    const id = normalizeId(els.id.value || name);
+    const group = els.group.value;
+    const s = Number(els.scale.value || 0.52);
+    const svg = els.svgText.value.trim();
+
+    if (!name || !id || !svg.includes('<svg')) {
+      alert('Заполните название, ID и вставьте валидный SVG.');
+      return;
+    }
+
+    const figure = {
+      id,
+      name,
+      group,
+      kind: 'external_svg',
+      src: toDataUri(svg),
+      defaults: { s: Number.isFinite(s) ? s : 0.52, x: 0, y: 0 }
+    };
+
+    const items = read();
+    const targetId = editingId || id;
+    const idx = items.findIndex((x) => x.id === targetId);
+    if (idx >= 0) items[idx] = figure;
+    else items.push(figure);
+    write(items);
+    clearForm();
+    render();
+  }
+
+  els.save.onclick = upsertFigure;
+  els.clearForm.onclick = clearForm;
+  els.pickFile.onclick = () => els.fileInput.click();
+  els.fileInput.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const txt = await file.text();
+    els.svgText.value = txt;
+    if (!els.name.value) {
+      const base = file.name.replace(/\.svg$/i, '').replace(/[_-]+/g, ' ');
+      els.name.value = base;
+      els.id.value = normalizeId(base);
+    }
+    e.target.value = '';
+  };
+
+  els.list.onclick = (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+    const items = read();
+    const item = items.find((x) => x.id === id);
+    if (!item) return;
+
+    if (act === 'delete') {
+      write(items.filter((x) => x.id !== id));
+      render();
+      return;
+    }
+
+    editingId = id;
+    els.name.value = item.name || '';
+    els.id.value = item.id || '';
+    els.group.value = item.group || 'Гербовые';
+    els.scale.value = String(item.defaults?.s ?? 0.52);
+
+    if (typeof item.src === 'string' && item.src.startsWith('data:image/svg+xml')) {
+      const payload = item.src.split(',')[1] || '';
+      els.svgText.value = decodeURIComponent(payload);
+    } else {
+      fetch(item.src).then((r) => r.text()).then((t) => { els.svgText.value = t; }).catch(() => {
+        els.svgText.value = '<svg viewBox="0 0 100 100"></svg>';
+      });
+    }
+  };
+
+  els.exportJson.onclick = () => {
+    const blob = new Blob([JSON.stringify(read(), null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'shieldgen_admin_figures.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  els.clearAll.onclick = () => {
+    if (!confirm('Удалить все фигуры админки?')) return;
+    write([]);
+    render();
+    clearForm();
+  };
+
+  els.saveColors.onclick = () => {
+    saveAllowedColors([...selectedColors]);
+    alert('Допустимые цвета сохранены. Обновите страницу генератора.');
+  };
+
+  els.resetColors.onclick = () => {
+    selectedColors = new Set(BASE_PALETTE);
+    renderColors();
+    saveAllowedColors(BASE_PALETTE);
+  };
+
+  render();
+  renderColors();
+})();
+</script>
+</body>
+</html>

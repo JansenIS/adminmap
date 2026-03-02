@@ -1,0 +1,1238 @@
+[
+  {
+    "group": "Гербовые",
+    "id": "heraldic_bike",
+    "name": "bike",
+    "kind": "external_svg",
+    "src": "./figures/bike.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_griphon",
+    "name": "griphon",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Griffin_1.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_scolopendra",
+    "name": "scolopendra",
+    "kind": "external_svg",
+    "src": "./figures/scolopendra.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_locust",
+    "name": "locust",
+    "kind": "external_svg",
+    "src": "./figures/locust.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_serpen",
+    "name": "serpen",
+    "kind": "external_svg",
+    "src": "./figures/sepren.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_varg",
+    "name": "varg",
+    "kind": "external_svg",
+    "src": "./figures/varg.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_jeep",
+    "name": "jeep",
+    "kind": "external_svg",
+    "src": "./figures/jeep.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_raindar",
+    "name": "Raindar",
+    "kind": "external_svg",
+    "src": "./figures/Raindar.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_bell_1",
+    "name": "Bell-1",
+    "kind": "external_svg",
+    "src": "./figures/Bell-1.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_boar_s_head_couped_scottish_heraldry",
+    "name": "Boar's head couped (scottish heraldry)",
+    "kind": "external_svg",
+    "src": "./figures/Boar's_head_couped_(scottish_heraldry).svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_boar_s_head_erased_scottish_heraldry",
+    "name": "Boar's head erased (scottish heraldry)",
+    "kind": "external_svg",
+    "src": "./figures/Boar's_head_erased_(scottish_heraldry).svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_breaking_wheel",
+    "name": "Coa Illustration Breaking Wheel",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Breaking_Wheel.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_cross_chain",
+    "name": "Coa Illustration Cross Chain",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Cross_Chain.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_ammonite",
+    "name": "Coa Illustration Elements Ammonite",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Ammonite.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_amphiptere",
+    "name": "Coa Illustration Elements Amphiptere",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Amphiptere.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_anchor",
+    "name": "Coa Illustration Elements Anchor",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Anchor.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_antelope_passant",
+    "name": "Coa Illustration Elements Animal Antelope Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Antelope_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_boar_rampant",
+    "name": "Coa Illustration Elements Animal Boar Rampant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Boar_Rampant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_cat_a_mountain_sejant_guardant",
+    "name": "Coa Illustration Elements Animal Cat-a-Mountain Sejant Guardant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Cat_Mountain_Sejant_Guardant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_cockatrice_displayed",
+    "name": "Coa Illustration Elements Animal Cockatrice Displayed",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Cockatrice_Displayed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_cockatrice_sejant",
+    "name": "Coa Illustration Elements Animal Cockatrice Sejant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Cockatrice_Sejant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_dolphin_haurient",
+    "name": "Coa Illustration Elements Animal Dolphin Haurient",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Dolphin_Haurient.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_dolphin_naiant",
+    "name": "Coa Illustration Elements Animal Dolphin Naiant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Dolphin_Naiant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_double_headed_eagle_displayed",
+    "name": "Coa Illustration Elements Animal Double-Headed Eagle Displayed",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Double-Headed_Eagle_Displayed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_dragon_passant",
+    "name": "Coa Illustration Elements Animal Dragon Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Dragon_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_dragon_segreant",
+    "name": "Coa Illustration Elements Animal Dragon Segreant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Dragon_Segreant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_eagle_displayed_with_wings_inverted",
+    "name": "Coa Illustration Elements Animal Eagle Displayed with Wings Inverted",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Eagle_Displayed_with_Wings_Inverted.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_eagle_rising_wings_addorsed_and_elevated",
+    "name": "Coa Illustration Elements Animal Eagle Rising Wings Addorsed and Elevated",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Eagle_Rising_Wings_Addorsed_and_Elevated.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_falcoln_belled",
+    "name": "Coa Illustration Elements Animal Falcoln Belled",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Falcoln_Belled.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_griffin_1",
+    "name": "Coa Illustration Elements Animal Griffin 1",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Griffin_1.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_griffin_passant",
+    "name": "Coa Illustration Elements Animal Griffin Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Griffin_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_hydra_statant",
+    "name": "Coa Illustration Elements Animal Hydra Statant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Hydra_Statant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_lion_passant",
+    "name": "Coa Illustration Elements Animal Lion Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Lion_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_salamander_regardant",
+    "name": "Coa Illustration Elements Animal Salamander Regardant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Salamander_Regardant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_sea_dog",
+    "name": "Coa Illustration Elements Animal Sea Dog",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Sea_Dog.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_sea_dragon",
+    "name": "Coa Illustration Elements Animal Sea Dragon",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Sea_Dragon.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_sea_lion_embowed",
+    "name": "Coa Illustration Elements Animal Sea Lion Embowed",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Sea_Lion_Embowed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_serpent_entwined_about_a_pillar",
+    "name": "Coa Illustration Elements Animal Serpent Entwined About A Pillar",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Serpent_Entwined_About_A_Pillar.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_serpent_erect_vorant_of_a_human_1",
+    "name": "Coa Illustration Elements Animal Serpent Erect Vorant of a Human 1",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Serpent_Erect_Vorant_of_a_Human_1.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_serpent_nowed",
+    "name": "Coa Illustration Elements Animal Serpent Nowed",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Serpent_Nowed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_tyger_passant",
+    "name": "Coa Illustration Elements Animal Tyger Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Tyger_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_unicorn",
+    "name": "Coa Illustration Elements Animal Unicorn",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Unicorn.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_animal_wyvern_rampant",
+    "name": "Coa Illustration Elements Animal Wyvern Rampant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Animal_Wyvern_Rampant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_arrow",
+    "name": "Coa Illustration Elements Arms Arrow",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Arrow.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_broad_arrowhead",
+    "name": "Coa Illustration Elements Arms Broad Arrowhead",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Broad_Arrowhead.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_double_bladed_battle_axe",
+    "name": "Coa Illustration Elements Arms Double-Bladed Battle-Axe",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Double-Bladed_Battle-Axe.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_flame_bladed_sword",
+    "name": "Coa Illustration Elements Arms Flame-bladed Sword",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Flame-bladed_Sword.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_flanged_mace",
+    "name": "Coa Illustration Elements Arms Flanged Mace",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Flanged_Mace.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_lance",
+    "name": "Coa Illustration Elements Arms Lance",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Lance.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_petronel",
+    "name": "Coa Illustration Elements Arms Petronel",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Petronel.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_pheon_arrowhead",
+    "name": "Coa Illustration Elements Arms Pheon Arrowhead",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Pheon_Arrowhead.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_sword_v2",
+    "name": "Coa Illustration Elements Arms Sword v2",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Sword_v2.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_arms_sword_v3",
+    "name": "Coa Illustration Elements Arms Sword v3",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Arms_Sword_v3.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_battering_ram",
+    "name": "Coa Illustration Elements Battering Ram",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Battering_Ram.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_battle_axe",
+    "name": "Coa Illustration Elements Battle-Axe",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Battle-Axe.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_body_part_two_bones_in_cross",
+    "name": "Coa Illustration Elements Body Part Two Bones In Cross",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Body_Part_Two_Bones_In_Cross.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_bodypart_arm_couped_with_fingers_extended",
+    "name": "Coa Illustration Elements Bodypart Arm Couped with Fingers Extended",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Bodypart_Arm_Couped_with_Fingers_Extended.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_bodypart_eye",
+    "name": "Coa Illustration Elements Bodypart Eye",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Bodypart_Eye.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_bodypart_hand_couped",
+    "name": "Coa Illustration Elements Bodypart Hand Couped",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Bodypart_Hand_Couped.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_bodypart_skull",
+    "name": "Coa Illustration Elements Bodypart Skull",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Bodypart_Skull.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_building_church",
+    "name": "Coa Illustration Elements Building Church",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Building_Church.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_building_city",
+    "name": "Coa Illustration Elements Building City",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Building_City.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_building_house",
+    "name": "Coa Illustration Elements Building House",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Building_House.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_building_tower_1",
+    "name": "Coa Illustration Elements Building Tower 1",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Building_Tower_1.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_centaur_passant",
+    "name": "Coa Illustration Elements Centaur Passant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Centaur_Passant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_column",
+    "name": "Coa Illustration Elements Column",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Column.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_harpy_rising_wings_displayed",
+    "name": "Coa Illustration Elements Harpy Rising Wings Displayed",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Harpy_Rising_Wings_Displayed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_hunting_horn",
+    "name": "Coa Illustration Elements Hunting Horn",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Hunting_Horn.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_lamia_salient_guardant",
+    "name": "Coa Illustration Elements Lamia Salient Guardant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Lamia_Salient_Guardant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_literacy_book_open_1",
+    "name": "Coa Illustration Elements Literacy Book Open(1)",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Literacy_Book_Open(1).svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_literacy_book_open",
+    "name": "Coa Illustration Elements Literacy Book Open",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Literacy_Book_Open.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_lymphad_with_oars_shipped",
+    "name": "Coa Illustration Elements Lymphad with Oars Shipped",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Lymphad_with_Oars_Shipped.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_manticore_passant_guardant",
+    "name": "Coa Illustration Elements Manticore Passant Guardant",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Manticore_Passant_Guardant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_mermaid",
+    "name": "Coa Illustration Elements Mermaid",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Mermaid.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_merman",
+    "name": "Coa Illustration Elements Merman",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Merman.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_musical_instrument_drum",
+    "name": "Coa Illustration Elements Musical Instrument Drum",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Musical_Instrument_Drum.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_musical_instrument_hunting_horn",
+    "name": "Coa Illustration Elements Musical Instrument Hunting Horn",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Musical_Instrument_Hunting_Horn.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_phoenix",
+    "name": "Coa Illustration Elements Phoenix",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Phoenix.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_pistol",
+    "name": "Coa Illustration Elements Pistol",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Pistol.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_planet_crescent",
+    "name": "Coa Illustration Elements Planet Crescent",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Planet_Crescent.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_planet_moon_in_her_plenitude",
+    "name": "Coa Illustration Elements Planet Moon in her Plenitude",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Planet_Moon_in_her_Plenitude.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_planet_sun_in_his_splendor",
+    "name": "Coa Illustration Elements Planet Sun in his Splendor",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Planet_Sun_in_his_Splendor.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_plant_rose",
+    "name": "Coa Illustration Elements Plant Rose",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Plant_Rose.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_plant_thistle",
+    "name": "Coa Illustration Elements Plant Thistle",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Plant_Thistle.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_symbol_of_power_scepter_crown",
+    "name": "Coa Illustration Elements Symbol of power Scepter Crown",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Symbol_of_power_Scepter_Crown.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_tool_bell",
+    "name": "Coa Illustration Elements Tool Bell",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Tool_Bell.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_tool_spoon",
+    "name": "Coa Illustration Elements Tool Spoon",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Tool_Spoon.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_triskelion_armored_legs",
+    "name": "Coa Illustration Elements Triskelion Armored Legs",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Triskelion_Armored_Legs.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_triskelion_arms",
+    "name": "Coa Illustration Elements Triskelion Arms",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Triskelion_Arms.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_elements_troll",
+    "name": "Coa Illustration Elements Troll",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Elements_Troll.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_jawless_skull",
+    "name": "Coa Illustration Jawless Skull",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Jawless_Skull.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_coa_illustration_skeleton",
+    "name": "Coa Illustration Skeleton",
+    "kind": "external_svg",
+    "src": "./figures/Coa_Illustration_Skeleton.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_greek_sphinx_statant_guardant_wings_addorsed",
+    "name": "Greek Sphinx Statant Guardant Wings Addorsed",
+    "kind": "external_svg",
+    "src": "./figures/Greek_Sphinx_Statant_Guardant_Wings_Addorsed.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_griffin_s_head_erased_heraldry",
+    "name": "Griffin's head erased (heraldry)",
+    "kind": "external_svg",
+    "src": "./figures/Griffin's_head_erased_(heraldry).svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_heraldic_gauntlet",
+    "name": "Heraldic gauntlet",
+    "kind": "external_svg",
+    "src": "./figures/Heraldic_gauntlet.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_keythong",
+    "name": "Keythong",
+    "kind": "external_svg",
+    "src": "./figures/Keythong.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_manticore_vinycomb",
+    "name": "Manticore Vinycomb",
+    "kind": "external_svg",
+    "src": "./figures/Manticore_Vinycomb.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_meuble_h_raldique_parchemin_02",
+    "name": "Meuble héraldique Parchemin 02",
+    "kind": "external_svg",
+    "src": "./figures/Meuble_héraldique_Parchemin_02.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_meuble_h_raldique_soldat_en_armure",
+    "name": "Meuble héraldique soldat en armure",
+    "kind": "external_svg",
+    "src": "./figures/Meuble_héraldique_soldat_en_armure.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_musimon_rampant",
+    "name": "Musimon rampant",
+    "kind": "external_svg",
+    "src": "./figures/Musimon_rampant.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_oak_tree_fructed_and_eradicated",
+    "name": "Oak Tree Fructed and Eradicated",
+    "kind": "external_svg",
+    "src": "./figures/Oak_Tree_Fructed_and_Eradicated.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_phoenix_european_heraldry",
+    "name": "Phoenix (European Heraldry)",
+    "kind": "external_svg",
+    "src": "./figures/Phoenix_(European_Heraldry).svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  },
+  {
+    "group": "Гербовые",
+    "id": "heraldic_fundatoria",
+    "name": "Fundatoria",
+    "kind": "external_svg",
+    "src": "./figures/fundatoria.svg",
+    "defaults": {
+      "x": 0,
+      "y": 0.02,
+      "s": 0.52
+    }
+  }
+]

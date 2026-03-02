@@ -1,0 +1,280 @@
+[
+  {
+    "group": "Почётные",
+    "id": "chief",
+    "name": "Глава (Chief)",
+    "kind": "rect_band",
+    "defaults": {
+      "w": 1,
+      "h": 0.22,
+      "x": 0,
+      "y": -0.39
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "base",
+    "name": "Оконечность (Base)",
+    "kind": "rect_band",
+    "defaults": {
+      "w": 1,
+      "h": 0.22,
+      "x": 0,
+      "y": 0.39
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "pale",
+    "name": "Столб (Pale)",
+    "kind": "rect_band_v",
+    "defaults": {
+      "w": 0.22,
+      "h": 1,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "fess",
+    "name": "Пояс (Fess)",
+    "kind": "rect_band",
+    "defaults": {
+      "w": 1,
+      "h": 0.22,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "bend",
+    "name": "Перевязь (Bend)",
+    "kind": "diag_band",
+    "defaults": {
+      "w": 0.22,
+      "x": 0,
+      "y": 0,
+      "a": 45
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "bend_sinister",
+    "name": "Обратная перевязь (Bend sinister)",
+    "kind": "diag_band",
+    "defaults": {
+      "w": 0.22,
+      "x": 0,
+      "y": 0,
+      "a": -45
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "chevron",
+    "name": "Стропило (Chevron)",
+    "kind": "chevron",
+    "defaults": {
+      "w": 0.18,
+      "s": 0.68,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "cross",
+    "name": "Крест (Cross)",
+    "kind": "cross",
+    "defaults": {
+      "w": 0.18,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "saltire",
+    "name": "Косой крест (Saltire)",
+    "kind": "saltire",
+    "defaults": {
+      "w": 0.16,
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "pall",
+    "name": "Паллиум / развилка (Pall)",
+    "kind": "pall",
+    "defaults": {
+      "w": 0.14,
+      "x": 0,
+      "y": -0.05
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "pile",
+    "name": "Клин (Pile)",
+    "kind": "pile",
+    "defaults": {
+      "w": 0.56,
+      "h": 0.8,
+      "x": 0,
+      "y": -0.1
+    }
+  },
+  {
+    "group": "Почётные",
+    "id": "bordure",
+    "name": "Кайма (Bordure)",
+    "kind": "border",
+    "defaults": {
+      "w": 0.08
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "canton",
+    "name": "Кантон (Canton)",
+    "kind": "canton",
+    "defaults": {
+      "s": 0.3,
+      "x": -0.32,
+      "y": -0.32
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "inescutcheon",
+    "name": "Щиток (Inescutcheon)",
+    "kind": "inescutcheon",
+    "defaults": {
+      "s": 0.42,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "lozenge",
+    "name": "Ромб (Lozenge)",
+    "kind": "lozenge",
+    "defaults": {
+      "s": 0.45,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "roundel",
+    "name": "Круг (Roundel)",
+    "kind": "circle",
+    "defaults": {
+      "r": 0.2,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "annulet",
+    "name": "Кольцо (Annulet)",
+    "kind": "ring",
+    "defaults": {
+      "r": 0.21,
+      "t": 0.06,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "billet",
+    "name": "Брусок (Billet)",
+    "kind": "billet",
+    "defaults": {
+      "w": 0.16,
+      "h": 0.26,
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "label",
+    "name": "Турнирный ярлык (Label)",
+    "kind": "label",
+    "defaults": {
+      "w": 0.72,
+      "h": 0.1,
+      "t": 0.18,
+      "x": 0,
+      "y": -0.4
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "orle",
+    "name": "Орле (Orle)",
+    "kind": "orle",
+    "defaults": {
+      "w": 0.06,
+      "inset": 0.1
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "tressure",
+    "name": "Двойное орле (Tressure)",
+    "kind": "tressure",
+    "defaults": {
+      "w": 0.04,
+      "inset": 0.12,
+      "gap": 0.06
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "flaunches",
+    "name": "Фланки (Flaunches)",
+    "kind": "flaunches",
+    "defaults": {
+      "r": 0.34,
+      "x": 0,
+      "y": 0.02
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "gyronny_hint",
+    "name": "Гиронирование (4 сектора)",
+    "kind": "gyronny4",
+    "defaults": {
+      "x": 0,
+      "y": 0.05
+    }
+  },
+  {
+    "group": "Простые",
+    "id": "inscription",
+    "name": "Надпись (Inscription)",
+    "kind": "inscription",
+    "defaults": {
+      "text": "FORTITUDO ET HONOR",
+      "fontStyle": "medieval",
+      "fontSize": 0.085,
+      "curve": 170,
+      "radius": 0.34,
+      "letterSpacing": 0.02,
+      "x": 0,
+      "y": -0.08,
+      "rot": 0
+    }
+  }
+]

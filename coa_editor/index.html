@@ -1,0 +1,3372 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Генератор гербов (SVG)</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#141822;
+      --panel2:#0f1320;
+      --text:#e8eaf0;
+      --muted:#aab1c3;
+      --line:#2a3144;
+      --accent:#7dd3fc;
+      --danger:#fb7185;
+      --ok:#86efac;
+      --btn:#1b2233;
+      --btn2:#202a40;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      color:var(--text);
+      background:linear-gradient(180deg, #0b0d12 0%, #0f1115 100%);
+    }
+    header{
+      padding:14px 16px;
+      border-bottom:1px solid var(--line);
+      background:rgba(20,24,34,.85);
+      position:sticky; top:0;
+      backdrop-filter: blur(8px);
+      z-index:10;
+    }
+    header .row{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    }
+    header h1{
+      font-size:14px;
+      margin:0;
+      letter-spacing:.3px;
+      font-weight:650;
+      color:#f3f5fb;
+    }
+    header .hint{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .layout{
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:12px;
+      padding:12px;
+      max-width:1400px;
+      margin:0 auto;
+    }
+    @media (max-width: 980px){
+      .layout{ grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(20,24,34,.95) 0%, rgba(15,19,32,.95) 100%);
+      border:1px solid var(--line);
+      border-radius:14px;
+      overflow:hidden;
+    }
+    .panel h2{
+      margin:0;
+      padding:12px 12px 10px;
+      font-size:13px;
+      letter-spacing:.2px;
+      border-bottom:1px solid var(--line);
+      background:rgba(10,12,18,.25);
+    }
+    .panel .content{ padding:12px; }
+
+    .field{
+      margin-bottom:10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+      align-items:end;
+    }
+    .field.one{ grid-template-columns: 1fr; }
+    label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin:0 0 6px;
+    }
+    select, input[type="text"], input[type="number"]{
+      width:100%;
+      background:rgba(12,15,24,.7);
+      border:1px solid var(--line);
+      color:var(--text);
+      padding:9px 10px;
+      border-radius:10px;
+      outline:none;
+      font-size:13px;
+    }
+    input[type="color"]{
+      width:100%;
+      height:38px;
+      padding:0;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(12,15,24,.7);
+    }
+    input[type="range"]{ width:100%; }
+    .btnrow{
+      display:flex; gap:8px; flex-wrap:wrap;
+    }
+    button{
+      appearance:none;
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, var(--btn) 0%, var(--btn2) 100%);
+      color:var(--text);
+      border-radius:10px;
+      padding:10px 10px;
+      font-size:13px;
+      cursor:pointer;
+      transition: transform .05s ease, border-color .15s ease, filter .15s ease;
+    }
+    button:hover{ border-color:#3b4665; }
+    button:active{ transform: translateY(1px); }
+    button.primary{
+      border-color:#36506a;
+      box-shadow: 0 0 0 1px rgba(125,211,252,.15) inset;
+    }
+    button.danger{
+      border-color:#5a2a33;
+      color:#ffd2da;
+    }
+    button.ghost{
+      background:transparent;
+      border-color:var(--line);
+    }
+
+    .layers{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .layer{
+      border:1px solid var(--line);
+      border-radius:12px;
+      overflow:hidden;
+      background:rgba(10,12,18,.25);
+    }
+    .layer .top{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px;
+      border-bottom:1px solid rgba(42,49,68,.6);
+    }
+    .layer .name{
+      font-size:13px;
+      font-weight:650;
+      letter-spacing:.2px;
+    }
+    .layer .meta{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:2px;
+    }
+    .layer .actions{
+      display:flex; gap:6px; flex-wrap:wrap;
+    }
+    .layer .actions button{
+      padding:6px 8px;
+      font-size:12px;
+      border-radius:9px;
+    }
+    .layer .body{
+      padding:10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .layer .body .full{ grid-column:1 / -1; }
+
+    .stage{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:600px;
+    }
+    .canvasWrap{
+      background:radial-gradient(1200px 600px at 40% 30%, rgba(125,211,252,.06), transparent 60%),
+                 linear-gradient(180deg, rgba(20,24,34,.3), rgba(15,19,32,.6));
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:520px;
+    }
+    .svgbox{
+      width:min(520px, 90vw);
+      aspect-ratio: 5 / 6;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .svgbox svg{ touch-action:none; user-select:none; -webkit-user-select:none; }
+    .toolbar{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .toolbar .left, .toolbar .right{
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    }
+    .smallnote{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:11px;
+      padding:1px 6px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      color:#dbe5ff;
+      background:rgba(12,15,24,.7);
+    }
+    .split{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    @media (max-width: 980px){
+      .split{ grid-template-columns: 1fr; }
+    }
+    .pill{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      background:rgba(12,15,24,.6);
+    }
+
+    .segGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .seg{
+      border:1px solid rgba(42,49,68,.8);
+      border-radius:12px;
+      padding:10px;
+      background:rgba(12,15,24,.45);
+    }
+    .segTitle{
+      font-size:12px;
+      color:#dbe5ff;
+      font-weight:650;
+      margin:0 0 8px;
+    }
+    .segRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+      align-items:end;
+      margin-bottom:8px;
+    }
+
+    .paletteGrid{
+      display:grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap:6px;
+    }
+    .paletteSwatch{
+      width:100%;
+      height:30px;
+      border-radius:8px;
+      border:1px solid var(--line);
+      cursor:pointer;
+      padding:0;
+    }
+    .paletteSwatch.active{
+      outline:2px solid #7dd3fc;
+      outline-offset:1px;
+      border-color:#7dd3fc;
+    }
+    .paletteSwatch.locked{
+      opacity:0.25;
+      cursor:not-allowed;
+      filter:saturate(0.3);
+    }
+    .figurePreviewGrid{
+      margin-top:10px;
+      max-height:360px;
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:8px;
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:8px;
+      background:rgba(12,15,24,.4);
+    }
+    .figurePreviewBtn{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      align-items:center;
+      justify-content:flex-start;
+      text-align:center;
+      padding:8px 6px;
+      min-height:108px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(12,15,24,.65);
+      font-size:11px;
+      line-height:1.2;
+    }
+    .figurePreviewBtn.active{
+      border-color:#7dd3fc;
+      box-shadow:0 0 0 1px rgba(125,211,252,.3) inset;
+    }
+    .figurePreviewBtn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+    .figurePreviewIcon{
+      width:52px;
+      height:52px;
+      border-radius:8px;
+      border:1px solid rgba(125,211,252,.2);
+      background:rgba(255,255,255,.05);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      font-size:10px;
+      color:var(--muted);
+    }
+    .figurePreviewIcon img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+      filter:brightness(0) saturate(100%) invert(87%) sepia(9%) saturate(268%) hue-rotate(186deg) brightness(99%) contrast(92%);
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>Генератор гербов (SVG)</h1>
+    <div class="hint">10 принципиально разных форм щита · перетаскивание фигур · деление поля/паттерны · экспорт SVG/PNG</div>
+  </div>
+</header>
+
+<div class="layout">
+  <section class="panel">
+    <h2>Основа</h2>
+    <div class="content">
+      <div class="field">
+        <div>
+          <label>Форма щита</label>
+          <select id="shieldShape"></select>
+        </div>
+        <div>
+          <label>Фон (опционально)</label>
+          <select id="bgMode">
+            <option value="none">Без фона</option>
+            <option value="paper">Тёмная “бумага”</option>
+            <option value="grid">Сетка</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <div>
+          <label>Режим сословия</label>
+          <select id="rankMode"></select>
+        </div>
+        <div id="rankModeHint" class="smallnote"></div>
+      </div>
+
+      <div class="field one">
+        <div id="rankPaletteBox"></div>
+      </div>
+
+      <div class="field">
+        <div>
+          <label>Поле щита: деление</label>
+          <select id="fieldMode"></select>
+        </div>
+        <div>
+          <label>Размер паттерна</label>
+          <input type="range" id="patternSize" min="12" max="140" value="64" />
+        </div>
+      </div>
+
+      <div id="fieldSegments" class="segGrid"></div>
+
+      <div class="field" style="margin-top:10px">
+        <div>
+          <label>Контур щита</label>
+          <input type="color" id="strokeColor" value="#0b0d12" />
+        </div>
+        <div>
+          <label>Толщина контура</label>
+          <input type="range" id="strokeWidth" min="0" max="20" value="6" />
+        </div>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px">
+        <button class="primary" id="addFigure">Добавить фигуру</button>
+        <button class="ghost" id="uploadFigure">Загрузить SVG</button>
+        <input type="file" id="uploadFigureInput" accept=".svg,image/svg+xml" style="display:none" />
+        <button class="ghost" id="randomGenerate">Сгенерировать случайный герб</button>
+        <button class="ghost" id="reset">Сброс</button>
+      </div>
+
+      <div style="margin-top:10px" class="smallnote">
+        Перетаскивание: зажми ЛКМ/тач на фигуре на щите и двигай. Позиция записывается в смещения X/Y слоя.
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="toolbar">
+      <div class="left">
+        <span class="pill">Экспорт: <span class="kbd">SVG</span> / <span class="kbd">PNG</span></span>
+        <span class="pill">Слои: вверх/вниз</span>
+      </div>
+      <div class="right">
+        <button id="downloadSVG" class="primary">Скачать SVG</button>
+        <button id="downloadPNG">Скачать PNG</button>
+      </div>
+    </div>
+
+    <div class="canvasWrap">
+      <div class="svgbox" id="svgBox"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Слои фигур</h2>
+      <div class="content">
+        <div class="layers" id="layers"></div>
+        <div class="smallnote" style="margin-top:10px">
+          Примечание: «Кайма/орле/трессюра» реализованы как штрихи (stroke), чтобы корректно работать с любым полем (включая паттерны/деления).
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(async () => {
+  // ====== SVG constants ======
+  const VB_W = 1000;
+  const VB_H = 1200;
+
+  // ====== Catalog data ======
+  async function loadJSON(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`Не удалось загрузить ${path}: ${res.status}`);
+    return res.json();
+  }
+
+  async function loadSVG(path) {
+    if (typeof path === "string" && path.startsWith("data:image/svg+xml")) {
+      const commaIdx = path.indexOf(",");
+      if (commaIdx >= 0) {
+        const meta = path.slice(0, commaIdx);
+        const payload = path.slice(commaIdx + 1);
+        return meta.includes(";base64") ? atob(payload) : decodeURIComponent(payload);
+      }
+    }
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`Не удалось загрузить ${path}: ${res.status}`);
+    return res.text();
+  }
+
+  function loadAdminCatalog() {
+    try {
+      const raw = localStorage.getItem("shieldgenAdminFigures");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item) => item && item.kind === "external_svg" && item.src)
+        .map((item, idx) => ({
+          group: item.group || "Гербовые",
+          id: item.id || `admin_${idx}`,
+          name: item.name || `SVG фигура ${idx + 1}`,
+          kind: "external_svg",
+          src: item.src,
+          defaults: item.defaults || { s: 0.52, x: 0, y: 0 }
+        }));
+    } catch (err) {
+      console.warn("Не удалось загрузить фигуры из админки", err);
+      return [];
+    }
+  }
+
+  const [shieldShapes, figureCatalog, heraldicFigureCatalog] = await Promise.all([
+    loadJSON("./shield_shapes.json"),
+    loadJSON("./figures.json"),
+    loadJSON("./heraldic_figures.json")
+  ]);
+
+  async function discoverFigureFilesFromDirectory() {
+    const cacheBust = Date.now();
+    const candidates = ["./figures/", "./figures", "./figures/index.html", "./figures/index.json"];
+
+    const normalizeFigurePath = (href) => {
+      if (!href) return null;
+      const clean = href.split("?")[0].split("#")[0].trim();
+      if (!clean) return null;
+      const lower = clean.toLowerCase();
+      if (!lower.endsWith(".svg")) return null;
+
+      const filePart = clean.split("/").pop();
+      if (!filePart) return null;
+
+      let filename;
+      try {
+        filename = decodeURIComponent(filePart);
+      } catch (_) {
+        filename = filePart;
+      }
+      filename = filename.replace(/&#39;/g, "'").replace(/&apos;/g, "'");
+      return `./figures/${filename}`;
+    };
+
+    const extractSvgPathsFromText = (text) => {
+      const found = new Set();
+
+      try {
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        doc.querySelectorAll("a[href]").forEach((a) => {
+          const path = normalizeFigurePath(a.getAttribute("href"));
+          if (path) found.add(path);
+        });
+      } catch (_) {
+        // ignore parse errors, regex fallback below
+      }
+
+      const regexMatches = text.match(/[^"\s<>]+\.svg(?:\?[^"\s<>]*)?/gi) || [];
+      regexMatches.forEach((raw) => {
+        const path = normalizeFigurePath(raw);
+        if (path) found.add(path);
+      });
+
+      return [...found];
+    };
+
+    const extractSvgPathsFromJson = (data) => {
+      const found = new Set();
+      const stack = [data];
+      while (stack.length) {
+        const item = stack.pop();
+        if (!item) continue;
+        if (Array.isArray(item)) {
+          item.forEach((x) => stack.push(x));
+          continue;
+        }
+        if (typeof item === "object") {
+          Object.values(item).forEach((x) => stack.push(x));
+          continue;
+        }
+        if (typeof item === "string") {
+          const path = normalizeFigurePath(item);
+          if (path) found.add(path);
+        }
+      }
+      return [...found];
+    };
+
+    for (const url of candidates) {
+      const withBust = url.includes("?") ? `${url}&_=${cacheBust}` : `${url}?_=${cacheBust}`;
+      try {
+        const res = await fetch(withBust, { cache: "no-store" });
+        if (!res.ok) continue;
+
+        const contentType = (res.headers.get("content-type") || "").toLowerCase();
+        if (contentType.includes("application/json") || withBust.endsWith(".json")) {
+          try {
+            const data = await res.json();
+            const paths = extractSvgPathsFromJson(data);
+            if (paths.length) return paths;
+            continue;
+          } catch (_) {
+            // fall through to text parse
+          }
+        }
+
+        const text = await res.text();
+        const paths = extractSvgPathsFromText(text);
+        if (paths.length) return paths;
+      } catch (_) {
+        // fallback to next candidate
+      }
+    }
+
+    return [];
+  }
+
+  function fileNameToTitle(path) {
+    const filename = path.split("/").pop()?.replace(/\.svg$/i, "") || "Фигура";
+    return decodeURIComponent(filename)
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const normalizePath = (path) => {
+    const normalized = String(path || "").trim().toLowerCase();
+    return normalized.startsWith("./") ? normalized : `./${normalized.replace(/^\/+/, "")}`;
+  };
+
+  const uploadedFigureCatalog = [];
+  const adminFigureCatalog = loadAdminCatalog();
+  const discoveredFigurePaths = await discoverFigureFilesFromDirectory();
+  const knownFigurePaths = new Set(
+    [...figureCatalog, ...heraldicFigureCatalog]
+      .filter((f) => f.kind === "external_svg" && f.src)
+      .map((f) => normalizePath(f.src))
+  );
+
+  const autoDetectedFigures = discoveredFigurePaths
+    .filter((src) => !knownFigurePaths.has(normalizePath(src)))
+    .map((src, idx) => ({
+      group: "Гербовые",
+      id: `auto_${idx}_${src.split("/").pop().replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`,
+      name: fileNameToTitle(src),
+      kind: "external_svg",
+      src,
+      defaults: { s: 0.52, x: 0, y: 0 }
+    }));
+
+  const BASE_HERALDIC_PALETTE = [
+    "#FFBB06", "#FFF500", "#F4C551", "#FFFFFF", "#B4BEBF",
+    "#35373B", "#5E3306", "#C07F55", "#6E2202", "#FE0000",
+    "#FF93B5", "#860000", "#00B357", "#02CC00", "#015601",
+    "#0000FE", "#5DC6F3", "#06186E", "#890098", "#C18CFE",
+    "#BF285B", "#FF7F00", "#FFA163", "#FF633D", "#000000"
+  ];
+
+  function loadAdminAllowedColors() {
+    try {
+      const raw = localStorage.getItem("shieldgenAdminAllowedColors");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      const normalized = parsed
+        .map((c) => String(c || "").trim().toUpperCase())
+        .filter((c) => /^#[0-9A-F]{6}$/.test(c));
+      const uniq = [...new Set(normalized)];
+      return uniq.filter((c) => BASE_HERALDIC_PALETTE.includes(c));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  const adminAllowedColors = loadAdminAllowedColors();
+  const heraldicPalette = adminAllowedColors.length ? adminAllowedColors : BASE_HERALDIC_PALETTE;
+
+  const patternTypes = [
+    { id: "solid", name: "Сплошной" },
+    { id: "checky", name: "Шахматный" },
+    { id: "paly", name: "Полосы вертикальные" },
+    { id: "barry", name: "Полосы горизонтальные" },
+    { id: "lozengy", name: "Ромбами" },
+    { id: "lozengy_checky", name: "Ромбы шашечницей" },
+    { id: "fence", name: "Ромбы симметричные" }
+  ];
+
+  const fieldModes = [
+    { id: "solid", name: "Сплошное", segments: 1 },
+    { id: "per_fess", name: "Рассечённое (по горизонтали)", segments: 2 },
+    { id: "per_pale", name: "Рассечённое (по вертикали)", segments: 2 },
+    { id: "quarterly", name: "Четверочастное", segments: 4 },
+    { id: "pale_thirds", name: "Три вертикальных части", segments: 3 }
+  ];
+
+  // ====== UI elements ======
+  const el = (id) => document.getElementById(id);
+  const shieldShapeSel = el("shieldShape");
+  const strokeColorInp = el("strokeColor");
+  const strokeWidthInp = el("strokeWidth");
+  const bgModeSel = el("bgMode");
+  const fieldModeSel = el("fieldMode");
+  const rankModeSel = el("rankMode");
+  const rankModeHint = el("rankModeHint");
+  const rankPaletteBox = el("rankPaletteBox");
+  const patternSizeInp = el("patternSize");
+  const fieldSegmentsBox = el("fieldSegments");
+
+  const addFigureBtn = el("addFigure");
+  const uploadFigureBtn = el("uploadFigure");
+  const uploadFigureInput = el("uploadFigureInput");
+
+  const externalSvgCache = new Map();
+  const randomGenerateBtn = el("randomGenerate");
+  const resetBtn = el("reset");
+  const layersBox = el("layers");
+  const svgBox = el("svgBox");
+  const downloadSVGBtn = el("downloadSVG");
+  const downloadPNGBtn = el("downloadPNG");
+
+  function getFullFigureCatalog() {
+    return [...figureCatalog, ...heraldicFigureCatalog, ...autoDetectedFigures, ...adminFigureCatalog, ...uploadedFigureCatalog];
+  }
+
+  const rankRules = [
+    { id: "free", name: "Свободное редактирование", maxColors: null, limits: { honorable: null, simple: null, heraldic: null }, hint: "Без ограничений, как сейчас." },
+    { id: "knight", name: "Рыцарь", maxColors: 2, limits: { honorable: 1, simple: 0, heraldic: 0 }, hint: "2 цвета, 1 почётная фигура." },
+    { id: "freiherr", name: "Фрайгерр", maxColors: 2, limits: { honorable: 1, simple: 1, heraldic: 0 }, hint: "2 цвета, 1 почётная и 1 простая фигура." },
+    { id: "baron", name: "Барон", maxColors: 3, limits: { honorable: null, simple: null, heraldic: 1 }, hint: "3 цвета, до 1 гербовой фигуры, простые/почётные — без лимита." },
+    { id: "count", name: "Граф", maxColors: 3, limits: { honorable: null, simple: null, heraldic: 2 }, hint: "3 цвета, до 2 гербовых фигур, простые/почётные — без лимита." },
+    { id: "duke", name: "Герцог/Князь", maxColors: 4, limits: { honorable: null, simple: null, heraldic: 3 }, hint: "4 цвета, до 3 гербовых фигур, простые/почётные — без лимита." },
+    { id: "king", name: "Король", maxColors: 4, limits: { honorable: null, simple: null, heraldic: 4 }, hint: "4 цвета, до 4 гербовых фигур, простые/почётные — без лимита." }
+  ];
+
+  // ====== State ======
+  const state = {
+    rankMode: "free",
+    allowedColors: heraldicPalette.slice(0, 2),
+    shieldShape: shieldShapes[0].id,
+    strokeColor: strokeColorInp.value,
+    strokeWidth: +strokeWidthInp.value,
+    bgMode: bgModeSel.value,
+    field: {
+      mode: fieldModes[0].id,
+      patternSize: +patternSizeInp.value,
+      segments: [
+        { pattern: "solid", a: "#0000FE", b: "#FFFFFF" }
+      ]
+    },
+    layers: []
+  };
+
+  // ====== Helpers ======
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+  const inscriptionFonts = {
+    medieval: '"Cinzel Decorative", "Bookman Old Style", "Palatino Linotype", serif',
+    gothic: '"UnifrakturCook", "Old English Text MT", "Blackletter", serif'
+  };
+
+
+  function getExternalFigureCacheKey(fig) {
+    if (!fig) return null;
+    return fig.cacheKey || fig.src || null;
+  }
+
+  function ensureExternalSvgEntry(fig, onReady) {
+    const key = getExternalFigureCacheKey(fig);
+    if (!key) return null;
+
+    let entry = externalSvgCache.get(key);
+    if (!entry) {
+      entry = { status: "loading", svg: null, bbox: null, sourceViewBox: null };
+      const loadPromise = fig.svgText ? Promise.resolve(fig.svgText) : loadSVG(fig.src);
+      entry.promise = loadPromise
+        .then((svgText) => {
+          const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+          const svgEl = doc.documentElement;
+          if (!svgEl || svgEl.nodeName.toLowerCase() !== "svg") {
+            throw new Error(`Некорректный SVG: ${fig.src || fig.name || key}`);
+          }
+          inlineExternalSvgClassPaint(svgEl);
+          entry.status = "ready";
+          entry.svg = svgEl;
+          entry.bbox = measureExternalSvgBBox(svgEl);
+          entry.sourceViewBox = parseSvgViewBox(svgEl);
+          if (typeof onReady === "function") onReady();
+        })
+        .catch((err) => {
+          console.error(err);
+          entry.status = "error";
+        });
+      externalSvgCache.set(key, entry);
+    }
+    return entry;
+  }
+
+  function normalizePaletteColor(value) {
+    const hex = String(value || "").trim().toUpperCase();
+    return heraldicPalette.includes(hex) ? hex : heraldicPalette[0];
+  }
+
+
+  function getRankRule(rankId = state.rankMode) {
+    return rankRules.find((r) => r.id === rankId) || rankRules[0];
+  }
+
+  function getFigureClass(fig) {
+    if (!fig) return "simple";
+    if (fig.group === "Почётные") return "honorable";
+    if (fig.group === "Гербовые" || fig.kind === "external_svg") return "heraldic";
+    return "simple";
+  }
+
+  function countLayerClasses(layers = state.layers) {
+    return layers.reduce((acc, layer) => {
+      const c = getFigureClass(layer.fig);
+      acc[c] = (acc[c] || 0) + 1;
+      return acc;
+    }, { honorable: 0, simple: 0, heraldic: 0 });
+  }
+
+  function getRestrictionSet() {
+    const rule = getRankRule();
+    if (!rule.maxColors) return null;
+    const normalized = state.allowedColors.map(normalizePaletteColor);
+    return new Set(normalized.slice(0, rule.maxColors));
+  }
+
+  function ensureAllowedColorsCount() {
+    const rule = getRankRule();
+    if (!rule.maxColors) return;
+    const uniq = [];
+    for (const c of state.allowedColors.map(normalizePaletteColor)) {
+      if (!uniq.includes(c)) uniq.push(c);
+    }
+    for (const c of heraldicPalette) {
+      if (uniq.length >= rule.maxColors) break;
+      if (!uniq.includes(c)) uniq.push(c);
+    }
+    state.allowedColors = uniq.slice(0, rule.maxColors);
+  }
+
+  function enforcePaletteRestrictions() {
+    const allowed = getRestrictionSet();
+    if (!allowed) return;
+    const fallback = state.allowedColors[0] || heraldicPalette[0];
+    state.field.segments = state.field.segments.map((seg) => ({
+      ...seg,
+      a: allowed.has(normalizePaletteColor(seg.a)) ? normalizePaletteColor(seg.a) : fallback,
+      b: allowed.has(normalizePaletteColor(seg.b)) ? normalizePaletteColor(seg.b) : fallback
+    }));
+    state.layers.forEach((layer) => {
+      const color = normalizePaletteColor(layer.color);
+      if (!allowed.has(color)) layer.color = fallback;
+      if (layer.patternColorB) {
+        const colorB = normalizePaletteColor(layer.patternColorB);
+        if (!allowed.has(colorB)) layer.patternColorB = fallback;
+      }
+    });
+  }
+
+  function canUsePatternFill(layer) {
+    if (!layer?.fig) return false;
+    const cls = getFigureClass(layer.fig);
+    return cls === "honorable" || cls === "simple";
+  }
+
+  function getLayerPatternConfig(layer) {
+    const baseColor = normalizePaletteColor(layer?.color || "#FF7F00");
+    const type = canUsePatternFill(layer) ? (layer.pattern || "solid") : "solid";
+    const colorB = normalizePaletteColor(layer?.patternColorB || "#FFFFFF");
+    const size = clamp(+(layer?.patternSize ?? state.field.patternSize ?? 64), 12, 140);
+    return { type, colorA: baseColor, colorB, size };
+  }
+
+  function validateLayersForRule(rule) {
+    const counts = countLayerClasses();
+    for (const key of ["honorable", "simple", "heraldic"]) {
+      const limit = rule.limits[key];
+      if (limit !== null && counts[key] > limit) {
+        const title = key === "honorable" ? "почётных" : key === "simple" ? "простых" : "гербовых";
+        return `В режиме «${rule.name}» максимум ${limit} ${title} фигур(ы). Сейчас: ${counts[key]}.`;
+      }
+    }
+    return "";
+  }
+
+  function canAddFigureForCurrentRule(fig) {
+    const rule = getRankRule();
+    const cls = getFigureClass(fig);
+    const limit = rule.limits[cls];
+    if (limit === null) return true;
+    const counts = countLayerClasses();
+    return (counts[cls] || 0) < limit;
+  }
+
+  function createPalettePicker(value, onChange, opts = {}) {
+    const wrap = document.createElement("div");
+    wrap.className = "paletteGrid";
+
+    let current = normalizePaletteColor(value);
+    const buttons = [];
+
+    heraldicPalette.forEach((color) => {
+      const locked = opts.allowedColors && !opts.allowedColors.has(color);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "paletteSwatch" + (color === current ? " active" : "") + (locked ? " locked" : "");
+      b.style.background = color;
+      b.title = color;
+      b.setAttribute("aria-label", color);
+      b.disabled = !!locked;
+      b.onclick = () => {
+        if (locked) return;
+        current = color;
+        buttons.forEach((btn) => btn.classList.toggle("active", btn === b));
+        onChange(color);
+      };
+      buttons.push(b);
+      wrap.appendChild(b);
+    });
+
+    return wrap;
+  }
+
+  function makeSVG(tag, attrs = {}) {
+    const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k,v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+    return n;
+  }
+
+  function parseInlineSvgStyle(node) {
+    const style = (node.getAttribute("style") || "").trim();
+    const map = new Map();
+    style.split(";").map((part) => part.trim()).filter(Boolean).forEach((part) => {
+      const idx = part.indexOf(":");
+      if (idx < 0) return;
+      const key = part.slice(0, idx).trim().toLowerCase();
+      const value = part.slice(idx + 1).trim();
+      if (key) map.set(key, value);
+    });
+    return map;
+  }
+
+  function inlineExternalSvgClassPaint(svgRoot) {
+    if (!svgRoot) return;
+    const cssPaintByClass = new Map();
+    const styleNodes = svgRoot.querySelectorAll("style");
+
+    styleNodes.forEach((styleNode) => {
+      const css = styleNode.textContent || "";
+      const classRuleRe = /\.([_a-zA-Z][_a-zA-Z0-9-]*)\s*\{([^}]*)\}/g;
+      let match;
+      while ((match = classRuleRe.exec(css)) !== null) {
+        const className = match[1];
+        const decl = match[2];
+        const props = new Map();
+        decl.split(";").map((part) => part.trim()).filter(Boolean).forEach((part) => {
+          const idx = part.indexOf(":");
+          if (idx < 0) return;
+          const key = part.slice(0, idx).trim().toLowerCase();
+          const value = part.slice(idx + 1).trim();
+          if (["fill", "stroke", "fill-opacity", "stroke-opacity", "opacity"].includes(key)) {
+            props.set(key, value);
+          }
+        });
+        if (props.size) cssPaintByClass.set(className, props);
+      }
+    });
+
+    if (!cssPaintByClass.size) return;
+
+    svgRoot.querySelectorAll("*").forEach((node) => {
+      if (!node.classList || !node.classList.length) return;
+      node.classList.forEach((className) => {
+        const props = cssPaintByClass.get(className);
+        if (!props) return;
+        const styleMap = parseInlineSvgStyle(node);
+        props.forEach((value, key) => {
+          if (node.hasAttribute(key) || styleMap.has(key)) return;
+          node.setAttribute(key, value);
+        });
+      });
+    });
+  }
+
+  function parseSvgColor(value) {
+    if (!value) return null;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized === "none" || normalized === "transparent") return null;
+
+    if (normalized === "black") return { r: 0, g: 0, b: 0 };
+    if (normalized === "white") return { r: 255, g: 255, b: 255 };
+
+    const hex = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      const raw = hex[1];
+      if (raw.length === 3) {
+        return {
+          r: parseInt(raw[0] + raw[0], 16),
+          g: parseInt(raw[1] + raw[1], 16),
+          b: parseInt(raw[2] + raw[2], 16)
+        };
+      }
+      return {
+        r: parseInt(raw.slice(0, 2), 16),
+        g: parseInt(raw.slice(2, 4), 16),
+        b: parseInt(raw.slice(4, 6), 16)
+      };
+    }
+
+    const rgb = normalized.match(/^rgba?\(([^)]+)\)$/);
+    if (rgb) {
+      const parts = rgb[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+      if (parts.length >= 3 && parts.slice(0, 3).every((v) => !Number.isNaN(v))) {
+        return { r: parts[0], g: parts[1], b: parts[2] };
+      }
+    }
+    return null;
+  }
+
+  function classifySvgPaint(value) {
+    const color = parseSvgColor(value);
+    if (!color) return "other";
+    const { r, g, b } = color;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+
+    // Чуть расширяем белый/черный до близких оттенков в внешних SVG,
+    // чтобы перекрашивать почти-белые заливки и не трогать почти-черные контуры.
+    if (max <= 32) return "black";
+    if (min >= 223) return "white";
+    return "other";
+  }
+
+  function resolveSvgPaint(node, styleMap, propName, inheritedValue) {
+    const attr = node.getAttribute(propName);
+    const styleValue = styleMap.get(propName);
+    const direct = attr ?? styleValue;
+    if (direct == null || direct === "") return inheritedValue;
+    const normalized = direct.trim().toLowerCase();
+    if (!normalized || normalized === "inherit") return inheritedValue;
+    return direct;
+  }
+
+  function resolveSvgNumeric(node, styleMap, propName, inheritedValue) {
+    const attr = node.getAttribute(propName);
+    const styleValue = styleMap.get(propName);
+    const direct = attr ?? styleValue;
+    if (direct == null || direct === "") return inheritedValue;
+    const normalized = direct.trim().toLowerCase();
+    if (!normalized || normalized === "inherit") return inheritedValue;
+    const value = Number(normalized);
+    if (Number.isNaN(value)) return inheritedValue;
+    return clamp(value, 0, 1);
+  }
+
+  function applyExternalSvgPaint(node, fill, opacity, inheritedPaint = {}) {
+    const styleMap = parseInlineSvgStyle(node);
+
+    const effectiveFill = resolveSvgPaint(node, styleMap, "fill", inheritedPaint.fill ?? null);
+    const effectiveStroke = resolveSvgPaint(node, styleMap, "stroke", inheritedPaint.stroke ?? null);
+    const fillClass = classifySvgPaint(effectiveFill);
+    const strokeClass = classifySvgPaint(effectiveStroke);
+
+    const nodeOpacity = resolveSvgNumeric(node, styleMap, "opacity", inheritedPaint.opacity ?? 1);
+    const effectiveFillOpacity = resolveSvgNumeric(node, styleMap, "fill-opacity", inheritedPaint.fillOpacity ?? 1) * nodeOpacity;
+    const effectiveStrokeOpacity = resolveSvgNumeric(node, styleMap, "stroke-opacity", inheritedPaint.strokeOpacity ?? 1) * nodeOpacity;
+
+    // Разделяем белый/черный по эффективному цвету до перекраски.
+    // Дополнительно не трогаем полупрозрачные "шумы" в источнике.
+    if (fillClass === "white" && effectiveFillOpacity >= 0.75) {
+      styleMap.delete("fill");
+      styleMap.delete("fill-opacity");
+      node.setAttribute("fill", fill);
+      node.setAttribute("fill-opacity", opacity);
+      styleMap.set("fill", fill);
+      styleMap.set("fill-opacity", String(opacity));
+    }
+
+    if (strokeClass === "white" && effectiveStrokeOpacity >= 0.75) {
+      styleMap.delete("stroke");
+      styleMap.delete("stroke-opacity");
+      node.setAttribute("stroke", fill);
+      node.setAttribute("stroke-opacity", opacity);
+      styleMap.set("stroke", fill);
+      styleMap.set("stroke-opacity", String(opacity));
+    }
+
+    const nextStyle = [...styleMap.entries()].map(([k, v]) => `${k}:${v}`).join(";");
+    if (nextStyle) node.setAttribute("style", nextStyle);
+    else node.removeAttribute("style");
+
+    const inheritedAfterFill = resolveSvgPaint(node, styleMap, "fill", inheritedPaint.fill ?? null);
+    const inheritedAfterStroke = resolveSvgPaint(node, styleMap, "stroke", inheritedPaint.stroke ?? null);
+    const inheritedAfterOpacity = resolveSvgNumeric(node, styleMap, "opacity", inheritedPaint.opacity ?? 1);
+    const inheritedAfterFillOpacity = resolveSvgNumeric(node, styleMap, "fill-opacity", inheritedPaint.fillOpacity ?? 1);
+    const inheritedAfterStrokeOpacity = resolveSvgNumeric(node, styleMap, "stroke-opacity", inheritedPaint.strokeOpacity ?? 1);
+
+    return {
+      fill: inheritedAfterFill,
+      stroke: inheritedAfterStroke,
+      opacity: inheritedAfterOpacity,
+      fillOpacity: inheritedAfterFillOpacity,
+      strokeOpacity: inheritedAfterStrokeOpacity
+    };
+  }
+
+  function repaintExternalSvgTree(root, fill, opacity) {
+    const paintableTags = new Set(["path", "rect", "circle", "ellipse", "polygon", "polyline", "line", "text"]);
+
+    function walk(node, inheritedPaint) {
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.nodeName.toLowerCase();
+      let nextPaint = inheritedPaint;
+
+      if (tag === "g" || tag === "svg" || paintableTags.has(tag)) {
+        nextPaint = applyExternalSvgPaint(node, fill, opacity, inheritedPaint);
+      }
+
+      for (const child of node.children) walk(child, nextPaint);
+    }
+
+    walk(root, { fill: null, stroke: null, opacity: 1, fillOpacity: 1, strokeOpacity: 1 });
+  }
+
+  function measureExternalSvgBBox(svgEl) {
+    const probe = svgEl.cloneNode(true);
+    probe.removeAttribute("x");
+    probe.removeAttribute("y");
+    probe.style.position = "absolute";
+    probe.style.left = "-9999px";
+    probe.style.top = "-9999px";
+    probe.style.visibility = "hidden";
+    probe.style.overflow = "visible";
+    document.body.appendChild(probe);
+
+    let bbox = null;
+    try {
+      const b = probe.getBBox();
+      if (b && b.width > 0 && b.height > 0) {
+        bbox = { x: b.x, y: b.y, width: b.width, height: b.height };
+      }
+    } catch (_) {}
+
+    probe.remove();
+    return bbox;
+  }
+
+  function parseSvgViewBox(svgEl) {
+    if (!svgEl) return null;
+    const raw = svgEl.getAttribute("viewBox");
+    if (!raw) return null;
+    const parts = raw.trim().split(/[ ,]+/).map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+    const [x, y, width, height] = parts;
+    if (!(width > 0 && height > 0)) return null;
+    return { x, y, width, height };
+  }
+
+  function pickExternalSvgBox(entry) {
+    const bbox = entry?.bbox;
+    const sourceViewBox = entry?.sourceViewBox;
+    if (!bbox || !(bbox.width > 0 && bbox.height > 0)) return sourceViewBox || null;
+    if (!sourceViewBox) return bbox;
+
+    const finite = [bbox.x, bbox.y, bbox.width, bbox.height, sourceViewBox.x, sourceViewBox.y, sourceViewBox.width, sourceViewBox.height]
+      .every((n) => Number.isFinite(n));
+    if (!finite) return sourceViewBox;
+
+    // Иногда getBBox() у внешних SVG (особенно с фильтрами/масками) даёт
+    // чрезмерно большой прямоугольник, из-за чего фигура становится почти невидимой.
+    // В таком случае откатываемся к исходному viewBox.
+    if (bbox.width > sourceViewBox.width * 8 || bbox.height > sourceViewBox.height * 8) {
+      return sourceViewBox;
+    }
+
+    const overlapX = Math.max(0, Math.min(bbox.x + bbox.width, sourceViewBox.x + sourceViewBox.width) - Math.max(bbox.x, sourceViewBox.x));
+    const overlapY = Math.max(0, Math.min(bbox.y + bbox.height, sourceViewBox.y + sourceViewBox.height) - Math.max(bbox.y, sourceViewBox.y));
+    const overlapArea = overlapX * overlapY;
+    const bboxArea = bbox.width * bbox.height;
+
+    // Если bbox вообще не пересекается с source viewBox (или пересечение почти нулевое),
+    // считаем его шумом измерения и используем исходную область.
+    if (!(bboxArea > 0) || overlapArea / bboxArea < 0.01) {
+      return sourceViewBox;
+    }
+
+    return bbox;
+  }
+
+  function getShieldBBox() {
+    const tempSvg = makeSVG("svg", { viewBox: `0 0 ${VB_W} ${VB_H}`, width: 1, height: 1 });
+    tempSvg.style.position = "absolute";
+    tempSvg.style.left = "-9999px";
+    tempSvg.style.top = "-9999px";
+    tempSvg.style.visibility = "hidden";
+
+    const path = makeSVG("path", { d: getShieldPathD() });
+    tempSvg.appendChild(path);
+    document.body.appendChild(tempSvg);
+
+    let shieldBox;
+    try {
+      shieldBox = path.getBBox();
+    } catch (_) {
+      shieldBox = { x: 0, y: 0, width: VB_W, height: VB_H };
+    }
+
+    tempSvg.remove();
+    return shieldBox;
+  }
+
+  function getLayerMoveLimits(_layer) {
+    // Разрешаем уводить фигуры за пределы щита: они остаются в сцене,
+    // но обрезаются clip-path маской щита.
+    return { minX: -2, maxX: 2, minY: -2, maxY: 2 };
+  }
+
+  function clampLayerPosition(layer) {
+    const lim = getLayerMoveLimits(layer);
+    layer.x = clamp(layer.x ?? 0, lim.minX, lim.maxX);
+    layer.y = clamp(layer.y ?? 0, lim.minY, lim.maxY);
+  }
+
+  function getShieldPathD() {
+    const s = shieldShapes.find(x => x.id === state.shieldShape) || shieldShapes[0];
+    return s.d;
+  }
+
+  function bgSVGGroup() {
+    const g = makeSVG("g", { id: "bg" });
+    if (state.bgMode === "none") return g;
+
+    if (state.bgMode === "paper") {
+      const r = makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"#0b0d12" });
+      const ov = makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"rgba(255,255,255,0.02)" });
+      g.appendChild(r); g.appendChild(ov);
+      return g;
+    }
+
+    if (state.bgMode === "grid") {
+      const r = makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"#0b0d12" });
+      g.appendChild(r);
+      const step = 80;
+      for (let x=0; x<=VB_W; x+=step){
+        g.appendChild(makeSVG("line", { x1:x, y1:0, x2:x, y2:VB_H, stroke:"rgba(255,255,255,0.05)", "stroke-width":2 }));
+      }
+      for (let y=0; y<=VB_H; y+=step){
+        g.appendChild(makeSVG("line", { x1:0, y1:y, x2:VB_W, y2:y, stroke:"rgba(255,255,255,0.05)", "stroke-width":2 }));
+      }
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill:"rgba(125,211,252,0.02)" }));
+      return g;
+    }
+
+    return g;
+  }
+
+  // ====== Field segments normalization ======
+  function ensureFieldSegmentsCount() {
+    const m = fieldModes.find(x => x.id === state.field.mode) || fieldModes[0];
+    const need = m.segments;
+
+    const segs = state.field.segments.slice();
+    const fallbackA = segs[0]?.a || "#0000FE";
+    const fallbackB = segs[0]?.b || "#FFFFFF";
+    const fallbackP = segs[0]?.pattern || "solid";
+
+    while (segs.length < need) {
+      const isAlt = (segs.length % 2) === 1;
+      segs.push({
+        pattern: fallbackP,
+        a: isAlt ? fallbackB : fallbackA,
+        b: isAlt ? fallbackA : fallbackB
+      });
+    }
+    while (segs.length > need) segs.pop();
+
+    state.field.segments = segs;
+
+    state.layers.forEach((layer) => {
+      normalizeLayerSegmentMask(layer);
+    });
+  }
+
+  function getFieldSegmentRects(mode = state.field.mode) {
+    if (mode === "per_fess") {
+      return [
+        { x: 0, y: 0, width: VB_W, height: VB_H / 2 },
+        { x: 0, y: VB_H / 2, width: VB_W, height: VB_H / 2 }
+      ];
+    }
+    if (mode === "per_pale") {
+      return [
+        { x: 0, y: 0, width: VB_W / 2, height: VB_H },
+        { x: VB_W / 2, y: 0, width: VB_W / 2, height: VB_H }
+      ];
+    }
+    if (mode === "quarterly") {
+      return [
+        { x: 0, y: 0, width: VB_W / 2, height: VB_H / 2 },
+        { x: VB_W / 2, y: 0, width: VB_W / 2, height: VB_H / 2 },
+        { x: 0, y: VB_H / 2, width: VB_W / 2, height: VB_H / 2 },
+        { x: VB_W / 2, y: VB_H / 2, width: VB_W / 2, height: VB_H / 2 }
+      ];
+    }
+    if (mode === "pale_thirds") {
+      const w = VB_W / 3;
+      return [
+        { x: 0, y: 0, width: w, height: VB_H },
+        { x: w, y: 0, width: w, height: VB_H },
+        { x: 2 * w, y: 0, width: w, height: VB_H }
+      ];
+    }
+    return [{ x: 0, y: 0, width: VB_W, height: VB_H }];
+  }
+
+  function normalizeLayerSegmentMask(layer) {
+    const segmentCount = (fieldModes.find((x) => x.id === state.field.mode) || fieldModes[0]).segments;
+    if (!layer || segmentCount <= 1) {
+      if (layer) layer.segmentMask = null;
+      return;
+    }
+
+    const prev = Array.isArray(layer.segmentMask) ? layer.segmentMask : [];
+    const normalized = [];
+    for (let i = 0; i < segmentCount; i++) {
+      normalized.push(prev[i] !== false);
+    }
+    layer.segmentMask = normalized;
+  }
+
+
+  function layerUsesSegmentMask(layer) {
+    if (!layer || !Array.isArray(layer.segmentMask)) return false;
+    return layer.segmentMask.some(Boolean) && !layer.segmentMask.every(Boolean);
+  }
+
+  function appendLayerWithSegmentMask(parent, defs, layer) {
+    const baseLayer = figureToSVG(layer, defs);
+    if (!layerUsesSegmentMask(layer)) {
+      parent.appendChild(baseLayer);
+      return;
+    }
+
+    const clipRects = getFieldSegmentRects();
+    const active = layer.segmentMask
+      .map((enabled, idx) => ({ enabled, rect: clipRects[idx] }))
+      .filter((item) => item.enabled && item.rect);
+
+    if (!active.length) return;
+
+    const segClipId = `layerSegClip_${uid().slice(0, 8)}`;
+    const segClip = makeSVG("clipPath", { id: segClipId });
+    active.forEach(({ rect }) => {
+      segClip.appendChild(makeSVG("rect", rect));
+    });
+    defs.appendChild(segClip);
+
+    const masked = makeSVG("g", { "clip-path": `url(#${segClipId})` });
+    masked.appendChild(baseLayer);
+    parent.appendChild(masked);
+  }
+
+  // ====== Patterns (defs) ======
+  function buildPatternDef(defs, id, type, size, colorA, colorB) {
+    const p = makeSVG("pattern", {
+      id,
+      patternUnits: "userSpaceOnUse",
+      width: size,
+      height: size
+    });
+
+    p.appendChild(makeSVG("rect", { x:0, y:0, width:size, height:size, fill: colorB }));
+
+    if (type === "checky") {
+      const s = size/2;
+      p.appendChild(makeSVG("rect", { x:0, y:0, width:s, height:s, fill: colorA }));
+      p.appendChild(makeSVG("rect", { x:s, y:s, width:s, height:s, fill: colorA }));
+    } else if (type === "paly") {
+      p.setAttribute("width", size);
+      p.setAttribute("height", size);
+      p.appendChild(makeSVG("rect", { x:0, y:0, width:size/2, height:size, fill: colorA }));
+    } else if (type === "barry") {
+      p.setAttribute("width", size);
+      p.setAttribute("height", size);
+      p.appendChild(makeSVG("rect", { x:0, y:0, width:size, height:size/2, fill: colorA }));
+    } else if (type === "lozengy") {
+      const cx = size/2, cy = size/2;
+      const w = size*0.52;
+      const h = size*0.52;
+      const pts = [
+        [cx, cy - h/2],
+        [cx + w/2, cy],
+        [cx, cy + h/2],
+        [cx - w/2, cy]
+      ].map(v => v.join(",")).join(" ");
+      p.appendChild(makeSVG("polygon", { points: pts, fill: colorA, opacity: "0.95" }));
+
+      const ptsL = [
+        [0, cy - h/2],
+        [w/2, cy],
+        [0, cy + h/2],
+        [-w/2, cy]
+      ].map(v => v.join(",")).join(" ");
+      const ptsR = [
+        [size, cy - h/2],
+        [size + w/2, cy],
+        [size, cy + h/2],
+        [size - w/2, cy]
+      ].map(v => v.join(",")).join(" ");
+      const ptsT = [
+        [cx, 0 - h/2],
+        [cx + w/2, 0],
+        [cx, 0 + h/2],
+        [cx - w/2, 0]
+      ].map(v => v.join(",")).join(" ");
+      const ptsB = [
+        [cx, size - h/2],
+        [cx + w/2, size],
+        [cx, size + h/2],
+        [cx - w/2, size]
+      ].map(v => v.join(",")).join(" ");
+      p.appendChild(makeSVG("polygon", { points: ptsL, fill: colorA, opacity: "0.95" }));
+      p.appendChild(makeSVG("polygon", { points: ptsR, fill: colorA, opacity: "0.95" }));
+      p.appendChild(makeSVG("polygon", { points: ptsT, fill: colorA, opacity: "0.95" }));
+      p.appendChild(makeSVG("polygon", { points: ptsB, fill: colorA, opacity: "0.95" }));
+    } else if (type === "lozengy_checky") {
+      p.setAttribute("width", size);
+      p.setAttribute("height", size);
+
+      // Ровно по референсу: фон + ромб, касающийся всех 4 границ тайла вершинами.
+      p.appendChild(makeSVG("rect", { x: 0, y: 0, width: size, height: size, fill: colorB }));
+      const points = [
+        [size / 2, 0],
+        [size, size / 2],
+        [size / 2, size],
+        [0, size / 2]
+      ].map((v) => v.join(",")).join(" ");
+      p.appendChild(makeSVG("polygon", { points, fill: colorA }));
+    } else if (type === "fence") {
+
+      p.setAttribute("width", size);
+      p.setAttribute("height", size);
+
+      const diamondW = size * 0.50;
+      const diamondH = size * 0.50;
+
+      const addDiamond = (cx, cy) => {
+        const points = [
+          [cx, cy - diamondH / 2],
+          [cx + diamondW / 2, cy],
+          [cx, cy + diamondH / 2],
+          [cx - diamondW / 2, cy]
+        ].map((v) => v.join(",")).join(" ");
+        p.appendChild(makeSVG("polygon", { points, fill: colorA, opacity: "0.95" }));
+      };
+
+      // Шахматное смещение рядов ромбов (как на баварском паттерне).
+      addDiamond(size / 2, size * 0.25);
+      addDiamond(0, size * 0.75);
+      addDiamond(size, size * 0.75);
+
+      // Граничные ромбы для бесшовного повторения.
+      addDiamond(size / 2, -size * 0.25);
+      addDiamond(size / 2, size * 1.25);
+    }
+
+    defs.appendChild(p);
+  }
+
+  function segmentFill(defs, seg, segIndex, size) {
+    if (!seg || seg.pattern === "solid") return { fill: seg?.a || "#0000FE" };
+    const pid = `pat_${segIndex}_${uid().slice(0,8)}`;
+    buildPatternDef(defs, pid, seg.pattern, size, seg.a || "#0000FE", seg.b || "#FFFFFF");
+    return { fill: `url(#${pid})` };
+  }
+
+  // ====== Draw field (including partitions + patterns) ======
+  function drawField(svg, defs, clipId) {
+    const g = makeSVG("g", { id: "field", "clip-path": `url(#${clipId})` });
+    ensureFieldSegmentsCount();
+    const segs = state.field.segments;
+    const size = clamp(+state.field.patternSize || 64, 12, 140);
+
+    const mode = state.field.mode;
+
+    if (mode === "solid") {
+      const f = segmentFill(defs, segs[0], 0, size).fill;
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill: f }));
+      svg.appendChild(g);
+      return;
+    }
+
+    if (mode === "per_fess") {
+      const f0 = segmentFill(defs, segs[0], 0, size).fill;
+      const f1 = segmentFill(defs, segs[1], 1, size).fill;
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H/2, fill: f0 }));
+      g.appendChild(makeSVG("rect", { x:0, y:VB_H/2, width:VB_W, height:VB_H/2, fill: f1 }));
+      svg.appendChild(g);
+      return;
+    }
+
+    if (mode === "per_pale") {
+      const f0 = segmentFill(defs, segs[0], 0, size).fill;
+      const f1 = segmentFill(defs, segs[1], 1, size).fill;
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W/2, height:VB_H, fill: f0 }));
+      g.appendChild(makeSVG("rect", { x:VB_W/2, y:0, width:VB_W/2, height:VB_H, fill: f1 }));
+      svg.appendChild(g);
+      return;
+    }
+
+    if (mode === "quarterly") {
+      const f0 = segmentFill(defs, segs[0], 0, size).fill;
+      const f1 = segmentFill(defs, segs[1], 1, size).fill;
+      const f2 = segmentFill(defs, segs[2], 2, size).fill;
+      const f3 = segmentFill(defs, segs[3], 3, size).fill;
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W/2, height:VB_H/2, fill: f0 }));
+      g.appendChild(makeSVG("rect", { x:VB_W/2, y:0, width:VB_W/2, height:VB_H/2, fill: f1 }));
+      g.appendChild(makeSVG("rect", { x:0, y:VB_H/2, width:VB_W/2, height:VB_H/2, fill: f2 }));
+      g.appendChild(makeSVG("rect", { x:VB_W/2, y:VB_H/2, width:VB_W/2, height:VB_H/2, fill: f3 }));
+      svg.appendChild(g);
+      return;
+    }
+
+    if (mode === "pale_thirds") {
+      const w = VB_W/3;
+      const f0 = segmentFill(defs, segs[0], 0, size).fill;
+      const f1 = segmentFill(defs, segs[1], 1, size).fill;
+      const f2 = segmentFill(defs, segs[2], 2, size).fill;
+      g.appendChild(makeSVG("rect", { x:0, y:0, width:w, height:VB_H, fill: f0 }));
+      g.appendChild(makeSVG("rect", { x:w, y:0, width:w, height:VB_H, fill: f1 }));
+      g.appendChild(makeSVG("rect", { x:2*w, y:0, width:w, height:VB_H, fill: f2 }));
+      svg.appendChild(g);
+      return;
+    }
+
+    const ff = segmentFill(defs, segs[0], 0, size).fill;
+    g.appendChild(makeSVG("rect", { x:0, y:0, width:VB_W, height:VB_H, fill: ff }));
+    svg.appendChild(g);
+  }
+
+  // ====== Dragging (no rerender while dragging; we mutate transform live) ======
+  let drag = null;
+
+  function svgPointFromEvent(evt, svgEl) {
+    const pt = svgEl.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  function isLayerDraggable(layer) {
+    if (!layer || !layer.fig) return false;
+    const non = new Set(["border", "orle", "tressure", "gyronny4"]);
+    return !non.has(layer.fig.kind);
+  }
+
+  const centerPresets = [
+    { id: "center", name: "По центру щита", scale: 1, x: 0, y: 0 },
+    { id: "quarter_ru", name: "Правая верхняя четверть", scale: 0.25, x: 0.5, y: -0.5 },
+    { id: "quarter_lu", name: "Левая верхняя четверть", scale: 0.25, x: -0.5, y: -0.5 },
+    { id: "quarter_rd", name: "Правая нижняя четверть", scale: 0.25, x: 0.5, y: 0.5 },
+    { id: "quarter_ld", name: "Левая нижняя четверть", scale: 0.25, x: -0.5, y: 0.5 },
+    { id: "half_r", name: "Правая половина", scale: 0.5, x: 0.5, y: 0 },
+    { id: "half_l", name: "Левая половина", scale: 0.5, x: -0.5, y: 0 },
+    { id: "half_u", name: "Верхняя половина", scale: 0.5, x: 0, y: -0.5 },
+    { id: "half_d", name: "Нижняя половина", scale: 0.5, x: 0, y: 0.5 }
+  ];
+
+  function canCenterPreset(fig) {
+    if (!fig) return false;
+    return fig.group === "Простые" || fig.group === "Гербовые";
+  }
+
+  function applyCenterPresetToLayer(layer, presetId) {
+    const preset = centerPresets.find((p) => p.id === presetId) || centerPresets[0];
+    const lim = getLayerMoveLimits(layer);
+    layer.x = clamp(preset.x, lim.minX, lim.maxX);
+    layer.y = clamp(preset.y, lim.minY, lim.maxY);
+    layer.fitScale = preset.scale;
+  }
+
+  function getLayerTransform(layer) {
+    const dx = (layer.x ?? 0) * (VB_W/2);
+    const dy = (layer.y ?? 0) * (VB_H/2);
+    const k = clamp(layer.fitScale ?? 1, 0.05, 2);
+    const rot = layer.rot ?? 0;
+    return `translate(${dx} ${dy}) translate(${VB_W/2} ${VB_H/2}) rotate(${rot}) scale(${k}) translate(${-VB_W/2} ${-VB_H/2})`;
+  }
+
+  function applyLayerTransform(layerId, svgEl) {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return;
+    const g = svgEl.querySelector(`#layer_${CSS.escape(layerId)}`);
+    if (!g) return;
+    g.setAttribute("transform", getLayerTransform(layer));
+  }
+
+  function startDrag(evt, layerId) {
+    const svgEl = evt.currentTarget.ownerSVGElement;
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!svgEl || !layer || !isLayerDraggable(layer)) return;
+
+    evt.preventDefault();
+    evt.stopPropagation();
+
+    const start = svgPointFromEvent(evt, svgEl);
+    const startX = layer.x ?? 0;
+    const startY = layer.y ?? 0;
+
+    drag = {
+      svgEl,
+      layerId,
+      pointerId: evt.pointerId,
+      startPt: start,
+      startX,
+      startY,
+      target: evt.currentTarget
+    };
+
+    try { drag.target.setPointerCapture(evt.pointerId); } catch (_) {}
+
+    drag.target.addEventListener("pointermove", onDragMove);
+    drag.target.addEventListener("pointerup", onDragEnd);
+    drag.target.addEventListener("pointercancel", onDragEnd);
+  }
+
+  function onDragMove(evt) {
+    if (!drag) return;
+    const { svgEl, layerId } = drag;
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return;
+
+    evt.preventDefault();
+
+    const p = svgPointFromEvent(evt, svgEl);
+    const dx = p.x - drag.startPt.x;
+    const dy = p.y - drag.startPt.y;
+
+    const nx = drag.startX + dx / (VB_W/2);
+    const ny = drag.startY + dy / (VB_H/2);
+
+    const lim = getLayerMoveLimits(layer);
+    layer.x = clamp(nx, lim.minX, lim.maxX);
+    layer.y = clamp(ny, lim.minY, lim.maxY);
+
+    applyLayerTransform(layerId, svgEl);
+  }
+
+  function onDragEnd(evt) {
+    if (!drag) return;
+    const t = drag.target;
+    try { t.releasePointerCapture(drag.pointerId); } catch (_) {}
+
+    t.removeEventListener("pointermove", onDragMove);
+    t.removeEventListener("pointerup", onDragEnd);
+    t.removeEventListener("pointercancel", onDragEnd);
+
+    drag = null;
+    render();
+  }
+
+  // ====== Figure rendering ======
+  function figureToSVG(layer, defs, clipId = null) {
+    const { fig } = layer;
+    const attrs = {
+      id: `layer_${layer.id}`,
+      "data-layer-id": layer.id
+    };
+    if (clipId) attrs["clip-path"] = `url(#${clipId})`;
+    const g = makeSVG("g", attrs);
+
+    g.setAttribute("transform", getLayerTransform(layer));
+
+    const { type: patternType, colorA, colorB, size: patternSize } = getLayerPatternConfig(layer);
+    const fill = colorA;
+    const patternId = patternType !== "solid"
+      ? `layerPattern_${layer.id.replace(/[^a-z0-9_-]/gi, "_")}`
+      : null;
+    if (patternId && defs) {
+      buildPatternDef(defs, patternId, patternType, patternSize, colorA, colorB);
+    }
+    const fillPaint = patternId ? `url(#${patternId})` : fill;
+    const opacity = clamp(layer.opacity ?? 1, 0, 1);
+
+    function add(node){
+      node.setAttribute("fill", fillPaint);
+      node.setAttribute("fill-opacity", opacity);
+      g.appendChild(node);
+    }
+
+    if (isLayerDraggable(layer)) {
+      g.style.cursor = "move";
+      g.addEventListener("pointerdown", (e) => startDrag(e, layer.id));
+    }
+
+    const kind = fig.kind;
+    const cx0 = VB_W/2;
+    const cy0 = VB_H/2;
+
+    if (kind === "rect_band") {
+      const w = clamp(layer.w ?? 1, 0.05, 1.5);
+      const h = clamp(layer.h ?? 0.2, 0.03, 1.2);
+      const rw = VB_W * w;
+      const rh = VB_H * h;
+      add(makeSVG("rect", { x: cx0 - rw/2, y: cy0 - rh/2, width: rw, height: rh }));
+      return g;
+    }
+
+    if (kind === "rect_band_v") {
+      const w = clamp(layer.w ?? 0.2, 0.03, 1.2);
+      const h = clamp(layer.h ?? 1, 0.05, 1.5);
+      const rw = VB_W * w;
+      const rh = VB_H * h;
+      add(makeSVG("rect", { x: cx0 - rw/2, y: cy0 - rh/2, width: rw, height: rh }));
+      return g;
+    }
+
+    if (kind === "diag_band") {
+      const w = clamp(layer.w ?? 0.2, 0.03, 0.7);
+      const a = layer.a ?? 45;
+      const rw = VB_W * 1.6;
+      const rh = VB_H * w;
+      const rect = makeSVG("rect", { x: cx0 - rw/2, y: cy0 - rh/2, width: rw, height: rh });
+      rect.setAttribute("transform", `rotate(${a} ${cx0} ${cy0})`);
+      add(rect);
+      return g;
+    }
+
+    if (kind === "chevron") {
+      const w = clamp(layer.w ?? 0.16, 0.03, 0.5);
+      const s = clamp(layer.s ?? 0.7, 0.2, 1.2);
+      const span = VB_W * s * 0.5;
+      const thick = VB_H * w;
+      const apexY = cy0 - VB_H*0.12;
+      const baseY = cy0 + VB_H*0.22;
+
+      const p1 = [cx0 - span, baseY];
+      const p2 = [cx0, apexY];
+      const p3 = [cx0 + span, baseY];
+      const p4 = [cx0 + span - thick*0.65, baseY + thick*0.85];
+      const p5 = [cx0, apexY + thick];
+      const p6 = [cx0 - span + thick*0.65, baseY + thick*0.85];
+
+      add(makeSVG("polygon", { points: [p1,p2,p3,p4,p5,p6].map(p => p.join(",")).join(" ") }));
+      return g;
+    }
+
+    if (kind === "cross") {
+      const w = clamp(layer.w ?? 0.16, 0.03, 0.6);
+      const thick = VB_W * w;
+      add(makeSVG("rect", { x: cx0 - thick/2, y: 0, width: thick, height: VB_H }));
+      add(makeSVG("rect", { x: 0, y: cy0 - thick/2, width: VB_W, height: thick }));
+      return g;
+    }
+
+    if (kind === "saltire") {
+      const w = clamp(layer.w ?? 0.14, 0.03, 0.45);
+      const thick = VB_W * w;
+
+      const r1 = makeSVG("rect", { x: cx0 - (VB_W*1.6)/2, y: cy0 - thick/2, width: VB_W*1.6, height: thick });
+      r1.setAttribute("transform", `rotate(45 ${cx0} ${cy0})`);
+      add(r1);
+
+      const r2 = makeSVG("rect", { x: cx0 - (VB_W*1.6)/2, y: cy0 - thick/2, width: VB_W*1.6, height: thick });
+      r2.setAttribute("transform", `rotate(-45 ${cx0} ${cy0})`);
+      add(r2);
+
+      return g;
+    }
+
+    if (kind === "pall") {
+      const w = clamp(layer.w ?? 0.12, 0.03, 0.4);
+      const thick = VB_W * w;
+
+      add(makeSVG("rect", { x: cx0 - thick/2, y: 0, width: thick, height: VB_H }));
+
+      const l = makeSVG("rect", { x: cx0 - (VB_W*1.2)/2, y: (VB_H*0.22) - thick/2, width: VB_W*1.2, height: thick });
+      l.setAttribute("transform", `rotate(35 ${cx0} ${VB_H*0.22})`);
+      add(l);
+
+      const r = makeSVG("rect", { x: cx0 - (VB_W*1.2)/2, y: (VB_H*0.22) - thick/2, width: VB_W*1.2, height: thick });
+      r.setAttribute("transform", `rotate(-35 ${cx0} ${VB_H*0.22})`);
+      add(r);
+
+      return g;
+    }
+
+    if (kind === "pile") {
+      const w = clamp(layer.w ?? 0.55, 0.1, 1.2);
+      const h = clamp(layer.h ?? 0.85, 0.1, 1.3);
+      const topY = VB_H*0.10;
+      const baseY = VB_H*(0.10 + h*0.78);
+      const halfW = VB_W * w * 0.5;
+      const p = [
+        [cx0 - halfW, topY],
+        [cx0 + halfW, topY],
+        [cx0, baseY]
+      ];
+      add(makeSVG("polygon", { points: p.map(v => v.join(",")).join(" ") }));
+      return g;
+    }
+
+    if (kind === "border") {
+      const w = clamp(layer.w ?? 0.08, 0.01, 0.2);
+      const desired = VB_W * w;
+      const strokeW = desired * 2;
+      const p = makeSVG("path", {
+        d: getShieldPathD(),
+        fill: "none",
+        stroke: fillPaint,
+        "stroke-opacity": opacity,
+        "stroke-width": strokeW,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round"
+      });
+      g.appendChild(p);
+      return g;
+    }
+
+    if (kind === "canton") {
+      const s = clamp(layer.s ?? 0.3, 0.08, 0.7);
+      const size = VB_W * s;
+      add(makeSVG("rect", { x: cx0 - size/2, y: cy0 - size/2, width: size, height: size }));
+      return g;
+    }
+
+    if (kind === "inescutcheon") {
+      const s = clamp(layer.s ?? 0.42, 0.12, 0.9);
+      const w = VB_W * 0.52 * s;
+      const h = VB_H * 0.60 * s;
+      const x0 = cx0 - w/2;
+      const y0 = cy0 - h/2;
+      const d = `M ${x0+0.12*w},${y0}
+                 H ${x0+0.88*w}
+                 C ${x0+0.95*w},${y0} ${x0+w},${y0+0.07*h} ${x0+w},${y0+0.15*h}
+                 V ${y0+0.55*h}
+                 C ${x0+w},${y0+0.78*h} ${x0+0.75*w},${y0+0.95*h} ${x0+0.5*w},${y0+h}
+                 C ${x0+0.25*w},${y0+0.95*h} ${x0},${y0+0.78*h} ${x0},${y0+0.55*h}
+                 V ${y0+0.15*h}
+                 C ${x0},${y0+0.07*h} ${x0+0.05*w},${y0} ${x0+0.12*w},${y0}
+                 Z`;
+      add(makeSVG("path", { d }));
+      return g;
+    }
+
+    if (kind === "lozenge") {
+      const s = clamp(layer.s ?? 0.45, 0.1, 1.0);
+      const hw = VB_W * 0.26 * s;
+      const hh = VB_H * 0.22 * s;
+      const p = [
+        [cx0, cy0 - hh],
+        [cx0 + hw, cy0],
+        [cx0, cy0 + hh],
+        [cx0 - hw, cy0]
+      ];
+      add(makeSVG("polygon", { points: p.map(v => v.join(",")).join(" ") }));
+      return g;
+    }
+
+    if (kind === "circle") {
+      const r = clamp(layer.r ?? 0.2, 0.03, 0.7);
+      add(makeSVG("circle", { cx: cx0, cy: cy0, r: VB_W * r }));
+      return g;
+    }
+
+    if (kind === "ring") {
+      const r = clamp(layer.r ?? 0.2, 0.03, 0.7);
+      const t = clamp(layer.t ?? 0.05, 0.01, 0.25);
+      const outerR = VB_W * r;
+      const innerR = VB_W * clamp(r - t, 0.001, 0.69);
+      const path = makeSVG("path", {
+        d: `
+          M ${cx0},${cy0-outerR}
+          A ${outerR},${outerR} 0 1 1 ${cx0-0.001},${cy0-outerR}
+          Z
+          M ${cx0},${cy0-innerR}
+          A ${innerR},${innerR} 0 1 0 ${cx0-0.001},${cy0-innerR}
+          Z
+        `,
+        "fill-rule": "evenodd"
+      });
+      add(path);
+      return g;
+    }
+
+    if (kind === "billet") {
+      const w = clamp(layer.w ?? 0.16, 0.03, 0.7);
+      const h = clamp(layer.h ?? 0.26, 0.03, 0.9);
+      add(makeSVG("rect", { x: cx0 - (VB_W*w)/2, y: cy0 - (VB_H*h)/2, width: VB_W*w, height: VB_H*h, rx: 10, ry: 10 }));
+      return g;
+    }
+
+    if (kind === "label") {
+      const w = clamp(layer.w ?? 0.72, 0.2, 1.2);
+      const h = clamp(layer.h ?? 0.10, 0.05, 0.30);
+      const t = clamp(layer.t ?? 0.18, 0.05, 0.45);
+
+      const bw = VB_W * w;
+      const bh = VB_H * h;
+      const depth = VB_H * t;
+
+      const x0 = cx0 - bw/2;
+      const y0 = cy0 - bh/2;
+
+      add(makeSVG("rect", { x: x0, y: y0, width: bw, height: bh, rx: 6, ry: 6 }));
+
+      const pW = bw / 3;
+      const pad = pW * 0.15;
+      const wP = pW * 0.70;
+
+      for (let i=0; i<3; i++){
+        const px = x0 + i*pW + pad;
+        add(makeSVG("rect", { x: px, y: y0 + bh, width: wP, height: depth, rx: 6, ry: 6 }));
+      }
+      return g;
+    }
+
+    if (kind === "orle") {
+      const w = clamp(layer.w ?? 0.06, 0.01, 0.15);
+      const inset = clamp(layer.inset ?? 0.10, 0.02, 0.28);
+
+      const scale = clamp(1 - inset, 0.70, 0.99);
+      const desired = VB_W * w;
+      const strokeW = desired * 2;
+
+      const cx = VB_W/2, cy = VB_H/2;
+      const p = makeSVG("path", {
+        d: getShieldPathD(),
+        fill: "none",
+        stroke: fillPaint,
+        "stroke-opacity": opacity,
+        "stroke-width": strokeW,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        transform: `translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`
+      });
+      g.appendChild(p);
+      return g;
+    }
+
+    if (kind === "tressure") {
+      const w = clamp(layer.w ?? 0.04, 0.01, 0.12);
+      const inset = clamp(layer.inset ?? 0.12, 0.03, 0.35);
+      const gap = clamp(layer.gap ?? 0.06, 0.01, 0.25);
+
+      const cx = VB_W/2, cy = VB_H/2;
+      const desired = VB_W * w;
+      const strokeW = desired * 2;
+
+      const scale1 = clamp(1 - inset, 0.65, 0.99);
+      const p1 = makeSVG("path", {
+        d: getShieldPathD(),
+        fill: "none",
+        stroke: fillPaint,
+        "stroke-opacity": opacity,
+        "stroke-width": strokeW,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        transform: `translate(${cx} ${cy}) scale(${scale1}) translate(${-cx} ${-cy})`
+      });
+      g.appendChild(p1);
+
+      const scale2 = clamp(1 - (inset + w + gap), 0.60, 0.98);
+      const p2 = makeSVG("path", {
+        d: getShieldPathD(),
+        fill: "none",
+        stroke: fill,
+        "stroke-opacity": opacity,
+        "stroke-width": strokeW,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        transform: `translate(${cx} ${cy}) scale(${scale2}) translate(${-cx} ${-cy})`
+      });
+      g.appendChild(p2);
+
+      return g;
+    }
+
+    if (kind === "flaunches") {
+      const r = clamp(layer.r ?? 0.34, 0.12, 0.9);
+      const R = VB_W * r;
+      add(makeSVG("circle", { cx: cx0 - VB_W*0.48, cy: cy0, r: R }));
+      add(makeSVG("circle", { cx: cx0 + VB_W*0.48, cy: cy0, r: R }));
+      return g;
+    }
+
+    if (kind === "gyronny4") {
+      const p1 = [[cx0,cy0],[VB_W,0],[VB_W,VB_H]];
+      const p2 = [[cx0,cy0],[VB_W,VB_H],[0,VB_H]];
+      const p3 = [[cx0,cy0],[0,VB_H],[0,0]];
+      const p4 = [[cx0,cy0],[0,0],[VB_W,0]];
+      add(makeSVG("polygon", { points: p1.map(v=>v.join(",")).join(" ") }));
+      add(makeSVG("polygon", { points: p2.map(v=>v.join(",")).join(" ") }));
+      add(makeSVG("polygon", { points: p3.map(v=>v.join(",")).join(" ") }));
+      add(makeSVG("polygon", { points: p4.map(v=>v.join(",")).join(" ") }));
+      return g;
+    }
+
+    if (kind === "inscription") {
+      const textValue = String(layer.text ?? "FORTITUDO ET HONOR").trim() || "FORTITUDO ET HONOR";
+      const fontKey = (layer.fontStyle === "gothic") ? "gothic" : "medieval";
+      const fontSize = VB_W * clamp(layer.fontSize ?? 0.085, 0.03, 0.25);
+      const letterSpacing = clamp(layer.letterSpacing ?? 0.02, -0.02, 0.15) * fontSize;
+      const curve = clamp(layer.curve ?? 0, -330, 330);
+      const radius = VB_W * clamp(layer.radius ?? 0.28, 0.08, 0.95);
+
+      const textEl = makeSVG("text", {
+        "font-size": fontSize,
+        "font-family": inscriptionFonts[fontKey],
+        "font-weight": "700",
+        "text-rendering": "geometricPrecision",
+        "letter-spacing": letterSpacing,
+        fill,
+        "fill-opacity": opacity
+      });
+
+      if (Math.abs(curve) < 1) {
+        textEl.setAttribute("x", String(cx0));
+        textEl.setAttribute("y", String(cy0));
+        textEl.setAttribute("text-anchor", "middle");
+        textEl.setAttribute("dominant-baseline", "middle");
+        textEl.textContent = textValue;
+      } else {
+        const arc = Math.abs(curve) * (Math.PI / 180);
+        const startAngle = -arc / 2;
+        const endAngle = arc / 2;
+
+        const x1 = cx0 + Math.cos(startAngle) * radius;
+        const y1 = cy0 + Math.sin(startAngle) * radius;
+        const x2 = cx0 + Math.cos(endAngle) * radius;
+        const y2 = cy0 + Math.sin(endAngle) * radius;
+
+        const largeArc = arc > Math.PI ? 1 : 0;
+        const sweep = curve > 0 ? 1 : 0;
+        const pathId = `textarc_${layer.id}`;
+        const arcPath = makeSVG("path", {
+          id: pathId,
+          d: `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${x2} ${y2}`,
+          fill: "none",
+          stroke: "none"
+        });
+        g.appendChild(arcPath);
+
+        const textPath = makeSVG("textPath", {
+          href: `#${pathId}`,
+          startOffset: "50%",
+          "text-anchor": "middle"
+        });
+        textPath.textContent = textValue;
+        textEl.appendChild(textPath);
+      }
+
+      g.appendChild(textEl);
+      return g;
+    }
+
+    if (kind === "external_svg") {
+      const s = clamp(layer.s ?? 0.52, 0.12, 1.5);
+      const w = VB_W * s;
+      const h = VB_H * s;
+
+      const entry = ensureExternalSvgEntry(fig, render);
+
+      if (entry.status === "ready" && entry.svg) {
+        const svg = entry.svg.cloneNode(true);
+        svg.setAttribute("x", cx0 - w / 2);
+        svg.setAttribute("y", cy0 - h / 2);
+        svg.setAttribute("width", w);
+        svg.setAttribute("height", h);
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        svg.setAttribute("overflow", "visible");
+        const fitBox = pickExternalSvgBox(entry);
+        if (fitBox) {
+          svg.setAttribute("viewBox", `${fitBox.x} ${fitBox.y} ${fitBox.width} ${fitBox.height}`);
+        }
+
+        repaintExternalSvgTree(svg, fill, opacity);
+
+        g.appendChild(svg);
+      } else {
+        const image = makeSVG("image", {
+          href: fig.previewSrc || fig.src,
+          x: cx0 - w / 2,
+          y: cy0 - h / 2,
+          width: w,
+          height: h,
+          preserveAspectRatio: "xMidYMid meet",
+          opacity
+        });
+        g.appendChild(image);
+      }
+
+      return g;
+    }
+
+    if (kind === "heraldic_placeholder") {
+      return g;
+    }
+
+    const fallback = makeSVG("text", { x: 40, y: 80, fill: "#fff" });
+    fallback.textContent = "Неизвестная фигура";
+    g.appendChild(fallback);
+    return g;
+  }
+
+  function getExternalFigureFitScale(fig) {
+    const shieldBox = getShieldBBox();
+
+    const shieldFit = Math.min((shieldBox.width || VB_W) / VB_W, (shieldBox.height || VB_H) / VB_H);
+    const entry = fig ? externalSvgCache.get(getExternalFigureCacheKey(fig)) : null;
+    const bbox = pickExternalSvgBox(entry);
+    if (!bbox || !(bbox.width > 0 && bbox.height > 0)) {
+      return clamp(shieldFit * 0.9, 0.12, 1);
+    }
+
+    const figureAspect = bbox.width / bbox.height;
+    const viewportAspect = VB_W / VB_H;
+    let maxS;
+    if (figureAspect >= viewportAspect) {
+      maxS = Math.min(
+        (shieldBox.width || VB_W) / VB_W,
+        ((shieldBox.height || VB_H) * figureAspect) / VB_W
+      );
+    } else {
+      maxS = Math.min(
+        (shieldBox.height || VB_H) / VB_H,
+        (shieldBox.width || VB_W) / (VB_H * figureAspect)
+      );
+    }
+
+    return clamp(maxS * 0.9, 0.12, 1);
+  }
+
+  // ====== Render SVG ======
+  function render() {
+    svgBox.innerHTML = "";
+
+    const clipId = "shieldClip_" + uid().slice(0,8);
+    const svg = makeSVG("svg", {
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: `0 0 ${VB_W} ${VB_H}`,
+      width: "100%",
+      height: "100%"
+    });
+
+    const defs = makeSVG("defs");
+    const clip = makeSVG("clipPath", { id: clipId });
+    clip.appendChild(makeSVG("path", { d: getShieldPathD() }));
+    defs.appendChild(clip);
+    svg.appendChild(defs);
+
+    svg.appendChild(bgSVGGroup());
+    drawField(svg, defs, clipId);
+
+    const figuresViewport = makeSVG("g", { "clip-path": `url(#${clipId})` });
+    for (const layer of state.layers) {
+      appendLayerWithSegmentMask(figuresViewport, defs, layer);
+    }
+    svg.appendChild(figuresViewport);
+
+    const strokeW = clamp(state.strokeWidth, 0, 30);
+    if (strokeW > 0) {
+      svg.appendChild(makeSVG("path", {
+        d: getShieldPathD(),
+        fill: "none",
+        stroke: state.strokeColor,
+        "stroke-width": strokeW,
+        "stroke-linejoin": "round"
+      }));
+    }
+
+    svgBox.appendChild(svg);
+    renderLayersUI();
+  }
+
+  // ====== Layers UI ======
+  function renderLayersUI() {
+    layersBox.innerHTML = "";
+    if (!state.layers.length) {
+      const p = document.createElement("div");
+      p.className = "smallnote";
+      p.textContent = "Пока нет фигур. Нажми «Добавить фигуру» и выбери тип.";
+      layersBox.appendChild(p);
+      return;
+    }
+
+    state.layers.forEach((layer, idx) => {
+      const wrap = document.createElement("div");
+      wrap.className = "layer";
+
+      const top = document.createElement("div");
+      top.className = "top";
+
+      const left = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = layer.title || layer.fig.name;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${layer.fig.group} · ${layer.fig.name}${isLayerDraggable(layer) ? " · draggable" : ""}`;
+      left.appendChild(name);
+      left.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const up = document.createElement("button");
+      up.textContent = "↑";
+      up.title = "Выше";
+      up.disabled = idx === 0;
+      up.onclick = () => {
+        if (idx === 0) return;
+        const tmp = state.layers[idx-1];
+        state.layers[idx-1] = state.layers[idx];
+        state.layers[idx] = tmp;
+        render();
+      };
+
+      const down = document.createElement("button");
+      down.textContent = "↓";
+      down.title = "Ниже";
+      down.disabled = idx === state.layers.length-1;
+      down.onclick = () => {
+        if (idx === state.layers.length-1) return;
+        const tmp = state.layers[idx+1];
+        state.layers[idx+1] = state.layers[idx];
+        state.layers[idx] = tmp;
+        render();
+      };
+
+      const del = document.createElement("button");
+      del.textContent = "Удалить";
+      del.className = "danger";
+      del.onclick = () => {
+        state.layers.splice(idx, 1);
+        render();
+      };
+
+      const copy = document.createElement("button");
+      copy.textContent = "Копия";
+      copy.className = "ghost";
+      copy.onclick = () => {
+        const cloned = {
+          ...JSON.parse(JSON.stringify(layer)),
+          id: uid(),
+          fig: layer.fig,
+          title: layer.title ? `${layer.title} (копия)` : ""
+        };
+        normalizeLayerSegmentMask(cloned);
+        clampLayerPosition(cloned);
+        state.layers.splice(idx + 1, 0, cloned);
+        render();
+      };
+
+      actions.appendChild(up);
+      actions.appendChild(down);
+      actions.appendChild(copy);
+      actions.appendChild(del);
+
+      top.appendChild(left);
+      top.appendChild(actions);
+
+      const body = document.createElement("div");
+      body.className = "body";
+
+      const t = document.createElement("div");
+      t.className = "full";
+      t.innerHTML = `<label>Название слоя (опционально)</label>`;
+      const ti = document.createElement("input");
+      ti.type = "text";
+      ti.value = layer.title || "";
+      ti.placeholder = "Напр.: «Кайма чёрная», «Крест серебряный»";
+      ti.oninput = () => { layer.title = ti.value; };
+      t.appendChild(ti);
+
+      const cWrap = document.createElement("div");
+      cWrap.className = "full";
+      cWrap.innerHTML = `<label>Цвет фигуры</label>`;
+      const cSel = createPalettePicker(layer.color || "#FF7F00", (value) => {
+        layer.color = value;
+        render();
+      }, { allowedColors: getRestrictionSet() });
+      cWrap.appendChild(cSel);
+
+      const oWrap = document.createElement("div");
+      oWrap.innerHTML = `<label>Прозрачность</label>`;
+      const oInp = document.createElement("input");
+      oInp.type = "range";
+      oInp.min = "0";
+      oInp.max = "1";
+      oInp.step = "0.01";
+      oInp.value = (layer.opacity ?? 1);
+      oInp.oninput = () => { layer.opacity = +oInp.value; render(); };
+      oWrap.appendChild(oInp);
+
+      const xWrap = document.createElement("div");
+      xWrap.innerHTML = `<label>Смещение X</label>`;
+      const xInp = document.createElement("input");
+      xInp.type = "range";
+      const moveLimits = getLayerMoveLimits(layer);
+      xInp.min = String(moveLimits.minX);
+      xInp.max = String(moveLimits.maxX);
+      xInp.step = "0.01";
+      xInp.value = layer.x ?? 0;
+      xInp.oninput = () => { layer.x = +xInp.value; clampLayerPosition(layer); render(); };
+      xWrap.appendChild(xInp);
+
+      const yWrap = document.createElement("div");
+      yWrap.innerHTML = `<label>Смещение Y</label>`;
+      const yInp = document.createElement("input");
+      yInp.type = "range";
+      yInp.min = String(moveLimits.minY);
+      yInp.max = String(moveLimits.maxY);
+      yInp.step = "0.01";
+      yInp.value = layer.y ?? 0;
+      yInp.oninput = () => { layer.y = +yInp.value; clampLayerPosition(layer); render(); };
+      yWrap.appendChild(yInp);
+
+      body.appendChild(t);
+      body.appendChild(cWrap);
+
+      if (canUsePatternFill(layer)) {
+        const patternWrap = document.createElement("div");
+        patternWrap.className = "full";
+        patternWrap.innerHTML = `<label>Паттерн фигуры</label>`;
+        const patternSel = document.createElement("select");
+        patternTypes.forEach((p) => {
+          const o = document.createElement("option");
+          o.value = p.id;
+          o.textContent = p.name;
+          patternSel.appendChild(o);
+        });
+        patternSel.value = layer.pattern || "solid";
+        patternSel.onchange = () => {
+          layer.pattern = patternSel.value;
+          render();
+        };
+        patternWrap.appendChild(patternSel);
+        body.appendChild(patternWrap);
+
+        const patternColorWrap = document.createElement("div");
+        patternColorWrap.className = "full";
+        patternColorWrap.innerHTML = `<label>Второй цвет паттерна</label>`;
+        const patternColorSel = createPalettePicker(layer.patternColorB || "#FFFFFF", (value) => {
+          layer.patternColorB = value;
+          render();
+        }, { allowedColors: getRestrictionSet() });
+        patternColorWrap.appendChild(patternColorSel);
+        body.appendChild(patternColorWrap);
+
+        const patternSizeWrap = document.createElement("div");
+        patternSizeWrap.className = "full";
+        patternSizeWrap.innerHTML = `<label>Размер паттерна фигуры</label>`;
+        const patternSizeInpLayer = document.createElement("input");
+        patternSizeInpLayer.type = "range";
+        patternSizeInpLayer.min = "12";
+        patternSizeInpLayer.max = "140";
+        patternSizeInpLayer.step = "1";
+        patternSizeInpLayer.value = String(clamp(+(layer.patternSize ?? state.field.patternSize ?? 64), 12, 140));
+        patternSizeInpLayer.oninput = () => {
+          layer.patternSize = +patternSizeInpLayer.value;
+          render();
+        };
+        patternSizeWrap.appendChild(patternSizeInpLayer);
+        body.appendChild(patternSizeWrap);
+      }
+
+      body.appendChild(oWrap);
+      body.appendChild(xWrap);
+      body.appendChild(yWrap);
+
+      if ((fieldModes.find((x) => x.id === state.field.mode) || fieldModes[0]).segments > 1) {
+        normalizeLayerSegmentMask(layer);
+        const maskWrap = document.createElement("div");
+        maskWrap.className = "full";
+        maskWrap.innerHTML = `<label>Маска сокрытия по частям поля</label>`;
+
+        const list = document.createElement("div");
+        list.style.display = "grid";
+        list.style.gridTemplateColumns = "1fr 1fr";
+        list.style.gap = "6px 10px";
+
+        const mode = state.field.mode;
+        const labelsByMode = {
+          per_fess: ["Верхняя половина", "Нижняя половина"],
+          per_pale: ["Левая половина", "Правая половина"],
+          quarterly: ["Левая верхняя четверть", "Правая верхняя четверть", "Левая нижняя четверть", "Правая нижняя четверть"],
+          pale_thirds: ["Левая треть", "Средняя треть", "Правая треть"]
+        };
+        const labels = labelsByMode[mode] || layer.segmentMask.map((_, i) => `Сегмент ${i + 1}`);
+
+        layer.segmentMask.forEach((enabled, i) => {
+          const item = document.createElement("label");
+          item.style.display = "flex";
+          item.style.alignItems = "center";
+          item.style.gap = "6px";
+          item.style.margin = "0";
+          item.style.color = "var(--text)";
+          item.style.fontSize = "12px";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!enabled;
+          cb.onchange = () => {
+            layer.segmentMask[i] = cb.checked;
+            render();
+          };
+
+          const span = document.createElement("span");
+          span.textContent = labels[i] || `Сегмент ${i + 1}`;
+
+          item.appendChild(cb);
+          item.appendChild(span);
+          list.appendChild(item);
+        });
+
+        maskWrap.appendChild(list);
+        body.appendChild(maskWrap);
+      }
+
+      if (canCenterPreset(layer.fig)) {
+        const centerWrap = document.createElement("div");
+        centerWrap.className = "full";
+        centerWrap.innerHTML = `<label>Отцентровать</label>`;
+
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.gap = "8px";
+        row.style.alignItems = "center";
+
+        const sel = document.createElement("select");
+        sel.style.flex = "1";
+        centerPresets.forEach((preset) => {
+          const o = document.createElement("option");
+          o.value = preset.id;
+          o.textContent = preset.name;
+          sel.appendChild(o);
+        });
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ghost";
+        btn.textContent = "Отцентровать";
+        btn.onclick = () => {
+          applyCenterPresetToLayer(layer, sel.value);
+          render();
+        };
+
+        row.appendChild(sel);
+        row.appendChild(btn);
+        centerWrap.appendChild(row);
+        body.appendChild(centerWrap);
+      }
+
+      const params = buildParamControls(layer);
+      params.forEach(node => body.appendChild(node));
+
+      wrap.appendChild(top);
+      wrap.appendChild(body);
+      layersBox.appendChild(wrap);
+    });
+  }
+
+  function buildParamControls(layer) {
+    const fig = layer.fig;
+    const nodes = [];
+
+    function mkRange(labelText, key, min, max, step) {
+      const w = document.createElement("div");
+      w.className = "full";
+      w.innerHTML = `<label>${labelText}</label>`;
+      const r = document.createElement("input");
+      r.type = "range";
+      r.min = String(min);
+      r.max = String(max);
+      r.step = String(step);
+      r.value = (layer[key] ?? fig.defaults?.[key] ?? 0);
+      r.oninput = () => { layer[key] = +r.value; render(); };
+      w.appendChild(r);
+      return w;
+    }
+
+    function mkText(labelText, key, placeholder = "") {
+      const w = document.createElement("div");
+      w.className = "full";
+      w.innerHTML = `<label>${labelText}</label>`;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = String(layer[key] ?? fig.defaults?.[key] ?? "");
+      input.placeholder = placeholder;
+      input.oninput = () => { layer[key] = input.value; render(); };
+      w.appendChild(input);
+      return w;
+    }
+
+    function mkSelect(labelText, key, options) {
+      const w = document.createElement("div");
+      w.className = "full";
+      w.innerHTML = `<label>${labelText}</label>`;
+      const sel = document.createElement("select");
+      options.forEach((opt) => {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+      });
+      sel.value = String(layer[key] ?? fig.defaults?.[key] ?? options[0]?.value ?? "");
+      sel.onchange = () => { layer[key] = sel.value; render(); };
+      w.appendChild(sel);
+      return w;
+    }
+
+    switch (fig.kind) {
+      case "rect_band":
+        nodes.push(mkRange("Ширина (w)", "w", 0.05, 1.3, 0.01));
+        nodes.push(mkRange("Высота (h)", "h", 0.03, 1.0, 0.01));
+        break;
+      case "rect_band_v":
+        nodes.push(mkRange("Ширина (w)", "w", 0.03, 1.0, 0.01));
+        nodes.push(mkRange("Высота (h)", "h", 0.05, 1.3, 0.01));
+        break;
+      case "diag_band":
+        nodes.push(mkRange("Толщина (w)", "w", 0.03, 0.55, 0.01));
+        nodes.push(mkRange("Угол (a)", "a", -80, 80, 1));
+        break;
+      case "chevron":
+        nodes.push(mkRange("Толщина (w)", "w", 0.03, 0.45, 0.01));
+        nodes.push(mkRange("Размах (s)", "s", 0.25, 1.2, 0.01));
+        break;
+      case "cross":
+        nodes.push(mkRange("Толщина (w)", "w", 0.03, 0.6, 0.01));
+        break;
+      case "saltire":
+        nodes.push(mkRange("Толщина (w)", "w", 0.03, 0.45, 0.01));
+        break;
+      case "pall":
+        nodes.push(mkRange("Толщина (w)", "w", 0.03, 0.35, 0.01));
+        break;
+      case "pile":
+        nodes.push(mkRange("Ширина (w)", "w", 0.10, 1.15, 0.01));
+        nodes.push(mkRange("Высота (h)", "h", 0.10, 1.25, 0.01));
+        break;
+      case "border":
+        nodes.push(mkRange("Толщина каймы (w)", "w", 0.01, 0.18, 0.01));
+        break;
+      case "canton":
+        nodes.push(mkRange("Размер (s)", "s", 0.08, 0.7, 0.01));
+        break;
+      case "inescutcheon":
+        nodes.push(mkRange("Размер (s)", "s", 0.12, 0.95, 0.01));
+        break;
+      case "lozenge":
+        nodes.push(mkRange("Размер (s)", "s", 0.10, 1.0, 0.01));
+        break;
+      case "circle":
+        nodes.push(mkRange("Радиус (r)", "r", 0.03, 0.7, 0.01));
+        break;
+      case "ring":
+        nodes.push(mkRange("Радиус (r)", "r", 0.03, 0.7, 0.01));
+        nodes.push(mkRange("Толщина кольца (t)", "t", 0.01, 0.25, 0.01));
+        break;
+      case "billet":
+        nodes.push(mkRange("Ширина (w)", "w", 0.03, 0.7, 0.01));
+        nodes.push(mkRange("Высота (h)", "h", 0.03, 0.9, 0.01));
+        break;
+      case "label":
+        nodes.push(mkRange("Ширина (w)", "w", 0.2, 1.2, 0.01));
+        nodes.push(mkRange("Высота планки (h)", "h", 0.05, 0.30, 0.01));
+        nodes.push(mkRange("Длина подвесов (t)", "t", 0.05, 0.45, 0.01));
+        break;
+      case "orle":
+        nodes.push(mkRange("Толщина (w)", "w", 0.01, 0.15, 0.01));
+        nodes.push(mkRange("Отступ внутрь (inset)", "inset", 0.02, 0.28, 0.01));
+        break;
+      case "tressure":
+        nodes.push(mkRange("Толщина (w)", "w", 0.01, 0.12, 0.01));
+        nodes.push(mkRange("Отступ (inset)", "inset", 0.03, 0.35, 0.01));
+        nodes.push(mkRange("Промежуток (gap)", "gap", 0.01, 0.25, 0.01));
+        break;
+      case "flaunches":
+        nodes.push(mkRange("Радиус (r)", "r", 0.12, 0.9, 0.01));
+        break;
+      case "gyronny4":
+        break;
+      case "external_svg":
+        nodes.push(mkRange("Размер (s)", "s", 0.12, 1.5, 0.01));
+        break;
+      case "inscription":
+        nodes.push(mkText("Надпись", "text", "Например: FORTITUDO ET HONOR"));
+        nodes.push(mkSelect("Шрифт", "fontStyle", [
+          { value: "medieval", label: "Средневековый" },
+          { value: "gothic", label: "Готический" }
+        ]));
+        nodes.push(mkRange("Размер шрифта", "fontSize", 0.03, 0.25, 0.005));
+        nodes.push(mkRange("Кривизна по окружности (°)", "curve", -330, 330, 1));
+        nodes.push(mkRange("Радиус окружности", "radius", 0.08, 0.95, 0.01));
+        nodes.push(mkRange("Интервал между буквами", "letterSpacing", -0.02, 0.15, 0.005));
+        break;
+      default:
+        break;
+    }
+
+    nodes.push(mkRange("Поворот (°)", "rot", -180, 180, 1));
+
+    return nodes;
+  }
+
+  // ====== Field UI ======
+  function renderFieldUI() {
+    ensureFieldSegmentsCount();
+    fieldSegmentsBox.innerHTML = "";
+
+    const m = fieldModes.find(x => x.id === state.field.mode) || fieldModes[0];
+    const segs = state.field.segments;
+
+    for (let i=0; i<m.segments; i++) {
+      const seg = segs[i];
+      const card = document.createElement("div");
+      card.className = "seg";
+
+      const title = document.createElement("div");
+      title.className = "segTitle";
+      title.textContent = m.segments === 1 ? "Поле" : `Сегмент ${i+1}`;
+      card.appendChild(title);
+
+      const row1 = document.createElement("div");
+      row1.className = "segRow";
+      const pWrap = document.createElement("div");
+      pWrap.innerHTML = "<label>Тип заливки</label>";
+      const pSel = document.createElement("select");
+      patternTypes.forEach(pt => {
+        const o = document.createElement("option");
+        o.value = pt.id;
+        o.textContent = pt.name;
+        pSel.appendChild(o);
+      });
+      pSel.value = seg.pattern || "solid";
+      pSel.onchange = () => { seg.pattern = pSel.value; render(); };
+      pWrap.appendChild(pSel);
+
+      const aWrap = document.createElement("div");
+      aWrap.innerHTML = "<label>Цвет A</label>";
+      const aSel = createPalettePicker(seg.a || "#0000FE", (value) => {
+        seg.a = value;
+        render();
+      }, { allowedColors: getRestrictionSet() });
+      aWrap.appendChild(aSel);
+
+      row1.appendChild(pWrap);
+      row1.appendChild(aWrap);
+      card.appendChild(row1);
+
+      const row2 = document.createElement("div");
+      row2.className = "segRow";
+      const bWrap = document.createElement("div");
+      bWrap.innerHTML = "<label>Цвет B (для паттернов)</label>";
+      const bSel = createPalettePicker(seg.b || "#FFFFFF", (value) => {
+        seg.b = value;
+        render();
+      }, { allowedColors: getRestrictionSet() });
+      bWrap.appendChild(bSel);
+
+      const note = document.createElement("div");
+      note.innerHTML = `<label>&nbsp;</label><div class="smallnote">Для «сплошного» используется только цвет A.</div>`;
+
+      row2.appendChild(bWrap);
+      row2.appendChild(note);
+      card.appendChild(row2);
+
+      fieldSegmentsBox.appendChild(card);
+    }
+  }
+
+
+  function renderRankUI() {
+    const rule = getRankRule();
+    rankModeHint.textContent = rule.hint;
+    rankPaletteBox.innerHTML = "";
+
+    if (!rule.maxColors) {
+      rankPaletteBox.innerHTML = `<label>Ограничение цветов</label><div class="smallnote">В свободном режиме все цвета палитры доступны.</div>`;
+      return;
+    }
+
+    ensureAllowedColorsCount();
+
+    const title = document.createElement("label");
+    title.textContent = `Допустимые цвета (${rule.maxColors} шт.)`;
+    rankPaletteBox.appendChild(title);
+
+    const current = new Set(state.allowedColors);
+    const grid = document.createElement("div");
+    grid.className = "paletteGrid";
+
+    heraldicPalette.forEach((color) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      const active = current.has(color);
+      b.className = "paletteSwatch" + (active ? " active" : "");
+      b.style.background = color;
+      b.title = color;
+      b.onclick = () => {
+        const set = new Set(state.allowedColors.map(normalizePaletteColor));
+        if (set.has(color)) return;
+        let next = [...set];
+        if (next.length >= rule.maxColors) next = next.slice(1);
+        next.push(color);
+        state.allowedColors = next;
+        ensureAllowedColorsCount();
+        enforcePaletteRestrictions();
+        renderRankUI();
+        renderFieldUI();
+        render();
+      };
+      grid.appendChild(b);
+    });
+
+    rankPaletteBox.appendChild(grid);
+    const note = document.createElement("div");
+    note.className = "smallnote";
+    note.style.marginTop = "8px";
+    note.textContent = "Эти цвета применяются ко всем полям и фигурам. Контур щита не ограничивается.";
+    rankPaletteBox.appendChild(note);
+  }
+
+
+  const heraldicMetals = ["#FFBB06", "#F4C551", "#FFFFFF", "#B4BEBF", "#35373b"];
+  const heraldicColors = ["#0000FE", "#06186E", "#FE0000", "#860000", "#00B357", "#015601", "#890098", "#BF285B", "#000000", "#5E3306"];
+
+  const randomSchemePool = [
+    { fieldA: "#06186E", fieldB: "#FFBB06", chargeMain: "#FFFFFF", chargeAccent: "#FE0000", stroke: "#0b0d12" },
+    { fieldA: "#FE0000", fieldB: "#FFFFFF", chargeMain: "#000000", chargeAccent: "#FFBB06", stroke: "#0b0d12" },
+    { fieldA: "#015601", fieldB: "#FFFFFF", chargeMain: "#FFBB06", chargeAccent: "#860000", stroke: "#0b0d12" },
+    { fieldA: "#000000", fieldB: "#FFFFFF", chargeMain: "#FFBB06", chargeAccent: "#890098", stroke: "#000000" },
+    { fieldA: "#06186E", fieldB: "#FFFFFF", chargeMain: "#FFBB06", chargeAccent: "#BF285B", stroke: "#000000" },
+    { fieldA: "#5E3306", fieldB: "#F4C551", chargeMain: "#FFFFFF", chargeAccent: "#860000", stroke: "#0b0d12" }
+  ];
+
+  function pickRandom(arr) {
+    if (!arr || !arr.length) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function pickDistinctColor(pool, excluded = []) {
+    const available = pool.filter((c) => !excluded.includes(c));
+    return pickRandom(available.length ? available : pool);
+  }
+
+  function createLayerFromFigure(fig, color, presetId = "center", opacity = 1) {
+    if (!fig) return null;
+    const layer = {
+      id: uid(),
+      fig,
+      color: normalizePaletteColor(color),
+      opacity,
+      x: fig.defaults?.x ?? 0,
+      y: fig.defaults?.y ?? 0,
+      ...JSON.parse(JSON.stringify(fig.defaults || {}))
+    };
+
+    if (fig.kind === "external_svg") {
+      const fitScale = getExternalFigureFitScale(fig);
+      const initialScale = layer.s ?? 0.52;
+      layer.s = Math.min(initialScale, fitScale);
+    }
+
+    if (canCenterPreset(fig)) {
+      applyCenterPresetToLayer(layer, presetId);
+    }
+
+    normalizeLayerSegmentMask(layer);
+    clampLayerPosition(layer);
+    return layer;
+  }
+
+  function buildRandomCoat() {
+    const rule = getRankRule();
+    const scheme = pickRandom(randomSchemePool);
+    const maxColors = rule.maxColors || 4;
+
+    const chosenColors = [scheme.fieldA, scheme.fieldB, scheme.chargeMain, scheme.chargeAccent]
+      .map(normalizePaletteColor)
+      .filter((c, idx, arr) => arr.indexOf(c) === idx)
+      .slice(0, maxColors);
+
+    while (chosenColors.length < Math.min(maxColors, 3)) {
+      const source = chosenColors.some((c) => heraldicMetals.includes(c)) ? heraldicColors : heraldicMetals;
+      const next = pickDistinctColor(source, chosenColors);
+      if (next) chosenColors.push(next);
+      else break;
+    }
+
+    state.allowedColors = chosenColors.slice(0, maxColors);
+
+    const backgrounds = state.allowedColors.filter((c) => heraldicColors.includes(c));
+    const metals = state.allowedColors.filter((c) => heraldicMetals.includes(c));
+    const fieldA = backgrounds[0] || state.allowedColors[0] || "#06186E";
+    const fieldB = metals[0] || pickDistinctColor(state.allowedColors, [fieldA]) || "#FFFFFF";
+    const chargeMain = pickDistinctColor(state.allowedColors, [fieldA]) || fieldB;
+    const chargeAccent = pickDistinctColor(state.allowedColors, [fieldA, chargeMain]) || fieldB;
+
+    state.shieldShape = pickRandom(shieldShapes)?.id || state.shieldShape;
+    state.strokeColor = scheme.stroke;
+    state.strokeWidth = 5 + Math.floor(Math.random() * 4);
+
+    const modePool = maxColors <= 2
+      ? ["solid", "per_fess", "per_pale"]
+      : ["solid", "per_fess", "per_pale", "quarterly", "pale_thirds"];
+    state.field.mode = pickRandom(modePool) || "solid";
+    state.field.patternSize = 40 + Math.floor(Math.random() * 45);
+    ensureFieldSegmentsCount();
+
+    const preferredPattern = Math.random() < 0.75 ? "solid" : pickRandom(["barry", "paly", "checky"]);
+    state.field.segments = state.field.segments.map((_, idx) => ({
+      pattern: preferredPattern,
+      a: idx % 2 === 0 ? fieldA : fieldB,
+      b: idx % 2 === 0 ? fieldB : fieldA
+    }));
+
+    const fullCatalog = getFullFigureCatalog();
+    const pickForClass = (cls) => fullCatalog.filter((f) => getFigureClass(f) === cls);
+    const layers = [];
+
+    const heraldicLimit = rule.limits.heraldic === null ? 2 : rule.limits.heraldic;
+    const honorableLimit = rule.limits.honorable === null ? 2 : rule.limits.honorable;
+    const simpleLimit = rule.limits.simple === null ? 2 : rule.limits.simple;
+
+    if (heraldicLimit > 0) {
+      const fig = pickRandom(pickForClass("heraldic"));
+      const layer = createLayerFromFigure(fig, chargeMain, "center", 1);
+      if (layer) {
+        layer.fitScale = clamp((layer.fitScale ?? 1) * 0.92, 0.16, 1.2);
+        layers.push(layer);
+      }
+    }
+
+    if (honorableLimit > 0 && Math.random() < 0.85) {
+      const honorableIds = ["chief", "fess", "pale", "bend", "chevron", "cross", "saltire", "base"];
+      const honorablePool = pickForClass("honorable").filter((f) => honorableIds.includes(f.id));
+      const fig = pickRandom(honorablePool.length ? honorablePool : pickForClass("honorable"));
+      const layer = createLayerFromFigure(fig, chargeAccent, "center", 0.95);
+      if (layer) layers.unshift(layer);
+    }
+
+    if (simpleLimit > 0 && layers.length < 3 && Math.random() < 0.55) {
+      const simpleIds = ["roundel", "lozenge", "inescutcheon", "canton", "annulet"];
+      const simplePool = pickForClass("simple").filter((f) => simpleIds.includes(f.id));
+      const fig = pickRandom(simplePool.length ? simplePool : pickForClass("simple"));
+      const preset = fig?.id === "canton" ? "quarter_lu" : "center";
+      const layer = createLayerFromFigure(fig, pickDistinctColor(state.allowedColors, [fieldA, chargeMain]), preset, 0.95);
+      if (layer) layers.push(layer);
+    }
+
+    if (!layers.length) {
+      const fallbackFig = pickRandom(pickForClass("honorable")) || figureCatalog.find((f) => f.id === "cross");
+      const fallbackLayer = createLayerFromFigure(fallbackFig, chargeMain, "center", 1);
+      if (fallbackLayer) layers.push(fallbackLayer);
+    }
+
+    state.layers = layers;
+    enforcePaletteRestrictions();
+
+    shieldShapeSel.value = state.shieldShape;
+    strokeColorInp.value = state.strokeColor;
+    strokeWidthInp.value = state.strokeWidth;
+    fieldModeSel.value = state.field.mode;
+    patternSizeInp.value = state.field.patternSize;
+
+    renderRankUI();
+    renderFieldUI();
+    render();
+  }
+
+  // ====== Modal-like prompt for adding figure ======
+  function addFigureFlow() {
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.55)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.padding = "14px";
+    overlay.style.zIndex = "999";
+
+    const card = document.createElement("div");
+    card.style.width = "min(720px, 96vw)";
+    card.style.background = "linear-gradient(180deg, rgba(20,24,34,.98), rgba(15,19,32,.98))";
+    card.style.border = "1px solid var(--line)";
+    card.style.borderRadius = "14px";
+    card.style.overflow = "hidden";
+
+    const head = document.createElement("div");
+    head.style.display = "flex";
+    head.style.justifyContent = "space-between";
+    head.style.alignItems = "center";
+    head.style.padding = "12px 12px 10px";
+    head.style.borderBottom = "1px solid var(--line)";
+    head.innerHTML = `<div style="font-weight:650;font-size:13px">Добавить фигуру</div>`;
+
+    const close = document.createElement("button");
+    close.className = "ghost";
+    close.textContent = "Закрыть";
+    close.onclick = () => overlay.remove();
+    head.appendChild(close);
+
+    const body = document.createElement("div");
+    body.style.padding = "12px";
+
+    const wrap = document.createElement("div");
+    wrap.className = "split";
+
+    const left = document.createElement("div");
+    const right = document.createElement("div");
+
+    const figSel = document.createElement("select");
+    figSel.style.width = "100%";
+
+    const previewGrid = document.createElement("div");
+    previewGrid.className = "figurePreviewGrid";
+
+    function renderFigureIcon(icon, fig, color) {
+      icon.innerHTML = "";
+      const sw = 86;
+      const sh = 96;
+      const clipId = `clip_preview_${Math.random().toString(36).slice(2, 10)}`;
+      const layer = {
+        id: `preview_${fig.id}`,
+        fig,
+        color,
+        opacity: 1,
+        x: 0,
+        y: 0,
+        ...(fig.defaults ? JSON.parse(JSON.stringify(fig.defaults)) : {})
+      };
+
+      const svg = makeSVG("svg", {
+        xmlns: "http://www.w3.org/2000/svg",
+        viewBox: `0 0 ${VB_W} ${VB_H}`,
+        width: sw,
+        height: sh,
+        preserveAspectRatio: "xMidYMid meet"
+      });
+
+      const defs = makeSVG("defs");
+      const cp = makeSVG("clipPath", { id: clipId });
+      cp.appendChild(makeSVG("path", { d: getShieldPathD() }));
+      defs.appendChild(cp);
+      svg.appendChild(defs);
+
+      if (fig.kind === "external_svg") {
+        const entry = ensureExternalSvgEntry(fig, renderFigurePreview);
+        if (entry.status === "ready" && entry.svg) {
+          const ext = entry.svg.cloneNode(true);
+          ext.setAttribute("x", VB_W * 0.08);
+          ext.setAttribute("y", VB_H * 0.08);
+          ext.setAttribute("width", VB_W * 0.84);
+          ext.setAttribute("height", VB_H * 0.84);
+          ext.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          ext.setAttribute("overflow", "visible");
+          const fitBox = pickExternalSvgBox(entry);
+          if (fitBox) {
+            ext.setAttribute("viewBox", `${fitBox.x} ${fitBox.y} ${fitBox.width} ${fitBox.height}`);
+          }
+          repaintExternalSvgTree(ext, color, 1);
+          const g = makeSVG("g", { "clip-path": `url(#${clipId})` });
+          g.appendChild(ext);
+          svg.appendChild(g);
+        } else {
+          const img = document.createElement("img");
+          img.src = fig.previewSrc || fig.src;
+          img.alt = fig.name;
+          icon.appendChild(img);
+          return;
+        }
+      } else {
+        svg.appendChild(figureToSVG(layer, defs, clipId));
+      }
+
+      icon.appendChild(svg);
+    }
+
+    function renderFigurePreview() {
+      const selectedId = figSel.value;
+      previewGrid.innerHTML = "";
+
+      for (const f of getFullFigureCatalog()) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "figurePreviewBtn" + (f.id === selectedId ? " active" : "");
+
+        const canAdd = canAddFigureForCurrentRule(f);
+        btn.disabled = !canAdd;
+        btn.title = canAdd ? f.name : `${f.name} (лимит режима)`;
+
+        const icon = document.createElement("div");
+        icon.className = "figurePreviewIcon";
+        renderFigureIcon(icon, f, normalizePaletteColor(selectedColor));
+
+        const name = document.createElement("div");
+        name.textContent = f.name;
+
+        btn.appendChild(icon);
+        btn.appendChild(name);
+        btn.onclick = () => {
+          if (!canAdd) return;
+          figSel.value = f.id;
+          renderFigurePreview();
+        };
+        previewGrid.appendChild(btn);
+      }
+    }
+
+    const fullFigureCatalog = getFullFigureCatalog();
+    const groups = [...new Set(fullFigureCatalog.map(f => f.group))];
+    for (const g of groups) {
+      const og = document.createElement("optgroup");
+      og.label = g;
+      fullFigureCatalog.filter(f => f.group === g).forEach(f => {
+        const o = document.createElement("option");
+        o.value = f.id;
+        const canAdd = canAddFigureForCurrentRule(f);
+        o.textContent = canAdd ? f.name : `${f.name} (лимит режима)`;
+        o.disabled = !canAdd;
+        og.appendChild(o);
+      });
+      figSel.appendChild(og);
+    }
+
+    let selectedColor = "#FF7F00";
+    let selectedPresetId = "center";
+    const colorSel = createPalettePicker(selectedColor, (value) => { selectedColor = value; renderFigurePreview(); }, { allowedColors: getRestrictionSet() });
+
+    const centerWrap = document.createElement("div");
+    centerWrap.style.marginTop = "10px";
+    centerWrap.innerHTML = `<label>Отцентровать</label>`;
+
+    const centerSel = document.createElement("select");
+    centerSel.style.width = "100%";
+    centerPresets.forEach((preset) => {
+      const o = document.createElement("option");
+      o.value = preset.id;
+      o.textContent = preset.name;
+      centerSel.appendChild(o);
+    });
+    centerSel.value = selectedPresetId;
+    centerSel.onchange = () => { selectedPresetId = centerSel.value; };
+    centerWrap.appendChild(centerSel);
+
+    function refreshCenterPresetUI() {
+      const fig = getFullFigureCatalog().find((f) => f.id === figSel.value);
+      const allowed = canCenterPreset(fig);
+      centerWrap.style.display = allowed ? "block" : "none";
+      centerSel.disabled = !allowed;
+    }
+
+    const note = document.createElement("div");
+    note.className = "smallnote";
+    note.style.marginTop = "10px";
+    note.textContent = "После добавления параметры (толщина, размер, смещение, прозрачность) настраиваются в списке слоёв или перетаскиванием на щите.";
+
+    left.innerHTML = `<label>Тип фигуры</label>`;
+    left.appendChild(figSel);
+    left.appendChild(previewGrid);
+
+    figSel.addEventListener("change", () => { renderFigurePreview(); refreshCenterPresetUI(); });
+    renderFigurePreview();
+    refreshCenterPresetUI();
+
+    right.innerHTML = `<label>Цвет фигуры</label>`;
+    right.appendChild(colorSel);
+    right.appendChild(centerWrap);
+
+    wrap.appendChild(left);
+    wrap.appendChild(right);
+
+    const addBtnRow = document.createElement("div");
+    addBtnRow.style.display = "flex";
+    addBtnRow.style.gap = "8px";
+    addBtnRow.style.marginTop = "12px";
+    addBtnRow.style.flexWrap = "wrap";
+
+    const ok = document.createElement("button");
+    ok.className = "primary";
+    ok.textContent = "Добавить";
+    ok.onclick = () => {
+      const figId = figSel.value;
+      const fig = getFullFigureCatalog().find(f => f.id === figId);
+      if (!fig) return;
+      if (!canAddFigureForCurrentRule(fig)) {
+        alert("Для выбранного режима достигнут лимит фигур этого типа.");
+        return;
+      }
+
+      const layer = {
+        id: uid(),
+        fig,
+        color: normalizePaletteColor(selectedColor),
+        opacity: 1,
+        x: fig.defaults?.x ?? 0,
+        y: fig.defaults?.y ?? 0,
+        ...JSON.parse(JSON.stringify(fig.defaults || {}))
+      };
+
+      if (fig.kind === "external_svg") {
+        const fitScale = getExternalFigureFitScale(fig);
+        const initialScale = layer.s ?? 0.52;
+        layer.s = Math.min(initialScale, fitScale);
+      }
+
+      if (canCenterPreset(fig)) {
+        applyCenterPresetToLayer(layer, selectedPresetId);
+      }
+
+      normalizeLayerSegmentMask(layer);
+      clampLayerPosition(layer);
+      state.layers.push(layer);
+      overlay.remove();
+      render();
+    };
+
+    const cancel = document.createElement("button");
+    cancel.textContent = "Отмена";
+    cancel.className = "ghost";
+    cancel.onclick = () => overlay.remove();
+
+    addBtnRow.appendChild(ok);
+    addBtnRow.appendChild(cancel);
+
+    body.appendChild(wrap);
+    body.appendChild(note);
+    body.appendChild(addBtnRow);
+
+    card.appendChild(head);
+    card.appendChild(body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  }
+
+  // ====== Export ======
+  function getCurrentSVGElement() {
+    return svgBox.querySelector("svg");
+  }
+
+  function serializeSVG(svgEl) {
+    const clone = svgEl.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const xml = new XMLSerializer().serializeToString(clone);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n${xml}`;
+  }
+
+  function downloadBlob(filename, blob) {
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadSVG() {
+    const svgEl = getCurrentSVGElement();
+    if (!svgEl) return;
+    const xml = serializeSVG(svgEl);
+    downloadBlob("coat_of_arms.svg", new Blob([xml], { type: "image/svg+xml;charset=utf-8" }));
+  }
+
+  async function downloadPNG() {
+    const svgEl = getCurrentSVGElement();
+    if (!svgEl) return;
+    const xml = serializeSVG(svgEl);
+    const svg64 = btoa(unescape(encodeURIComponent(xml)));
+    const imgSrc = "data:image/svg+xml;base64," + svg64;
+
+    const img = new Image();
+    img.decoding = "async";
+    img.src = imgSrc;
+
+    await new Promise((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("Не удалось подготовить PNG (ошибка загрузки SVG в Image)."));
+    });
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = VB_W * scale;
+    canvas.height = VB_H * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      downloadBlob("coat_of_arms.png", blob);
+    }, "image/png");
+  }
+
+  // ====== Init UI ======
+  function init() {
+    shieldShapes.forEach(s => {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = s.name;
+      shieldShapeSel.appendChild(o);
+    });
+    shieldShapeSel.value = state.shieldShape;
+
+    rankRules.forEach((m) => {
+      const o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = m.name;
+      rankModeSel.appendChild(o);
+    });
+    rankModeSel.value = state.rankMode;
+
+    fieldModes.forEach(m => {
+      const o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = m.name;
+      fieldModeSel.appendChild(o);
+    });
+    fieldModeSel.value = state.field.mode;
+
+    shieldShapeSel.onchange = () => { state.shieldShape = shieldShapeSel.value; render(); };
+
+    rankModeSel.onchange = () => {
+      const nextRule = getRankRule(rankModeSel.value);
+      const violation = validateLayersForRule(nextRule);
+      if (violation) {
+        alert(violation);
+        rankModeSel.value = state.rankMode;
+        return;
+      }
+      state.rankMode = nextRule.id;
+      ensureAllowedColorsCount();
+      enforcePaletteRestrictions();
+      renderRankUI();
+      renderFieldUI();
+      render();
+    };
+    strokeColorInp.oninput = () => { state.strokeColor = strokeColorInp.value; render(); };
+
+    ensureFieldSegmentsCount();
+    state.field.segments = state.field.segments.map((seg) => ({
+      ...seg,
+      a: normalizePaletteColor(seg.a),
+      b: normalizePaletteColor(seg.b)
+    }));
+
+    strokeWidthInp.oninput = () => { state.strokeWidth = +strokeWidthInp.value; render(); };
+    bgModeSel.onchange = () => { state.bgMode = bgModeSel.value; render(); };
+
+    fieldModeSel.onchange = () => {
+      state.field.mode = fieldModeSel.value;
+      ensureFieldSegmentsCount();
+      renderFieldUI();
+      render();
+    };
+
+    patternSizeInp.oninput = () => {
+      state.field.patternSize = +patternSizeInp.value;
+      render();
+    };
+
+    addFigureBtn.onclick = addFigureFlow;
+    randomGenerateBtn.onclick = buildRandomCoat;
+    uploadFigureBtn.onclick = () => uploadFigureInput.click();
+    uploadFigureInput.onchange = async (evt) => {
+      const file = evt.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const id = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const previewSrc = URL.createObjectURL(file);
+      uploadedFigureCatalog.unshift({
+        group: "SVG пользователя",
+        id,
+        name: file.name.replace(/\.svg$/i, "") || "Пользовательский SVG",
+        kind: "external_svg",
+        svgText: text,
+        cacheKey: id,
+        previewSrc,
+        defaults: { s: 0.52, x: 0, y: 0 }
+      });
+      uploadFigureInput.value = "";
+      addFigureFlow();
+    };
+
+    resetBtn.onclick = () => {
+      state.shieldShape = shieldShapes[0].id;
+      state.rankMode = "free";
+      state.allowedColors = heraldicPalette.slice(0, 2);
+      state.strokeColor = "#0b0d12";
+      state.strokeWidth = 6;
+      state.bgMode = "none";
+
+      state.field.mode = "solid";
+      state.field.patternSize = 64;
+      state.field.segments = [{ pattern: "solid", a: "#0000FE", b: "#FFFFFF" }];
+
+      state.layers = [];
+
+      shieldShapeSel.value = state.shieldShape;
+      rankModeSel.value = state.rankMode;
+      strokeColorInp.value = state.strokeColor;
+      strokeWidthInp.value = state.strokeWidth;
+      bgModeSel.value = state.bgMode;
+      fieldModeSel.value = state.field.mode;
+      patternSizeInp.value = state.field.patternSize;
+
+      renderFieldUI();
+      renderRankUI();
+
+      state.layers.push({
+        id: uid(),
+        fig: figureCatalog.find(f => f.id === "bordure"),
+        color: "#000000",
+        opacity: 1,
+        x: 0, y: 0,
+        ...JSON.parse(JSON.stringify(figureCatalog.find(f => f.id === "bordure").defaults))
+      });
+      state.layers.push({
+        id: uid(),
+        fig: figureCatalog.find(f => f.id === "cross"),
+        color: "#FFFFFF",
+        opacity: 0.95,
+        x: 0, y: 0,
+        ...JSON.parse(JSON.stringify(figureCatalog.find(f => f.id === "cross").defaults))
+      });
+
+      render();
+    };
+
+    downloadSVGBtn.onclick = downloadSVG;
+    downloadPNGBtn.onclick = () => downloadPNG().catch(err => alert(err.message));
+
+    renderRankUI();
+    renderFieldUI();
+
+    state.layers.push({
+      id: uid(),
+      fig: figureCatalog.find(f => f.id === "bordure"),
+      color: "#000000",
+      opacity: 1,
+      x: 0, y: 0,
+      ...JSON.parse(JSON.stringify(figureCatalog.find(f => f.id === "bordure").defaults))
+    });
+    state.layers.push({
+      id: uid(),
+      fig: figureCatalog.find(f => f.id === "cross"),
+      color: "#FFFFFF",
+      opacity: 0.95,
+      x: 0, y: 0,
+      ...JSON.parse(JSON.stringify(figureCatalog.find(f => f.id === "cross").defaults))
+    });
+
+    render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
