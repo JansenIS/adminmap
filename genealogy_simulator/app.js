@@ -13,6 +13,8 @@ const state = {
   mapPeople: [],
   camera: { zoom: 1, panX: 0, panY: 0 },
   dragging: null,
+  pendingCreatePhotoUrl: '',
+  pendingEditPhotoUrl: '',
 };
 
 function dedupeRelationships(relationships) {
@@ -2222,7 +2224,7 @@ function syncEditCharacterForm(id = null) {
   if (founderEl) founderEl.checked = !!selected?.is_clan_founder;
   setValue('editCharacterBirthYear', selected?.birth_year ?? '');
   setValue('editCharacterDeathYear', selected?.death_year ?? '');
-  setValue('editCharacterPhotoUrl', selected?.photo_url || '');
+  state.pendingEditPhotoUrl = selected?.photo_url || '';
   setValue('editCharacterNotes', selected?.notes || '');
 }
 
@@ -2255,8 +2257,7 @@ function bindAdmin() {
   const createPhotoBtn = document.getElementById('createPhotoUploadBtn');
   const createPhotoFile = document.getElementById('createPhotoFile');
   const createForm = document.getElementById('createCharacterForm');
-  const createPhotoInput = createForm ? createForm.querySelector('input[name="photo_url"]') : null;
-  if (createPhotoBtn && createPhotoFile && createPhotoInput) {
+  if (createPhotoBtn && createPhotoFile && createForm) {
     createPhotoBtn.addEventListener('click', () => createPhotoFile.click());
     createPhotoFile.addEventListener('change', async () => {
       const file = createPhotoFile.files && createPhotoFile.files[0];
@@ -2265,8 +2266,8 @@ function bindAdmin() {
       const nameInput = createForm.querySelector('input[name="name"]');
       try {
         createPhotoBtn.disabled = true;
-        createPhotoInput.value = await uploadPhotoSquare(file, nameInput ? nameInput.value : '');
-        setStatus('Фото загружено на сервер с обрезкой под квадрат.');
+        state.pendingCreatePhotoUrl = await uploadPhotoSquare(file, nameInput ? nameInput.value : '');
+        setStatus('Фото загружено на сервер с обрезкой под квадрат. Оно сохранится при создании персонажа.');
       } catch (err) {
         setStatus(`Ошибка загрузки фото: ${err.message}`);
       } finally {
@@ -2277,8 +2278,7 @@ function bindAdmin() {
 
   const editPhotoBtn = document.getElementById('editPhotoUploadBtn');
   const editPhotoFile = document.getElementById('editPhotoFile');
-  const editPhotoInput = document.getElementById('editCharacterPhotoUrl');
-  if (editPhotoBtn && editPhotoFile && editPhotoInput) {
+  if (editPhotoBtn && editPhotoFile) {
     editPhotoBtn.addEventListener('click', () => editPhotoFile.click());
     editPhotoFile.addEventListener('change', async () => {
       const file = editPhotoFile.files && editPhotoFile.files[0];
@@ -2287,8 +2287,8 @@ function bindAdmin() {
       const editNameInput = document.getElementById('editCharacterName');
       try {
         editPhotoBtn.disabled = true;
-        editPhotoInput.value = await uploadPhotoSquare(file, editNameInput ? editNameInput.value : '');
-        setStatus('Фото загружено на сервер с обрезкой под квадрат.');
+        state.pendingEditPhotoUrl = await uploadPhotoSquare(file, editNameInput ? editNameInput.value : '');
+        setStatus('Фото загружено на сервер с обрезкой под квадрат. Оно сохранится при обновлении персонажа.');
       } catch (err) {
         setStatus(`Ошибка загрузки фото: ${err.message}`);
       } finally {
@@ -2303,10 +2303,12 @@ function bindAdmin() {
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
     payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
+    payload.photo_url = state.pendingCreatePhotoUrl || '';
     ['birth_year', 'death_year'].forEach(k => { if (payload[k] === '') delete payload[k]; });
     try {
       await api('/api/genealogy/characters/', { method: 'POST', body: JSON.stringify(payload) });
       form.reset();
+      state.pendingCreatePhotoUrl = '';
       await loadData();
       await loadMapPeople();
       syncClanFilter();
@@ -2375,6 +2377,7 @@ function bindAdmin() {
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
     payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
+    payload.photo_url = state.pendingEditPhotoUrl || '';
     ['birth_year', 'death_year'].forEach((k) => {
       if (payload[k] === '') payload[k] = '';
     });
