@@ -55,6 +55,9 @@ async function fetchAdminProvincesFromApi(apiBase) {
         pid,
         name: typeof row?.name === "string" ? row.name : "",
         terrain: typeof row?.terrain === "string" ? row.terrain : "",
+        kingdom_id: typeof row?.kingdom_id === "string" ? row.kingdom_id : "",
+        great_house_id: typeof row?.great_house_id === "string" ? row.great_house_id : "",
+        minor_house_id: typeof row?.minor_house_id === "string" ? row.minor_house_id : "",
         free_city_id: typeof row?.free_city_id === "string" ? row.free_city_id : "",
       });
     }
