@@ -1,0 +1,519 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="svg2" width="497" height="300" version="1.1">
+  <defs id="defs7">
+    <pattern id="Hatch-0-7" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-3-7" transform="translate(-64)">
+        <path id="HatchW-3-8" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-7-7" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-0-7" id="HatchH-9-7" patternTransform="rotate(90 -1 1)"/>
+    <pattern id="pattern7489-6-8" width="11.729427" height="11.159601" patternTransform="translate(1.49 -16.738)" patternUnits="userSpaceOnUse">
+      <g id="g5689-5-6" transform="translate(-57.271 .1596)">
+        <g id="fer-9-1">
+          <path id="rect5691-5-0" fill="#fff" d="M60 0h9v11h-9z"/>
+          <path id="rect5693-6-8" d="M59.244-.1596h1v5h-1z"/>
+          <path id="rect5699-1-3" d="M65 5h1v5h-1z"/>
+          <path id="rect5701-1-0" d="M1.3953-67.857h1v5h-1z" transform="rotate(90)"/>
+          <path id="rect5703-4-0" d="M7.1409-62.271h1v5h-1z" transform="rotate(90)"/>
+        </g>
+      </g>
+    </pattern>
+    <pattern id="Hatch-3-3-3" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-0-9-7" transform="translate(-64)">
+        <path id="HatchW-7-2-0" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-1-4-5" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-3-3-3" id="HatchV-4-0" patternTransform="translate(26)"/>
+    <pattern id="XHatch-3-5" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-2-7" transform="translate(-64)">
+        <path id="XHatchB-9-3" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-5-8" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-3-5" id="XHatchD-4-9" patternTransform="rotate(45 11.08578644 33.5918831)"/>
+    <pattern id="Dotted-7-9" width="8" height="8" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDotted-3-6" transform="translate(-60)">
+        <path id="DottedW-9-6" fill="#fff" d="M60 0h9v9h-9z"/>
+        <path id="DottedB1-0-2" d="M61 5h1v1h-1z"/>
+        <path id="DottedB2-7-8" d="M65 1h1v1h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Dotted-7-9" id="DottedT-2-8" patternTransform="translate(28 7)"/>
+    <pattern id="DashDotHatch-6-3-4" width="8" height="10" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDashDotHatch-8-9-9" transform="translate(-60)">
+        <path id="DashDotHatchW-7-1-0" fill="#fff" d="M60 0h9v11h-9z"/>
+        <path id="DashDotHatchDash1-8-8-5" d="M61 0h1v5h-1z"/>
+        <path id="DashDotHatchDot1-5-8-1" d="M61 7h1v1h-1z"/>
+        <path id="DashDotHatchDot2-9-7-1" d="M65 2h1v1h-1z"/>
+        <path id="DashDotHatchDash2-8-0-7" d="M65 5h1v5h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#DashDotHatch-6-3-4" id="DashDotHatchT-2-5-8" patternTransform="translate(28 8)"/>
+    <pattern id="Hatch-4-6-5" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-4-3-8" transform="translate(-64)">
+        <path id="HatchW-2-6-4" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-0-8-1" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-4-6-5" id="HatchU-4-5" patternTransform="rotate(45 28.75 69.40863992)"/>
+    <pattern id="XHatch-7-4-6" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-3-1-6" transform="translate(-64)">
+        <path id="XHatchB-1-0-4" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-7-0-2" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-7-4-6" id="XHatchT-6-5" patternTransform="translate(30 2)"/>
+    <pattern id="XHatch-6-4-9" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-4-7-7" transform="translate(-64)">
+        <path id="XHatchB-6-2-3" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-9-1-0" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-6-4-9" id="HatchHD-7-6" patternTransform="matrix(1 0 1 1 3 2)"/>
+    <pattern id="Hatch-32-5-9" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-8-9-0" transform="translate(-64)">
+        <path id="HatchW-71-9-7" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-6-1-0" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-32-5-9" id="HatchD-6-0" patternTransform="rotate(135 13.8964466 6.04898987)"/>
+    <pattern xlink:href="#Hatch-32-8" id="HatchD-9" patternTransform="rotate(135 13.8964466 6.04898987)"/>
+    <pattern id="Hatch-32-8" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-8-6" transform="translate(-64)">
+        <path id="HatchW-71-4" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-6-5" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-6-9" id="HatchHD-6" patternTransform="matrix(1 0 1 1 3 2)"/>
+    <pattern id="XHatch-6-9" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-4-75" transform="translate(-64)">
+        <path id="XHatchB-6-8" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-9-2" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-7-0" id="XHatchT-8" patternTransform="translate(30 2)"/>
+    <pattern id="XHatch-7-0" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-3-33" transform="translate(-64)">
+        <path id="XHatchB-1-6" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-7-2" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-4-29" id="HatchU-9" patternTransform="rotate(45 28.75 69.40863992)"/>
+    <pattern id="Hatch-4-29" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-4-2" transform="translate(-64)">
+        <path id="HatchW-2-7" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-0-4" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#DashDotHatch-6-21" id="DashDotHatchT-2-8" patternTransform="translate(28 8)"/>
+    <pattern id="DashDotHatch-6-21" width="8" height="10" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDashDotHatch-8-8" transform="translate(-60)">
+        <path id="DashDotHatchW-7-24" fill="#fff" d="M60 0h9v11h-9z"/>
+        <path id="DashDotHatchDash1-8-09" d="M61 0h1v5h-1z"/>
+        <path id="DashDotHatchDot1-5-0" d="M61 7h1v1h-1z"/>
+        <path id="DashDotHatchDot2-9-8" d="M65 2h1v1h-1z"/>
+        <path id="DashDotHatchDash2-8-2" d="M65 5h1v5h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Dotted-1" id="DottedT-3" patternTransform="translate(28 7)"/>
+    <pattern id="Dotted-1" width="8" height="8" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDotted-1" transform="translate(-60)">
+        <path id="DottedW-6" fill="#fff" d="M60 0h9v9h-9z"/>
+        <path id="DottedB1-1" d="M61 5h1v1h-1z"/>
+        <path id="DottedB2-3" d="M65 1h1v1h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-0" id="XHatchD-47" patternTransform="rotate(45 11.08578644 33.5918831)"/>
+    <pattern id="XHatch-0" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-1" transform="translate(-64)">
+        <path id="XHatchB-3" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-8" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-3-36" id="HatchV-7" patternTransform="translate(26)"/>
+    <pattern id="Hatch-3-36" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-0-56" transform="translate(-64)">
+        <path id="HatchW-7-4" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-1-0" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern id="pattern7489-9" width="11.729427" height="11.159601" patternTransform="translate(1.49 -16.738)" patternUnits="userSpaceOnUse">
+      <g id="g5689-3" transform="translate(-57.271 .1596)">
+        <g id="fer-6">
+          <path id="rect5691-3" fill="#fff" d="M60 0h9v11h-9z"/>
+          <path id="rect5693-63" d="M59.244-.1596h1v5h-1z"/>
+          <path id="rect5699-3" d="M65 5h1v5h-1z"/>
+          <path id="rect5701-2" d="M1.3953-67.857h1v5h-1z" transform="rotate(90)"/>
+          <path id="rect5703-2" d="M7.1409-62.271h1v5h-1z" transform="rotate(90)"/>
+        </g>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-49" id="HatchH-5" patternTransform="rotate(90 -1 1)"/>
+    <pattern id="Hatch-49" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-19" transform="translate(-64)">
+        <path id="HatchW-5" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-60" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern id="Hatch" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch" transform="translate(-64)">
+        <path id="HatchW" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch" id="HatchH" patternTransform="rotate(90 -1 1)"/>
+    <pattern id="pattern7489" width="11.729427" height="11.159601" patternTransform="translate(1.49 -16.738)" patternUnits="userSpaceOnUse">
+      <g id="g5689" transform="translate(-57.271 .1596)">
+        <g id="fer">
+          <path id="rect5691" fill="#fff" d="M60 0h9v11h-9z"/>
+          <path id="rect5693" d="M59.244-.1596h1v5h-1z"/>
+          <path id="rect5699" d="M65 5h1v5h-1z"/>
+          <path id="rect5701" d="M1.3953-67.857h1v5h-1z" transform="rotate(90)"/>
+          <path id="rect5703" d="M7.1409-62.271h1v5h-1z" transform="rotate(90)"/>
+        </g>
+      </g>
+    </pattern>
+    <pattern id="Hatch-3" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-0" transform="translate(-64)">
+        <path id="HatchW-7" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-1" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-3" id="HatchV" patternTransform="translate(26)"/>
+    <pattern id="XHatch" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch" transform="translate(-64)">
+        <path id="XHatchB" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch" id="XHatchD" patternTransform="rotate(45 11.08578644 33.5918831)"/>
+    <pattern id="Dotted" width="8" height="8" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDotted" transform="translate(-60)">
+        <path id="DottedW" fill="#fff" d="M60 0h9v9h-9z"/>
+        <path id="DottedB1" d="M61 5h1v1h-1z"/>
+        <path id="DottedB2" d="M65 1h1v1h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Dotted" id="DottedT" patternTransform="translate(28 7)"/>
+    <pattern id="DashDotHatch-6" width="8" height="10" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDashDotHatch-8" transform="translate(-60)">
+        <path id="DashDotHatchW-7" fill="#fff" d="M60 0h9v11h-9z"/>
+        <path id="DashDotHatchDash1-8" d="M61 0h1v5h-1z"/>
+        <path id="DashDotHatchDot1-5" d="M61 7h1v1h-1z"/>
+        <path id="DashDotHatchDot2-9" d="M65 2h1v1h-1z"/>
+        <path id="DashDotHatchDash2-8" d="M65 5h1v5h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#DashDotHatch-6" id="DashDotHatchT-2" patternTransform="translate(28 8)"/>
+    <pattern id="Hatch-4" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-4" transform="translate(-64)">
+        <path id="HatchW-2" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-0" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-4" id="HatchU" patternTransform="rotate(45 28.75 69.40863992)"/>
+    <pattern id="XHatch-7" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-3" transform="translate(-64)">
+        <path id="XHatchB-1" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-7" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-7" id="XHatchT" patternTransform="translate(30 2)"/>
+    <pattern id="XHatch-6" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-4" transform="translate(-64)">
+        <path id="XHatchB-6" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-9" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-6" id="HatchHD" patternTransform="matrix(1 0 1 1 3 2)"/>
+    <pattern id="Hatch-32" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-8" transform="translate(-64)">
+        <path id="HatchW-71" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-6" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-32" id="HatchD" patternTransform="rotate(135 13.8964466 6.04898987)"/>
+    <pattern xlink:href="#Hatch-32-5" id="HatchD-6" patternTransform="rotate(135 13.8964466 6.04898987)"/>
+    <pattern id="Hatch-32-5" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-8-9" transform="translate(-64)">
+        <path id="HatchW-71-9" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-6-1" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-6-4" id="HatchHD-7" patternTransform="matrix(1 0 1 1 3 2)"/>
+    <pattern id="XHatch-6-4" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-4-7" transform="translate(-64)">
+        <path id="XHatchB-6-2" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-9-1" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-7-4" id="XHatchT-6" patternTransform="translate(30 2)"/>
+    <pattern id="XHatch-7-4" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-3-1" transform="translate(-64)">
+        <path id="XHatchB-1-0" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-7-0" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-4-6" id="HatchU-4" patternTransform="rotate(45 28.75 69.40863992)"/>
+    <pattern id="Hatch-4-6" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-4-3" transform="translate(-64)">
+        <path id="HatchW-2-6" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-0-8" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#DashDotHatch-6-3" id="DashDotHatchT-2-5" patternTransform="translate(28 8)"/>
+    <pattern id="DashDotHatch-6-3" width="8" height="10" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDashDotHatch-8-9" transform="translate(-60)">
+        <path id="DashDotHatchW-7-1" fill="#fff" d="M60 0h9v11h-9z"/>
+        <path id="DashDotHatchDash1-8-8" d="M61 0h1v5h-1z"/>
+        <path id="DashDotHatchDot1-5-8" d="M61 7h1v1h-1z"/>
+        <path id="DashDotHatchDot2-9-7" d="M65 2h1v1h-1z"/>
+        <path id="DashDotHatchDash2-8-0" d="M65 5h1v5h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Dotted-7" id="DottedT-2" patternTransform="translate(28 7)"/>
+    <pattern id="Dotted-7" width="8" height="8" patternTransform="translate(60)" patternUnits="userSpaceOnUse">
+      <g id="gDotted-3" transform="translate(-60)">
+        <path id="DottedW-9" fill="#fff" d="M60 0h9v9h-9z"/>
+        <path id="DottedB1-0" d="M61 5h1v1h-1z"/>
+        <path id="DottedB2-7" d="M65 1h1v1h-1z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#XHatch-3" id="XHatchD-4" patternTransform="rotate(45 11.08578644 33.5918831)"/>
+    <pattern id="XHatch-3" width="4" height="4" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gXHatch-2" transform="translate(-64)">
+        <path id="XHatchB-9" d="M64 0h5v5h-5z"/>
+        <path id="XHatchW-5" fill="#fff" d="M64 0h3v3h-3z"/>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-3-3" id="HatchV-4" patternTransform="translate(26)"/>
+    <pattern id="Hatch-3-3" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-0-9" transform="translate(-64)">
+        <path id="HatchW-7-2" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-1-4" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <pattern id="pattern7489-6" width="11.729427" height="11.159601" patternTransform="translate(1.49 -16.738)" patternUnits="userSpaceOnUse">
+      <g id="g5689-5" transform="translate(-57.271 .1596)">
+        <g id="fer-9">
+          <path id="rect5691-5" fill="#fff" d="M60 0h9v11h-9z"/>
+          <path id="rect5693-6" d="M59.244-.1596h1v5h-1z"/>
+          <path id="rect5699-1" d="M65 5h1v5h-1z"/>
+          <path id="rect5701-1" d="M1.3953-67.857h1v5h-1z" transform="rotate(90)"/>
+          <path id="rect5703-4" d="M7.1409-62.271h1v5h-1z" transform="rotate(90)"/>
+        </g>
+      </g>
+    </pattern>
+    <pattern xlink:href="#Hatch-0" id="HatchH-9" patternTransform="rotate(90 -1 1)"/>
+    <pattern id="Hatch-0" width="4" height="64" patternTransform="translate(70)" patternUnits="userSpaceOnUse">
+      <g id="gHatch-3" transform="translate(-64)">
+        <path id="HatchW-3" fill="#fff" d="M64 0h4v65h-4z"/>
+        <path id="HatchB-7" d="M67 0h2v65h-2z"/>
+      </g>
+    </pattern>
+    <radialGradient id="radialGradient8969" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse">
+      <stop id="ArgentLight" offset="0" stop-color="#fff"/>
+      <stop id="ArgentDark" offset="1" stop-color="#e0e0e0"/>
+    </radialGradient>
+    <radialGradient id="radialGradient8971" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse">
+      <stop id="OrLight" offset="0" stop-color="#ff0"/>
+      <stop id="OrDark" offset="1" stop-color="#ffe000"/>
+    </radialGradient>
+    <radialGradient id="radialGradient8983" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse">
+      <stop id="OrLight-0-3" offset="0" stop-color="#ff0"/>
+      <stop id="OrDark-4-7" offset="1" stop-color="#ffe000"/>
+    </radialGradient>
+    <radialGradient xlink:href="#radialGradient8971" id="radialGradient5344" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8969" id="radialGradient5346" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8969" id="radialGradient5350" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8969" id="radialGradient1425" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8971" id="radialGradient1427" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8969" id="radialGradient1429" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#radialGradient8971" id="radialGradient1431" cx="27" cy="31.70000076" r="26" gradientTransform="matrix(1 0 0 1.1808 0 -5.7304)" gradientUnits="userSpaceOnUse"/>
+    <style id="style2757" type="text/css"/>
+    <style id="style3923-3-9" type="text/css"/>
+    <style id="style3923-7" type="text/css"/>
+    <style id="style3923-3" type="text/css"/>
+    <style id="style3923" type="text/css"/>
+    <style id="style3923-0" type="text/css"/>
+    <style id="style3923-3-1" type="text/css"/>
+    <style id="style3923-7-3" type="text/css"/>
+    <style id="style3923-3-9-9" type="text/css"/>
+  </defs>
+  <use xlink:href="#Shield1" id="Field" width="1" height="1" x="0" y="0" fill="url(#radialGradient1425)" stroke-width="0" transform="translate(-1655.2 1935.7) scale(.22804)"/>
+  <use xlink:href="#Shield1R" id="Trick" width="1" height="1" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(-1655.2 1935.7) scale(.22804)"/>
+  <use xlink:href="#Shield1" id="Border" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1655.2 1935.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Field-5" width="1" height="1" x="0" y="0" fill="#00f" stroke-width="0" transform="translate(-1672.9 1911.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R-3" id="Trick-0" width="1" height="1" x="0" y="0" fill="url(#HatchH)" stroke-width="0" transform="translate(-1672.9 1911.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Border-7" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1672.9 1911.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Field-3" width="1" height="1" x="0" y="0" fill="gray" stroke-width="0" transform="translate(-1673 1935) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Border-5" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1673 1935) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="use3104" width="54" height="64" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(-1672.9 1935) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="Trick-4" width="54" height="64" x="0" y="0" fill="url(#pattern7489)" stroke-width="0" transform="translate(-1672.8 1934.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Field-2" width="1" height="1" x="0" y="0" fill="red" stroke-width="0" transform="translate(-1672.9 1958.2) scale(.22804)"/>
+  <use xlink:href="#Shield1R-7" id="Trick-2" width="1" height="1" x="0" y="0" fill="url(#HatchV)" stroke-width="0" transform="translate(-1672.9 1958.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Border-1" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1672.9 1958.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Field-36" width="1" height="1" x="0" y="0" fill="#800040" stroke-width="0" transform="translate(-1672.9 1981.3) scale(.22804)"/>
+  <use xlink:href="#Shield1R-72" id="Trick-08" width="1" height="1" x="0" y="0" fill="url(#XHatchD)" stroke-width="0" transform="translate(-1672.9 1981.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Border-8" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1672.9 1981.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Field-9" width="1" height="1" x="0" y="0" fill="url(#radialGradient1427)" stroke-width="0" transform="translate(-1672.9 2004.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R-08" id="Trick-8" width="1" height="1" x="0" y="0" fill="url(#DottedT)" stroke-width="0" transform="translate(-1672.9 2004.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Border-4" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1672.9 2004.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Field-1" width="1" height="1" x="0" y="0" fill="#ff8000" stroke-width="0" transform="translate(-1654.9 2002.6) scale(.22804)"/>
+  <use xlink:href="#Shield1R-6" id="Trick-5" width="1" height="1" x="0" y="0" fill="url(#DashDotHatchT-2)" stroke-width="0" transform="translate(-1654.9 2002.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Border-9" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1654.9 2002.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Field-17" width="1" height="1" x="0" y="0" fill="purple" stroke-width="0" transform="translate(-1654.2 1980.3) scale(.22804)"/>
+  <use xlink:href="#Shield1R-00" id="Trick-1" width="1" height="1" x="0" y="0" fill="url(#HatchU)" stroke-width="0" transform="translate(-1654.2 1980.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Border-99" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1654.2 1980.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Field-53" width="1" height="1" x="0" y="0" stroke-width="0" transform="translate(-1693.6 1936.7) scale(.22804)"/>
+  <use xlink:href="#Shield1R-34" id="Trick-12" width="1" height="1" x="0" y="0" fill="url(#XHatchT)" stroke-width="0" transform="translate(-1693.6 1936.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Border-12" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1693.6 1936.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Field-94" width="1" height="1" x="0" y="0" fill="#c00000" stroke-width="0" transform="translate(-1653.3 1957.9) scale(.22804)"/>
+  <use xlink:href="#Shield1R-2" id="Trick-09" width="1" height="1" x="0" y="0" fill="url(#HatchHD)" stroke-width="0" transform="translate(-1653.3 1957.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Border-51" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1653.3 1957.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Field-21" width="1" height="1" x="0" y="0" fill="#00c000" stroke-width="0" transform="translate(-1670.7 2029.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-9" id="Trick-46" width="1" height="1" x="0" y="0" fill="url(#HatchD)" stroke-width="0" transform="translate(-1670.7 2029.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Border-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1670.7 2029.1) scale(.22804)"/>
+  <text id="text4839" x="-2322.1501" y="-1600.1302" fill="none" stroke-width="0" font-family="Georgia" font-size="7.27070427" transform="matrix(-.99189 .02745 -.0179 -1.00769 0 0)">
+    
+  </text>
+  <text id="text4855" x="-2332.7903" y="-1600.6624" fill="none" stroke-width="0" font-family="Georgia" font-size="7.27070427" transform="matrix(-.99189 .02745 -.0179 -1.00769 0 0)">
+    
+  </text>
+  <use xlink:href="#Shield1" id="Field-23" width="1" height="1" x="0" y="0" fill="url(#radialGradient1429)" stroke-width="0" transform="translate(109.13 1849.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R" id="Trick-18" width="1" height="1" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(109.13 1849.5) scale(.22804)"/>
+  <use xlink:href="#Shield1" id="Border-74" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(109.13 1849.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Field-5-6" width="1" height="1" x="0" y="0" fill="#00f" stroke-width="0" transform="translate(91.388 1825.6) scale(.22804)"/>
+  <use xlink:href="#Shield1R-3" id="Trick-0-3" width="1" height="1" x="0" y="0" fill="url(#HatchH-9)" stroke-width="0" transform="translate(91.388 1825.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Border-7-8" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(91.388 1825.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Field-3-5" width="1" height="1" x="0" y="0" fill="gray" stroke-width="0" transform="translate(91.358 1848.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Border-5-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(91.358 1848.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="use3104-1" width="54" height="64" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(91.408 1848.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="Trick-4-2" width="54" height="64" x="0" y="0" fill="url(#pattern7489-6)" stroke-width="0" transform="translate(91.538 1848.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Field-2-4" width="1" height="1" x="0" y="0" fill="red" stroke-width="0" transform="translate(91.388 1872) scale(.22804)"/>
+  <use xlink:href="#Shield1R-7" id="Trick-2-8" width="1" height="1" x="0" y="0" fill="url(#HatchV-4)" stroke-width="0" transform="translate(91.388 1872) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Border-1-5" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(91.388 1872) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Field-36-2" width="1" height="1" x="0" y="0" fill="#800040" stroke-width="0" transform="translate(91.388 1895.2) scale(.22804)"/>
+  <use xlink:href="#Shield1R-72" id="Trick-08-5" width="1" height="1" x="0" y="0" fill="url(#XHatchD-4)" stroke-width="0" transform="translate(91.388 1895.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Border-8-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(91.388 1895.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Field-9-9" width="1" height="1" x="0" y="0" fill="url(#radialGradient1431)" stroke-width="0" transform="translate(91.388 1918.4) scale(.22804)"/>
+  <use xlink:href="#Shield1R-08" id="Trick-8-1" width="1" height="1" x="0" y="0" fill="url(#DottedT-2)" stroke-width="0" transform="translate(91.388 1918.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Border-4-3" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(91.388 1918.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Field-1-1" width="1" height="1" x="0" y="0" fill="#ff8000" stroke-width="0" transform="translate(109.45 1916.4) scale(.22804)"/>
+  <use xlink:href="#Shield1R-6" id="Trick-5-5" width="1" height="1" x="0" y="0" fill="url(#DashDotHatchT-2-5)" stroke-width="0" transform="translate(109.45 1916.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Border-9-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(109.45 1916.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Field-17-9" width="1" height="1" x="0" y="0" fill="purple" stroke-width="0" transform="translate(110.09 1894.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-00" id="Trick-1-4" width="1" height="1" x="0" y="0" fill="url(#HatchU-4)" stroke-width="0" transform="translate(110.09 1894.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Border-99-4" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(110.09 1894.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Field-53-0" width="1" height="1" x="0" y="0" stroke-width="0" transform="translate(70.748 1850.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R-34" id="Trick-12-7" width="1" height="1" x="0" y="0" fill="url(#XHatchT-6)" stroke-width="0" transform="translate(70.748 1850.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Border-12-4" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(70.748 1850.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Field-94-7" width="1" height="1" x="0" y="0" fill="#c00000" stroke-width="0" transform="translate(111.06 1871.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R-2" id="Trick-09-9" width="1" height="1" x="0" y="0" fill="url(#HatchHD-7)" stroke-width="0" transform="translate(111.06 1871.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Border-51-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(111.06 1871.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Field-21-2" width="1" height="1" x="0" y="0" fill="#00c000" stroke-width="0" transform="translate(93.648 1943) scale(.22804)"/>
+  <use xlink:href="#Shield1R-9" id="Trick-46-2" width="1" height="1" x="0" y="0" fill="url(#HatchD-6)" stroke-width="0" transform="translate(93.648 1943) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Border-0-6" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(93.648 1943) scale(.22804)"/>
+  <use xlink:href="#Shield1" id="Field-20" width="1" height="1" x="0" y="0" fill="url(#radialGradient5346)" stroke-width="0" transform="translate(-1524.5 2437.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R" id="Trick-3" width="1" height="1" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(-1524.5 2437.8) scale(.22804)"/>
+  <use xlink:href="#Shield1" id="Border-04" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1524.5 2437.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Field-5-0" width="1" height="1" x="0" y="0" fill="#00f" stroke-width="0" transform="translate(-1542.2 2413.9) scale(.22804)"/>
+  <use xlink:href="#Shield1R-3" id="Trick-0-0" width="1" height="1" x="0" y="0" fill="url(#HatchH-5)" stroke-width="0" transform="translate(-1542.2 2413.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Border-7-5" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1542.2 2413.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Field-3-57" width="1" height="1" x="0" y="0" fill="gray" stroke-width="0" transform="translate(-1542.2 2437.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Border-5-03" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1542.2 2437.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="use3104-8" width="54" height="64" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(-1542.2 2437.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="Trick-4-6" width="54" height="64" x="0" y="0" fill="url(#pattern7489-9)" stroke-width="0" transform="translate(-1542.1 2437.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Field-2-9" width="1" height="1" x="0" y="0" fill="red" stroke-width="0" transform="translate(-1542.2 2460.3) scale(.22804)"/>
+  <use xlink:href="#Shield1R-7" id="Trick-2-1" width="1" height="1" x="0" y="0" fill="url(#HatchV-7)" stroke-width="0" transform="translate(-1542.2 2460.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Border-1-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1542.2 2460.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Field-36-0" width="1" height="1" x="0" y="0" fill="#800040" stroke-width="0" transform="translate(-1542.2 2483.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R-72" id="Trick-08-58" width="1" height="1" x="0" y="0" fill="url(#XHatchD-47)" stroke-width="0" transform="translate(-1542.2 2483.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Border-8-5" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1542.2 2483.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Field-9-7" width="1" height="1" x="0" y="0" fill="url(#radialGradient5344)" stroke-width="0" transform="translate(-1542.2 2506.6) scale(.22804)"/>
+  <use xlink:href="#Shield1R-08" id="Trick-8-9" width="1" height="1" x="0" y="0" fill="url(#DottedT-3)" stroke-width="0" transform="translate(-1542.2 2506.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Border-4-6" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1542.2 2506.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Field-1-9" width="1" height="1" x="0" y="0" fill="#ff8000" stroke-width="0" transform="translate(-1524.1 2504.7) scale(.22804)"/>
+  <use xlink:href="#Shield1R-6" id="Trick-5-6" width="1" height="1" x="0" y="0" fill="url(#DashDotHatchT-2-8)" stroke-width="0" transform="translate(-1524.1 2504.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Border-9-28" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1524.1 2504.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Field-17-8" width="1" height="1" x="0" y="0" fill="purple" stroke-width="0" transform="translate(-1523.5 2482.4) scale(.22804)"/>
+  <use xlink:href="#Shield1R-00" id="Trick-1-43" width="1" height="1" x="0" y="0" fill="url(#HatchU-9)" stroke-width="0" transform="translate(-1523.5 2482.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Border-99-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1523.5 2482.4) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Field-53-6" width="1" height="1" x="0" y="0" stroke-width="0" transform="translate(-1562.8 2438.8) scale(.22804)"/>
+  <use xlink:href="#Shield1R-34" id="Trick-12-8" width="1" height="1" x="0" y="0" fill="url(#XHatchT-8)" stroke-width="0" transform="translate(-1562.8 2438.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Border-12-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1562.8 2438.8) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Field-94-1" width="1" height="1" x="0" y="0" fill="#c00000" stroke-width="0" transform="translate(-1522.5 2460.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-2" id="Trick-09-8" width="1" height="1" x="0" y="0" fill="url(#HatchHD-6)" stroke-width="0" transform="translate(-1522.5 2460.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Border-51-3" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1522.5 2460.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Field-21-6" width="1" height="1" x="0" y="0" fill="#00c000" stroke-width="0" transform="translate(-1540 2531.3) scale(.22804)"/>
+  <use xlink:href="#Shield1R-9" id="Trick-46-5" width="1" height="1" x="0" y="0" fill="url(#HatchD-9)" stroke-width="0" transform="translate(-1540 2531.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Border-0-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(-1540 2531.3) scale(.22804)"/>
+  <text id="text4839-8" x="-2444.9026" y="-2101.7991" fill="none" stroke-width="0" font-family="Georgia" font-size="7.27070427" transform="matrix(-.99189 .02745 -.0179 -1.00769 0 0)">
+    
+  </text>
+  <text id="text4855-8" x="-2455.5427" y="-2102.3311" fill="none" stroke-width="0" font-family="Georgia" font-size="7.27070427" transform="matrix(-.99189 .02745 -.0179 -1.00769 0 0)">
+    
+  </text>
+  <use xlink:href="#Shield1" id="Field-23-7" width="1" height="1" x="0" y="0" fill="url(#radialGradient5350)" stroke-width="0" transform="translate(239.86 2351.6) scale(.22804)"/>
+  <use xlink:href="#Shield1R" id="Trick-18-6" width="1" height="1" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(239.86 2351.6) scale(.22804)"/>
+  <use xlink:href="#Shield1" id="Border-74-7" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(239.86 2351.6) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Field-5-6-5" width="1" height="1" x="0" y="0" fill="#00f" stroke-width="0" transform="translate(222.12 2327.7) scale(.22804)"/>
+  <use xlink:href="#Shield1R-3" id="Trick-0-3-5" width="1" height="1" x="0" y="0" fill="url(#HatchH-9-7)" stroke-width="0" transform="translate(222.12 2327.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-2" id="Border-7-8-3" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(222.12 2327.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Field-3-5-8" width="1" height="1" x="0" y="0" fill="gray" stroke-width="0" transform="translate(222.09 2350.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-8" id="Border-5-0-6" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(222.09 2350.9) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="use3104-1-4" width="54" height="64" x="0" y="0" fill="#fff" stroke-width="0" transform="translate(222.14 2350.9) scale(.22804)"/>
+  <use xlink:href="#Shield1R-0" id="Trick-4-2-2" width="54" height="64" x="0" y="0" fill="url(#pattern7489-6-8)" stroke-width="0" transform="translate(222.27 2350.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Field-2-4-9" width="1" height="1" x="0" y="0" fill="red" stroke-width="0" transform="translate(222.12 2374.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-7" id="Trick-2-8-6" width="1" height="1" x="0" y="0" fill="url(#HatchV-4-0)" stroke-width="0" transform="translate(222.12 2374.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-88" id="Border-1-5-9" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(222.12 2374.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Field-36-2-9" width="1" height="1" x="0" y="0" fill="#800040" stroke-width="0" transform="translate(222.12 2397.3) scale(.22804)"/>
+  <use xlink:href="#Shield1R-72" id="Trick-08-5-9" width="1" height="1" x="0" y="0" fill="url(#XHatchD-4-9)" stroke-width="0" transform="translate(222.12 2397.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-21" id="Border-8-2-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(222.12 2397.3) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Field-9-9-9" width="1" height="1" x="0" y="0" fill="url(#radialGradient8983)" stroke-width="0" transform="translate(222.12 2420.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R-08" id="Trick-8-1-2" width="1" height="1" x="0" y="0" fill="url(#DottedT-2-8)" stroke-width="0" transform="translate(222.12 2420.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-7" id="Border-4-3-0" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(222.12 2420.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Field-1-1-4" width="1" height="1" x="0" y="0" fill="#ff8000" stroke-width="0" transform="translate(240.18 2418.5) scale(.22804)"/>
+  <use xlink:href="#Shield1R-6" id="Trick-5-5-4" width="1" height="1" x="0" y="0" fill="url(#DashDotHatchT-2-5-8)" stroke-width="0" transform="translate(240.18 2418.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-3" id="Border-9-2-8" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(240.18 2418.5) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Field-17-9-5" width="1" height="1" x="0" y="0" fill="purple" stroke-width="0" transform="translate(240.83 2396.2) scale(.22804)"/>
+  <use xlink:href="#Shield1R-00" id="Trick-1-4-4" width="1" height="1" x="0" y="0" fill="url(#HatchU-4-5)" stroke-width="0" transform="translate(240.83 2396.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-0" id="Border-99-4-5" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(240.83 2396.2) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Field-53-0-7" width="1" height="1" x="0" y="0" stroke-width="0" transform="translate(201.48 2352.7) scale(.22804)"/>
+  <use xlink:href="#Shield1R-34" id="Trick-12-7-5" width="1" height="1" x="0" y="0" fill="url(#XHatchT-6-5)" stroke-width="0" transform="translate(201.48 2352.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-09" id="Border-12-4-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(201.48 2352.7) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Field-94-7-7" width="1" height="1" x="0" y="0" fill="#c00000" stroke-width="0" transform="translate(241.79 2373.9) scale(.22804)"/>
+  <use xlink:href="#Shield1R-2" id="Trick-09-9-4" width="1" height="1" x="0" y="0" fill="url(#HatchHD-7-6)" stroke-width="0" transform="translate(241.79 2373.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-9" id="Border-51-0-2" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(241.79 2373.9) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Field-21-2-6" width="1" height="1" x="0" y="0" fill="#00c000" stroke-width="0" transform="translate(224.38 2445.1) scale(.22804)"/>
+  <use xlink:href="#Shield1R-9" id="Trick-46-2-0" width="1" height="1" x="0" y="0" fill="url(#HatchD-6-0)" stroke-width="0" transform="translate(224.38 2445.1) scale(.22804)"/>
+  <use xlink:href="#Shield1-1" id="Border-0-6-9" width="1" height="1" x="0" y="0" fill="none" stroke-width="0" transform="translate(224.38 2445.1) scale(.22804)"/>
+  <g id="g1398" transform="translate(129.32647522 27.53205545)">
+    <path id="path5889" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" stroke-width="3" d="M119.17352478-21.03205545c-5.1641791 5.66603999-10.37131996 12.1461885-10.65584352 20.51647484-4.14055594-4.38359709-8.26470354-1.42168894-12.40531037-.63616977 2.08022866 2.84391231-.11416123 10.74844735 2.7037215 16.0632865-3.01391387.24066928-4.36984497 2.84626642-6.20265519 4.45318834 1.23393647 4.6622164 15.36249135 5.31625491 17.81275334 13.83669233-15.33271545-1.55302023-10.52248915-12.83069602-25.9239178-13.6776499-2.4617142 12.88245347 7.34666643 10.32280723 8.11116446 17.33562603-4.68288127.8919483-5.94014533-3.85307073-10.01967376-3.65797613-5.71795662.2733055-8.15329906 6.57294303-11.7691406 8.74733423 5.5739134 1.54222971 7.76580114 6.965165 13.35956501 8.27020691 3.02287203.70530287 4.34278598-4.6716645 9.06541911-2.22659417-4.6315245 6.5231736-9.18372668 4.6010268-6.83882494 13.83669233 17.53001105 1.57154735 10.38289951-10.54711121 22.10689924-8.74733423-17.70764741 11.06587992-7.95931151 15.29062885-12.40531037 23.85636609 9.1220597-3.77749572 12.41237267-1.19826614 23.22019633-9.06541912 10.80782366 7.86740748 13.93909418 5.28822879 23.06115388 9.06541912-4.44538807-8.56522825 5.30233705-12.78997718-12.40531037-23.85636609 11.72349074-1.79972608 4.57602291 10.31908517 22.10689924 8.74733423 2.34500354-9.23607272-2.20730043-7.31351874-6.83882494-13.83669233 4.72237863-2.44507032 6.04254708 2.93184615 9.06541911 2.22659417 5.59325489-1.3050928 7.78565162-6.7279772 13.35956501-8.27020691-3.61579064-2.173984-6.05118398-8.47400837-11.7691406-8.74733423-4.07952843-.1949979-5.33699609 4.55002623-10.01967376 3.65797613.76439623-7.0128188 10.57262417-4.45276537 8.11116447-17.33562602-15.40193764.84644489-10.59222033 12.12473146-25.92391781 13.67764989 2.45112727-8.52043742 16.57947856-9.17488311 17.81275334-13.83669233-1.83265752-1.60676923-3.18858862-4.21238673-6.20265518-4.45318834 2.81785219-5.31534814.62359463-13.22008677 2.70372149-16.0632865-4.14055593-.78557007-8.26470353-3.74747822-12.40531037.63616977-.28451847-8.36926837-5.49115543-14.85043485-10.65584351-20.51647484h-.15904244zM8.79807102-12.76184854C5.05615347-6.47484478 1.29447763.55209862 2.27733096 8.86792338c-4.31768331-3.78777725-7.41916527-.21142734-10.9739284 1.11329708C-6.4326755 12.51877367-7.20788127 20.5241008-3.92532423 25.4083372c-2.63634753.63679327-3.38382636 3.57549804-4.77127321 5.40744298 1.78206424 4.447933 14.2236495 3.18925035 17.6537109 11.29201328-13.82153393.49247518-11.19088412-11.37890684-24.96966317-10.1787162-.2808436 13.06670665 8.14789106 9.38765549 9.86063131 16.22232894-4.01972249 1.50176527-5.7961657-3.11827207-9.38350399-2.3856366-5.02848324 1.02677887-6.3400339 7.55030885-9.22446155 10.17871619 5.16875997.78791142 7.8900257 5.81097401 13.04148012 6.36169762 2.78390278.29766052 3.24584328-5.13366219 7.7930796-3.33989125-3.1429929 7.06473544-7.57707515 5.64805063-4.13510346 14.4728621 15.77247996-.76490522 7.6311901-11.68009974 18.28988066-11.45105573-14.06432058 13.28760688-4.79818273 16.0687423-7.4749947 25.12870561 7.5294403-4.94297347 10.82396827-2.87599131 19.2441353-12.08722548 10.74216438 6.35164507 13.30373562 3.51445781 21.9478568 6.04361274-5.20489802-7.88318606 2.69955081-13.34547252-14.63190453-21.9478568 10.12730844-3.33101258 5.6843001 9.59942566 20.99360216 5.72552786.7156353-9.44475727-3.20161552-7.04334222-8.27020691-12.88243768 3.82554406-3.0430788 6.01281907 2.21077421 8.58829179 1.11329708 4.7658461-2.03080605 5.78307522-7.59818542 10.49680108-9.86063132-3.52625988-1.67181772-6.66044106-7.64299212-11.7691406-7.15690982-3.64531188.34685408-3.9872874 5.192851-8.27020692 4.93031566-.35743082-7.03674118 8.69634009-5.71461659 4.61223078-18.13083823-13.52886658 2.8748587-7.47213179 13.29406482-20.83455971 16.8584987.91531079-8.75151738 13.27249647-11.28848223 13.67764989-16.0632865-1.86182247-1.34672791-3.49510042-3.81861233-6.20265519-3.65797613 1.71350374-5.62990193-1.4243942-12.97628214 0-16.0632865-3.78660658-.22916617-7.79099595-2.8158703-10.81488596 2.06755173-1.48756454-8.23998574-7.14975225-13.84612454-12.5643528-18.76700799h-.15904244zm220.59186507 0c-5.41460055 4.92088345-11.07678826 10.52702225-12.5643528 18.767008-3.02389-4.88342204-7.02827938-2.29671791-10.81488596-2.06755174 1.4243942 3.08700436-1.71350374 10.43338457 0 16.0632865-2.70755477-.1606362-4.34083272 2.31124822-6.20265518 3.65797613.40515341 4.77480427 12.92138154 7.31176912 13.83669233 16.0632865-13.36242793-3.56443388-7.46473558-13.98364-20.99360216-16.8584987-4.0841093 12.41622164 4.9696616 11.09409705 4.61223078 18.13083823-4.28291952.26253534-4.62489504-4.58346158-8.27020691-4.93031566-5.10869955-.4860823-8.24288072 5.4850921-11.7691406 7.15690982 4.71372585 2.2624459 5.88999741 7.82982527 10.65584351 9.86063132 2.57547272 1.09747713 4.60370529-4.15637589 8.42924935-1.11329708-5.06859139 5.83909546-8.98584221 3.43768041-8.2702069 12.88243768 15.30930206 3.8738978 10.86629371-9.05654044 20.99360215-5.72552786-17.33145534 8.60238428-9.4270065 14.06467074-14.63190453 21.9478568 8.64412118-2.52915493 11.20569242.30803233 21.9478568-6.04361274 8.42016703 9.21123417 11.714695 7.14425201 19.2441353 12.08722548-2.67681197-9.05996332 6.58932589-11.84109873-7.4749947-25.1287056 10.65869055-.22904402 2.5174007 10.6861505 18.28988066 11.45105571 3.44197169-8.82481146-.99211056-7.40812665-4.13510345-14.47286209 4.5472363-1.79377094 5.00917681 3.63755177 7.79307959 3.33989125 5.15145442-.55072361 7.87272015-5.5737862 13.04148012-6.36169762-2.88442764-2.62840734-4.19597831-9.15193732-9.22446155-10.1787162-3.58733829-.73263546-5.3637815 3.88740188-9.383504 2.38563661 1.71274026-6.83467345 10.14147492-3.15562229 9.86063132-16.22232894-13.77877905-1.20019064-11.14812924 10.67119138-24.96966317 10.1787162 3.4300614-8.10276293 16.0306891-6.84408028 17.81275335-11.29201328-1.38744686-1.83194494-2.29396813-4.77064971-4.93031566-5.40744298 3.28255705-4.8842364 2.50735126-12.88956353 4.77127322-15.42711674-3.55476314-1.32472442-6.6562451-4.90107433-10.9739284-1.11329708.98285332-8.31582476-2.77882252-15.34276816-6.52074007-21.62977192h-.15904244zm-341.4641199 43.8957136c-2.47686385.12703376-5.11851353.84388407-7.7930796 2.38563661 21.41256163 1.96906596 21.4960039 28.62682826 25.76487538 44.37284092l13.67764989 20.3574324c8.6583728 7.3645286 14.2061531 16.57313212 19.56222019 17.6537109 5.18759248 1.04617127 4.90138936-.93977842 10.1787162.15904244-10.3319211-4.04283049-5.72567123-13.42414276-27.19625734-19.08509287 6.94308762-3.38557596 6.92904297 5.9946132 20.83455971 3.33989125-3.81404096-8.39522669-11.8832809-8.81471138-15.58615917-11.92818304 5.67367478-1.61313156 6.20936748 1.61893846 10.33775863.15904244 4.58403605-1.62102086 3.52656217-7.90742668 7.15690983-12.08722549-4.75174717-1.84528039-8.61798804-7.2987135-14.4728621-4.61223077-2.03467434 1.4851723-5.0586376 6.46184077-8.42924934 7.63403714-1.41839325-6.68961224 3.4474306-7.26395612 4.45318833-10.65584351.99644327-3.3611446-.5888378-4.43138467.31808488-9.22446156-15.42484204 5.01021062-9.65253535 14.16023296-16.69945626 18.13083823-.0723779-9.62901046 3.05360538-5.62878868 8.74733423-16.22232894-2.14955264-2.81596894-3.62756737-2.15637628-5.40744297-3.02180637 2.82849-5.38049844.18363988-8.71986493 3.1808488-16.22232894-5.66400403-1.66565899-7.63642303 1.00075378-9.22446155 2.7037215-.46768561-3.78681018-8.6701011-14.38717197-19.40317775-13.83669234zm460.10978057 0c-9.52752726.98357704-16.74487379 10.34117525-17.17658358 13.83669233-1.58803852-1.70296771-3.40141508-4.36938048-9.06541912-2.70372149 2.99720893 7.502464.3523588 10.8418305 3.18084882 16.22232894-1.7798756.8654301-3.25789034.20583743-5.40744298 3.02180637 5.69372886 10.59354026 8.81971214 6.59331848 8.74733423 16.22232894-7.04692091-3.97060527-1.27461422-13.12062761-16.69945626-18.13083823.90692269 4.7930769-.67835839 5.86331696.31808488 9.22446156 1.00575773 3.39188739 5.71253914 3.96623127 4.2941459 10.65584351-3.37061175-1.17219637-6.23553257-6.14886484-8.27020692-7.63403714-5.85487404-2.68648272-9.72111492 2.76695038-14.47286209 4.61223077 3.63034766 4.17979881 2.57287378 10.46620463 7.15690983 12.08722549 4.12839115 1.45989602 4.66408385-1.772174 10.33775864-.15904244-3.70287827 3.11347166-11.93116066 3.53295635-15.74520162 11.92818304 13.90551674 2.65472195 14.05051453-6.7254672 20.99360215-3.33989125-21.4705861 5.66095011-16.86433624 15.04226238-27.19625733 19.08509287 5.27732683-1.09882086 4.99112371.88712883 10.1787162-.15904244 5.35606707-1.08057878 10.90384737-10.2891823 19.56222018-17.6537109l13.6776499-20.3574324c4.26887147-15.74601266 4.35231374-42.40377496 25.76487537-44.37284092-3.5660881-2.05567005-7.00287378-2.71349562-10.1787162-2.3856366z"/>
+    <path id="path5800" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M119.08063381 66.28686195v.15995416l-9.11747882 7.03775915c3.3840999 17.90564324-.61170022 61.02750574-10.87704585 44.94708882L75.89311203 82.12207962l-14.8756454 41.26813292c-5.89610197 16.34203609-35.93853315-21.83349363-34.07004296-51.98281202H15.43058153c3.89588602 16.7853635 8.26543508 79.31030813-9.7572751 59.50054563l-24.6329205-27.03228382-2.87918509 37.74899886c-1.5426878 20.211862-23.09628964 4.18544856-35.50945736-28.79185085-.47424836-1.25989479-3.87298163-1.25093662-4.31875218-2.55923604l-4.58088033-.6392873c7.8816591 15.03546722 12.72670353 26.93048648 14.55600174 37.2690244 1.7379351 9.82446134 2.77881291 18.60499097 8.63750436 28.95167267l27.03228382 3.35900685 4.31875218-7.19808996 8.79732618 10.71671504 9.7572751-17.43483054h.15995416l60.78319213-3.0391087 11.03686767 12.95625653c18.1367232-16.71868624 20.8511493-11.58911825 40.308184-28.15205456 19.4575437 16.56293631 22.33128263 11.43336832 40.46800583 28.15205456l11.03686768-12.95625653 60.78319212 3.0391087h.15995416l9.7572751 17.43483054 8.79732619-10.71671504 4.31875218 7.19808996 27.03228382-3.35900685c5.85843695-10.34617272 6.89931476-19.12721133 8.63750435-28.95167267 1.82889103-10.33853792 6.67383366-22.23406617 14.55600175-37.2690244l-4.63865032.63979628c-.44576547 1.30829943-3.84447837 1.29939216-4.31875218 2.55923605-12.41316773 32.97724851-33.96722766 49.00320386-35.50945737 28.79185085l-2.87918508-37.74899886-24.6329205 27.03228382c-18.02271018 19.8097625-13.65305933-42.71721807-9.7572751-59.50054563H211.4335328c1.86869378 30.15186332-28.173941 68.32637507-34.07004297 51.98281202l-14.8756454-41.26813293-23.1929971 36.30958447c-10.23063275 16.07939894-14.2516277-27.04042761-10.84141679-44.94607085l-9.11747882-7.03775915-.15995416-.15995416z"/>
+    <path id="path5802" fill="none" stroke="#000" d="M300.17810289 117.91297609c-6.49874223 9.12358666-12.47730005 25.30834585-22.88964104 33.6287515-4.27828774 3.36017751-9.04622068 5.81262815-14.39567094 3.99885403-2.67472512-.9070143-4.96368923-3.04134825-6.23814103-5.43852293-1.2745027-2.39702198-1.84670556-4.94887771-2.07941428-7.99770807l-1.93414947-24.79223333-15.82948648 17.43483053c-2.70923443 2.97787761-5.51385296 5.2216946-9.43712247 5.59834476-3.9232695.3765789-7.4490204-2.4197228-9.11747882-5.1183703-3.30841357-5.39780398-3.91919761-12.16783613-4.2754883-20.15434649-.34808074-7.88420404-.02673351-16.64437419.63979628-24.6329205-2.73101905 10.3242863-7.43527776 20.13296906-12.7964347 27.6720801-4.33300382 6.09358882-8.69858277 10.7487812-13.91569648 13.2759002-2.60860775 1.26371218-5.84316736 2.05233618-9.11747882.95974532-3.27410787-1.09259086-5.60445259-3.95177277-6.7181155-7.03775915L161.03671317 94.9185347l-16.95485608 26.55230935c-1.63359283 2.55877796-3.41983076 4.77124136-6.7181155 5.75816658-3.29818294.98707791-7.08102302-.87520264-8.79732618-2.87918509-3.43250453-4.0079649-4.44223235-8.81666767-5.43852293-14.71582356-2.44695357-18.3281022-.83397471-39.00263311 2.47113045-45.782336"/>
+    <path id="path5804" fill="#e9e9e9" stroke="#000" stroke-width="3" d="m-35.345932 238.79823433-7.69333403-62.99728429c0-19.75326497 72.63240258-35.76649564 162.22933198-35.76649564 89.5969294 0 162.22933198 16.01323067 162.22933198 35.76649564l-7.69333402 62.99728429"/>
+    <path id="path5806" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M273.7107943 238.79823433c0 15.005437-69.18656259 27.16971022-154.53345301 27.16971022-85.34689043 0-154.53345303-12.16427322-154.53345303-27.16971022 0-15.005437 69.1865626-27.16971023 154.53345303-27.16971023 85.34689042 0 154.53345302 12.16427322 154.53345302 27.16971023z"/>
+    <path id="path5808" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M119.13153248 194.6130986c-20.8659099 0-37.69860917-7.41746323-37.69860917-16.55784645 0-9.1408922 16.83320825-16.58838565 37.69860917-16.58838565 20.88423343 0 37.77292124 7.41746323 37.77292124 16.58838565 0 9.14089221-16.88868781 16.55784645-37.77292124 16.55784645"/>
+    <path id="path5810" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M119.18243115 189.41634436c-15.49813613 0-28.00037653-5.08986703-28.00037653-11.36261917 0-6.27275213 12.50274939-11.3839966 28.00037653-11.3839966 15.51187878 0 28.05636507 5.08986703 28.05636507 11.3839966 0 6.27275214-12.5439773 11.36261917-28.05636507 11.36261917"/>
+    <path id="path5812" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M-41.40287377 185.01869924c17.84354686-3.68542002 33.27347877-.72856356 35.74308226 7.25255154 2.70383916 8.73726575-11.15698854 20.20575415-31.04920689 25.75320023-8.77187684-8.82532045-11.6135496-24.41405621-4.69392627-33.00575177z"/>
+    <path id="path5814" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M-45.22027405 190.5055759c8.84160803-2.98332376 26.93048648-4.00445288 30.1910553 4.30338079 1.86350212 6.0213127-8.60798313 14.2511187-23.48566447 18.3510066-.89820883.24756095-1.71289295.27522947-2.5990388.48185771-9.11238895-3.78034604-9.9033543-18.2940001-4.10604664-23.1359906z"/>
+    <path id="path5816" fill="none" stroke="#000" d="M-61.86413925 117.91297609c6.49874223 9.12358666 12.47730005 25.30834585 22.88964104 33.6287515 4.27828773 3.36017751 9.04622068 5.81262815 14.39567093 3.99885403 2.67472513-.9070143 4.96368923-3.04134825 6.23814104-5.43852293 1.2745027-2.39702198 1.84670555-4.94887771 2.07941428-7.99770807l1.93414947-24.79223333 15.82948647 17.43483053c2.70923443 2.97787761 5.51385296 5.2216946 9.43712247 5.59834476 3.92326951.3765789 7.4490204-2.4197228 9.11747882-5.1183703 3.33696773-5.39780398 3.9661262-12.16783613 4.31875218-20.15434649.34808074-7.88420404.0267335-16.64437419-.63979629-24.6329205 2.73101906 10.3242863 7.43527777 20.13296906 12.79643471 27.6720801 4.33300381 6.09358882 8.69858276 10.7487812 13.91569647 13.2759002 2.60860776 1.26371218 5.84316736 2.05233618 9.11747882.95974532 3.27410787-1.09259086 5.6044526-3.95177277 6.7181155-7.03775915L77.32051434 94.9185347l16.95485608 26.55230935c1.63359282 2.55877796 3.41983076 4.77124136 6.7181155 5.75816658 3.29818293.98707791 7.08102301-.87520264 8.79732618-2.87918509 3.43250453-4.0079649 4.44223235-8.81666767 5.43852292-14.71582356 2.44695358-18.3281022.83397472-39.00263311-2.47113044-45.782336"/>
+    <path id="path5818" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" stroke-width="2" d="M119.17352478-21.03205545c-5.1641791 5.66603999-10.37131996 12.1461885-10.65584352 20.51647484-4.14055594-4.38359709-8.26470354-1.42168894-12.40531037-.63616977 2.08022866 2.84391231-.11416123 10.74844735 2.7037215 16.0632865-3.01391387.24066928-4.36984497 2.84626642-6.20265519 4.45318834 1.23393647 4.6622164 15.36249135 5.31625491 17.81275334 13.83669233-15.33271545-1.55302023-10.52248915-12.83069602-25.9239178-13.6776499-2.4617142 12.88245347 7.34666643 10.32280723 8.11116446 17.33562603-4.68288127.8919483-5.94014533-3.85307073-10.01967376-3.65797613-5.71795662.2733055-8.15329906 6.57294303-11.7691406 8.74733423 5.5739134 1.54222971 7.76580114 6.965165 13.35956501 8.27020691 3.02287203.70530287 4.34278598-4.6716645 9.06541911-2.22659417-4.6315245 6.5231736-9.18372668 4.6010268-6.83882494 13.83669233 17.53001105 1.57154735 10.38289951-10.54711121 22.10689924-8.74733423-17.70764741 11.06587992-7.95931151 15.29062885-12.40531037 23.85636609 9.1220597-3.77749572 12.41237267-1.19826614 23.22019633-9.06541912 10.80782366 7.86740748 13.93909418 5.28822879 23.06115388 9.06541912-4.44538807-8.56522825 5.30233705-12.78997718-12.40531037-23.85636609 11.72349074-1.79972608 4.57602291 10.31908517 22.10689924 8.74733423 2.34500354-9.23607272-2.20730043-7.31351874-6.83882494-13.83669233 4.72237863-2.44507032 6.04254708 2.93184615 9.06541911 2.22659417 5.59325489-1.3050928 7.78565162-6.7279772 13.35956501-8.27020691-3.61579064-2.173984-6.05118398-8.47400837-11.7691406-8.74733423-4.07952843-.1949979-5.33699609 4.55002623-10.01967376 3.65797613.76439623-7.0128188 10.57262417-4.45276537 8.11116447-17.33562602-15.40193764.84644489-10.59222033 12.12473146-25.92391781 13.67764989 2.45112727-8.52043742 16.57947856-9.17488311 17.81275334-13.83669233-1.83265752-1.60676923-3.18858862-4.21238673-6.20265518-4.45318834 2.81785219-5.31534814.62359463-13.22008677 2.70372149-16.0632865-4.14055593-.78557007-8.26470353-3.74747822-12.40531037.63616977-.28451847-8.36926837-5.49115543-14.85043485-10.65584351-20.51647484h-.15904244zM8.79807102-12.76184854C5.05615347-6.47484478 1.29447763.55209862 2.27733096 8.86792338c-4.31768331-3.78777725-7.41916527-.21142734-10.9739284 1.11329708C-6.4326755 12.51877367-7.20788127 20.5241008-3.92532423 25.4083372c-2.63634753.63679327-3.38382636 3.57549804-4.77127321 5.40744298 1.78206424 4.447933 14.2236495 3.18925035 17.6537109 11.29201328-13.82153393.49247518-11.19088412-11.37890684-24.96966317-10.1787162-.2808436 13.06670665 8.14789106 9.38765549 9.86063131 16.22232894-4.01972249 1.50176527-5.7961657-3.11827207-9.38350399-2.3856366-5.02848324 1.02677887-6.3400339 7.55030885-9.22446155 10.17871619 5.16875997.78791142 7.8900257 5.81097401 13.04148012 6.36169762 2.78390278.29766052 3.24584328-5.13366219 7.7930796-3.33989125-3.1429929 7.06473544-7.57707515 5.64805063-4.13510346 14.4728621 15.77247996-.76490522 7.6311901-11.68009974 18.28988066-11.45105573-14.06432058 13.28760688-4.79818273 16.0687423-7.4749947 25.12870561 7.5294403-4.94297347 10.82396827-2.87599131 19.2441353-12.08722548 10.74216438 6.35164507 13.30373562 3.51445781 21.9478568 6.04361274-5.20489802-7.88318606 2.69955081-13.34547252-14.63190453-21.9478568 10.12730844-3.33101258 5.6843001 9.59942566 20.99360216 5.72552786.7156353-9.44475727-3.20161552-7.04334222-8.27020691-12.88243768 3.82554406-3.0430788 6.01281907 2.21077421 8.58829179 1.11329708 4.7658461-2.03080605 5.78307522-7.59818542 10.49680108-9.86063132-3.52625988-1.67181772-6.66044106-7.64299212-11.7691406-7.15690982-3.64531188.34685408-3.9872874 5.192851-8.27020692 4.93031566-.35743082-7.03674118 8.69634009-5.71461659 4.61223078-18.13083823-13.52886658 2.8748587-7.47213179 13.29406482-20.83455971 16.8584987.91531079-8.75151738 13.27249647-11.28848223 13.67764989-16.0632865-1.86182247-1.34672791-3.49510042-3.81861233-6.20265519-3.65797613 1.71350374-5.62990193-1.4243942-12.97628214 0-16.0632865-3.78660658-.22916617-7.79099595-2.8158703-10.81488596 2.06755173-1.48756454-8.23998574-7.14975225-13.84612454-12.5643528-18.76700799h-.15904244zm220.59186507 0c-5.41460055 4.92088345-11.07678826 10.52702225-12.5643528 18.767008-3.02389-4.88342204-7.02827938-2.29671791-10.81488596-2.06755174 1.4243942 3.08700436-1.71350374 10.43338457 0 16.0632865-2.70755477-.1606362-4.34083272 2.31124822-6.20265518 3.65797613.40515341 4.77480427 12.92138154 7.31176912 13.83669233 16.0632865-13.36242793-3.56443388-7.46473558-13.98364-20.99360216-16.8584987-4.0841093 12.41622164 4.9696616 11.09409705 4.61223078 18.13083823-4.28291952.26253534-4.62489504-4.58346158-8.27020691-4.93031566-5.10869955-.4860823-8.24288072 5.4850921-11.7691406 7.15690982 4.71372585 2.2624459 5.88999741 7.82982527 10.65584351 9.86063132 2.57547272 1.09747713 4.60370529-4.15637589 8.42924935-1.11329708-5.06859139 5.83909546-8.98584221 3.43768041-8.2702069 12.88243768 15.30930206 3.8738978 10.86629371-9.05654044 20.99360215-5.72552786-17.33145534 8.60238428-9.4270065 14.06467074-14.63190453 21.9478568 8.64412118-2.52915493 11.20569242.30803233 21.9478568-6.04361274 8.42016703 9.21123417 11.714695 7.14425201 19.2441353 12.08722548-2.67681197-9.05996332 6.58932589-11.84109873-7.4749947-25.1287056 10.65869055-.22904402 2.5174007 10.6861505 18.28988066 11.45105571 3.44197169-8.82481146-.99211056-7.40812665-4.13510345-14.47286209 4.5472363-1.79377094 5.00917681 3.63755177 7.79307959 3.33989125 5.15145442-.55072361 7.87272015-5.5737862 13.04148012-6.36169762-2.88442764-2.62840734-4.19597831-9.15193732-9.22446155-10.1787162-3.58733829-.73263546-5.3637815 3.88740188-9.383504 2.38563661 1.71274026-6.83467345 10.14147492-3.15562229 9.86063132-16.22232894-13.77877905-1.20019064-11.14812924 10.67119138-24.96966317 10.1787162 3.4300614-8.10276293 16.0306891-6.84408028 17.81275335-11.29201328-1.38744686-1.83194494-2.29396813-4.77064971-4.93031566-5.40744298 3.28255705-4.8842364 2.50735126-12.88956353 4.77127322-15.42711674-3.55476314-1.32472442-6.6562451-4.90107433-10.9739284-1.11329708.98285332-8.31582476-2.77882252-15.34276816-6.52074007-21.62977192h-.15904244zm-341.4641199 43.8957136c-2.47686385.12703376-5.11851353.84388407-7.7930796 2.38563661 21.41256163 1.96906596 21.4960039 28.62682826 25.76487538 44.37284092l13.67764989 20.3574324c8.6583728 7.3645286 14.2061531 16.57313212 19.56222019 17.6537109 5.18759248 1.04617127 4.90138936-.93977842 10.1787162.15904244-10.3319211-4.04283049-5.72567123-13.42414276-27.19625734-19.08509287 6.94308762-3.38557596 6.92904297 5.9946132 20.83455971 3.33989125-3.81404096-8.39522669-11.8832809-8.81471138-15.58615917-11.92818304 5.67367478-1.61313156 6.20936748 1.61893846 10.33775863.15904244 4.58403605-1.62102086 3.52656217-7.90742668 7.15690983-12.08722549-4.75174717-1.84528039-8.61798804-7.2987135-14.4728621-4.61223077-2.03467434 1.4851723-5.0586376 6.46184077-8.42924934 7.63403714-1.41839325-6.68961224 3.4474306-7.26395612 4.45318833-10.65584351.99644327-3.3611446-.5888378-4.43138467.31808488-9.22446156-15.42484204 5.01021062-9.65253535 14.16023296-16.69945626 18.13083823-.0723779-9.62901046 3.05360538-5.62878868 8.74733423-16.22232894-2.14955264-2.81596894-3.62756737-2.15637628-5.40744297-3.02180637 2.82849-5.38049844.18363988-8.71986493 3.1808488-16.22232894-5.66400403-1.66565899-7.63642303 1.00075378-9.22446155 2.7037215-.46768561-3.78681018-8.6701011-14.38717197-19.40317775-13.83669234zm460.10978057 0c-9.52752726.98357704-16.74487379 10.34117525-17.17658358 13.83669233-1.58803852-1.70296771-3.40141508-4.36938048-9.06541912-2.70372149 2.99720893 7.502464.3523588 10.8418305 3.18084882 16.22232894-1.7798756.8654301-3.25789034.20583743-5.40744298 3.02180637 5.69372886 10.59354026 8.81971214 6.59331848 8.74733423 16.22232894-7.04692091-3.97060527-1.27461422-13.12062761-16.69945626-18.13083823.90692269 4.7930769-.67835839 5.86331696.31808488 9.22446156 1.00575773 3.39188739 5.71253914 3.96623127 4.2941459 10.65584351-3.37061175-1.17219637-6.23553257-6.14886484-8.27020692-7.63403714-5.85487404-2.68648272-9.72111492 2.76695038-14.47286209 4.61223077 3.63034766 4.17979881 2.57287378 10.46620463 7.15690983 12.08722549 4.12839115 1.45989602 4.66408385-1.772174 10.33775864-.15904244-3.70287827 3.11347166-11.93116066 3.53295635-15.74520162 11.92818304 13.90551674 2.65472195 14.05051453-6.7254672 20.99360215-3.33989125-21.4705861 5.66095011-16.86433624 15.04226238-27.19625733 19.08509287 5.27732683-1.09882086 4.99112371.88712883 10.1787162-.15904244 5.35606707-1.08057878 10.90384737-10.2891823 19.56222018-17.6537109l13.6776499-20.3574324c4.26887147-15.74601266 4.35231374-42.40377496 25.76487537-44.37284092-3.5660881-2.05567005-7.00287378-2.71349562-10.1787162-2.3856366z"/>
+    <path id="path5820" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" d="M131.49990937 42.6093095a11.99783457 11.36770903 0 1 1-23.99566914 0 11.99783457 11.36770903 0 1 1 23.99566914 0z"/>
+    <path id="path5822" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" stroke-width="3" d="M127.93700245 42.44134388a8.45376016 8.0078878 0 1 1-16.90701133 0 8.45376016 8.0078878 0 1 1 16.90701133 0z"/>
+    <path id="path5826" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M-81.56192467 95.87985787c-.06885572.04305214-.11634418.10460695-.1873631.14573817-4.01987518 2.32785069-9.92269578.67323671-13.18377359-3.6902554-3.261485-4.363543-2.65151533-9.78934127 1.36841075-12.11744645.07101892-.04112663.154055-.05511817.22621405-.09376044l11.77693435 15.7561924z"/>
+    <path id="path5828" fill="#e9e9e9" stroke="#000" d="m-93.5231122 78.19053398-2.1898644 1.26814038 13.79099473 18.44975002 2.1898644-1.26814037c-4.55059563-7.57321316-9.48853013-14.42315622-13.79099473-18.44975003z"/>
+    <path id="path5832" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" d="M29.346278 48.35576938A11.63441807 11.00632847 81.512 1 1 7.57538974 51.6047842 11.63441807 11.00632847 81.512 1 1 29.346278 48.35576938z"/>
+    <path id="path5834" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" stroke-width="3" d="M25.98696576 48.85966621a8.0078878 7.57728505 81.512 1 1-14.98813146 2.23679297 8.0078878 7.57728505 81.512 1 1 14.98813146-2.23679297z"/>
+    <path id="path5840" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M319.8758883 95.87985787c.06885573.04305214.11634419.10460695.1873631.14573817 4.01987519 2.32785069 9.92269579.67323671 13.1837736-3.6902554 3.261485-4.363543 2.65151533-9.78934127-1.36841076-12.11744645-.07101891-.04112663-.154055-.05511817-.22621405-.09376044l-11.77693434 15.7561924z"/>
+    <path id="path5842" fill="#e9e9e9" stroke="#000" d="m331.83707584 78.19053398 2.1898644 1.26814038-13.79099474 18.44975002-2.1898644-1.26814037c4.55059563-7.57321316 9.48853013-14.42315622 13.79099474-18.44975003z"/>
+    <path id="path5844" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M279.76773608 185.01869924c-17.84354686-3.68542002-33.27347878-.72856356-35.74308226 7.25255154-2.70383917 8.73726575 11.15698854 20.20575415 31.04920688 25.75320023 8.77187685-8.82532045 11.61354961-24.41405621 4.69392628-33.00575177z"/>
+    <path id="path5846" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M283.53423768 190.5055759c-8.84160802-2.98332376-26.93048647-4.00445288-30.1910553 4.30338079-1.86350211 6.0213127 8.60798313 14.2511187 23.48566447 18.3510066.89820884.24756095 1.71289296.27522947 2.5990388.48185771 9.11238896-3.78034604 9.9033543-18.2940001 4.10604664-23.1359906z"/>
+    <path id="path5850" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" d="M208.96768563 48.35576938a11.00632847 11.63441807 8.488 1 0 21.77088827 3.24901482 11.00632847 11.63441807 8.488 1 0-21.77088827-3.24901482z"/>
+    <path id="path5852" fill="#e9e9e9" fill-rule="evenodd" stroke="#000" stroke-width="3" d="M212.37789655 48.85966621a7.57728505 8.0078878 8.488 1 0 14.98813145 2.23679297 7.57728505 8.0078878 8.488 1 0-14.98813145-2.23679297z"/>
+    <path id="path6225" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M119.13505467 140.10858958c-89.59664315 0-162.22977734 15.8738338-162.22977734 35.6269315l.795244 6.52074637c8.29598548-18.03129898 77.4631282-31.9649919 161.4408953-31.9649919 83.99812533 0 153.12455156 13.93369292 161.43580572 31.9685546l.81432986-6.52481803c0-19.75309769-72.6331342-35.6269315-162.22977734-35.6269315z"/>
+    <path id="path6241" fill="#e9e9e9" stroke="#000" stroke-width="3" d="M119.13505467 201.1807845c-74.02258452 0-136.400252 13.8919585-155.86782529 28.7987756l1.11334161 6.35126397c20.65802175-14.4909999 82.08953973-24.97040732 154.75321129-24.97040732 72.78582104 0 134.35424823 10.44276257 154.91607726 24.97040732l1.11334161-6.35126397c-19.39122986-14.94295298-81.89104682-28.79673977-156.04595995-28.79673977z"/>
+  </g>
+</svg>
