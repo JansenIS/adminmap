@@ -160,31 +160,79 @@
     }
   }
 
+  async function fetchApiJson(url) {
+    const resp = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    return await resp.json();
+  }
+
+  async function loadRealmNamesFromApi() {
+    const out = { kingdoms: new Map(), great_houses: new Map(), minor_houses: new Map() };
+    for (const type of ['kingdoms', 'great_houses', 'minor_houses']) {
+      const payload = await fetchApiJson(`../api/realms/?type=${encodeURIComponent(type)}&profile=compact`);
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      for (const item of items) {
+        const id = String(item?.id || '').trim();
+        if (!id) continue;
+        const name = String(item?.name || id).trim();
+        out[type].set(id, name || id);
+      }
+    }
+    return out;
+  }
+
+  async function loadProvinceRealmLinksFromApi() {
+    const byPid = new Map();
+    let offset = 0;
+    const limit = 500;
+    let total = Number.POSITIVE_INFINITY;
+
+    while (offset < total) {
+      const payload = await fetchApiJson(`../api/provinces/?offset=${offset}&limit=${limit}&profile=compact`);
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      total = Number.isFinite(Number(payload?.total)) ? Number(payload.total) : (offset + items.length);
+      for (const row of items) {
+        const pid = Number(row?.pid);
+        if (!Number.isFinite(pid) || pid <= 0) continue;
+        byPid.set(pid, {
+          kingdom_id: String(row?.kingdom_id || '').trim(),
+          great_house_id: String(row?.great_house_id || '').trim(),
+          minor_house_id: String(row?.minor_house_id || '').trim(),
+        });
+      }
+      if (!items.length) break;
+      offset += items.length;
+    }
+
+    return byPid;
+  }
+
   async function applyRealmOverrides() {
     try {
-      const resp = await fetch('../data/map_state.json', { cache: 'no-store' });
-      if (!resp.ok) return;
-      const state = await resp.json();
-      if (!state?.provinces) return;
-      for (const [pidRaw, meta] of Object.entries(state.provinces)) {
-        const pid = Number(pidRaw);
+      const realmNames = await loadRealmNamesFromApi();
+      const provinceRealmByPid = await loadProvinceRealmLinksFromApi();
+
+      for (const [pid, meta] of provinceRealmByPid.entries()) {
         if (!realm.provinceMeta.has(pid)) continue;
         const current = realm.provinceMeta.get(pid);
         if (meta.kingdom_id) {
           current.kingdomId = `k-${meta.kingdom_id}`;
-          ensureRegion(realm.kingdoms, current.kingdomId, `Королевство ${meta.kingdom_id}`, (pid * 31) % 360);
+          const kingdomName = realmNames.kingdoms.get(meta.kingdom_id) || `Королевство ${meta.kingdom_id}`;
+          ensureRegion(realm.kingdoms, current.kingdomId, kingdomName, (pid * 31) % 360);
         }
         if (meta.great_house_id) {
           current.greatHouseId = `g-${meta.great_house_id}`;
-          ensureRegion(realm.greatHouses, current.greatHouseId, `Большой дом ${meta.great_house_id}`, (pid * 19) % 360);
+          const greatHouseName = realmNames.great_houses.get(meta.great_house_id) || `Большой дом ${meta.great_house_id}`;
+          ensureRegion(realm.greatHouses, current.greatHouseId, greatHouseName, (pid * 19) % 360);
         }
         if (meta.minor_house_id) {
           current.minorHouseId = `m-${meta.minor_house_id}`;
-          ensureRegion(realm.minorHouses, current.minorHouseId, `Малый дом ${meta.minor_house_id}`, (pid * 13) % 360);
+          const minorHouseName = realmNames.minor_houses.get(meta.minor_house_id) || `Малый дом ${meta.minor_house_id}`;
+          ensureRegion(realm.minorHouses, current.minorHouseId, minorHouseName, (pid * 13) % 360);
         }
       }
     } catch (_) {
-      // fallback for file://
+      // API may be unavailable in file:// mode
     }
   }
 
@@ -266,7 +314,7 @@
       exportPidRemap();
       render();
       if (hoverHex) setInfo(hoverHex);
-      pidMapOut.value = `# loaded from legacy remap file (${loaded.size} remaps)
+      pidMapOut.value = `# loaded from remap file (${loaded.size} remaps)
 ` + pidMapOut.value;
     } catch (_) {
       // optional file

@@ -105,7 +105,7 @@ sudo chown -R $USER:$USER /opt/adminmap
 cd /opt/adminmap/isotope/economy_sim_ui
 
 # 4) запуск симулятора
-node ./server.js ../province_routing_data.json --port 8787 --adminApiBase http://127.0.0.1:8080
+node ./server.js ../province_routing_data.json --port 8787 --adminApiBase http://127.0.0.1:8080 --requireAdminApi true
 ```
 
 Проверка:
@@ -121,6 +121,10 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 
 Если нужен фоновый запуск после перезагрузки, добавь systemd unit для `node server.js ...`.
 
+По умолчанию сервер стартует в строгом режиме backend-only (`requireAdminApi=true`).
+Чтобы локально разрешить fallback на `provinces.json`, явно укажи `--requireAdminApi false` (или `ADMINMAP_REQUIRE_API=false`).
+
 Источник провинций для симулятора:
-- при наличии `--adminApiBase` (или `ADMINMAP_API_BASE`) сервер читает провинции из `<base>/api/provinces` (новый backend),
-- при недоступности API автоматически использует fallback `data/map_state.json`.
+- при наличии `--adminApiBase` (или `ADMINMAP_API_BASE`) сервер читает провинции и реалмы из backend API (`<base>/api/provinces`, `<base>/api/realms`),
+- при недоступности API использует только `provinces.json` как локальные метаданные,
+- для строгого backend-only режима включи `--requireAdminApi true` (или `ADMINMAP_REQUIRE_API=true`) — сервер завершится с ошибкой, если API недоступен/пуст.

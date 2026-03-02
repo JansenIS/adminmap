@@ -61,8 +61,7 @@ curl -s http://127.0.0.1:8787/api/admin/map-sync
 ## Важно
 
 `sim-admin` теперь сначала пытается читать провинции из backend API (`/api/provinces`) через `--adminApiBase` или `ADMINMAP_API_BASE`,
-и только если API недоступен — откатывается на локальный `data/map_state.json`.
-Это позволяет экономическому симулятору автоматически перейти на новый backend-источник, как только данные будут храниться там.
+и не использует legacy `data/map_state.json` в runtime.
 
 
 ## Применение production-конфига веб-сервера (gzip/br + canonical API routes)
@@ -146,8 +145,8 @@ Feature flags для фронта:
 
 - `USE_CHUNKED_API` — подгрузка провинций чанками из `/api/provinces`.
 - `USE_EMBLEM_ASSETS` — резолв гербов через `/api/assets/emblems` и `emblem_asset_id`.
-- `USE_PARTIAL_SAVE` — сохранять выбранную провинцию через `PATCH /api/provinces/patch/` при кнопке "Сохранить провинцию" (legacy full-save остаётся).
-- `USE_SERVER_RENDER` — применять precomputed слой от `/api/render/layer/` (fallback на legacy client-render при ошибке).
+- `USE_PARTIAL_SAVE` — сохранять выбранную провинцию через `PATCH /api/provinces/patch/`.
+- `USE_SERVER_RENDER` — применять precomputed слой от `/api/render/layer/`.
 
 Включение на переходный период через query params:
 
@@ -156,8 +155,6 @@ Feature flags для фронта:
 - `admin.html?use_chunked_api=1&use_emblem_assets=1`
 - `admin.html?use_partial_save=1`
 - `index.html?use_server_render=1`
-
-Если новый путь недоступен, фронт автоматически остаётся на legacy `data/map_state.json`.
 
 - В `admin.html` доступна кнопка **"Скачать migrated bundle"**: она отправляет текущий загруженный legacy state на `/api/migration/export/` и получает полный мигрированный bundle (`migrated_state` + `emblem_assets` + `emblem_refs`) для перехода в новый формат.
 
@@ -218,8 +215,13 @@ bash tools/contract_backend_first.sh
 
 Базовые e2e smoke сценарии (без headless browser, HTTP-level):
 ```bash
-bash tools/e2e_legacy_flags.sh
 bash tools/e2e_backend_first_flags.sh
+```
+
+CI smoke для economy strict backend-only режима (positive + expected-fail negative):
+```bash
+bash tools/ci_economy_strict_smoke.sh
+bash tools/ci_no_legacy_frontend_refs.sh
 ```
 
 Для локального `php -S` добавлен роутер `tools/php_router.php`, чтобы canonical path aliases (`/api/provinces/{pid}`, `/api/realms/{type}/{id}`, `/api/tiles/{z}/{x}/{y}`) работали и без `.htaccess`.

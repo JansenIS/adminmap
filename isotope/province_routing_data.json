@@ -2,7 +2,6 @@
   "schema_version": 1,
   "generated_from": [
     "hexmap/data.js",
-    "data/map_state.json",
     "provinces.json"
   ],
   "province_count": 479,
