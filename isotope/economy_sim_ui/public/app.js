@@ -39,6 +39,7 @@ const UI = {
   buildings: el("buildings"),
   tbPeriod: el("tbPeriod"),
   tradeBalance: el("tradeBalance"),
+  tbIncludeBlackMarket: el("tbIncludeBlackMarket"),
 
   tier: el("tier"),
   sortGoods: el("sortGoods"),
@@ -227,7 +228,8 @@ function setActiveTab(tab) {
 }
 
 async function refreshTradeBalance() {
-  const tb = await api("/api/trade-balance");
+  const includeBlack = UI.tbIncludeBlackMarket?.checked ? "1" : "0";
+  const tb = await api(`/api/trade-balance?includeBlackMarket=${encodeURIComponent(includeBlack)}`);
   renderTradeBalance(tb);
 }
 
@@ -385,6 +387,10 @@ UI.tabMarket.addEventListener("click", () => setActiveTab("market"));
 UI.tabTradeBalance.addEventListener("click", () => {
   setActiveTab("trade");
   refreshTradeBalance().catch((e) => alert(e.message));
+});
+
+UI.tbIncludeBlackMarket?.addEventListener("change", () => {
+  if (ACTIVE_TAB === "trade") refreshTradeBalance().catch((e) => alert(e.message));
 });
 
 (async function init() {
