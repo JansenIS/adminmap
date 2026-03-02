@@ -3,6 +3,7 @@ const state = {
   byPid: new Map(),
   byKey: new Map(),
   selectedPid: null,
+  selectedPids: new Set(),
   metric: "effectiveGDP",
   mapMode: "circles",
   realmColorsByMode: { kingdoms: new Map(), great_houses: new Map(), minor_houses: new Map() },
@@ -26,6 +27,7 @@ const UI = {
   selPid: document.getElementById("selPid"),
   selName: document.getElementById("selName"),
   selTerrain: document.getElementById("selTerrain"),
+  selCount: document.getElementById("selCount"),
   editor: document.getElementById("editor"),
   inputPop: document.getElementById("inputPop"),
   inputInfra: document.getElementById("inputInfra"),
@@ -34,6 +36,9 @@ const UI = {
   buildingTypeSelect: document.getElementById("buildingTypeSelect"),
   btnAddBuilding: document.getElementById("btnAddBuilding"),
   btnSave: document.getElementById("btnSave"),
+  applyToSelection: document.getElementById("applyToSelection"),
+  btnSelectAll: document.getElementById("btnSelectAll"),
+  btnClearSelection: document.getElementById("btnClearSelection"),
   btnWriteStartState: document.getElementById("btnWriteStartState"),
   saveStatus: document.getElementById("saveStatus"),
   tooltip: document.getElementById("tooltip"),
@@ -308,7 +313,7 @@ function render() {
     const key = resolveRowKey(row.key);
     const [cx, cy] = state.anchorByKey.get(key) || state.centroidByKey.get(key) || row.centroid || [0, 0];
     const r = radiusFor(row, scale);
-    const selected = row.pid === state.selectedPid;
+    const selected = state.selectedPids.has(row.pid);
     ctx.beginPath();
     ctx.fillStyle = selected ? "rgba(255,196,60,.96)" : "rgba(45,194,255,.74)";
     ctx.shadowColor = selected ? "rgba(255,214,130,.95)" : "rgba(105,235,255,.95)";
@@ -334,8 +339,33 @@ function setActiveTab(tab) {
   UI.tabTreasury.hidden = isMap;
 }
 
-function bindSelection(pid) {
+function updateSelectionUi() {
+  if (UI.selCount) UI.selCount.textContent = String(state.selectedPids.size);
+}
+
+function addPidToSelection(pid) {
+  if (!pid) return;
+  state.selectedPids.add(pid);
+  updateSelectionUi();
+}
+
+function clearSelection() {
+  state.selectedPids.clear();
+  state.selectedPid = null;
+  UI.selPid.textContent = "—";
+  UI.selName.textContent = "—";
+  UI.selTerrain.textContent = "—";
+  UI.editor.hidden = true;
+  updateSelectionUi();
+  renderTreasuryTable();
+  render();
+}
+
+function bindSelection(pid, options = {}) {
+  const { additive = false } = options;
+  if (!additive) state.selectedPids.clear();
   state.selectedPid = pid;
+  addPidToSelection(pid);
   const row = state.byPid.get(pid);
   if (!row) return;
   UI.selPid.textContent = String(row.pid);
@@ -355,6 +385,7 @@ function bindSelection(pid) {
   renderBuildingsEditor();
   UI.editor.hidden = false;
   renderTreasuryTable();
+  updateSelectionUi();
   render();
 }
 
@@ -442,7 +473,7 @@ function renderTreasuryTable() {
 
   for (const row of sortedTreasuryRows()) {
     const tr = document.createElement("tr");
-    if (row.pid === state.selectedPid) tr.style.background = "rgba(224, 174, 43, 0.18)";
+    if (state.selectedPids.has(row.pid)) tr.style.background = "rgba(224, 174, 43, 0.18)";
     tr.innerHTML = `
       <td>${row.pid}</td>
       <td>${row.name}</td>
@@ -534,6 +565,7 @@ async function loadAll() {
   state.byKey = new Map(state.rows.map((r) => [r.key >>> 0, r]));
 
   renderTreasuryTable();
+  updateSelectionUi();
   render();
 }
 
@@ -569,7 +601,17 @@ UI.metricSelect.addEventListener("change", () => {
 
 UI.canvas.addEventListener("click", (evt) => {
   const pid = pickPidFromCanvasEvent(evt);
-  if (pid) bindSelection(pid);
+  if (!pid) return;
+  const additive = evt.ctrlKey || evt.metaKey;
+  if (additive && state.selectedPids.has(pid)) {
+    state.selectedPids.delete(pid);
+    if (state.selectedPid === pid) state.selectedPid = [...state.selectedPids][0] || null;
+    updateSelectionUi();
+    renderTreasuryTable();
+    render();
+    return;
+  }
+  bindSelection(pid, { additive });
 });
 
 UI.canvas.addEventListener("mousemove", (evt) => {
@@ -591,14 +633,13 @@ function bindMarketModeChecks() {
 }
 
 UI.btnSave.addEventListener("click", async () => {
-  if (!state.selectedPid) return;
+  if (!state.selectedPid && !state.selectedPids.size) return;
   let marketMode = "normal";
   if (UI.flagOffMarket.checked) marketMode = "off_market";
   else if (UI.flagExchange.checked) marketMode = "exchange";
   else if (UI.flagBlackMarket.checked) marketMode = "black_market";
 
-  const payload = {
-    pid: state.selectedPid,
+  const payloadBase = {
     pop: Number(UI.inputPop.value),
     infra: Number(UI.inputInfra.value),
     gdpWeight: Number(UI.inputGdpWeight.value),
@@ -609,15 +650,31 @@ UI.btnSave.addEventListener("click", async () => {
       efficiency: Math.max(0.25, Math.min(2.5, Number(b.efficiency) || 1)),
     })),
   };
-  UI.saveStatus.textContent = "Сохраняю...";
-  await api("/api/admin/province", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const targets = UI.applyToSelection?.checked
+    ? [...state.selectedPids]
+    : (state.selectedPid ? [state.selectedPid] : []);
+  if (!targets.length) return;
+
+  UI.saveStatus.textContent = targets.length > 1
+    ? `Сохраняю (${targets.length} провинций)...`
+    : "Сохраняю...";
+
+  for (const pid of targets) {
+    await api("/api/admin/province", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payloadBase, pid }),
+    });
+  }
+
   await loadAll();
-  bindSelection(state.selectedPid);
-  UI.saveStatus.textContent = "Сохранено";
+  const keep = state.selectedPid && targets.includes(state.selectedPid) ? state.selectedPid : targets[0];
+  if (keep) bindSelection(keep);
+  for (const pid of targets) state.selectedPids.add(pid);
+  updateSelectionUi();
+  renderTreasuryTable();
+  render();
+  UI.saveStatus.textContent = targets.length > 1 ? `Сохранено (${targets.length})` : "Сохранено";
 });
 
 UI.btnAddBuilding.addEventListener("click", () => {
@@ -633,11 +690,25 @@ UI.btnAddBuilding.addEventListener("click", () => {
 });
 
 bindMarketModeChecks();
+updateSelectionUi();
 
 UI.btnWriteStartState?.addEventListener("click", async () => {
   UI.saveStatus.textContent = "Записываю стартовое состояние...";
   await api("/api/admin/write-start-state", { method: "POST" });
   UI.saveStatus.textContent = "Стартовое состояние записано";
+});
+
+UI.btnSelectAll?.addEventListener("click", () => {
+  state.selectedPids = new Set(state.rows.map((r) => r.pid));
+  state.selectedPid = state.rows[0]?.pid || null;
+  if (state.selectedPid) bindSelection(state.selectedPid, { additive: true });
+  updateSelectionUi();
+  renderTreasuryTable();
+  render();
+});
+
+UI.btnClearSelection?.addEventListener("click", () => {
+  clearSelection();
 });
 
 setActiveTab("map");
