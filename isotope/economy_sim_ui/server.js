@@ -566,71 +566,6 @@ const server = http.createServer((req, res) => {
         });
       }
 
-
-      if (pathname === "/api/admin/rebalance-production" && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk) => {
-          body += chunk;
-          if (body.length > 1_000_000) req.destroy();
-        });
-        req.on("end", () => {
-          try {
-            const payload = JSON.parse(body || "{}");
-            const target = payload.target === "city" ? "city" : "rural";
-            const cityBuildings = [
-              "sawmill", "textile", "tannery", "smelter", "stamping", "engine_assembly", "electronics_basic", "filters", "wheel_works", "bakery", "water_distillery",
-            ];
-            const ruralBuildings = [
-              "farm_mutabryukva", "poultry_mutachicken", "water_distillery", "extra_деревня_малая", "extra_шахта_камня_малая", "extra_шахта_железа_малая", "extra_шахта_угля_малая",
-            ];
-            const picks = target === "city" ? cityBuildings : ruralBuildings;
-            const defaultInfra = target === "city" ? 1.0 : 0.8;
-
-            let updated = 0;
-            for (const st of engine.states) {
-              const shouldApply = target === "city" ? st.isCity : !st.isCity;
-              if (!shouldApply) continue;
-              const pid = Number(st.pid);
-              const existing = normalizeProvinceOverride((simAdminOverrides.provinces[String(pid)] || {}));
-              const nextBuildings = picks.filter((type) => BUILDINGS[type]).map((type) => ({ type, count: 1, efficiency: 1 }));
-              simAdminOverrides.provinces[String(pid)] = {
-                ...existing,
-                infra: typeof existing.infra === "number" ? existing.infra : defaultInfra,
-                marketMode: existing.marketMode === "off_market" || existing.marketMode === "exchange" ? existing.marketMode : "normal",
-                buildings: nextBuildings,
-              };
-              updated += 1;
-            }
-            simAdminOverrides.updated_utc = new Date().toISOString();
-            saveJsonAtomic(simAdminOverridesPath, simAdminOverrides);
-            applySimAdminOverridesToEngine();
-            return sendJson(res, 200, { ok: true, target, updated });
-          } catch (e) {
-            return sendJson(res, 400, { error: "invalid_json", message: String(e?.message || e) });
-          }
-        });
-        return;
-      }
-
-      if (pathname === "/api/admin/clear-black-market" && req.method === "POST") {
-        let updated = 0;
-        for (const st of engine.states) {
-          const pid = Number(st.pid);
-          const ov = normalizeProvinceOverride((simAdminOverrides.provinces[String(pid)] || {}));
-          const mode = typeof ov.marketMode === "string" ? ov.marketMode : (st.marketMode || "normal");
-          if (mode !== "black_market") continue;
-          simAdminOverrides.provinces[String(pid)] = {
-            ...ov,
-            marketMode: "normal",
-          };
-          updated += 1;
-        }
-        simAdminOverrides.updated_utc = new Date().toISOString();
-        saveJsonAtomic(simAdminOverridesPath, simAdminOverrides);
-        applySimAdminOverridesToEngine();
-        return sendJson(res, 200, { ok: true, updated });
-      }
-
       if (pathname === "/api/summary") {
         const r = engine.report();
         return sendJson(res, 200, { ...r, config: { ...baseConfig } });
@@ -761,8 +696,7 @@ const server = http.createServer((req, res) => {
       }
 
       if (pathname === "/api/trade-balance") {
-        const includeBlackMarket = url.searchParams.get("includeBlackMarket") !== "0";
-        return sendJson(res, 200, engine.globalTradeBalance({ includeBlackMarket }));
+        return sendJson(res, 200, engine.globalTradeBalance());
       }
 
       return sendJson(res, 404, { error: "unknown_api", path: pathname });

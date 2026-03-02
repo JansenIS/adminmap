@@ -40,9 +40,6 @@ const UI = {
   btnSelectAll: document.getElementById("btnSelectAll"),
   btnClearSelection: document.getElementById("btnClearSelection"),
   btnWriteStartState: document.getElementById("btnWriteStartState"),
-  btnRebalanceRural: document.getElementById("btnRebalanceRural"),
-  btnRebalanceCity: document.getElementById("btnRebalanceCity"),
-  btnClearBlackMarket: document.getElementById("btnClearBlackMarket"),
   saveStatus: document.getElementById("saveStatus"),
   tooltip: document.getElementById("tooltip"),
   tabBtnMap: document.getElementById("tabBtnMap"),
@@ -712,35 +709,6 @@ UI.btnSelectAll?.addEventListener("click", () => {
 
 UI.btnClearSelection?.addEventListener("click", () => {
   clearSelection();
-});
-
-UI.btnRebalanceRural?.addEventListener("click", async () => {
-  UI.saveStatus.textContent = "Массово назначаю сельхоз/добычу вне городов...";
-  await api("/api/admin/rebalance-production", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target: "rural" }),
-  });
-  await loadAll();
-  UI.saveStatus.textContent = "Готово: вне городов назначены базовые сельхоз/добывающие производства";
-});
-
-UI.btnRebalanceCity?.addEventListener("click", async () => {
-  UI.saveStatus.textContent = "Массово назначаю городские производства...";
-  await api("/api/admin/rebalance-production", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target: "city" }),
-  });
-  await loadAll();
-  UI.saveStatus.textContent = "Готово: в городах назначены базовые производственные цепочки";
-});
-
-UI.btnClearBlackMarket?.addEventListener("click", async () => {
-  UI.saveStatus.textContent = "Убираю чёрный рынок...";
-  await api("/api/admin/clear-black-market", { method: "POST" });
-  await loadAll();
-  UI.saveStatus.textContent = "Готово: чёрный рынок убран (режим normal)";
 });
 
 setActiveTab("map");
