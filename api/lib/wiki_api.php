@@ -14,6 +14,37 @@ function api_wiki_page_link(string $kind, array $params): string {
   return '/api/wiki/show/index.php?' . http_build_query($query);
 }
 
+function api_wiki_load_emblem_assets_map(): array {
+  static $cache = null;
+  if (is_array($cache)) return $cache;
+
+  $cache = [];
+  $path = api_repo_root() . '/data/emblem_assets.json';
+  if (!is_file($path)) return $cache;
+
+  $raw = (string)@file_get_contents($path);
+  $decoded = json_decode($raw, true);
+  $items = is_array($decoded['assets'] ?? null) ? $decoded['assets'] : [];
+  foreach ($items as $row) {
+    if (!is_array($row)) continue;
+    $id = trim((string)($row['id'] ?? ''));
+    if ($id === '') continue;
+    $cache[$id] = trim((string)($row['svg'] ?? ''));
+  }
+
+  return $cache;
+}
+
+function api_wiki_resolve_emblem_svg(string $assetId, string $inlineSvg): string {
+  $svg = trim($inlineSvg);
+  if ($svg !== '') return $svg;
+
+  $id = trim($assetId);
+  if ($id === '') return '';
+  $assets = api_wiki_load_emblem_assets_map();
+  return trim((string)($assets[$id] ?? ''));
+}
+
 
 function api_wiki_load_genealogy_snapshot(): array {
   $path = genealogy_data_path();
@@ -138,6 +169,20 @@ function api_wiki_build_province_page(array $state, int $pid): ?array {
   if ($resolvedEmblemAssetId === '') {
     $resolvedEmblemAssetId = trim((string)($refs[$ownerKey] ?? ''));
   }
+  $resolvedEmblemSvg = api_wiki_resolve_emblem_svg($resolvedEmblemAssetId, trim((string)($province['emblem_svg'] ?? '')));
+
+  $kingdomId = trim((string)($province['kingdom_id'] ?? ''));
+  $greatHouseId = trim((string)($province['great_house_id'] ?? ''));
+
+  $kingdom = ($state['kingdoms'] ?? [])[$kingdomId] ?? null;
+  $kingdomOwnerKey = 'kingdom:' . $kingdomId;
+  $kingdomAssetId = is_array($kingdom) ? trim((string)($kingdom['emblem_asset_id'] ?? '')) : '';
+  if ($kingdomAssetId === '') $kingdomAssetId = trim((string)($refs[$kingdomOwnerKey] ?? ''));
+
+  $greatHouse = ($state['great_houses'] ?? [])[$greatHouseId] ?? null;
+  $greatHouseOwnerKey = 'great_house:' . $greatHouseId;
+  $greatHouseAssetId = is_array($greatHouse) ? trim((string)($greatHouse['emblem_asset_id'] ?? '')) : '';
+  if ($greatHouseAssetId === '') $greatHouseAssetId = trim((string)($refs[$greatHouseOwnerKey] ?? ''));
 
   return [
     'view' => 'project_card',
@@ -155,12 +200,26 @@ function api_wiki_build_province_page(array $state, int $pid): ?array {
       'background_image' => trim((string)($province['province_card_image'] ?? '')),
       'fill_rgba' => (is_array($province['fill_rgba'] ?? null) && count($province['fill_rgba']) === 4) ? array_values($province['fill_rgba']) : null,
       'emblem_asset_id' => $resolvedEmblemAssetId,
-      'emblem_svg' => trim((string)($province['emblem_svg'] ?? '')),
+      'emblem_svg' => $resolvedEmblemSvg,
       'emblem_box' => (is_array($province['emblem_box'] ?? null) && count($province['emblem_box']) === 2) ? array_values($province['emblem_box']) : null,
-      'kingdom_id' => trim((string)($province['kingdom_id'] ?? '')),
-      'great_house_id' => trim((string)($province['great_house_id'] ?? '')),
+      'kingdom_id' => $kingdomId,
+      'great_house_id' => $greatHouseId,
       'minor_house_id' => trim((string)($province['minor_house_id'] ?? '')),
       'free_city_id' => trim((string)($province['free_city_id'] ?? '')),
+      'kingdom' => is_array($kingdom) ? [
+        'id' => $kingdomId,
+        'name' => trim((string)($kingdom['name'] ?? $kingdomId)),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'kingdoms', 'id' => $kingdomId]),
+        'emblem_asset_id' => $kingdomAssetId,
+        'emblem_svg' => api_wiki_resolve_emblem_svg($kingdomAssetId, trim((string)($kingdom['emblem_svg'] ?? ''))),
+      ] : null,
+      'great_house' => is_array($greatHouse) ? [
+        'id' => $greatHouseId,
+        'name' => trim((string)($greatHouse['name'] ?? $greatHouseId)),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'great_houses', 'id' => $greatHouseId]),
+        'emblem_asset_id' => $greatHouseAssetId,
+        'emblem_svg' => api_wiki_resolve_emblem_svg($greatHouseAssetId, trim((string)($greatHouse['emblem_svg'] ?? ''))),
+      ] : null,
     ],
   ];
 }
@@ -257,8 +316,28 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
   if ($resolvedEmblemAssetId === '') {
     $resolvedEmblemAssetId = trim((string)($refs[$ownerKey] ?? ''));
   }
+  $resolvedEmblemSvg = api_wiki_resolve_emblem_svg($resolvedEmblemAssetId, trim((string)($realm['emblem_svg'] ?? '')));
 
   $children = api_wiki_entity_children($state, $entityType, $id);
+
+  $parentEntity = null;
+  if ($entityType === 'great_houses') {
+    foreach (($state['provinces'] ?? []) as $province) {
+      if (!is_array($province)) continue;
+      if (trim((string)($province['great_house_id'] ?? '')) !== $id) continue;
+      $kingdomId = trim((string)($province['kingdom_id'] ?? ''));
+      if ($kingdomId === '') continue;
+      $kingdom = ($state['kingdoms'] ?? [])[$kingdomId] ?? null;
+      if (!is_array($kingdom)) continue;
+      $parentEntity = [
+        'entity_type' => 'kingdoms',
+        'id' => $kingdomId,
+        'name' => trim((string)($kingdom['name'] ?? $kingdomId)),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'kingdoms', 'id' => $kingdomId]),
+      ];
+      break;
+    }
+  }
 
   return [
     'view' => 'project_card',
@@ -274,9 +353,10 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
       'capital_pid' => (int)($realm['capital_pid'] ?? $realm['capital_key'] ?? 0),
       'province_pids' => array_values(array_map(static fn($v) => (int)$v, (array)($realm['province_pids'] ?? $realm['province_keys'] ?? []))),
       'emblem_asset_id' => $resolvedEmblemAssetId,
-      'emblem_svg' => trim((string)($realm['emblem_svg'] ?? '')),
+      'emblem_svg' => $resolvedEmblemSvg,
       'emblem_box' => (is_array($realm['emblem_box'] ?? null) && count($realm['emblem_box']) === 2) ? array_values($realm['emblem_box']) : null,
       'emblem_scale' => (float)($realm['emblem_scale'] ?? 1.0),
+      'parent_entity' => $parentEntity,
       'children' => $children,
     ],
   ];

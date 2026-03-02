@@ -33,6 +33,11 @@
     .topnav a { color:#9bc7ff; text-decoration:none; font-size:13px; }
     .topnav a:hover { text-decoration:underline; }
     pre { white-space:pre-wrap; word-break:break-word; font-size:12px; color:#dbe7f5; }
+    .hero { margin-top:12px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#0b0f14; }
+    .hero img { width:100%; max-height:320px; object-fit:cover; display:block; }
+    .lineage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+    .lineage-item { border:1px solid #223041; border-radius:10px; padding:8px; background:#0b0f14; display:flex; gap:8px; align-items:center; }
+    .lineage-item img { width:44px; height:44px; object-fit:contain; border-radius:6px; border:1px solid #2b3f56; background:#09101a; }
   </style>
 </head>
 <body>
@@ -61,6 +66,13 @@ function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;',
 function link(href, text) {
   if (!href) return escapeHtml(text || '—');
   return `<a class="inline" href="#" data-wiki-link="${escapeHtml(href)}">${escapeHtml(text || href)}</a>`;
+}
+
+function emblemTag(svg, alt) {
+  const src = String(svg || '').trim();
+  if (!src) return '';
+  const data = src.startsWith('data:') ? src : ('data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(src))));
+  return `<img src="${data}" alt="${escapeHtml(alt || 'Герб')}" />`;
 }
 
 function renderProjectDetails(item) {
@@ -103,15 +115,22 @@ function renderProjectDetails(item) {
     const ent = item.entity;
     const pids = Array.isArray(ent.province_pids) ? ent.province_pids : [];
     const provinces = Array.isArray(ent.children && ent.children.provinces) ? ent.children.provinces : [];
+    const entities = Array.isArray(ent.children && ent.children.entities) ? ent.children.entities : [];
+    const parentEntity = ent.parent_entity && typeof ent.parent_entity === 'object' ? ent.parent_entity : null;
     return `
       <div class="section">
         <h3>Сущность</h3>
-        <div class="kv">
+        <div class="lineage-grid">
+          <div class="lineage-item">${emblemTag(ent.emblem_svg, 'Герб сущности')}<div><div class="muted">Герб</div><strong>${escapeHtml(item.title || ent.id || '—')}</strong></div></div>
+          ${parentEntity ? `<div class="lineage-item"><div><div class="muted">Входит в</div><strong>${link(parentEntity.wiki_link, parentEntity.name || parentEntity.id)}</strong></div></div>` : ''}
+        </div>
+        <div class="kv" style="margin-top:10px;">
           <div class="k">Тип</div><div>${escapeHtml(ent.entity_type || '—')}</div>
           <div class="k">Правитель</div><div>${escapeHtml(ent.ruler || '—')}</div>
           <div class="k">Провинций</div><div>${pids.length}</div>
         </div>
       </div>
+      ${entities.length ? `<div class="section"><h3>Зависимые сущности</h3><div class="chips">${entities.map(ch => `<span class="chip">${link(ch.wiki_link, ch.name || ch.id)}</span>`).join('')}</div></div>` : ''}
       ${provinces.length ? `<div class="section"><h3>Провинции</h3><div class="chips">${provinces.map(pr => `<span class="chip">${link(pr.wiki_link, pr.name || ('#' + pr.pid))}</span>`).join('')}</div></div>` : ''}
     `;
   }
@@ -120,9 +139,15 @@ function renderProjectDetails(item) {
     const pr = item.province;
     const vassals = Array.isArray(pr.vassals) ? pr.vassals : [];
     return `
+      ${pr.background_image ? `<div class="hero"><img src="${escapeHtml(pr.background_image)}" alt="Карточка провинции" /></div>` : ''}
       <div class="section">
         <h3>Провинция</h3>
-        <div class="kv">
+        <div class="lineage-grid">
+          <div class="lineage-item">${emblemTag(pr.emblem_svg, 'Герб провинции')}<div><div class="muted">Герб провинции</div><strong>${escapeHtml(item.title || ('Провинция ' + (pr.pid || '')))}</strong></div></div>
+          <div class="lineage-item">${emblemTag((pr.kingdom && pr.kingdom.emblem_svg) || '', 'Герб королевства')}<div><div class="muted">Королевство</div><strong>${link(pr.kingdom && pr.kingdom.wiki_link, (pr.kingdom && pr.kingdom.name) || '—')}</strong></div></div>
+          <div class="lineage-item">${emblemTag((pr.great_house && pr.great_house.emblem_svg) || '', 'Герб БД')}<div><div class="muted">Большой Дом</div><strong>${link(pr.great_house && pr.great_house.wiki_link, (pr.great_house && pr.great_house.name) || '—')}</strong></div></div>
+        </div>
+        <div class="kv" style="margin-top:10px;">
           <div class="k">ID</div><div>${escapeHtml(pr.pid || '—')}</div>
           <div class="k">Владелец</div><div>${escapeHtml(pr.owner || '—')}</div>
           <div class="k">Сюзерен</div><div>${escapeHtml(pr.suzerain || '—')}</div>
