@@ -47,7 +47,14 @@
           <button id="btnAddBuilding" type="button">Добавить здание</button>
         </div>
 
+        <div class="flagsBox">
+          <label class="chk"><input id="flagOffMarket" type="checkbox" /> Вне рынка (без казны/производства/рынка)</label>
+          <label class="chk"><input id="flagBlackMarket" type="checkbox" /> Черный рынок (параллельный рынок)</label>
+          <label class="chk"><input id="flagExchange" type="checkbox" /> Биржевая территория (NPC балансир)</label>
+        </div>
+
         <button id="btnSave" type="button">Сохранить в симулятор</button>
+        <button id="btnWriteStartState" type="button">Записать стартовое состояние</button>
       </div>
 
       <div id="saveStatus" class="muted"></div>

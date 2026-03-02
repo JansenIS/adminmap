@@ -217,6 +217,7 @@ export class EconomyEngine {
       for (const k of Object.keys(this.provYearHistory)) old[k] = this.provYearHistory[k].shift();
       for (let i = 0; i < n; i++) {
         const st = this.states[i];
+        if (st.marketMode === "off_market") continue;
         st.gdpYear -= old.gdp[i];
         st.importsYear -= old.imports[i];
         st.exportsYear -= old.exports[i];
@@ -386,6 +387,7 @@ export class EconomyEngine {
         treasuryTransitYear: 0,
         treasuryExpenseYear: 0,
         treasuryNetYear: 0,
+        marketMode: "normal",
       });
     }
 
@@ -822,6 +824,7 @@ export class EconomyEngine {
   }
 
   _collectTradeTax(st, dealValue, mode = "deal") {
+    if (st.marketMode === "off_market" || st.marketMode === "exchange") return;
     if (!Number.isFinite(dealValue) || dealValue <= 0) return;
     let rate = this.fiscal.dealTaxRate;
     if (mode === "import") rate = this.fiscal.importTaxRate;
@@ -849,6 +852,7 @@ export class EconomyEngine {
     const share = totalFee / mids;
     for (let r = 1; r < route.length - 1; r++) {
       const st = this.states[route[r]];
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       st.treasury += share;
       st.treasuryDaily += share;
       st.treasuryTransitDaily += share;
@@ -857,6 +861,15 @@ export class EconomyEngine {
 
   _applyTreasuryExpenses() {
     for (const st of this.states) {
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") {
+        st.treasury = 0;
+        st.treasuryDaily = 0;
+        st.treasuryTradeTaxDaily = 0;
+        st.treasuryTransitDaily = 0;
+        st.treasuryExpenseDaily = 0;
+        st.treasuryNetDaily = 0;
+        continue;
+      }
       const popCost = st.pop * this.fiscal.baseExpensePerPop;
       const infraCost = st.pop * Math.max(0, st.infra) * this.fiscal.infraExpenseMul * 0.001;
 
@@ -1012,22 +1025,24 @@ export class EconomyEngine {
     const idx = COM_INDEX;
 
     for (const st of this.states) {
+      const isOffMarket = st.marketMode === "off_market";
+      const isExchange = st.marketMode === "exchange";
       const dd = new Float32Array(this.comCount); // daily demand
       const prodCap = new Float32Array(this.comCount); // daily output capacity (approx)
 
       const pop = st.pop;
 
       // базовые потребности населения (в день)
-      dd[idx.bread] += pop * 0.0006;
-      dd[idx.mutabryukva] += pop * 0.00045;
-      dd[idx.meat_cans] += pop * 0.00018;
-      dd[idx.meat] += pop * 0.00003;
-      dd[idx.distilled_water] += pop * 0.0010;
-      dd[idx.villadium_filter_personal] += Math.max(0.15, (pop / 2000) * 0.85);
-      dd[idx.clothes_peasant] += pop / 9000;
+      if (!isOffMarket && !isExchange) dd[idx.bread] += pop * 0.0006;
+      if (!isOffMarket && !isExchange) dd[idx.mutabryukva] += pop * 0.00045;
+      if (!isOffMarket && !isExchange) dd[idx.meat_cans] += pop * 0.00018;
+      if (!isOffMarket && !isExchange) dd[idx.meat] += pop * 0.00003;
+      if (!isOffMarket && !isExchange) dd[idx.distilled_water] += pop * 0.0010;
+      if (!isOffMarket && !isExchange) dd[idx.villadium_filter_personal] += Math.max(0.15, (pop / 2000) * 0.85);
+      if (!isOffMarket && !isExchange) dd[idx.clothes_peasant] += pop / 9000;
 
       // если одежды не хватает — будет "дожирать" ткань
-      dd[idx.cloth_peasant] += pop / 25000;
+      if (!isOffMarket && !isExchange) dd[idx.cloth_peasant] += pop / 25000;
 
       // ремонт/обслуживание (создаёт постоянный спрос и не даёт складам залипать на потолке)
       // простая модель: каждый объект слегка потребляет материалы
@@ -1038,7 +1053,7 @@ export class EconomyEngine {
       };
 
       // производственные потребности (входы) + экспортная ёмкость (выходы)
-      for (const b of st.buildings) {
+      for (const b of (isOffMarket || isExchange ? [] : st.buildings)) {
         const def = BUILDINGS[b.type];
         if (!def) continue;
         const count = Math.max(0, b.count | 0);
@@ -1107,10 +1122,17 @@ export class EconomyEngine {
       }
 
       // пропускная способность тоже зависит от инфраструктуры
-      st.transportCap = Math.max(180, st.pop * st.infra * 0.022);
+      st.transportCap = isOffMarket ? 0 : Math.max(180, st.pop * st.infra * 0.022);
 
       // внешний поток больше внутреннего (караваны/торговцы/порты)
-      st.worldTransportCap = st.transportCap * (st.isCity ? 4.0 : 2.6) + (st.isCity ? 900 : 420);
+      st.worldTransportCap = isOffMarket ? 0 : (st.transportCap * (st.isCity ? 4.0 : 2.6) + (st.isCity ? 900 : 420));
+
+      if (isOffMarket || isExchange) {
+        for (let c = 0; c < this.comCount; c++) {
+          st.target[c] = 0;
+          st.reserve[c] = 0;
+        }
+      }
     }
   }
 
@@ -1195,6 +1217,7 @@ export class EconomyEngine {
 
   _harvestRaw() {
     for (const st of this.states) {
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       for (const cidx of HARVEST_RAW_IDX) {
         const pot = st.rawPotential[cidx];
         if (pot <= 0) continue;
@@ -1268,6 +1291,7 @@ export class EconomyEngine {
     };
 
     for (const st of this.states) {
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       const workforce = st.pop * 0.42;
       let remainingLabor = workforce;
 
@@ -1334,6 +1358,7 @@ export class EconomyEngine {
     const idx = COM_INDEX;
 
     for (const st of this.states) {
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       const pop = st.pop;
 
       const needBread = pop * 0.0006;
@@ -1379,6 +1404,7 @@ export class EconomyEngine {
 
     // деградация, если нет обслуживания
     for (const st of this.states) {
+      if (st.marketMode === "off_market" || st.marketMode === "exchange") continue;
       let fail = 0;
 
       const pull = (cid, qty) => {
@@ -1390,7 +1416,7 @@ export class EconomyEngine {
         return got;
       };
 
-      for (const b of st.buildings) {
+      for (const b of (isOffMarket || isExchange ? [] : st.buildings)) {
         const count = Math.max(0, b.count | 0);
         if (!count) continue;
 
@@ -1505,6 +1531,7 @@ export class EconomyEngine {
 
       for (let i = 0; i < n; i++) {
         const st = this.states[i];
+        if (st.marketMode === "off_market") continue;
         const cur = st.stock[cidx];
         const tgt = st.target[cidx];
         const res = st.reserve[cidx];
@@ -1551,6 +1578,9 @@ export class EconomyEngine {
 
               const from = this.states[sel.i];
               const to = this.states[b.i];
+              const fromBlack = from.marketMode === "black_market";
+              const toBlack = to.marketMode === "black_market";
+              if (fromBlack !== toBlack) continue;
               const d = this.dist(sel.i, b.i);
               if (!isFinite(d)) continue;
 
@@ -1606,11 +1636,12 @@ export class EconomyEngine {
       const phase = (opts.phase || "post");
       for (let i = 0; i < n; i++) {
         const st = this.states[i];
+        if (st.marketMode === "off_market") continue;
         const cur = st.stock[cidx];
         const tgt = st.target[cidx];
 
         // импорт (если целевой >0)
-        if (tgt > 0 && cur < tgt * (phase === "pre" ? 0.985 : 0.92)) {
+        if (st.marketMode !== "exchange" && tgt > 0 && cur < tgt * (phase === "pre" ? 0.985 : 0.92)) {
           const fill = phase === "pre" ? 0.995 : 0.98;
           const need = (tgt * fill) - cur;
           if (need > 0.001) {
@@ -1627,7 +1658,7 @@ export class EconomyEngine {
         }
 
         // экспорт (если запас выше экспортного буфера)
-        if (phase === "pre") continue;
+        if (phase === "pre" || st.marketMode === "exchange") continue;
         const cap = tgt > 0 ? (tgt * EXPORT_BUFFER_MUL) : 0;
         const surplus = tgt > 0 ? (cur - cap) : (cur - 0);
         if (surplus > 0.001) {
@@ -1650,6 +1681,7 @@ export class EconomyEngine {
     const comCount = this.comCount;
 
     for (const st of this.states) {
+      if (st.marketMode === "off_market") continue;
       for (let cidx = 0; cidx < comCount; cidx++) {
         const cur = st.stock[cidx];
         const tgt = st.target[cidx];
@@ -1772,6 +1804,32 @@ export class EconomyEngine {
     };
   }
 
+
+  loadSnapshot(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.provinces)) return false;
+    const byPid = new Map(snapshot.provinces.map((p) => [Number(p.pid), p]));
+    for (const st of this.states) {
+      const src = byPid.get(Number(st.pid));
+      if (!src) continue;
+      st.pop = Math.max(1, Math.round(Number(src.pop) || st.pop));
+      st.infra = clamp(Number(src.infra) || st.infra, 0.1, 2.5);
+      st.buildings = Array.isArray(src.buildings) ? src.buildings.map((b) => ({ ...b })) : st.buildings;
+      st.marketMode = typeof src.marketMode === "string" ? src.marketMode : (st.marketMode || "normal");
+      for (let c = 0; c < this.comCount; c++) {
+        st.stock[c] = Math.max(0, Number(src.stock?.[c]) || 0);
+        st.price[c] = Math.max(0.0001, Number(src.price?.[c]) || st.price[c]);
+      }
+      st.treasury = Number(src.treasury) || 0;
+      st.treasuryTradeTaxYear = Number(src.treasuryTradeTaxYear) || 0;
+      st.treasuryTransitYear = Number(src.treasuryTransitYear) || 0;
+      st.treasuryExpenseYear = Number(src.treasuryExpenseYear) || 0;
+      st.treasuryNetYear = Number(src.treasuryNetYear) || 0;
+    }
+    this.day = Math.max(0, Math.floor(Number(snapshot.day) || 0));
+    this._updateTargets();
+    return true;
+  }
+
   exportSnapshot() {
     return {
       day: this.day,
@@ -1795,6 +1853,7 @@ export class EconomyEngine {
         treasuryTransitYear: st.treasuryTransitYear,
         treasuryExpenseYear: st.treasuryExpenseYear,
         treasuryNetYear: st.treasuryNetYear,
+        marketMode: st.marketMode || "normal",
       })),
       commodities: COMMODITIES,
     };

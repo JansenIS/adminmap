@@ -31,6 +31,7 @@ const UI = {
   buildingTypeSelect: document.getElementById("buildingTypeSelect"),
   btnAddBuilding: document.getElementById("btnAddBuilding"),
   btnSave: document.getElementById("btnSave"),
+  btnWriteStartState: document.getElementById("btnWriteStartState"),
   saveStatus: document.getElementById("saveStatus"),
   tooltip: document.getElementById("tooltip"),
   tabBtnMap: document.getElementById("tabBtnMap"),
@@ -39,6 +40,9 @@ const UI = {
   tabTreasury: document.getElementById("tabTreasury"),
   treasuryTableBody: document.getElementById("treasuryTableBody"),
   sortBtns: Array.from(document.querySelectorAll(".sortBtn")),
+  flagOffMarket: document.getElementById("flagOffMarket"),
+  flagBlackMarket: document.getElementById("flagBlackMarket"),
+  flagExchange: document.getElementById("flagExchange"),
 };
 const ctx = UI.canvas.getContext("2d", { willReadFrequently: true });
 
@@ -228,6 +232,9 @@ function bindSelection(pid) {
   UI.inputPop.value = String(Math.round(row.population || 1));
   UI.inputInfra.value = String(Number(row.infra || 0.5).toFixed(2));
   UI.inputGdpWeight.value = String(Number(row.gdpWeight || 1).toFixed(2));
+  UI.flagOffMarket.checked = row.marketMode === "off_market";
+  UI.flagBlackMarket.checked = row.marketMode === "black_market";
+  UI.flagExchange.checked = row.marketMode === "exchange";
   state.draftBuildings = (row.buildings || []).map((b) => ({
     type: b.type,
     count: Math.max(1, Math.floor(Number(b.count) || 1)),
@@ -446,13 +453,31 @@ UI.canvas.addEventListener("mousemove", (evt) => {
 });
 UI.canvas.addEventListener("mouseleave", () => setTooltip(null, null));
 
+
+function bindMarketModeChecks() {
+  const sync = (active) => {
+    if (active !== "off") UI.flagOffMarket.checked = false;
+    if (active !== "black") UI.flagBlackMarket.checked = false;
+    if (active !== "exchange") UI.flagExchange.checked = false;
+  };
+  UI.flagOffMarket?.addEventListener("change", () => { if (UI.flagOffMarket.checked) sync("off"); });
+  UI.flagBlackMarket?.addEventListener("change", () => { if (UI.flagBlackMarket.checked) sync("black"); });
+  UI.flagExchange?.addEventListener("change", () => { if (UI.flagExchange.checked) sync("exchange"); });
+}
+
 UI.btnSave.addEventListener("click", async () => {
   if (!state.selectedPid) return;
+  let marketMode = "normal";
+  if (UI.flagOffMarket.checked) marketMode = "off_market";
+  else if (UI.flagExchange.checked) marketMode = "exchange";
+  else if (UI.flagBlackMarket.checked) marketMode = "black_market";
+
   const payload = {
     pid: state.selectedPid,
     pop: Number(UI.inputPop.value),
     infra: Number(UI.inputInfra.value),
     gdpWeight: Number(UI.inputGdpWeight.value),
+    marketMode,
     buildings: state.draftBuildings.map((b) => ({
       type: b.type,
       count: Math.max(1, Math.floor(Number(b.count) || 1)),
@@ -480,6 +505,14 @@ UI.btnAddBuilding.addEventListener("click", () => {
     state.draftBuildings.push({ type, count: 1, efficiency: 1 });
   }
   renderBuildingsEditor();
+});
+
+bindMarketModeChecks();
+
+UI.btnWriteStartState?.addEventListener("click", async () => {
+  UI.saveStatus.textContent = "Записываю стартовое состояние...";
+  await api("/api/admin/write-start-state", { method: "POST" });
+  UI.saveStatus.textContent = "Стартовое состояние записано";
 });
 
 setActiveTab("map");
