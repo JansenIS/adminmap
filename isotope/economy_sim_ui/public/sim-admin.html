@@ -35,7 +35,13 @@
           <div>PID: <b id="selPid">—</b></div>
           <div>Название: <b id="selName">—</b></div>
           <div>Террейн: <b id="selTerrain">—</b></div>
+          <div>Выделено провинций: <b id="selCount">0</b></div>
         </div>
+        <div class="toolbarRow">
+          <button id="btnSelectAll" type="button">Выделить все</button>
+          <button id="btnClearSelection" type="button">Снять выделение</button>
+        </div>
+        <div class="muted" style="margin-top:8px;">Ctrl/⌘+клик по карте — добавить/убрать из выделения.</div>
       </div>
 
       <div class="block form" id="editor" hidden>
@@ -60,6 +66,8 @@
           <label class="chk"><input id="flagBlackMarket" type="checkbox" /> Черный рынок (параллельный рынок)</label>
           <label class="chk"><input id="flagExchange" type="checkbox" /> Биржевая территория (NPC балансир)</label>
         </div>
+
+        <label class="chk"><input id="applyToSelection" type="checkbox" /> Применять сохранение ко всем выделенным провинциям</label>
 
         <button id="btnSave" type="button">Сохранить в симулятор</button>
         <button id="btnWriteStartState" type="button">Записать стартовое состояние</button>
