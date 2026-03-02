@@ -48,18 +48,18 @@ const EXPORT_BUFFER_MUL = 1.6; // сколько сверх target можно д
 const RESERVE_MUL = 0.55; // сколько от target держим как "непродаваемое" (минимум безопасности)
 
 const POP_NEEDS = {
-  bread: 0.00026,
-  mutabryukva: 0.00034,
-  meatCans: 0.00008,
+  bread: 0.00045,
+  mutabryukva: 0.0003,
+  meatCans: 0.00012,
   meat: 0.00003,
-  water: 0.00042,
+  water: 0.00065,
   // Фильтры были заметно перетянуты (массовый структурный дефицит каждый тик).
   // Делаем более реалистичную длительность использования персонального фильтра.
   filterBase: 0.05,
   filterPerPopDiv: 10000,
-  filterPerPopMul: 0.28,
-  clothes: 1 / 12000,
-  clothFallback: 1 / 16000,
+  filterPerPopMul: 0.45,
+  clothes: 1 / 9000,
+  clothFallback: 1 / 25000,
 };
 
 export class EconomyEngine {
@@ -545,7 +545,7 @@ export class EconomyEngine {
       if (st.isCity && st.rawPotential[idx.hides_raw] > this.rawMean[idx.hides_raw] * 1.05) add(st, "tannery", 1);
 
       // базовая одежда в городах (не везде)
-      if (st.isCity && this.rng.next() < 0.8) add(st, "line_clothes_peasant", st.pop > 90000 ? 2 : 1);
+      if (st.isCity && this.rng.next() < 0.55) add(st, "line_clothes_peasant", 1);
     }
 
     // 2) индустриализация городов: специализация. Не все линии в каждом городе.
@@ -584,8 +584,8 @@ export class EconomyEngine {
       if (st.pop > 45000 && this.rng.next() < 0.85) add(st, "canning", st.pop > 90000 ? 2 : 1);
 
       // фильтры — далеко не везде
-      add(st, "filters", st.pop > 90000 ? 2 : 1);
-      if (st.pop > 85000 && this.rng.next() < 0.45) add(st, "filters", st.pop > 90000 ? 2 : 1);
+      add(st, "filters", 1);
+      if (st.pop > 85000 && this.rng.next() < 0.45) add(st, "filters", 1);
 
       // выбираем специализации
       let specs = chooseSpecializations(st);
@@ -626,7 +626,7 @@ export class EconomyEngine {
 
         if (sp === "rare") {
           // редкий кластер (не линия, но повышенная вероятность фильтров/электроники)
-          if (this.rng.next() < 0.65) add(st, "filters", st.pop > 90000 ? 2 : 1);
+          if (this.rng.next() < 0.65) add(st, "filters", 1);
           if (this.rng.next() < 0.55) add(st, "electronics_basic", 1);
         }
       }
@@ -1632,6 +1632,7 @@ export class EconomyEngine {
 
             from.stock[cidx] -= qty;
             to.stock[cidx] += arrived;
+            this._recordSold(cidx, qty);
 
             from.transportUsed += qty * bulk;
             to.transportUsed += qty * bulk * 0.35;
