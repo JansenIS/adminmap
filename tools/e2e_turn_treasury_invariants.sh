@@ -33,7 +33,7 @@ ledger=snap['treasury_ledger']
 
 # province invariant
 for r in provs:
-    lhs=round(float(r['opening_balance']) + float(r['income']) - float(r['expense']) - float(r['tax_paid_to_entity']) - float(r['reserve_add']),2)
+    lhs=round(float(r['opening_balance']) + float(r['income']) - float(r['expense']) - float(r['tax_paid_to_entity']) - float(r.get('entity_income_share_paid',0)) - float(r['reserve_add']),2)
     rhs=round(float(r['closing_balance']),2)
     assert lhs==rhs, ('province_balance_mismatch', r['province_pid'], lhs, rhs)
 

@@ -744,6 +744,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       $targetEntityId = (string)($ownerToEntityId[$owner] ?? '');
     }
     $appliedTax = 0.0;
+    $entityIncomeSharePaid = 0.0;
     if ($targetEntityId !== '' && isset($entityRows[$targetEntityId])) {
       $appliedTax = $tax;
       $entityRows[$targetEntityId]['income_tax'] = round(((float)$entityRows[$targetEntityId]['income_tax']) + $appliedTax, 2);
@@ -768,12 +769,14 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       }
     }
 
+    $entityShareBase = max(0.0, round($income - $expense - $reserveAdd - $appliedTax, 2));
     if ($minorKey !== '' && isset($minorByKey[$minorKey])) {
       $minor = $minorByKey[$minorKey];
       $isMinorCapital = ((int)($minor['capital_pid'] ?? 0) > 0) && ((int)$minor['capital_pid'] === $pid);
-      $minorShare = round($income * ($isMinorCapital ? $minorCapitalIncomeShare : $minorProvinceIncomeShare), 2);
+      $minorShare = round($entityShareBase * ($isMinorCapital ? $minorCapitalIncomeShare : $minorProvinceIncomeShare), 2);
       if ($minorShare > 0) {
         $minorEntityId = (string)$minor['entity_id'];
+        $entityIncomeSharePaid = round($entityIncomeSharePaid + $minorShare, 2);
         $entityRows[$minorEntityId]['income_tax'] = round(((float)$entityRows[$minorEntityId]['income_tax']) + $minorShare, 2);
         $minorGrossIncome[$minorEntityId] = round(((float)($minorGrossIncome[$minorEntityId] ?? 0.0)) + $minorShare, 2);
         $ledgerSeq++;
@@ -797,8 +800,9 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
         $inDomain = isset($greatLayerById[$greatHouseId]['domain_pids'][$pid]) || $isUnassigned;
       }
       if ($inDomain) {
-        $greatShare = round($income * $greatDomainIncomeShare, 2);
+        $greatShare = round($entityShareBase * $greatDomainIncomeShare, 2);
         if ($greatShare > 0 && isset($entityRows[$greatEntityId])) {
+          $entityIncomeSharePaid = round($entityIncomeSharePaid + $greatShare, 2);
           $entityRows[$greatEntityId]['income_tax'] = round(((float)$entityRows[$greatEntityId]['income_tax']) + $greatShare, 2);
           $greatGrossIncome[$greatEntityId] = round(((float)($greatGrossIncome[$greatEntityId] ?? 0.0)) + $greatShare, 2);
           $ledgerSeq++;
@@ -817,7 +821,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       }
     }
 
-    $net = round($income - $expense - $appliedTax - $reserveAdd, 2);
+    $net = round($income - $expense - $appliedTax - $entityIncomeSharePaid - $reserveAdd, 2);
     $openingShare = (float)((($ruleset['treasury'] ?? [])['province_opening_income_share'] ?? 0.2));
     $openingBalance = round($income * $openingShare, 2);
     $provinceRows[] = [
@@ -829,6 +833,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'tax_paid_to_entity' => $appliedTax,
+      'entity_income_share_paid' => $entityIncomeSharePaid,
       'tax_rate' => round($taxRate, 6),
       'reserve_add' => $reserveAdd,
       'closing_balance' => round($openingBalance + $net, 2),
