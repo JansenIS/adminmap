@@ -19,6 +19,8 @@
     btnPublish: el('btnPublish'),
     btnRollback: el('btnRollback'),
     btnSetCurrent: el('btnSetCurrent'),
+    btnResetTurns: el('btnResetTurns'),
+    btnGenerateBaseline: el('btnGenerateBaseline'),
   };
 
   function setStatus(text) {
@@ -126,6 +128,22 @@
     }
   }
 
+  async function resetTurns() {
+    return api('/api/turns/reset/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json;charset=utf-8' },
+      body: JSON.stringify({}),
+    });
+  }
+
+  async function generateProvinceBaseline() {
+    return api('/api/turns/generate-province-baseline/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json;charset=utf-8' },
+      body: JSON.stringify({}),
+    });
+  }
+
   UI.btnRefresh.addEventListener('click', async () => {
     try {
       setStatus('Обновляю список ходов…');
@@ -216,6 +234,32 @@
       setStatus(`Текущий state переключён на год ${year}.`);
     } catch (err) {
       setStatus(`Ошибка выставления текущего года: ${err.message}`);
+    }
+  });
+
+  UI.btnResetTurns.addEventListener('click', async () => {
+    try {
+      setStatus('Сбрасываю все ходы…');
+      const result = await resetTurns();
+      UI.sourceYear.value = '0';
+      UI.targetYear.value = '1';
+      UI.actionYear.value = '1';
+      UI.setCurrentYear.value = '1';
+      await loadTurns();
+      setStatus(`Ходы сброшены. Удалено: turns=${result?.removed?.turn_files || 0}, snapshots=${result?.removed?.snapshots || 0}, overlays=${result?.removed?.overlays || 0}. Текущий ход: 0.`);
+    } catch (err) {
+      setStatus(`Ошибка сброса ходов: ${err.message}`);
+    }
+  });
+
+  UI.btnGenerateBaseline.addEventListener('click', async () => {
+    try {
+      setStatus('Генерирую стартовое население и казну по провинциям…');
+      const result = await generateProvinceBaseline();
+      const updated = result?.updated || {};
+      setStatus(`Базовые значения сгенерированы: провинций=${updated.updated || 0}, население=${updated.population_total || 0}, казна=${updated.treasury_total || 0}.`);
+    } catch (err) {
+      setStatus(`Ошибка генерации базовых значений: ${err.message}`);
     }
   });
 

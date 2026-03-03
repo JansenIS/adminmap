@@ -38,16 +38,44 @@ function turn_api_rulesets_path(): string {
 
 function turn_api_default_ruleset(): array {
   return [
-    'version' => 'v1.2',
+    'version' => 'v2.0',
     'economy' => [
-      'base_income_default' => 10.0,
-      'base_income_mountain' => 8.0,
-      'base_income_plains' => 12.0,
-      'base_income_sea' => 6.0,
-      'year_mod_cycle' => 5,
-      'expense_base' => 4.0,
-      'expense_year_step' => 0.5,
-      'expense_year_cycle' => 3,
+      'base_income_per_hex' => 520.0,
+      'base_expense_per_hex' => 290.0,
+      'population_income_per_capita' => 0.09,
+      'city_population_income_per_capita' => 0.22,
+      'coastal_trade_bonus' => 0.33,
+      'river_trade_bonus' => 0.24,
+      'terrain_income_coefficients' => [
+        'равнины' => 1.00,
+        'холмы' => 0.92,
+        'горы' => 0.80,
+        'лес' => 0.88,
+        'болота' => 0.74,
+        'степь' => 0.97,
+        'пустоши' => 0.63,
+        'побережье' => 1.28,
+        'остров' => 1.12,
+        'город' => 1.65,
+        'руины' => 0.42,
+        'озёра/реки' => 1.20,
+      ],
+      'terrain_expense_coefficients' => [
+        'равнины' => 1.00,
+        'холмы' => 1.06,
+        'горы' => 1.18,
+        'лес' => 1.09,
+        'болота' => 1.15,
+        'степь' => 0.96,
+        'пустоши' => 1.08,
+        'побережье' => 1.12,
+        'остров' => 1.19,
+        'город' => 1.30,
+        'руины' => 0.91,
+        'озёра/реки' => 1.05,
+      ],
+      'income_random_swing' => 0.16,
+      'expense_random_swing' => 0.12,
     ],
     'treasury' => [
       'tax_rate' => 0.35,
@@ -211,6 +239,76 @@ function turn_api_if_match(array $turn, array $payload = [], bool $required = tr
   return ['ok' => true, 'expected' => $expected, 'provided' => $provided];
 }
 
+function turn_api_terrain_key(string $terrain): string {
+  $value = mb_strtolower(trim($terrain));
+  return $value === '' ? 'равнины' : $value;
+}
+
+function turn_api_seeded_noise(int $year, int $pid, string $salt): float {
+  $hash = hash('sha256', $year . '|' . $pid . '|' . $salt);
+  $chunk = substr($hash, 0, 8);
+  $fraction = (float)hexdec($chunk) / 4294967295.0;
+  return ($fraction * 2.0) - 1.0;
+}
+
+function turn_api_hex_counts_by_pid(): array {
+  $repo = api_repo_root();
+  $hexDataPath = $repo . '/hexmap/data.js';
+  $counts = [];
+
+  if (is_file($hexDataPath)) {
+    $raw = @file_get_contents($hexDataPath);
+    if (is_string($raw) && preg_match('/"provinces"\s*:\s*(\[.*?\])\s*,\s*"hexes"/s', $raw, $m)) {
+      $decoded = json_decode($m[1], true);
+      if (is_array($decoded)) {
+        foreach ($decoded as $row) {
+          if (!is_array($row)) continue;
+          $pid = (int)($row['id'] ?? 0);
+          $hexCount = (int)($row['hexCount'] ?? 0);
+          if ($pid <= 0 || $hexCount <= 0) continue;
+          $counts[$pid] = $hexCount;
+        }
+      }
+    }
+  }
+
+  if (!$counts) {
+    $provMetaPath = $repo . '/provinces.json';
+    if (is_file($provMetaPath)) {
+      $raw = @file_get_contents($provMetaPath);
+      $decoded = is_string($raw) ? json_decode($raw, true) : null;
+      if (is_array($decoded) && is_array($decoded['provinces'] ?? null)) {
+        foreach ($decoded['provinces'] as $row) {
+          if (!is_array($row)) continue;
+          $pid = (int)($row['pid'] ?? 0);
+          $areaPx = (int)($row['area_px'] ?? 0);
+          if ($pid <= 0 || $areaPx <= 0) continue;
+          $counts[$pid] = max(1, (int)round($areaPx / 12));
+        }
+      }
+    }
+  }
+
+  $remapPath = $repo . '/data/hexmap_pid_remap.json';
+  $remapped = [];
+  $remap = [];
+  if (is_file($remapPath)) {
+    $raw = @file_get_contents($remapPath);
+    $decoded = is_string($raw) ? json_decode($raw, true) : null;
+    if (is_array($decoded) && is_array($decoded['pid_remap'] ?? null)) {
+      $remap = $decoded['pid_remap'];
+    }
+  }
+
+  foreach ($counts as $sourcePid => $hexCount) {
+    $targetPid = (int)($remap[(string)$sourcePid] ?? $sourcePid);
+    if ($targetPid <= 0) continue;
+    if (!isset($remapped[$targetPid])) $remapped[$targetPid] = 0;
+    $remapped[$targetPid] += max(0, (int)$hexCount);
+  }
+  return $remapped;
+}
+
 function turn_api_realm_entity_rows(array $state): array {
   $rows = [];
   foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $type) {
@@ -261,33 +359,107 @@ function turn_api_compute_entity_state(array $state, int $year): array {
 }
 
 function turn_api_compute_economy_state(array $state, int $year, array $ruleset): array {
+  $hexCountsByPid = turn_api_hex_counts_by_pid();
+  $ecoCfg = (array)($ruleset['economy'] ?? []);
+  $terrainIncome = (array)($ecoCfg['terrain_income_coefficients'] ?? []);
+  $terrainExpense = (array)($ecoCfg['terrain_expense_coefficients'] ?? []);
   $out = [];
   foreach (($state['provinces'] ?? []) as $idx => $prov) {
     if (!is_array($prov)) continue;
     $pid = (int)($prov['pid'] ?? $idx);
     if ($pid <= 0) continue;
-    $terrain = strtolower((string)($prov['terrain'] ?? ''));
-    $ecoCfg = (array)($ruleset['economy'] ?? []);
-    $baseIncome = (float)($ecoCfg['base_income_default'] ?? 10.0);
-    if ($terrain === 'mountain') $baseIncome = (float)($ecoCfg['base_income_mountain'] ?? 8.0);
-    if ($terrain === 'plains') $baseIncome = (float)($ecoCfg['base_income_plains'] ?? 12.0);
-    if ($terrain === 'sea' || $terrain === 'ocean') $baseIncome = (float)($ecoCfg['base_income_sea'] ?? 6.0);
+    $terrainRaw = (string)($prov['terrain'] ?? '');
+    $terrain = turn_api_terrain_key($terrainRaw);
+    $hexCount = max(1, (int)($hexCountsByPid[$pid] ?? 1));
+    $population = max(0, (int)($prov['population'] ?? 0));
 
-    $yearModCycle = max(1, (int)($ecoCfg['year_mod_cycle'] ?? 5));
-    $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
-    $income = $baseIncome + ($year % $yearModCycle);
-    $expense = (float)($ecoCfg['expense_base'] ?? 4.0) + (($year % $expenseCycle) * (float)($ecoCfg['expense_year_step'] ?? 0.5));
+    $incomeCoef = (float)($terrainIncome[$terrain] ?? 1.0);
+    $expenseCoef = (float)($terrainExpense[$terrain] ?? 1.0);
+    $isCity = $terrain === 'город';
+    $isCoast = $terrain === 'побережье' || $terrain === 'остров';
+    $isRiver = $terrain === 'озёра/реки';
+    $tradeBonus = 1.0;
+    if ($isCoast) $tradeBonus += (float)($ecoCfg['coastal_trade_bonus'] ?? 0.0);
+    if ($isRiver) $tradeBonus += (float)($ecoCfg['river_trade_bonus'] ?? 0.0);
+
+    $incomePerHex = (float)($ecoCfg['base_income_per_hex'] ?? 520.0);
+    $expensePerHex = (float)($ecoCfg['base_expense_per_hex'] ?? 290.0);
+    $incomeFromHexes = $incomePerHex * $hexCount * $incomeCoef * $tradeBonus;
+    $expenseFromHexes = $expensePerHex * $hexCount * $expenseCoef;
+
+    $perCapita = $isCity
+      ? (float)($ecoCfg['city_population_income_per_capita'] ?? 0.22)
+      : (float)($ecoCfg['population_income_per_capita'] ?? 0.09);
+    $incomeFromPopulation = $population * $perCapita;
+
+    $incomeNoise = turn_api_seeded_noise($year, $pid, 'income');
+    $expenseNoise = turn_api_seeded_noise($year, $pid, 'expense');
+    $incomeRandomSwing = (float)($ecoCfg['income_random_swing'] ?? 0.16);
+    $expenseRandomSwing = (float)($ecoCfg['expense_random_swing'] ?? 0.12);
+
+    $income = ($incomeFromHexes + $incomeFromPopulation) * (1.0 + ($incomeNoise * $incomeRandomSwing));
+    $expense = $expenseFromHexes * (1.0 + ($expenseNoise * $expenseRandomSwing));
+
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'balance_delta' => round($income - $expense, 2),
-      'modifiers' => ['terrain' => $terrain, 'ruleset_version' => (string)($ruleset['version'] ?? ''), 'year_mod' => ($year % max(1, (int)(($ruleset['economy']['year_mod_cycle'] ?? 5))))],
+      'modifiers' => [
+        'terrain' => $terrainRaw,
+        'terrain_key' => $terrain,
+        'ruleset_version' => (string)($ruleset['version'] ?? ''),
+        'hex_count' => $hexCount,
+        'population' => $population,
+        'coastal_trade' => $isCoast,
+        'river_trade' => $isRiver,
+        'income_noise' => round($incomeNoise, 4),
+        'expense_noise' => round($expenseNoise, 4),
+      ],
     ];
   }
   usort($out, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
   return $out;
+}
+
+function turn_api_generate_start_population_and_treasury(array &$state): array {
+  $hexCountsByPid = turn_api_hex_counts_by_pid();
+  $updated = 0;
+  $populationTotal = 0;
+  $treasuryTotal = 0.0;
+
+  foreach (($state['provinces'] ?? []) as $idx => $prov) {
+    if (!is_array($prov)) continue;
+    $pid = (int)($prov['pid'] ?? $idx);
+    if ($pid <= 0) continue;
+    $hexCount = max(1, (int)($hexCountsByPid[$pid] ?? 1));
+    $terrain = turn_api_terrain_key((string)($prov['terrain'] ?? ''));
+    $isCity = $terrain === 'город';
+
+    $basePerHex = 500 + (int)round((turn_api_seeded_noise(1, $pid, 'population_per_hex') + 1.0) * 250.0);
+    $population = $hexCount * $basePerHex;
+    if ($isCity) {
+      $cityMult = 4.0 + ((turn_api_seeded_noise(1, $pid, 'city_pop_boost') + 1.0) * 2.0);
+      $population = (int)round($population * $cityMult);
+    }
+
+    $treasuryBase = ($population * ($isCity ? 1.55 : 0.72)) + ($hexCount * (900 + (turn_api_seeded_noise(1, $pid, 'treasury_hex') * 280.0)));
+    $treasury = max(500.0, round($treasuryBase, 2));
+
+    $state['provinces'][(string)$idx]['population'] = (int)$population;
+    $state['provinces'][(string)$idx]['treasury'] = $treasury;
+
+    $updated++;
+    $populationTotal += (int)$population;
+    $treasuryTotal += $treasury;
+  }
+
+  return [
+    'updated' => $updated,
+    'population_total' => $populationTotal,
+    'treasury_total' => round($treasuryTotal, 2),
+  ];
 }
 
 function turn_api_compute_economy_summary(array $economyState): array {

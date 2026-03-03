@@ -1,8 +1,7 @@
-# adminmap — единый проект карты и экономического симулятора
+# adminmap — проект карты и turn-based экономики
 
 Этот репозиторий ставится **целиком**, а не по отдельным кускам:
 - `adminmap` (основная карта/админка): `admin.html`, `index.html`, `data/`, `map.png`, `provinces_id.png`;
-- `isotope/economy_sim_ui` (Node.js-симулятор + отдельная sim-admin).
 
 ## Быстрая установка на Linux (Ubuntu/Debian)
 
@@ -11,11 +10,7 @@
 sudo apt update
 sudo apt install -y git curl php-cli php-mbstring
 
-# 2) Node.js 20 LTS (для симулятора)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# 3) клонируем ВЕСЬ проект
+# 2) клонируем ВЕСЬ проект
 cd /opt
 sudo git clone <URL_ВАШЕГО_РЕПО> adminmap
 sudo chown -R $USER:$USER /opt/adminmap
@@ -33,20 +28,12 @@ cd /opt/adminmap
 php -S 0.0.0.0:8080
 ```
 
-### Терминал B: экономический симулятор (Node.js)
-
-```bash
-cd /opt/adminmap/isotope/economy_sim_ui
-node ./server.js ../province_routing_data.json --port 8787
-```
 
 ## Что где доступно
 
 - Основная админка карты: `http://<SERVER_IP>:8080/admin.html`
 - Публичная карта: `http://<SERVER_IP>:8080/index.html`
-- Симулятор-обзор (через основной веб-сервер): `http://<SERVER_IP>:8080/economics/`
-- Sim-admin (редактор параметров провинций): `http://<SERVER_IP>:8080/economics/sim-admin`
-- Прямой доступ к Node-сервису (внутренний): `http://127.0.0.1:8787/`
+- Админка ходов: `http://<SERVER_IP>:8080/turn_admin.html`
 
 ## Проверка после установки
 
@@ -54,16 +41,7 @@ node ./server.js ../province_routing_data.json --port 8787
 # основная карта
 curl -I http://127.0.0.1:8080/admin.html
 
-# симулятор API
-curl -s http://127.0.0.1:8787/api/summary
-curl -s http://127.0.0.1:8787/api/admin/map-sync
 ```
-
-## Важно
-
-`sim-admin` теперь сначала пытается читать провинции из backend API (`/api/provinces`) через `--adminApiBase` или `ADMINMAP_API_BASE`,
-и не использует legacy `data/map_state.json` в runtime.
-
 
 ## Применение production-конфига веб-сервера (gzip/br + canonical API routes)
 
@@ -238,7 +216,7 @@ bash tools/contract_backend_first.sh
 bash tools/e2e_backend_first_flags.sh
 ```
 
-CI smoke для economy strict backend-only режима (positive + expected-fail negative):
+CI smoke для turn-based economy backend-only режима:
 ```bash
 bash tools/ci_economy_strict_smoke.sh
 bash tools/ci_no_legacy_frontend_refs.sh
