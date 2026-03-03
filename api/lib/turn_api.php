@@ -230,7 +230,7 @@ function turn_api_realm_entity_rows(array $state): array {
   return $rows;
 }
 
-function turn_api_compute_entity_state(array $state, int $year): array {
+function turn_api_compute_entity_state(array $state, int $year, array $ruleset = []): array {
   $entities = turn_api_realm_entity_rows($state);
   $provinceCountByOwner = [];
   foreach (($state['provinces'] ?? []) as $prov) {
@@ -241,11 +241,18 @@ function turn_api_compute_entity_state(array $state, int $year): array {
     $provinceCountByOwner[$owner]++;
   }
 
+  $cfg = (array)($ruleset['entity_economy'] ?? []);
+  $baseTreasury = (float)($cfg['base_treasury'] ?? 25000.0);
+  $perProvinceTreasury = (float)($cfg['per_province_treasury'] ?? 3500.0);
+  $yearStep = (float)($cfg['year_step'] ?? 400.0);
+  $yearCycle = max(1, (int)($cfg['year_cycle'] ?? 7));
+  $reserveRate = (float)($cfg['reserve_rate'] ?? 0.20);
+
   $out = [];
   foreach ($entities as $row) {
     $name = (string)($row['name'] ?? '');
     $provincesOwned = (int)($provinceCountByOwner[$name] ?? 0);
-    $base = 100 + ($provincesOwned * 15) + (($year % 7) * 3);
+    $base = $baseTreasury + ($provincesOwned * $perProvinceTreasury) + (($year % $yearCycle) * $yearStep);
     $out[] = [
       'turn_year' => $year,
       'entity_id' => $row['entity_id'],
@@ -254,7 +261,7 @@ function turn_api_compute_entity_state(array $state, int $year): array {
       'ruler' => $row['ruler'],
       'provinces_owned' => $provincesOwned,
       'treasury_main' => $base,
-      'treasury_reserve' => round($base * 0.15, 2),
+      'treasury_reserve' => round($base * $reserveRate, 2),
     ];
   }
   return $out;
@@ -262,30 +269,55 @@ function turn_api_compute_entity_state(array $state, int $year): array {
 
 function turn_api_compute_economy_state(array $state, int $year, array $ruleset): array {
   $out = [];
+  $ecoCfg = (array)($ruleset['economy'] ?? []);
+
+  $baseTurnover = (float)($ecoCfg['base_turnover_default'] ?? 1200.0);
+  $turnoverPerOwnedProvince = (float)($ecoCfg['turnover_per_owned_province'] ?? 75.0);
+  $yearGrowthCycle = max(1, (int)($ecoCfg['year_growth_cycle'] ?? 5));
+  $yearGrowthStep = (float)($ecoCfg['year_growth_step'] ?? 25.0);
+
+  $expenseBase = (float)($ecoCfg['expense_base'] ?? 420.0);
+  $expenseYearStep = (float)($ecoCfg['expense_year_step'] ?? 75.0);
+  $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
+
+  $provinceCountByOwner = [];
+  foreach (($state['provinces'] ?? []) as $prov) {
+    if (!is_array($prov)) continue;
+    $owner = trim((string)($prov['owner'] ?? ''));
+    if ($owner === '') continue;
+    if (!isset($provinceCountByOwner[$owner])) $provinceCountByOwner[$owner] = 0;
+    $provinceCountByOwner[$owner]++;
+  }
+
   foreach (($state['provinces'] ?? []) as $idx => $prov) {
     if (!is_array($prov)) continue;
     $pid = (int)($prov['pid'] ?? $idx);
     if ($pid <= 0) continue;
-    $terrain = strtolower((string)($prov['terrain'] ?? ''));
-    $ecoCfg = (array)($ruleset['economy'] ?? []);
-    $baseIncome = (float)($ecoCfg['base_income_default'] ?? 10.0);
-    if ($terrain === 'mountain') $baseIncome = (float)($ecoCfg['base_income_mountain'] ?? 8.0);
-    if ($terrain === 'plains') $baseIncome = (float)($ecoCfg['base_income_plains'] ?? 12.0);
-    if ($terrain === 'sea' || $terrain === 'ocean') $baseIncome = (float)($ecoCfg['base_income_sea'] ?? 6.0);
 
-    $yearModCycle = max(1, (int)($ecoCfg['year_mod_cycle'] ?? 5));
-    $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
-    $income = $baseIncome + ($year % $yearModCycle);
-    $expense = (float)($ecoCfg['expense_base'] ?? 4.0) + (($year % $expenseCycle) * (float)($ecoCfg['expense_year_step'] ?? 0.5));
+    $owner = trim((string)($prov['owner'] ?? ''));
+    $ownerProvinceCount = (int)($provinceCountByOwner[$owner] ?? 0);
+
+    $income = $baseTurnover
+      + ($ownerProvinceCount * $turnoverPerOwnedProvince)
+      + (($year % $yearGrowthCycle) * $yearGrowthStep);
+
+    $expense = $expenseBase + (($year % $expenseCycle) * $expenseYearStep);
+
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'balance_delta' => round($income - $expense, 2),
-      'modifiers' => ['terrain' => $terrain, 'ruleset_version' => (string)($ruleset['version'] ?? ''), 'year_mod' => ($year % max(1, (int)(($ruleset['economy']['year_mod_cycle'] ?? 5))))],
+      'modifiers' => [
+        'owner' => $owner,
+        'owner_province_count' => $ownerProvinceCount,
+        'ruleset_version' => (string)($ruleset['version'] ?? ''),
+        'year_mod' => ($year % $yearGrowthCycle),
+      ],
     ];
   }
+
   usort($out, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
   return $out;
 }
@@ -324,10 +356,11 @@ function turn_api_source_state_for_new_turn(int $sourceYear): array {
 
 function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rulesetVersion): array {
   $worldState = turn_api_source_state_for_new_turn($sourceYear);
+  $ruleset = turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion]);
   $startSnapshotRef = turn_api_save_snapshot($targetYear, 'start', [
     'world_state' => $worldState,
-    'entity_state' => turn_api_compute_entity_state($worldState, $targetYear),
-    'economy_state' => turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])),
+    'entity_state' => turn_api_compute_entity_state($worldState, $targetYear, $ruleset),
+    'economy_state' => turn_api_compute_economy_state($worldState, $targetYear, $ruleset),
     'source_turn_year' => $sourceYear,
   ]);
   if (!is_array($startSnapshotRef)) {
@@ -343,8 +376,8 @@ function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rule
     'created_at' => gmdate('c'),
     'snapshot_start' => $startSnapshotRef,
     'snapshot_end' => null,
-    'entity_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_entity_state($worldState, $targetYear))],
-    'economy_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])))],
+    'entity_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_entity_state($worldState, $targetYear, $ruleset))],
+    'economy_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_economy_state($worldState, $targetYear, $ruleset))],
     'economy' => ['status' => 'not_processed', 'checkpoint' => null, 'records' => 0, 'checksum' => null],
     'entity_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
     'province_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
@@ -360,11 +393,11 @@ function turn_api_compute_economy_for_turn(array $turn): array {
   $state = (is_array($snap) && is_array($snap['payload']['world_state'] ?? null)) ? $snap['payload']['world_state'] : api_load_state();
 
   $ruleset = turn_api_ruleset_for_turn($turn);
-  $entityState = turn_api_compute_entity_state($state, $year);
+  $entityState = turn_api_compute_entity_state($state, $year, $ruleset);
   $economyState = turn_api_compute_economy_state($state, $year, $ruleset);
   $economy = turn_api_compute_economy_summary($economyState);
   $economy['ruleset_version'] = (string)($ruleset['version'] ?? '');
-  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year, $ruleset);
+  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year, $ruleset, turn_api_previous_treasury_maps($turn));
 
   return [
     'entity_state' => $entityState,
@@ -375,6 +408,42 @@ function turn_api_compute_economy_for_turn(array $turn): array {
     'ledger_rows' => $treasury['ledger_rows'],
     'treasury_summary' => $treasury['summary'],
   ];
+}
+
+function turn_api_previous_treasury_maps(array $turn): array {
+  $sourceYear = (int)($turn['source_turn_year'] ?? 0);
+  if ($sourceYear <= 0) {
+    return ['entity' => [], 'province' => []];
+  }
+
+  $sourceTurn = turn_api_load_turn($sourceYear);
+  if (!is_array($sourceTurn) || (string)($sourceTurn['status'] ?? '') !== 'published') {
+    return ['entity' => [], 'province' => []];
+  }
+
+  $snap = turn_api_load_snapshot($sourceYear, 'end');
+  $payload = is_array($snap) ? ($snap['payload'] ?? null) : null;
+  if (!is_array($payload)) {
+    return ['entity' => [], 'province' => []];
+  }
+
+  $entity = [];
+  foreach (($payload['entity_treasury'] ?? []) as $row) {
+    if (!is_array($row)) continue;
+    $id = trim((string)($row['entity_id'] ?? ''));
+    if ($id === '') continue;
+    $entity[$id] = round((float)($row['closing_balance'] ?? 0.0), 2);
+  }
+
+  $province = [];
+  foreach (($payload['province_treasury'] ?? []) as $row) {
+    if (!is_array($row)) continue;
+    $pid = (int)($row['province_pid'] ?? 0);
+    if ($pid <= 0) continue;
+    $province[$pid] = round((float)($row['closing_balance'] ?? 0.0), 2);
+  }
+
+  return ['entity' => $entity, 'province' => $province];
 }
 
 function turn_api_build_map_artifacts(): array {
@@ -399,7 +468,7 @@ function turn_api_build_map_artifacts(): array {
 
 
 
-function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset): array {
+function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset, array $openingTreasury = []): array {
   $entityRows = [];
   foreach ($entityState as $row) {
     if (!is_array($row)) continue;
@@ -417,6 +486,14 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       'closing_balance' => 0.0,
     ];
   }
+
+  $entityOpeningById = is_array($openingTreasury['entity'] ?? null) ? $openingTreasury['entity'] : [];
+  foreach ($entityRows as $eid => &$row) {
+    if (array_key_exists($eid, $entityOpeningById)) {
+      $row['opening_balance'] = round((float)$entityOpeningById[$eid], 2);
+    }
+  }
+  unset($row);
 
   $ownerToEntityId = [];
   foreach ($entityRows as $eid => $row) {
@@ -467,7 +544,8 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
 
     $net = round($income - $expense - $appliedTax - $reserveAdd, 2);
     $openingShare = (float)((($ruleset['treasury'] ?? [])['province_opening_income_share'] ?? 0.2));
-    $openingBalance = round($income * $openingShare, 2);
+    $openingByPid = is_array($openingTreasury['province'] ?? null) ? $openingTreasury['province'] : [];
+    $openingBalance = array_key_exists($pid, $openingByPid) ? round((float)$openingByPid[$pid], 2) : round($income * $openingShare, 2);
     $provinceRows[] = [
       'turn_year' => $year,
       'province_pid' => $pid,

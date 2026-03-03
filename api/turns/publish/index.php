@@ -45,9 +45,30 @@ if (!is_array($startSnap) || !is_array($startSnap['payload']['world_state'] ?? n
 
 $worldState = $startSnap['payload']['world_state'];
 $ruleset = turn_api_ruleset_for_turn($turn);
-$entityState = turn_api_compute_entity_state($worldState, $year);
-$economyState = turn_api_compute_economy_state($worldState, $year, $ruleset);
-$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset);
+$external = is_array($turn['economy_external_payload'] ?? null) ? $turn['economy_external_payload'] : null;
+if (is_array($external) && (($external['source'] ?? '') === 'economy_sim')) {
+  $entityState = is_array($external['entity_state'] ?? null) ? $external['entity_state'] : [];
+  $economyState = is_array($external['economy_state'] ?? null) ? $external['economy_state'] : [];
+  $treasury = [
+    'entity_treasury_rows' => is_array($external['entity_treasury'] ?? null) ? $external['entity_treasury'] : [],
+    'province_treasury_rows' => is_array($external['province_treasury'] ?? null) ? $external['province_treasury'] : [],
+    'ledger_rows' => is_array($external['treasury_ledger'] ?? null) ? $external['treasury_ledger'] : [],
+    'summary' => [
+      'entity_records' => count(is_array($external['entity_treasury'] ?? null) ? $external['entity_treasury'] : []),
+      'province_records' => count(is_array($external['province_treasury'] ?? null) ? $external['province_treasury'] : []),
+      'ledger_records' => count(is_array($external['treasury_ledger'] ?? null) ? $external['treasury_ledger'] : []),
+      'entity_treasury_checksum' => hash('sha256', json_encode((array)($external['entity_treasury'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+      'province_treasury_checksum' => hash('sha256', json_encode((array)($external['province_treasury'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+      'ledger_checksum' => hash('sha256', json_encode((array)($external['treasury_ledger'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+      'ruleset_version' => (string)($ruleset['version'] ?? ''),
+      'source' => 'economy_sim',
+    ],
+  ];
+} else {
+  $entityState = turn_api_compute_entity_state($worldState, $year, $ruleset);
+  $economyState = turn_api_compute_economy_state($worldState, $year, $ruleset);
+  $treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset, turn_api_previous_treasury_maps($turn));
+}
 $turn['map_artifacts'] = turn_api_build_map_artifacts();
 $overlayPayload = turn_api_compute_overlay_payload($entityState, $economyState, (array)($turn['economy'] ?? []));
 $overlayArtifact = turn_api_write_overlay_artifact($year, $overlayPayload);
