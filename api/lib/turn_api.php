@@ -576,6 +576,7 @@ function turn_api_build_map_artifacts(): array {
 
 function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset): array {
   $entityRows = [];
+  $entityMetaById = [];
   foreach ($entityState as $row) {
     if (!is_array($row)) continue;
     $entityId = (string)($row['entity_id'] ?? '');
@@ -591,22 +592,112 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       'transfers_out' => 0.0,
       'closing_balance' => 0.0,
     ];
+    $entityMetaById[$entityId] = [
+      'entity_name' => (string)($row['entity_name'] ?? ''),
+      'entity_type' => (string)($row['entity_type'] ?? ''),
+    ];
   }
+
+  $ensureEntityRow = static function (array &$rows, array &$meta, string $entityId, string $entityName, string $entityType, int $year): void {
+    if ($entityId === '') return;
+    if (!isset($rows[$entityId])) {
+      $rows[$entityId] = [
+        'turn_year' => $year,
+        'entity_id' => $entityId,
+        'entity_name' => $entityName,
+        'opening_balance' => 0.0,
+        'income_tax' => 0.0,
+        'subsidies_out' => 0.0,
+        'transfers_in' => 0.0,
+        'transfers_out' => 0.0,
+        'closing_balance' => 0.0,
+      ];
+    }
+    $meta[$entityId] = ['entity_name' => $entityName, 'entity_type' => $entityType];
+  };
 
   $ownerToEntityId = [];
   foreach ($entityRows as $eid => $row) {
     $ownerToEntityId[(string)($row['entity_name'] ?? '')] = $eid;
   }
 
+  $tCfg = (array)($ruleset['treasury'] ?? []);
+  $defaultProvinceTaxRate = (float)($tCfg['province_entity_tax_rate'] ?? 0.10);
+  $minorCapitalIncomeShare = (float)($tCfg['minor_capital_income_share'] ?? 1.0);
+  $minorProvinceIncomeShare = (float)($tCfg['minor_province_income_share'] ?? 0.10);
+  $minorToGreatRate = (float)($tCfg['minor_to_great_rate'] ?? 0.10);
+  $greatDomainIncomeShare = (float)($tCfg['great_domain_income_share'] ?? 1.0);
+  $greatToKingdomRate = (float)($tCfg['great_to_kingdom_rate'] ?? 0.10);
+
+  $provinceByPid = [];
+  foreach (($state['provinces'] ?? []) as $prov) {
+    if (!is_array($prov)) continue;
+    $pid = (int)($prov['pid'] ?? 0);
+    if ($pid <= 0) continue;
+    $provinceByPid[$pid] = $prov;
+  }
+
+  $greatLayerById = [];
+  $minorByKey = [];
+  foreach (($state['great_houses'] ?? []) as $ghId => $gh) {
+    if (!is_array($gh)) continue;
+    $greatId = trim((string)$ghId);
+    if ($greatId === '') continue;
+    $greatEntityId = 'great_houses:' . $greatId;
+    $greatName = (string)($gh['name'] ?? $greatId);
+    $ensureEntityRow($entityRows, $entityMetaById, $greatEntityId, $greatName, 'great_houses', $year);
+
+    $layer = is_array($gh['minor_house_layer'] ?? null) ? (array)$gh['minor_house_layer'] : [];
+    $domainPids = [];
+    foreach ((array)($layer['domain_pids'] ?? []) as $pidRaw) {
+      $pid = (int)$pidRaw;
+      if ($pid > 0) $domainPids[$pid] = true;
+    }
+    $greatLayerById[$greatId] = ['domain_pids' => $domainPids, 'vassals' => (array)($layer['vassals'] ?? [])];
+
+    foreach ((array)($layer['vassals'] ?? []) as $idx => $vassal) {
+      if (!is_array($vassal)) continue;
+      $minorId = trim((string)($vassal['id'] ?? ('vassal_' . ($idx + 1))));
+      if ($minorId === '') continue;
+      $minorEntityId = 'minor_houses:' . $greatId . '::' . $minorId;
+      $minorName = (string)($vassal['name'] ?? $minorId);
+      $minorCapitalPid = (int)($vassal['capital_pid'] ?? 0);
+      $minorProvincePids = [];
+      foreach ((array)($vassal['province_pids'] ?? []) as $pidRaw) {
+        $pid = (int)$pidRaw;
+        if ($pid > 0) $minorProvincePids[$pid] = true;
+      }
+      $minorKey = $greatId . '::' . $minorId;
+      $minorByKey[$minorKey] = [
+        'entity_id' => $minorEntityId,
+        'entity_name' => $minorName,
+        'great_house_id' => $greatId,
+        'capital_pid' => $minorCapitalPid,
+        'province_pids' => $minorProvincePids,
+      ];
+      $ensureEntityRow($entityRows, $entityMetaById, $minorEntityId, $minorName, 'minor_houses', $year);
+    }
+  }
+
+  $minorByProvincePid = [];
+  foreach ($minorByKey as $minorKey => $minor) {
+    foreach ((array)($minor['province_pids'] ?? []) as $pid => $_) {
+      $minorByProvincePid[(int)$pid] = $minorKey;
+    }
+  }
+
   $provinceRows = [];
   $ledger = [];
+  $ledgerSeq = 0;
+  $minorGrossIncome = [];
+  $greatGrossIncome = [];
+  $greatKingdomById = [];
   foreach ($economyState as $eco) {
     if (!is_array($eco)) continue;
     $pid = (int)($eco['province_pid'] ?? 0);
     if ($pid <= 0) continue;
     $income = (float)($eco['income'] ?? 0.0);
     $expense = (float)($eco['expense'] ?? 0.0);
-    $tCfg = (array)($ruleset['treasury'] ?? []);
     $reserveAdd = round($income * (float)($tCfg['province_reserve_rate'] ?? 0.10), 2);
 
     $owner = '';
@@ -625,18 +716,41 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       break;
     }
 
-    $defaultTaxRate = (float)($tCfg['tax_rate'] ?? 0.35);
+    $greatHouseId = trim((string)($provinceByPid[$pid]['great_house_id'] ?? ''));
+    $minorHouseId = trim((string)($provinceByPid[$pid]['minor_house_id'] ?? ''));
+    $kingdomId = trim((string)($provinceByPid[$pid]['kingdom_id'] ?? ''));
+    if ($greatHouseId !== '' && $kingdomId !== '' && !isset($greatKingdomById[$greatHouseId])) {
+      $greatKingdomById[$greatHouseId] = $kingdomId;
+    }
+
+    $minorKey = '';
+    if ($greatHouseId !== '' && $minorHouseId !== '') {
+      $candidate = $greatHouseId . '::' . $minorHouseId;
+      if (isset($minorByKey[$candidate])) $minorKey = $candidate;
+    }
+    if ($minorKey === '' && isset($minorByProvincePid[$pid])) $minorKey = (string)$minorByProvincePid[$pid];
+
+    $defaultTaxRate = $defaultProvinceTaxRate;
     $taxRate = ($provinceTaxRate !== null && is_finite($provinceTaxRate) && $provinceTaxRate >= 0.0) ? $provinceTaxRate : $defaultTaxRate;
     $tax = round($income * $taxRate, 2);
 
-    $targetEntityId = (string)($ownerToEntityId[$owner] ?? '');
+    $targetEntityId = '';
+    if ($minorKey !== '' && isset($minorByKey[$minorKey])) {
+      $targetEntityId = (string)$minorByKey[$minorKey]['entity_id'];
+    } elseif ($greatHouseId !== '') {
+      $targetEntityId = 'great_houses:' . $greatHouseId;
+      $ensureEntityRow($entityRows, $entityMetaById, $targetEntityId, $greatHouseId, 'great_houses', $year);
+    } else {
+      $targetEntityId = (string)($ownerToEntityId[$owner] ?? '');
+    }
     $appliedTax = 0.0;
     if ($targetEntityId !== '' && isset($entityRows[$targetEntityId])) {
       $appliedTax = $tax;
       $entityRows[$targetEntityId]['income_tax'] = round(((float)$entityRows[$targetEntityId]['income_tax']) + $appliedTax, 2);
+      $ledgerSeq++;
       $ledger[] = [
         'turn_year' => $year,
-        'entry_id' => 'L-' . $year . '-P2E-' . $pid,
+        'entry_id' => 'L-' . $year . '-P2E-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
         'type' => 'province_to_entity_tax',
         'from' => 'province:' . $pid,
         'to' => 'entity:' . $targetEntityId,
@@ -645,6 +759,62 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
         'credit_account' => 'province:' . $pid,
         'reason' => 'tax_collection',
       ];
+
+      if (isset($entityMetaById[$targetEntityId]) && (($entityMetaById[$targetEntityId]['entity_type'] ?? '') === 'minor_houses')) {
+        $minorGrossIncome[$targetEntityId] = round(((float)($minorGrossIncome[$targetEntityId] ?? 0.0)) + $appliedTax, 2);
+      }
+      if (isset($entityMetaById[$targetEntityId]) && (($entityMetaById[$targetEntityId]['entity_type'] ?? '') === 'great_houses')) {
+        $greatGrossIncome[$targetEntityId] = round(((float)($greatGrossIncome[$targetEntityId] ?? 0.0)) + $appliedTax, 2);
+      }
+    }
+
+    if ($minorKey !== '' && isset($minorByKey[$minorKey])) {
+      $minor = $minorByKey[$minorKey];
+      $isMinorCapital = ((int)($minor['capital_pid'] ?? 0) > 0) && ((int)$minor['capital_pid'] === $pid);
+      $minorShare = round($income * ($isMinorCapital ? $minorCapitalIncomeShare : $minorProvinceIncomeShare), 2);
+      if ($minorShare > 0) {
+        $minorEntityId = (string)$minor['entity_id'];
+        $entityRows[$minorEntityId]['income_tax'] = round(((float)$entityRows[$minorEntityId]['income_tax']) + $minorShare, 2);
+        $minorGrossIncome[$minorEntityId] = round(((float)($minorGrossIncome[$minorEntityId] ?? 0.0)) + $minorShare, 2);
+        $ledgerSeq++;
+        $ledger[] = [
+          'turn_year' => $year,
+          'entry_id' => 'L-' . $year . '-P2M-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+          'type' => 'province_to_minor_income_share',
+          'from' => 'province:' . $pid,
+          'to' => 'entity:' . $minorEntityId,
+          'amount' => $minorShare,
+          'debit_account' => 'entity:' . $minorEntityId,
+          'credit_account' => 'province:' . $pid,
+          'reason' => $isMinorCapital ? 'minor_capital_income' : 'minor_vassal_income_share',
+        ];
+      }
+    } elseif ($greatHouseId !== '') {
+      $greatEntityId = 'great_houses:' . $greatHouseId;
+      $isUnassigned = ($minorHouseId === '' || $minorKey === '');
+      $inDomain = $isUnassigned;
+      if (isset($greatLayerById[$greatHouseId])) {
+        $inDomain = isset($greatLayerById[$greatHouseId]['domain_pids'][$pid]) || $isUnassigned;
+      }
+      if ($inDomain) {
+        $greatShare = round($income * $greatDomainIncomeShare, 2);
+        if ($greatShare > 0 && isset($entityRows[$greatEntityId])) {
+          $entityRows[$greatEntityId]['income_tax'] = round(((float)$entityRows[$greatEntityId]['income_tax']) + $greatShare, 2);
+          $greatGrossIncome[$greatEntityId] = round(((float)($greatGrossIncome[$greatEntityId] ?? 0.0)) + $greatShare, 2);
+          $ledgerSeq++;
+          $ledger[] = [
+            'turn_year' => $year,
+            'entry_id' => 'L-' . $year . '-P2G-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+            'type' => 'province_to_great_domain_income',
+            'from' => 'province:' . $pid,
+            'to' => 'entity:' . $greatEntityId,
+            'amount' => $greatShare,
+            'debit_account' => 'entity:' . $greatEntityId,
+            'credit_account' => 'province:' . $pid,
+            'reason' => 'great_domain_income',
+          ];
+        }
+      }
     }
 
     $net = round($income - $expense - $appliedTax - $reserveAdd, 2);
@@ -666,6 +836,67 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     ];
   }
 
+  foreach ($minorByKey as $minor) {
+    $minorEntityId = (string)($minor['entity_id'] ?? '');
+    if ($minorEntityId === '' || !isset($entityRows[$minorEntityId])) continue;
+    $greatHouseId = (string)($minor['great_house_id'] ?? '');
+    if ($greatHouseId === '') continue;
+    $greatEntityId = 'great_houses:' . $greatHouseId;
+    if (!isset($entityRows[$greatEntityId])) continue;
+    $minorIncomeBase = (float)($minorGrossIncome[$minorEntityId] ?? 0.0);
+    $tribute = round($minorIncomeBase * $minorToGreatRate, 2);
+    if ($tribute <= 0) continue;
+    $entityRows[$minorEntityId]['transfers_out'] = round(((float)$entityRows[$minorEntityId]['transfers_out']) + $tribute, 2);
+    $entityRows[$greatEntityId]['transfers_in'] = round(((float)$entityRows[$greatEntityId]['transfers_in']) + $tribute, 2);
+    $greatGrossIncome[$greatEntityId] = round(((float)($greatGrossIncome[$greatEntityId] ?? 0.0)) + $tribute, 2);
+    $ledgerSeq++;
+    $ledger[] = [
+      'turn_year' => $year,
+      'entry_id' => 'L-' . $year . '-M2G-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+      'type' => 'minor_to_great_tribute',
+      'from' => 'entity:' . $minorEntityId,
+      'to' => 'entity:' . $greatEntityId,
+      'amount' => $tribute,
+      'debit_account' => 'entity:' . $greatEntityId,
+      'credit_account' => 'entity:' . $minorEntityId,
+      'reason' => 'vassal_tribute',
+    ];
+  }
+
+  foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
+    if (!is_array($kingdom)) continue;
+    $kid = trim((string)$kingdomId);
+    if ($kid === '') continue;
+    $kingdomEntityId = 'kingdoms:' . $kid;
+    $kingdomName = (string)($kingdom['name'] ?? $kid);
+    $ensureEntityRow($entityRows, $entityMetaById, $kingdomEntityId, $kingdomName, 'kingdoms', $year);
+  }
+
+  foreach ($greatGrossIncome as $greatEntityId => $greatIncomeBase) {
+    if (!isset($entityRows[$greatEntityId])) continue;
+    $greatHouseId = preg_replace('/^great_houses:/', '', (string)$greatEntityId);
+    $kingdomId = (string)($greatKingdomById[$greatHouseId] ?? '');
+    if ($kingdomId === '') continue;
+    $kingdomEntityId = 'kingdoms:' . $kingdomId;
+    if (!isset($entityRows[$kingdomEntityId])) continue;
+    $payment = round((float)$greatIncomeBase * $greatToKingdomRate, 2);
+    if ($payment <= 0) continue;
+    $entityRows[$greatEntityId]['transfers_out'] = round(((float)$entityRows[$greatEntityId]['transfers_out']) + $payment, 2);
+    $entityRows[$kingdomEntityId]['transfers_in'] = round(((float)$entityRows[$kingdomEntityId]['transfers_in']) + $payment, 2);
+    $ledgerSeq++;
+    $ledger[] = [
+      'turn_year' => $year,
+      'entry_id' => 'L-' . $year . '-G2K-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+      'type' => 'great_to_kingdom_tithe',
+      'from' => 'entity:' . $greatEntityId,
+      'to' => 'entity:' . $kingdomEntityId,
+      'amount' => $payment,
+      'debit_account' => 'entity:' . $kingdomEntityId,
+      'credit_account' => 'entity:' . $greatEntityId,
+      'reason' => 'royal_tithe',
+    ];
+  }
+
   usort($provinceRows, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
 
   $entityIds = array_keys($entityRows);
@@ -674,47 +905,10 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   foreach ($entityIds as $eid) {
     $opening = (float)($entityRows[$eid]['opening_balance'] ?? 0.0);
     $incomeTax = (float)($entityRows[$eid]['income_tax'] ?? 0.0);
-    $subsidy = round($incomeTax * (float)((($ruleset['treasury'] ?? [])['entity_subsidy_rate'] ?? 0.12)), 2);
-    $entityRows[$eid]['subsidies_out'] = $subsidy;
-
-    if ($subsidy > 0) {
-      $ledger[] = [
-        'turn_year' => $year,
-        'entry_id' => 'L-' . $year . '-E2P-' . md5($eid),
-        'type' => 'entity_to_province_subsidy',
-        'from' => 'entity:' . $eid,
-        'to' => 'provinces_of:' . $eid,
-        'amount' => $subsidy,
-        'debit_account' => 'provinces_of:' . $eid,
-        'credit_account' => 'entity:' . $eid,
-        'reason' => 'infrastructure_subsidy',
-      ];
-    }
-
-    $entityRows[$eid]['closing_balance'] = round($opening + $incomeTax - $subsidy, 2);
-  }
-
-  if (count($entityIds) >= 2) {
-    $first = $entityIds[0];
-    $last = $entityIds[count($entityIds) - 1];
-    $transfer = round(min((float)$entityRows[$first]['closing_balance'] * (float)((($ruleset['treasury'] ?? [])['entity_transfer_rate'] ?? 0.01)), (float)((($ruleset['treasury'] ?? [])['entity_transfer_cap'] ?? 5.0))), 2);
-    if ($transfer > 0) {
-      $entityRows[$first]['transfers_out'] = $transfer;
-      $entityRows[$first]['closing_balance'] = round((float)$entityRows[$first]['closing_balance'] - $transfer, 2);
-      $entityRows[$last]['transfers_in'] = $transfer;
-      $entityRows[$last]['closing_balance'] = round((float)$entityRows[$last]['closing_balance'] + $transfer, 2);
-      $ledger[] = [
-        'turn_year' => $year,
-        'entry_id' => 'L-' . $year . '-E2E-' . md5($first . '>' . $last),
-        'type' => 'entity_to_entity_transfer',
-        'from' => 'entity:' . $first,
-        'to' => 'entity:' . $last,
-        'amount' => $transfer,
-        'debit_account' => 'entity:' . $last,
-        'credit_account' => 'entity:' . $first,
-        'reason' => 'obligation_payment',
-      ];
-    }
+    $subsidiesOut = (float)($entityRows[$eid]['subsidies_out'] ?? 0.0);
+    $transfersIn = (float)($entityRows[$eid]['transfers_in'] ?? 0.0);
+    $transfersOut = (float)($entityRows[$eid]['transfers_out'] ?? 0.0);
+    $entityRows[$eid]['closing_balance'] = round($opening + $incomeTax + $transfersIn - $subsidiesOut - $transfersOut, 2);
   }
 
   $entityOut = array_values($entityRows);
