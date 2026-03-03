@@ -19,8 +19,6 @@
   const turnActionStatus = el("turnActionStatus");
   const btnMakeTurn = el("btnMakeTurn");
   const btnRefreshTurn = el("btnRefreshTurn");
-  const btnOpenTreasuryView = el("btnOpenTreasuryView");
-  const btnOpenEntitiesView = el("btnOpenEntitiesView");
   const btnOpenTurnAdmin = el("btnOpenTurnAdmin");
 
   const colorInput = el("color");
@@ -1379,12 +1377,6 @@
   function boot(map) {
     if (btnRefreshTurn) btnRefreshTurn.addEventListener("click", () => { refreshTurnPanel().catch(() => {}); });
     if (btnMakeTurn) btnMakeTurn.addEventListener("click", () => { makeNextTurn().catch(() => {}); });
-    if (btnOpenTreasuryView) btnOpenTreasuryView.addEventListener("click", () => {
-      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=treasury', '_blank', 'noopener');
-    });
-    if (btnOpenEntitiesView) btnOpenEntitiesView.addEventListener("click", () => {
-      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=entities', '_blank', 'noopener');
-    });
     if (btnOpenTurnAdmin) btnOpenTurnAdmin.addEventListener("click", () => {
       window.open('turn_admin.html', '_blank', 'noopener');
     });
