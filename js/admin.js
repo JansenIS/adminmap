@@ -296,13 +296,21 @@
       const processedVersion = String(processed && processed.turn && processed.turn.version || createdVersion);
       turnActionStatus.textContent = `Экономика для хода ${targetYear} посчитана, публикую…`;
 
-      await turnApi('/api/turns/publish/', {
+      const publishRes = await turnApi('/api/turns/publish/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': processedVersion },
         body: JSON.stringify({ turn_year: targetYear, if_match: processedVersion })
       });
+      const publishedVersion = String(publishRes && publishRes.turn && publishRes.turn.version || processedVersion);
 
-      turnActionStatus.textContent = `Ход ${targetYear} опубликован.`;
+      turnActionStatus.textContent = `Ход ${targetYear} опубликован, обновляю map_state…`;
+      await turnApi('/api/turns/restore-state/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': publishedVersion },
+        body: JSON.stringify({ turn_year: targetYear, if_match: publishedVersion })
+      });
+
+      turnActionStatus.textContent = `Ход ${targetYear} опубликован и применён к карте.`;
       await refreshTurnPanel();
     } catch (err) {
       turnActionStatus.textContent = `Не удалось сделать ход: ${err && err.message ? err.message : err}`;
@@ -1380,10 +1388,10 @@
     if (btnRefreshTurn) btnRefreshTurn.addEventListener("click", () => { refreshTurnPanel().catch(() => {}); });
     if (btnMakeTurn) btnMakeTurn.addEventListener("click", () => { makeNextTurn().catch(() => {}); });
     if (btnOpenTreasuryView) btnOpenTreasuryView.addEventListener("click", () => {
-      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=treasury', '_blank', 'noopener');
+      window.open('/economics/sim-admin?tab=treasury', '_blank', 'noopener');
     });
     if (btnOpenEntitiesView) btnOpenEntitiesView.addEventListener("click", () => {
-      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=entities', '_blank', 'noopener');
+      window.open('/economics/sim-admin?tab=entities', '_blank', 'noopener');
     });
     if (btnOpenTurnAdmin) btnOpenTurnAdmin.addEventListener("click", () => {
       window.open('turn_admin.html', '_blank', 'noopener');

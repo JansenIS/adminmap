@@ -2,65 +2,86 @@
   "default": {
     "version": "v1.2",
     "economy": {
-      "base_income_default": 10.0,
-      "base_income_mountain": 8.0,
-      "base_income_plains": 12.0,
-      "base_income_sea": 6.0,
+      "base_income_default": 1200.0,
+      "base_income_mountain": 950.0,
+      "base_income_plains": 1500.0,
+      "base_income_sea": 800.0,
       "year_mod_cycle": 5,
-      "expense_base": 4.0,
-      "expense_year_step": 0.5,
+      "expense_base": 420.0,
+      "expense_year_step": 75.0,
       "expense_year_cycle": 3
     },
     "treasury": {
       "tax_rate": 0.35,
-      "province_reserve_rate": 0.10,
-      "province_opening_income_share": 0.20,
+      "province_reserve_rate": 0.1,
+      "province_opening_income_share": 0.2,
       "entity_subsidy_rate": 0.12,
       "entity_transfer_rate": 0.01,
       "entity_transfer_cap": 5.0
+    },
+    "entity_economy": {
+      "base_treasury": 25000.0,
+      "per_province_treasury": 3500.0,
+      "year_step": 400.0,
+      "year_cycle": 7,
+      "reserve_rate": 0.2
     }
   },
   "by_version": {
     "v1.0": {
       "version": "v1.0",
       "economy": {
-        "base_income_default": 10.0,
-        "base_income_mountain": 8.0,
-        "base_income_plains": 12.0,
-        "base_income_sea": 6.0,
+        "base_income_default": 1200.0,
+        "base_income_mountain": 950.0,
+        "base_income_plains": 1500.0,
+        "base_income_sea": 800.0,
         "year_mod_cycle": 5,
-        "expense_base": 4.0,
-        "expense_year_step": 0.5,
+        "expense_base": 420.0,
+        "expense_year_step": 75.0,
         "expense_year_cycle": 3
       },
       "treasury": {
         "tax_rate": 0.33,
         "province_reserve_rate": 0.09,
-        "province_opening_income_share": 0.20,
-        "entity_subsidy_rate": 0.10,
+        "province_opening_income_share": 0.2,
+        "entity_subsidy_rate": 0.1,
         "entity_transfer_rate": 0.01,
         "entity_transfer_cap": 5.0
+      },
+      "entity_economy": {
+        "base_treasury": 25000.0,
+        "per_province_treasury": 3500.0,
+        "year_step": 400.0,
+        "year_cycle": 7,
+        "reserve_rate": 0.2
       }
     },
     "v1.2": {
       "version": "v1.2",
       "economy": {
-        "base_income_default": 10.0,
-        "base_income_mountain": 8.0,
-        "base_income_plains": 12.0,
-        "base_income_sea": 6.0,
+        "base_income_default": 1200.0,
+        "base_income_mountain": 950.0,
+        "base_income_plains": 1500.0,
+        "base_income_sea": 800.0,
         "year_mod_cycle": 5,
-        "expense_base": 4.0,
-        "expense_year_step": 0.5,
+        "expense_base": 420.0,
+        "expense_year_step": 75.0,
         "expense_year_cycle": 3
       },
       "treasury": {
         "tax_rate": 0.35,
-        "province_reserve_rate": 0.10,
-        "province_opening_income_share": 0.20,
+        "province_reserve_rate": 0.1,
+        "province_opening_income_share": 0.2,
         "entity_subsidy_rate": 0.12,
         "entity_transfer_rate": 0.01,
         "entity_transfer_cap": 5.0
+      },
+      "entity_economy": {
+        "base_treasury": 25000.0,
+        "per_province_treasury": 3500.0,
+        "year_step": 400.0,
+        "year_cycle": 7,
+        "reserve_rate": 0.2
       }
     }
   }
