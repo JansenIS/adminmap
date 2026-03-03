@@ -37,6 +37,9 @@ $response = [
   ],
   'entity_state' => $turn['entity_state'] ?? null,
   'economy_state' => $turn['economy_state'] ?? null,
+  'entity_treasury' => $turn['entity_treasury'] ?? null,
+  'province_treasury' => $turn['province_treasury'] ?? null,
+  'treasury_ledger' => $turn['treasury_ledger'] ?? null,
 ];
 
 if (isset($includeSet['state'])) {
@@ -54,6 +57,13 @@ if (isset($includeSet['economy'])) {
 if (isset($includeSet['events'])) {
   $response['events'] = $turn['events'] ?? [];
 }
+if (isset($includeSet['treasury'])) {
+  $response['treasury'] = [
+    'entity_treasury' => $turn['entity_treasury'] ?? null,
+    'province_treasury' => $turn['province_treasury'] ?? null,
+    'treasury_ledger' => $turn['treasury_ledger'] ?? null,
+  ];
+}
 if (isset($includeSet['snapshot_payload'])) {
   $phase = ((string)($_GET['phase'] ?? 'end') === 'start') ? 'start' : 'end';
   $snapshot = turn_api_load_snapshot($year, $phase);
@@ -67,6 +77,15 @@ if (isset($includeSet['snapshot_payload'])) {
       }
       if (is_array($payload['economy_state'] ?? null)) {
         $payload['economy_state'] = turn_api_compact_records($payload['economy_state']);
+      }
+      if (is_array($payload['entity_treasury'] ?? null)) {
+        $payload['entity_treasury'] = turn_api_compact_records($payload['entity_treasury']);
+      }
+      if (is_array($payload['province_treasury'] ?? null)) {
+        $payload['province_treasury'] = turn_api_compact_records($payload['province_treasury']);
+      }
+      if (is_array($payload['treasury_ledger'] ?? null)) {
+        $payload['treasury_ledger'] = turn_api_compact_records($payload['treasury_ledger']);
       }
     }
     $response['snapshot_payload'] = $payload;

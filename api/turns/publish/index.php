@@ -33,6 +33,10 @@ $econ = $turn['economy'] ?? [];
 if (($econ['status'] ?? '') !== 'processed') {
   turn_api_response(['error' => 'economy_not_processed', 'required_checkpoint' => 'checkpoint:economy_applied'], 409);
 }
+$treasuryLedger = $turn['treasury_ledger'] ?? [];
+if (($treasuryLedger['status'] ?? '') !== 'processed') {
+  turn_api_response(['error' => 'treasury_not_processed', 'required_checkpoint' => 'checkpoint:economy_applied'], 409);
+}
 
 $startSnap = turn_api_load_snapshot($year, 'start');
 if (!is_array($startSnap) || !is_array($startSnap['payload']['world_state'] ?? null)) {
@@ -42,6 +46,7 @@ if (!is_array($startSnap) || !is_array($startSnap['payload']['world_state'] ?? n
 $worldState = $startSnap['payload']['world_state'];
 $entityState = turn_api_compute_entity_state($worldState, $year);
 $economyState = turn_api_compute_economy_state($worldState, $year);
+$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year);
 $turn['map_artifacts'] = turn_api_build_map_artifacts();
 $overlayPayload = turn_api_compute_overlay_payload($entityState, $economyState, (array)($turn['economy'] ?? []));
 $overlayArtifact = turn_api_write_overlay_artifact($year, $overlayPayload);
@@ -53,6 +58,9 @@ $endRef = turn_api_save_snapshot($year, 'end', [
   'world_state' => $worldState,
   'entity_state' => $entityState,
   'economy_state' => $economyState,
+  'entity_treasury' => $treasury['entity_treasury_rows'],
+  'province_treasury' => $treasury['province_treasury_rows'],
+  'treasury_ledger' => $treasury['ledger_rows'],
   'map_artifacts' => $turn['map_artifacts'],
   'economy_summary' => $turn['economy'] ?? null,
 ]);
@@ -70,6 +78,21 @@ $turn['economy_state'] = [
   'status' => 'published',
   'records' => count($economyState),
   'checksum' => hash('sha256', json_encode($economyState, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+];
+$turn['entity_treasury'] = [
+  'status' => 'published',
+  'records' => (int)($treasury['summary']['entity_records'] ?? 0),
+  'checksum' => (string)($treasury['summary']['entity_treasury_checksum'] ?? ''),
+];
+$turn['province_treasury'] = [
+  'status' => 'published',
+  'records' => (int)($treasury['summary']['province_records'] ?? 0),
+  'checksum' => (string)($treasury['summary']['province_treasury_checksum'] ?? ''),
+];
+$turn['treasury_ledger'] = [
+  'status' => 'published',
+  'records' => (int)($treasury['summary']['ledger_records'] ?? 0),
+  'checksum' => (string)($treasury['summary']['ledger_checksum'] ?? ''),
 ];
 $turn['status'] = 'published';
 $turn['published_at'] = gmdate('c');
@@ -94,4 +117,7 @@ turn_api_response([
   'snapshot' => $saved['snapshot_end'] ?? null,
   'entity_state' => $saved['entity_state'] ?? null,
   'economy_state' => $saved['economy_state'] ?? null,
+  'entity_treasury' => $saved['entity_treasury'] ?? null,
+  'province_treasury' => $saved['province_treasury'] ?? null,
+  'treasury_ledger' => $saved['treasury_ledger'] ?? null,
 ], 200);

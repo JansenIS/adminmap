@@ -20,6 +20,9 @@ foreach (($index['turns'] ?? []) as $year) {
     'version' => (string)($turn['version'] ?? turn_api_turn_version($turn)),
     'entity_state_records' => (int)($turn['entity_state']['records'] ?? 0),
     'economy_state_records' => (int)($turn['economy_state']['records'] ?? 0),
+    'entity_treasury_records' => (int)($turn['entity_treasury']['records'] ?? 0),
+    'province_treasury_records' => (int)($turn['province_treasury']['records'] ?? 0),
+    'treasury_ledger_records' => (int)($turn['treasury_ledger']['records'] ?? 0),
     'published_at' => $turn['published_at'] ?? null,
   ];
 }

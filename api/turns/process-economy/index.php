@@ -37,6 +37,22 @@ $turn['economy_state'] = [
   'records' => count($computed['economy_state']),
   'checksum' => hash('sha256', json_encode($computed['economy_state'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
 ];
+
+$turn['entity_treasury'] = [
+  'status' => 'processed',
+  'records' => (int)($computed['treasury_summary']['entity_records'] ?? 0),
+  'checksum' => (string)($computed['treasury_summary']['entity_treasury_checksum'] ?? ''),
+];
+$turn['province_treasury'] = [
+  'status' => 'processed',
+  'records' => (int)($computed['treasury_summary']['province_records'] ?? 0),
+  'checksum' => (string)($computed['treasury_summary']['province_treasury_checksum'] ?? ''),
+];
+$turn['treasury_ledger'] = [
+  'status' => 'processed',
+  'records' => (int)($computed['treasury_summary']['ledger_records'] ?? 0),
+  'checksum' => (string)($computed['treasury_summary']['ledger_checksum'] ?? ''),
+];
 $turn['events'][] = [
   'category' => 'economy',
   'event_type' => 'economy_processed',
@@ -62,4 +78,7 @@ turn_api_response([
   ],
   'entity_state' => $saved['entity_state'] ?? null,
   'economy_state' => $saved['economy_state'] ?? null,
+  'entity_treasury' => $saved['entity_treasury'] ?? null,
+  'province_treasury' => $saved['province_treasury'] ?? null,
+  'treasury_ledger' => $saved['treasury_ledger'] ?? null,
 ], 200);
