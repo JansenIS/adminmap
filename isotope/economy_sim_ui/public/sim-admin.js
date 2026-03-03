@@ -59,9 +59,66 @@ const UI = {
 const ctx = UI.canvas.getContext("2d", { willReadFrequently: true });
 
 async function api(path, opts) {
-  const res = await fetch(path, opts);
+  const requestPath = resolveApiPath(path);
+  const res = await fetch(requestPath, opts);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
+}
+
+function resolveApiPath(path) {
+  if (typeof path !== "string" || !path.startsWith("/api/")) return path;
+  const economicsBase = detectEconomicsBasePath();
+  if (!economicsBase) return path;
+  return `${economicsBase}${path}`;
+}
+
+function detectEconomicsBasePath() {
+  const pathname = String(window.location.pathname || "");
+  const marker = "/economics";
+  const idx = pathname.indexOf(marker);
+  if (idx < 0) return "";
+  const after = pathname.slice(idx + marker.length);
+  if (after && !after.startsWith("/")) return "";
+  return pathname.slice(0, idx + marker.length);
+}
+
+
+function detectAdminRootPrefix() {
+  const economicsBase = detectEconomicsBasePath();
+  if (!economicsBase) return "";
+  return economicsBase.endsWith("/economics")
+    ? economicsBase.slice(0, -"/economics".length)
+    : "";
+}
+
+async function tryLoadAdminProvinceIndex() {
+  const prefix = detectAdminRootPrefix();
+  const path = `${prefix}/api/provinces/?limit=500&profile=compact`;
+  try {
+    const payload = await fetch(path, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    return new Map(items.map((row) => [Number(row?.pid), row]).filter(([pid]) => Number.isFinite(pid) && pid > 0));
+  } catch {
+    return new Map();
+  }
+}
+
+function enrichRowsWithAdminProvinces(rows, adminByPid) {
+  if (!Array.isArray(rows) || !(adminByPid instanceof Map) || adminByPid.size === 0) return rows;
+  return rows.map((row) => {
+    const pid = Number(row?.pid);
+    const admin = adminByPid.get(pid);
+    if (!admin) return row;
+    return {
+      ...row,
+      name: (typeof admin.name === "string" && admin.name.trim()) ? admin.name.trim() : row.name,
+      terrain: (typeof admin.terrain === "string" && admin.terrain.trim()) ? admin.terrain.trim() : row.terrain,
+      kingdom_id: (typeof admin.kingdom_id === "string" && admin.kingdom_id.trim()) ? admin.kingdom_id.trim() : row.kingdom_id,
+      great_house_id: (typeof admin.great_house_id === "string" && admin.great_house_id.trim()) ? admin.great_house_id.trim() : row.great_house_id,
+      minor_house_id: (typeof admin.minor_house_id === "string" && admin.minor_house_id.trim()) ? admin.minor_house_id.trim() : row.minor_house_id,
+      free_city_id: (typeof admin.free_city_id === "string" && admin.free_city_id.trim()) ? admin.free_city_id.trim() : row.free_city_id,
+    };
+  });
 }
 
 function fmtMoney(v) {
@@ -566,7 +623,8 @@ async function loadAll() {
   const payload = await api("/api/admin/map-sync");
   state.buildingCatalog = Array.isArray(payload.buildingCatalog) ? payload.buildingCatalog : [];
   renderBuildingCatalogSelect();
-  state.rows = payload.provinces || [];
+  const adminByPid = await tryLoadAdminProvinceIndex();
+  state.rows = enrichRowsWithAdminProvinces(payload.provinces || [], adminByPid);
   state.realmColorsByMode = buildRealmColorMaps(payload.realms || {});
   if (Array.isArray(payload.realms?.free_cities)) {
     state.realmColorsByMode.free_cities = new Map(payload.realms.free_cities
@@ -747,5 +805,6 @@ const initTab = (() => {
 
 setActiveTab(initTab);
 loadAll().catch((e) => {
-  UI.saveStatus.textContent = `Ошибка: ${e.message}`;
+  const msg = e && e.message ? e.message : String(e || "unknown_error");
+  UI.saveStatus.textContent = `Ошибка: ${msg}`;
 });

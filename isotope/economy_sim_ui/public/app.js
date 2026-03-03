@@ -64,12 +64,66 @@ function fmtNum(x, digits = 2) {
 }
 
 async function api(path) {
-  const r = await fetch(path, { cache: "no-store" });
+  const requestPath = resolveApiPath(path);
+  const r = await fetch(requestPath, { cache: "no-store" });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`${r.status} ${r.statusText}: ${t}`);
   }
   return r.json();
+}
+
+function resolveApiPath(path) {
+  if (typeof path !== "string" || !path.startsWith("/api/")) return path;
+  const economicsBase = detectEconomicsBasePath();
+  if (!economicsBase) return path;
+  return `${economicsBase}${path}`;
+}
+
+function detectEconomicsBasePath() {
+  const pathname = String(window.location.pathname || "");
+  const marker = "/economics";
+  const idx = pathname.indexOf(marker);
+  if (idx < 0) return "";
+  const after = pathname.slice(idx + marker.length);
+  if (after && !after.startsWith("/")) return "";
+  return pathname.slice(0, idx + marker.length);
+}
+
+
+function detectAdminRootPrefix() {
+  const economicsBase = detectEconomicsBasePath();
+  if (!economicsBase) return "";
+  return economicsBase.endsWith("/economics")
+    ? economicsBase.slice(0, -"/economics".length)
+    : "";
+}
+
+async function tryLoadAdminProvinceIndex() {
+  const prefix = detectAdminRootPrefix();
+  const path = `${prefix}/api/provinces/?limit=500&profile=compact`;
+  try {
+    const payload = await fetch(path, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    return new Map(items.map((row) => [Number(row?.pid), row]).filter(([pid]) => Number.isFinite(pid) && pid > 0));
+  } catch {
+    return new Map();
+  }
+}
+
+function enrichMetaWithAdminProvinces(meta, adminByPid) {
+  if (!meta || !Array.isArray(meta.provinces) || !(adminByPid instanceof Map) || adminByPid.size === 0) return meta;
+  meta.provinces = meta.provinces.map((row) => {
+    const pid = Number(row?.pid);
+    const admin = adminByPid.get(pid);
+    if (!admin) return row;
+    return {
+      ...row,
+      name: (typeof admin.name === "string" && admin.name.trim()) ? admin.name.trim() : row.name,
+      terrain: (typeof admin.terrain === "string" && admin.terrain.trim()) ? admin.terrain.trim() : row.terrain,
+    };
+  });
+  return meta;
 }
 
 function setRunning(isRunning) {
@@ -307,6 +361,8 @@ function renderProvinceDetail(p) {
 
 async function loadMeta() {
   META = await api("/api/meta");
+  const adminByPid = await tryLoadAdminProvinceIndex();
+  META = enrichMetaWithAdminProvinces(META, adminByPid);
 
   if (UI.seed) { UI.seed.value = String(META.config?.seed ?? 1); UI.seed.disabled = true; }
   if (UI.transport) { UI.transport.value = String(META.config?.transportUnitCost ?? 0.35); UI.transport.disabled = true; }

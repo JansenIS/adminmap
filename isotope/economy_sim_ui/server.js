@@ -824,8 +824,8 @@ const server = http.createServer((req, res) => {
 
         return sendJson(res, 200, {
           map: {
-            image: "/admin-assets/map.png",
-            mask: "/admin-assets/provinces_id.png",
+            image: "./admin-assets/map.png",
+            mask: "./admin-assets/provinces_id.png",
             width: Number((readPngSize(mapImagePath)?.width) || adminMapProvinceMeta.image?.width || 0),
             height: Number((readPngSize(mapImagePath)?.height) || adminMapProvinceMeta.image?.height || 0),
           },
