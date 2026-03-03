@@ -11,6 +11,7 @@ $payload = turn_api_request_payload();
 $sourceYear = (int)($payload['source_turn_year'] ?? 0);
 $targetYear = (int)($payload['target_turn_year'] ?? 0);
 $rulesetVersion = trim((string)($payload['ruleset_version'] ?? 'v1.0'));
+$preferMapState = filter_var($payload['prefer_map_state'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 if ($sourceYear < 0 || $targetYear <= 0 || $targetYear <= $sourceYear) {
   turn_api_response(['error' => 'invalid_payload', 'required' => ['source_turn_year:int>=0', 'target_turn_year:int>source', 'ruleset_version:string']], 400);
@@ -28,7 +29,7 @@ if (in_array($targetYear, array_map('intval', $index['turns']), true)) {
   turn_api_response(['error' => 'turn_already_exists', 'year' => $targetYear], 409);
 }
 
-$turn = turn_api_build_base_turn($sourceYear, $targetYear, $rulesetVersion);
+$turn = turn_api_build_base_turn($sourceYear, $targetYear, $rulesetVersion, (bool)$preferMapState);
 if (!turn_api_save_turn($turn)) {
   turn_api_response(['error' => 'write_failed'], 500);
 }
