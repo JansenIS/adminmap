@@ -216,6 +216,7 @@ function turn_api_turn_version(array $turn): string {
     'entity_treasury' => $turn['entity_treasury'] ?? null,
     'province_treasury' => $turn['province_treasury'] ?? null,
     'treasury_ledger' => $turn['treasury_ledger'] ?? null,
+    'treaties' => $turn['treaties'] ?? null,
     'snapshot_start' => $turn['snapshot_start']['checksum'] ?? null,
     'snapshot_end' => $turn['snapshot_end']['checksum'] ?? null,
   ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -358,8 +359,128 @@ function turn_api_compute_entity_state(array $state, int $year): array {
   return $out;
 }
 
+function turn_api_state_treaties(array $state): array {
+  $rows = $state['treaties'] ?? null;
+  if (!is_array($rows)) return [];
+
+  $out = [];
+  foreach ($rows as $row) {
+    if (!is_array($row)) continue;
+    $id = trim((string)($row['id'] ?? ''));
+    if ($id === '') continue;
+    $out[] = $row;
+  }
+  return $out;
+}
+
+function turn_api_treaty_modifiers(array $row): array {
+  $mods = is_array($row['modifiers'] ?? null) ? (array)$row['modifiers'] : [];
+  return [
+    'tax_modifier' => is_numeric($mods['tax_modifier'] ?? null) ? (float)$mods['tax_modifier'] : 0.0,
+    'trade_flow' => is_numeric($mods['trade_flow'] ?? null) ? (float)$mods['trade_flow'] : 0.0,
+    'tariffs' => is_numeric($mods['tariffs'] ?? null) ? (float)$mods['tariffs'] : 0.0,
+    'subsidies' => is_numeric($mods['subsidies'] ?? null) ? (float)$mods['subsidies'] : 0.0,
+  ];
+}
+
+function turn_api_treaty_status_for_year(array $row, int $year): string {
+  $effectiveYear = (int)($row['effective_year'] ?? 0);
+  $durationYears = (int)($row['duration_years'] ?? 0);
+  $breachYear = (int)($row['breach_year'] ?? 0);
+
+  if ($effectiveYear <= 0 || $year < $effectiveYear) return 'draft';
+  if ($breachYear > 0 && $year >= $breachYear) return 'breached';
+  if ($durationYears > 0 && $year >= ($effectiveYear + $durationYears)) return 'expired';
+  return 'active';
+}
+
+function turn_api_treaty_effects_by_entity(array $state, int $year): array {
+  $entityRows = turn_api_realm_entity_rows($state);
+  $entityNames = [];
+  foreach ($entityRows as $entityRow) {
+    if (!is_array($entityRow)) continue;
+    $entityNames[(string)($entityRow['name'] ?? '')] = (string)($entityRow['entity_id'] ?? '');
+  }
+
+  $effects = [];
+  foreach (turn_api_state_treaties($state) as $treaty) {
+    $status = turn_api_treaty_status_for_year($treaty, $year);
+    if ($status !== 'active') continue;
+
+    $sidesRaw = is_array($treaty['sides'] ?? null) ? (array)$treaty['sides'] : [];
+    $sides = [];
+    foreach ($sidesRaw as $sideRaw) {
+      $side = trim((string)$sideRaw);
+      if ($side === '') continue;
+      if (isset($entityNames[$side]) && $entityNames[$side] !== '') $side = (string)$entityNames[$side];
+      $sides[$side] = true;
+    }
+    if (count($sides) < 2) continue;
+
+    $mods = turn_api_treaty_modifiers($treaty);
+    foreach (array_keys($sides) as $entityId) {
+      if (!isset($effects[$entityId])) {
+        $effects[$entityId] = [
+          'tax_modifier' => 0.0,
+          'trade_flow' => 0.0,
+          'tariffs' => 0.0,
+          'subsidies' => 0.0,
+          'treaty_ids' => [],
+        ];
+      }
+      $effects[$entityId]['tax_modifier'] += $mods['tax_modifier'];
+      $effects[$entityId]['trade_flow'] += $mods['trade_flow'];
+      $effects[$entityId]['tariffs'] += $mods['tariffs'];
+      $effects[$entityId]['subsidies'] += $mods['subsidies'];
+      $effects[$entityId]['treaty_ids'][] = (string)$treaty['id'];
+    }
+  }
+
+  foreach ($effects as $entityId => $effect) {
+    $effects[$entityId]['tax_modifier'] = round((float)$effect['tax_modifier'], 4);
+    $effects[$entityId]['trade_flow'] = round((float)$effect['trade_flow'], 4);
+    $effects[$entityId]['tariffs'] = round((float)$effect['tariffs'], 4);
+    $effects[$entityId]['subsidies'] = round((float)$effect['subsidies'], 4);
+    $effects[$entityId]['treaty_ids'] = array_values(array_unique(array_map('strval', (array)$effect['treaty_ids'])));
+  }
+
+  return $effects;
+}
+
+function turn_api_treaty_lifecycle_events(array $state, int $year): array {
+  $events = [];
+  foreach (turn_api_state_treaties($state) as $treaty) {
+    $id = (string)($treaty['id'] ?? '');
+    if ($id === '') continue;
+    $status = turn_api_treaty_status_for_year($treaty, $year);
+    $prevStatus = turn_api_treaty_status_for_year($treaty, $year - 1);
+    if ($status === $prevStatus) continue;
+
+    $events[] = [
+      'category' => 'diplomacy',
+      'event_type' => 'treaty_status_changed',
+      'payload' => [
+        'turn_year' => $year,
+        'treaty_id' => $id,
+        'treaty_type' => (string)($treaty['type'] ?? ''),
+        'previous_status' => $prevStatus,
+        'status' => $status,
+      ],
+      'occurred_at' => gmdate('c'),
+    ];
+  }
+  return $events;
+}
+
 function turn_api_compute_economy_state(array $state, int $year, array $ruleset): array {
   $hexCountsByPid = turn_api_hex_counts_by_pid();
+  $entityRows = turn_api_realm_entity_rows($state);
+  $ownerToEntityId = [];
+  foreach ($entityRows as $entityRow) {
+    if (!is_array($entityRow)) continue;
+    $ownerToEntityId[(string)($entityRow['name'] ?? '')] = (string)($entityRow['entity_id'] ?? '');
+  }
+  $treatyEffectsByEntity = turn_api_treaty_effects_by_entity($state, $year);
   $ecoCfg = (array)($ruleset['economy'] ?? []);
   $terrainIncome = (array)($ecoCfg['terrain_income_coefficients'] ?? []);
   $terrainExpense = (array)($ecoCfg['terrain_expense_coefficients'] ?? []);
@@ -400,6 +521,18 @@ function turn_api_compute_economy_state(array $state, int $year, array $ruleset)
     $income = ($incomeFromHexes + $incomeFromPopulation) * (1.0 + ($incomeNoise * $incomeRandomSwing));
     $expense = $expenseFromHexes * (1.0 + ($expenseNoise * $expenseRandomSwing));
 
+    $owner = trim((string)($prov['owner'] ?? ''));
+    $entityId = (string)($ownerToEntityId[$owner] ?? '');
+    $treatyMods = is_array($treatyEffectsByEntity[$entityId] ?? null) ? $treatyEffectsByEntity[$entityId] : null;
+    if (is_array($treatyMods)) {
+      $tariffRate = max(0.0, min(0.95, (float)($treatyMods['tariffs'] ?? 0.0)));
+      $incomeMult = (1.0 + (float)($treatyMods['tax_modifier'] ?? 0.0))
+        * (1.0 + (float)($treatyMods['trade_flow'] ?? 0.0))
+        * (1.0 + (float)($treatyMods['subsidies'] ?? 0.0))
+        * (1.0 - $tariffRate);
+      $income = $income * max(0.0, $incomeMult);
+    }
+
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
@@ -416,6 +549,14 @@ function turn_api_compute_economy_state(array $state, int $year, array $ruleset)
         'river_trade' => $isRiver,
         'income_noise' => round($incomeNoise, 4),
         'expense_noise' => round($expenseNoise, 4),
+        'treaty_effects' => $treatyMods ? [
+          'entity_id' => $entityId,
+          'tax_modifier' => round((float)($treatyMods['tax_modifier'] ?? 0.0), 4),
+          'trade_flow' => round((float)($treatyMods['trade_flow'] ?? 0.0), 4),
+          'tariffs' => round((float)($treatyMods['tariffs'] ?? 0.0), 4),
+          'subsidies' => round((float)($treatyMods['subsidies'] ?? 0.0), 4),
+          'treaty_ids' => array_values((array)($treatyMods['treaty_ids'] ?? [])),
+        ] : null,
       ],
     ];
   }
@@ -499,10 +640,12 @@ function turn_api_source_state_for_new_turn(int $sourceYear, bool $preferMapStat
 
 function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rulesetVersion, bool $preferMapState = false): array {
   $worldState = turn_api_source_state_for_new_turn($sourceYear, $preferMapState);
+  $treaties = turn_api_state_treaties($worldState);
   $startSnapshotRef = turn_api_save_snapshot($targetYear, 'start', [
     'world_state' => $worldState,
     'entity_state' => turn_api_compute_entity_state($worldState, $targetYear),
     'economy_state' => turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])),
+    'treaties' => $treaties,
     'source_turn_year' => $sourceYear,
   ]);
   if (!is_array($startSnapshotRef)) {
@@ -524,6 +667,12 @@ function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rule
     'entity_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
     'province_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
     'treasury_ledger' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
+    'treaties' => [
+      'status' => 'captured_start',
+      'records' => count($treaties),
+      'active_records' => count(array_filter($treaties, static fn($row) => turn_api_treaty_status_for_year((array)$row, $targetYear) === 'active')),
+      'checksum' => hash('sha256', json_encode($treaties, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+    ],
     'map_artifacts' => [],
     'events' => [],
   ];
@@ -536,6 +685,7 @@ function turn_api_compute_economy_for_turn(array $turn): array {
 
   $ruleset = turn_api_ruleset_for_turn($turn);
   $entityState = turn_api_compute_entity_state($state, $year);
+  $treaties = turn_api_state_treaties($state);
   $economyState = turn_api_compute_economy_state($state, $year, $ruleset);
   $economy = turn_api_compute_economy_summary($economyState);
   $economy['ruleset_version'] = (string)($ruleset['version'] ?? '');
@@ -549,6 +699,8 @@ function turn_api_compute_economy_for_turn(array $turn): array {
     'province_treasury_rows' => $treasury['province_treasury_rows'],
     'ledger_rows' => $treasury['ledger_rows'],
     'treasury_summary' => $treasury['summary'],
+    'treaties' => $treaties,
+    'treaty_events' => turn_api_treaty_lifecycle_events($state, $year),
   ];
 }
 

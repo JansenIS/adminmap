@@ -40,6 +40,7 @@ $response = [
   'entity_treasury' => $turn['entity_treasury'] ?? null,
   'province_treasury' => $turn['province_treasury'] ?? null,
   'treasury_ledger' => $turn['treasury_ledger'] ?? null,
+  'treaties' => $turn['treaties'] ?? null,
 ];
 
 if (isset($includeSet['state'])) {
@@ -62,6 +63,7 @@ if (isset($includeSet['treasury'])) {
     'entity_treasury' => $turn['entity_treasury'] ?? null,
     'province_treasury' => $turn['province_treasury'] ?? null,
     'treasury_ledger' => $turn['treasury_ledger'] ?? null,
+    'treaties' => $turn['treaties'] ?? null,
   ];
 }
 if (isset($includeSet['snapshot_payload'])) {
