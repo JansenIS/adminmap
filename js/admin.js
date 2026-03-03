@@ -226,6 +226,16 @@
     return Math.round(n).toLocaleString('ru-RU');
   }
 
+  async function turnApi(path, options) {
+    const resp = await fetch(path, options);
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const err = body && (body.error || body.message) ? `${body.error || body.message}` : `HTTP ${resp.status}`;
+      throw new Error(err);
+    }
+    return body;
+  }
+
   async function economyApi(path, options) {
     const resp = await fetch(`/economics${path}`, options);
     const body = await resp.json().catch(() => ({}));
@@ -265,42 +275,114 @@
 
   async function refreshTurnPanel() {
     if (!turnCurrentYear) return;
-    turnActionStatus.textContent = 'Обновляю данные экономики…';
+    turnActionStatus.textContent = 'Обновляю данные по ходу…';
     try {
-      const [summary, sync] = await Promise.all([
-        economyApi('/api/summary', { cache: 'no-store' }),
-        economyApi('/api/admin/map-sync', { cache: 'no-store' }),
-      ]);
-      const day = Number(summary && summary.day || 0);
-      const year = Math.floor(day / 365) + 1;
-      turnCurrentYear.textContent = `${year} (day ${day})`;
-      turnCurrentStatus.textContent = 'economy-sim';
+      const listBody = await turnApi('/api/turns/?published_only=1', { cache: 'no-store' });
+      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
+      const published = items.length ? items[items.length - 1] : null;
+      if (!published || !Number.isFinite(Number(published.year))) {
+        turnCurrentYear.textContent = '—';
+        turnCurrentStatus.textContent = 'published ходов нет';
+        turnTreasuryProvSum.textContent = '—';
+        turnTreasuryEntitySum.textContent = '—';
+        turnActionStatus.textContent = 'Пока нет опубликованных ходов. Нажми «Сделать ход».';
+        return;
+      }
 
-      const provinceRows = Array.isArray(sync && sync.provinces) ? sync.provinces : [];
-      const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.treasury || 0), 0);
-      const entityRows = Array.isArray(sync && sync.entityEconomy && sync.entityEconomy.entities) ? sync.entityEconomy.entities : [];
-      const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.treasury || 0), 0);
+      const year = Number(published.year);
+      turnCurrentYear.textContent = String(year);
+      turnCurrentStatus.textContent = String(published.status || 'published');
+
+      const details = await turnApi(`/api/turns/show/?year=${encodeURIComponent(year)}&include=snapshot_payload&full=1`, { cache: 'no-store' });
+      const payload = details && details.snapshot_payload && typeof details.snapshot_payload === 'object' ? details.snapshot_payload : null;
+      const provinceRows = Array.isArray(payload && payload.province_treasury) ? payload.province_treasury : [];
+      const entityRows = Array.isArray(payload && payload.entity_treasury) ? payload.entity_treasury : [];
+      const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+      const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
       turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
       turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
-      applyEconomySyncRowsToState(provinceRows);
-      setSelection(selectedKey, null);
-      turnActionStatus.textContent = `Синхронизировано из economy sim: год ${year}.`;
+      turnActionStatus.textContent = `Показан published ход ${year}.`;
     } catch (err) {
-      turnActionStatus.textContent = `Не удалось загрузить данные economy sim: ${err && err.message ? err.message : err}`;
+      turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
     }
+  }
+
+  function buildEconomySimPayload(preSync, postSync, summary, years) {
+    return {
+      years,
+      summary: {
+        day: Number(summary && summary.day || 0),
+        year: Math.floor(Number(summary && summary.day || 0) / 365) + 1,
+      },
+      pre: {
+        provinces: Array.isArray(preSync && preSync.provinces) ? preSync.provinces : [],
+      },
+      post: {
+        provinces: Array.isArray(postSync && postSync.provinces) ? postSync.provinces : [],
+      },
+    };
   }
 
   async function makeNextTurn() {
     if (!btnMakeTurn) return;
     btnMakeTurn.disabled = true;
     const years = getStepYears();
-    turnActionStatus.textContent = `Экономический шаг: ${years} год(а)…`;
+    turnActionStatus.textContent = `Делаю ход: шаг экономики (${years} год/лет)…`;
     try {
+      const preSync = await economyApi('/api/admin/map-sync', { cache: 'no-store' });
       await economyApi(`/api/tick?years=${encodeURIComponent(years)}`, { method: 'GET', cache: 'no-store' });
+      const [postSync, summary] = await Promise.all([
+        economyApi('/api/admin/map-sync', { cache: 'no-store' }),
+        economyApi('/api/summary', { cache: 'no-store' }),
+      ]);
+
+      applyEconomySyncRowsToState(Array.isArray(postSync && postSync.provinces) ? postSync.provinces : []);
+      setSelection(selectedKey, null);
+
+      const listBody = await turnApi('/api/turns/', { cache: 'no-store' });
+      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
+      const published = items.filter((it) => String(it && it.status || '') === 'published');
+      const sourceYear = published.length ? Number(published[published.length - 1].year || 0) : 0;
+      const targetYear = sourceYear + 1;
+
+      const created = await turnApi('/api/turns/create-from-previous/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({ source_turn_year: sourceYear, target_turn_year: targetYear, ruleset_version: 'v1.0' })
+      });
+      const createdVersion = String(created && created.turn && created.turn.version || '');
+      turnActionStatus.textContent = `Ход ${targetYear} создан, пишу экономику из sim…`;
+
+      const processed = await turnApi('/api/turns/process-economy/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': createdVersion },
+        body: JSON.stringify({
+          turn_year: targetYear,
+          if_match: createdVersion,
+          economy_source: 'economy_sim',
+          economy_sim: buildEconomySimPayload(preSync, postSync, summary, years),
+        })
+      });
+      const processedVersion = String(processed && processed.turn && processed.turn.version || createdVersion);
+      turnActionStatus.textContent = `Экономика для хода ${targetYear} записана, публикую…`;
+
+      const publishRes = await turnApi('/api/turns/publish/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': processedVersion },
+        body: JSON.stringify({ turn_year: targetYear, if_match: processedVersion })
+      });
+      const publishedVersion = String(publishRes && publishRes.turn && publishRes.turn.version || processedVersion);
+
+      await turnApi('/api/turns/restore-state/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': publishedVersion },
+        body: JSON.stringify({ turn_year: targetYear, if_match: publishedVersion })
+      });
+
+      turnActionStatus.textContent = `Ход ${targetYear} опубликован и применён к карте.`;
       await refreshTurnPanel();
-      turnActionStatus.textContent = `Готово: выполнен шаг экономики на ${years} год(а), карта синхронизирована.`;
     } catch (err) {
-      turnActionStatus.textContent = `Не удалось выполнить шаг экономики: ${err && err.message ? err.message : err}`;
+      turnActionStatus.textContent = `Не удалось сделать ход: ${err && err.message ? err.message : err}`;
     } finally {
       btnMakeTurn.disabled = false;
     }
