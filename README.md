@@ -138,6 +138,25 @@ curl -I -H 'Accept-Encoding: br'   http://127.0.0.1/api/provinces/
 - `GET /api/jobs/list/?offset=&limit=`
 - `POST /api/jobs/run-once/`
 
+Stage 1 (snapshot/turn engine) endpoints:
+- `GET /api/turns/`
+- `POST /api/turns/create-from-previous/`
+- `POST /api/turns/process-economy/`
+- `POST /api/turns/publish/`
+- `GET /api/turns/show/?year=302&include=state,map_artifacts,economy,events,treasury,snapshot_payload`
+- `GET /api/turns/load/?year=302` (только published: отдает полный `WorldSnapshot`)
+- `POST /api/turns/rollback/` (policy: только published turn и без published successors)
+- `POST /api/turns/restore-state/` (опционально: восстановить `data/map_state.json` из published snapshot, требует `If-Match` текущего state)
+
+Примечание: для первого хода допустим bootstrap-вызов `source_turn_year=0`, `target_turn_year=1`.
+Переход к Stage 1: ручной reset/настройки симуляции в ходе заменяются обработкой через `/api/turns/process-economy/` и публикацией хода.
+
+Stage 2 treasury:
+- `process-economy` теперь синхронно считает `entity_treasury`, `province_treasury`, `treasury_ledger` в привязке к `turn_year`.
+- `publish` сохраняет treasury-данные в `snapshot_end` для воспроизводимого восстановления.
+- Финансовые коэффициенты берутся из versioned ruleset: `data/turn_rulesets.json` (`default` + `by_version`).
+- Проверки: `bash tools/contract_turn_stage2.sh` и `bash tools/e2e_turn_treasury_invariants.sh`.
+
 Каждый JSON-ответ новых API теперь включает `meta` (`api_version`, `schema_version`) для договорённости контракта на период миграции.
 
 If-Match policy (current): write endpoint'ы (`PATCH /api/provinces/patch/`, `PATCH /api/realms/patch/`, `POST /api/changes/apply/`) требуют актуальный `If-Match` (или `if_match` в body fallback). При отсутствии — `428 if_match_required`, при рассинхроне — `412 version_conflict`.

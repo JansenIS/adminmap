@@ -302,9 +302,10 @@ function renderProvinceDetail(p) {
 async function loadMeta() {
   META = await api("/api/meta");
 
-  UI.seed.value = String(META.config?.seed ?? 1);
-  UI.transport.value = String(META.config?.transportUnitCost ?? 0.35);
-  UI.friction.value = String(META.config?.tradeFriction ?? 0.05);
+  if (UI.seed) { UI.seed.value = String(META.config?.seed ?? 1); UI.seed.disabled = true; }
+  if (UI.transport) { UI.transport.value = String(META.config?.transportUnitCost ?? 0.35); UI.transport.disabled = true; }
+  if (UI.friction) { UI.friction.value = String(META.config?.tradeFriction ?? 0.05); UI.friction.disabled = true; }
+  if (UI.btnReset) { UI.btnReset.disabled = true; UI.btnReset.title = "Сброс отключен: используйте ходовой движок /api/turns"; }
 
   renderProvinceList();
 }
@@ -335,17 +336,6 @@ async function tickOnce() {
   if (SELECTED_PID != null) await selectProvince(SELECTED_PID);
 }
 
-async function reset() {
-  const seed = Number.parseInt(UI.seed.value || "1", 10);
-  const transportUnitCost = Number.parseFloat(UI.transport.value || "0.35");
-  const tradeFriction = Number.parseFloat(UI.friction.value || "0.05");
-
-  const sum = await api(`/api/reset?seed=${encodeURIComponent(seed)}&transportUnitCost=${encodeURIComponent(transportUnitCost)}&tradeFriction=${encodeURIComponent(tradeFriction)}`);
-  renderSummary(sum);
-  await refreshTradeBalance();
-  await loadMeta();
-  if (SELECTED_PID != null) await selectProvince(SELECTED_PID);
-}
 
 function toggleRun() {
   if (RUN_TIMER) {
@@ -379,7 +369,6 @@ UI.onlyActive.addEventListener("change", () => {
 });
 
 UI.btnTick.addEventListener("click", () => tickOnce().catch((e) => alert(e.message)));
-UI.btnReset.addEventListener("click", () => reset().catch((e) => alert(e.message)));
 UI.btnRun.addEventListener("click", () => toggleRun());
 UI.tabMarket.addEventListener("click", () => setActiveTab("market"));
 UI.tabTradeBalance.addEventListener("click", () => {
