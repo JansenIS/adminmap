@@ -22,5 +22,5 @@
 ## Что осталось
 
 - Добавить правила treasury для будущих доменов (армия/дипломатия/контрибуции) поверх текущего ledger.
-- Встроить `tools/contract_turn_stage2.sh` и `tools/e2e_turn_treasury_invariants.sh` в основной CI pipeline.
+- CI checks подключены workflow `turn-stage2` (`.github/workflows/turn-stage2.yml`).
 - Ужесточить инварианты ledger до account-level (per-account opening/closing) при появлении расширенного chart of accounts.

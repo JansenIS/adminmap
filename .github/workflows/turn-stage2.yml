@@ -1,0 +1,76 @@
+name: turn-stage2
+
+on:
+  pull_request:
+    paths:
+      - 'api/lib/turn_api.php'
+      - 'api/turns/**'
+      - 'tools/ci_turn_replay_determinism.sh'
+      - 'tools/contract_turn_stage2.sh'
+      - 'tools/e2e_turn_treasury_invariants.sh'
+      - 'data/turn_rulesets.json'
+      - 'docs/turn-engine-stage2-status.md'
+      - '.github/workflows/turn-stage2.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'api/lib/turn_api.php'
+      - 'api/turns/**'
+      - 'tools/ci_turn_replay_determinism.sh'
+      - 'tools/contract_turn_stage2.sh'
+      - 'tools/e2e_turn_treasury_invariants.sh'
+      - 'data/turn_rulesets.json'
+      - '.github/workflows/turn-stage2.yml'
+
+jobs:
+  stage2-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Lint turn php files
+        run: |
+          php -l api/lib/turn_api.php
+          php -l api/turns/create-from-previous/index.php
+          php -l api/turns/process-economy/index.php
+          php -l api/turns/publish/index.php
+          php -l api/turns/show/index.php
+          php -l api/turns/load/index.php
+          php -l api/turns/rollback/index.php
+          php -l api/turns/restore-state/index.php
+          php -l api/turns/index.php
+
+      - name: Validate JSON contracts/ruleset
+        run: |
+          python -m json.tool docs/contracts/turn-engine-stage0.schema.json >/dev/null
+          python -m json.tool data/turn_rulesets.json >/dev/null
+
+      - name: JS syntax sanity
+        run: node --check isotope/economy_sim_ui/public/app.js
+
+      - name: Determinism replay
+        run: bash tools/ci_turn_replay_determinism.sh
+
+      - name: Stage2 contract checks
+        run: bash tools/contract_turn_stage2.sh
+
+      - name: Stage2 e2e ledger invariants
+        run: bash tools/e2e_turn_treasury_invariants.sh
