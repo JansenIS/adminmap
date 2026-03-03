@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>Isotope Battle Simulator — Turn-Based Field</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="wrap">
+    <aside class="side" aria-label="Панель управления">
+      <div class="hdr">
+        <div class="title">Isotope Battle Simulator</div>
+        <div class="sub">Пошаговый бой: движение → стрельба → ближний бой → мораль</div>
+      </div>
+
+
+      <div class="tabs">
+        <button class="tabBtn active" id="tabBattle">Бой</button>
+        <button class="tabBtn" id="tabMap">Карта</button>
+      </div>
+
+      <div class="panel">
+        <div id="battlePanel" class="panelBlock">
+
+
+        <div class="card">
+          <div class="cardTitle">Бой</div>
+          <div class="cardBody">
+            <div class="row">
+              <div class="tag phase" id="phaseTag">Фаза: подготовка</div>
+              <div class="tag" id="turnTag">Ход: 0</div>
+              <div class="tag blue" id="activeTag">Активный: —</div>
+            </div>
+
+            <div class="row">
+              <button class="btn" id="btnStart">Старт боя</button>
+              <button class="btn" id="btnNext" disabled>Следующая фаза</button>
+              <button class="btn" id="btnReset">Сброс</button>
+            </div>
+
+            <div class="row2">
+              <div>
+                <div class="lab">RP-бонус Синих (−3…+3)</div>
+                <input id="rpBlue" type="number" value="0" min="-3" max="3" step="1"/>
+              </div>
+              <div>
+                <div class="lab">RP-бонус Красных (−3…+3)</div>
+                <input id="rpRed" type="number" value="0" min="-3" max="3" step="1"/>
+              </div>
+            </div>
+
+            <div class="hint">
+              ПКМ + drag: двигать карту. Колесо: зум. ЛКМ: выбрать отряд. В движении активной стороны: ЛКМ + drag — перемещение, колесо над выбранным — поворот.
+              В стрельбе: выбери стрелка и кликни по цели в радиусе.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">Добавить отряд</div>
+          <div class="cardBody">
+            <div class="row">
+              <select id="unitType"></select>
+              <select id="side">
+                <option value="blue">Синие</option>
+                <option value="red">Красные</option>
+              </select>
+            </div>
+
+            <div class="row">
+              <select id="formation">
+                <option value="line">Линия</option>
+                <option value="block">Блок</option>
+                <option value="wedge">Клин</option>
+                <option value="sleeve">Рукава стрелков</option>
+                <option value="chatillon">Шатильон (круг копий)</option>
+              </select>
+            </div>
+
+            <div class="row2">
+              <div>
+                <div class="lab">Размер (люди/единицы)</div>
+                <input id="count" type="number" value="1000" min="1" step="1"/>
+              </div>
+              <div>
+                <div class="lab">Базовый размер</div>
+                <input id="baseCount" type="number" value="1000" min="1" step="1"/>
+              </div>
+            </div>
+
+            <div class="row2">
+              <div>
+                <div class="lab">Цена в XPL (за базовый размер)</div>
+                <input id="baseXpl" type="number" value="0.5" min="0" step="0.1"/>
+              </div>
+              <div>
+                <div class="lab">Текущий XPL (авто)</div>
+                <input id="xpl" type="text" value="0.50" readonly/>
+              </div>
+            </div>
+
+            <div class="row">
+              <input id="name" placeholder="Название отряда (опц.)"/>
+              <button class="btn" id="addUnit">Добавить</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="selCard" class="card" style="display:none;">
+          <div class="cardTitle" id="selTitle">Отряд</div>
+          <div class="cardBody">
+            <div class="kv"><span>Сторона</span><span id="selSide">—</span></div>
+            <div class="kv"><span>Размер</span><span id="selMen">—</span></div>
+            <div class="kv"><span>XPL</span><span id="selXpl">—</span></div>
+            <div class="kv"><span>Мораль</span><span id="selMorale">—</span></div>
+
+            <div class="hr"></div>
+
+            <div class="lab">Строй</div>
+            <select id="selFormation">
+              <option value="line">Линия</option>
+              <option value="block">Блок</option>
+              <option value="wedge">Клин</option>
+              <option value="sleeve">Рукава стрелков</option>
+              <option value="chatillon">Шатильон</option>
+            </select>
+            <button id="btnChangeFormationMove" class="btn btn-secondary" style="margin-top:8px; display:none;">Сменить строй (вместо движения)</button>
+
+            <div class="row2">
+              <div>
+                <div class="lab">Угол (°)</div>
+                <input id="selAngle" type="number" value="0" step="5"/>
+              </div>
+              <div>
+                <div class="lab">Мораль (ручн.)</div>
+                <input id="selMoraleEdit" type="number" value="0" step="1"/>
+              </div>
+            </div>
+
+            <div class="row">
+              <button class="btn" id="btnHeal">Восст. до базы</button>
+              <button class="btn" id="btnKill">−10%</button>
+              <button class="btn" id="btnRemove">Удалить</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">Отряды</div>
+          <div class="cardBody">
+            <div class="roster" id="roster"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">Журнал</div>
+          <div class="cardBody">
+            <div class="log" id="log"></div>
+          </div>
+        </div>
+
+      </div>
+        </div>
+
+        <div id="mapPanel" class="panelBlock" style="display:none;">
+          <div class="card">
+            <div class="cardTitle">Редактор карты</div>
+            <div class="cardBody">
+              <div class="row">
+                <button class="btn btnTiny active" id="mapToolSelect">Выбор</button>
+                <button class="btn btnTiny" id="mapToolRiver">Река</button>
+                <button class="btn btnTiny" id="mapToolHouse">Дом</button>
+                <button class="btn btnTiny" id="mapToolFort">Укрепление</button>
+                <button class="btn btnTiny" id="mapToolErase">Ластик</button>
+              </div>
+
+              <div class="row2">
+                <div>
+                  <div class="lab">Ширина реки</div>
+                  <input id="riverWidth" type="number" value="26" min="4" max="200" step="2"/>
+                </div>
+                <div>
+                  <div class="lab">Дом (W×H)</div>
+                  <div class="inline2">
+                    <input id="houseW" type="number" value="90" min="10" max="600" step="5"/>
+                    <input id="houseH" type="number" value="60" min="10" max="600" step="5"/>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row2">
+                <div>
+                  <div class="lab">Стены: толщина</div>
+                  <input id="fortThick" type="number" value="18" min="4" max="120" step="2"/>
+                </div>
+                <div>
+                  <div class="lab">Башни: радиус</div>
+                  <input id="towerR" type="number" value="22" min="4" max="160" step="2"/>
+                </div>
+              </div>
+
+              <div class="row">
+                <button class="btn" id="btnFinishDraw">Завершить</button>
+                <button class="btn" id="btnUndoPoint">Отменить точку</button>
+                <button class="btn" id="btnClearMap">Очистить</button>
+              </div>
+
+              <div class="hint small">
+                ЛКМ: рисовать/ставить/выбирать. Двойной клик — завершить рисование. ПКМ: двигать карту. Shift+колесо по дому — поворот.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cardTitle">Сохранение карты</div>
+            <div class="cardBody">
+              <div class="row">
+                <button class="btn" id="btnExportMap">Экспорт JSON</button>
+                <button class="btn" id="btnImportMap">Импорт JSON</button>
+              </div>
+              <textarea id="mapJson" class="ta" placeholder="Здесь появится JSON карты…"></textarea>
+            </div>
+          </div>
+        </div>
+
+
+      <div class="footer">
+        <span id="sumBlue">Синие: 0.00 XPL</span> · <span id="sumRed">Красные: 0.00 XPL</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <canvas id="c"></canvas>
+      <div class="hud" id="hud">Zoom 1.00 | Center 0,0</div>
+    </main>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
