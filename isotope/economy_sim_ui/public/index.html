@@ -15,7 +15,7 @@
 
     <div class="controls">
       <div class="ctrl">
-        <label>Seed</label>
+        <label>Seed (turn-managed)</label>
         <input id="seed" type="number" value="1" step="1" />
       </div>
       <div class="ctrl">
@@ -28,16 +28,16 @@
         </select>
       </div>
       <div class="ctrl">
-        <label>Transport cost</label>
+        <label>Transport cost (turn-managed)</label>
         <input id="transport" type="number" value="0.35" step="0.05" />
       </div>
       <div class="ctrl">
-        <label>Trade friction</label>
+        <label>Trade friction (turn-managed)</label>
         <input id="friction" type="number" value="0.05" step="0.01" />
       </div>
 
       <div class="buttons">
-        <button id="btnReset" class="btn">Сброс</button>
+        <button id="btnReset" class="btn" disabled>Сброс (отключен)</button>
         <button id="btnTick" class="btn">Шаг</button>
         <button id="btnRun" class="btn primary">Пуск</button>
         <a id="btnSnapshot" class="btn" href="/api/snapshot" target="_blank" rel="noopener">Снапшот JSON</a>

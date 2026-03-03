@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://adminmap.local/schemas/turn-engine-stage1.schema.json",
+  "title": "Turn Engine Stage 1 Contract",
+  "type": "object",
+  "required": ["meta", "turn"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["api_version", "schema_version"],
+      "properties": {
+        "api_version": { "type": "string", "const": "v1" },
+        "schema_version": { "type": "string", "const": "stage1" }
+      },
+      "additionalProperties": true
+    },
+    "turn": {
+      "type": "object",
+      "required": ["year", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "year": { "type": "integer", "minimum": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "processing", "published", "rolled_back"]
+        },
+        "ruleset_version": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "phase": { "type": "string", "enum": ["start", "end"] },
+        "checksum": { "type": "string" },
+        "snapshot_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "entity_state": {
+      "type": ["object", "array", "null"],
+      "additionalProperties": true
+    },
+    "economy_state": {
+      "type": ["object", "array", "null"],
+      "additionalProperties": true
+    },
+    "world_snapshot": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
