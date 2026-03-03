@@ -22,6 +22,7 @@
   const btnOpenTreasuryView = el("btnOpenTreasuryView");
   const btnOpenEntitiesView = el("btnOpenEntitiesView");
   const btnOpenTurnAdmin = el("btnOpenTurnAdmin");
+  const turnStepYearsInput = el("turnStepYears");
 
   const colorInput = el("color");
   const alphaInput = el("alpha");
@@ -225,8 +226,8 @@
     return Math.round(n).toLocaleString('ru-RU');
   }
 
-  async function turnApi(path, options) {
-    const resp = await fetch(path, options);
+  async function economyApi(path, options) {
+    const resp = await fetch(`/economics${path}`, options);
     const body = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       const err = body && (body.error || body.message) ? `${body.error || body.message}` : `HTTP ${resp.status}`;
@@ -235,85 +236,71 @@
     return body;
   }
 
+  function applyEconomySyncRowsToState(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    for (const row of list) {
+      const pid = Number(row && row.pid) | 0;
+      if (pid <= 0) continue;
+      const pd = state && state.provinces ? state.provinces[String(pid)] : null;
+      if (!pd || typeof pd !== 'object') continue;
+      if (typeof row.name === 'string' && row.name.trim()) pd.name = row.name.trim();
+      if (typeof row.terrain === 'string') pd.terrain = row.terrain;
+      if (Number.isFinite(Number(row.population))) pd.population = Number(row.population);
+      if (Number.isFinite(Number(row.treasury))) pd.treasury = Number(row.treasury);
+      if (Number.isFinite(Number(row.gdpTurnover))) pd.gdp_turnover = Number(row.gdpTurnover);
+      if (Number.isFinite(Number(row.effectiveGDP))) pd.effective_gdp = Number(row.effectiveGDP);
+      if (typeof row.marketMode === 'string') pd.market_mode = row.marketMode;
+      if (typeof row.kingdom_id === 'string') pd.kingdom_id = row.kingdom_id;
+      if (typeof row.great_house_id === 'string') pd.great_house_id = row.great_house_id;
+      if (typeof row.minor_house_id === 'string') pd.minor_house_id = row.minor_house_id;
+      if (typeof row.free_city_id === 'string') pd.free_city_id = row.free_city_id;
+    }
+  }
+
+  function getStepYears() {
+    const raw = Number(turnStepYearsInput && turnStepYearsInput.value || 1);
+    if (!Number.isFinite(raw)) return 1;
+    return Math.max(1, Math.min(100, Math.round(raw)));
+  }
+
   async function refreshTurnPanel() {
     if (!turnCurrentYear) return;
-    turnActionStatus.textContent = 'Обновляю данные по ходу…';
+    turnActionStatus.textContent = 'Обновляю данные экономики…';
     try {
-      const listBody = await turnApi('/api/turns/?published_only=1', { cache: 'no-store' });
-      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
-      const published = items.length ? items[items.length - 1] : null;
-      if (!published || !Number.isFinite(Number(published.year))) {
-        turnCurrentYear.textContent = '—';
-        turnCurrentStatus.textContent = 'published ходов нет';
-        turnTreasuryProvSum.textContent = '—';
-        turnTreasuryEntitySum.textContent = '—';
-        turnActionStatus.textContent = 'Пока нет опубликованных ходов. Нажми «Сделать ход».';
-        return;
-      }
+      const [summary, sync] = await Promise.all([
+        economyApi('/api/summary', { cache: 'no-store' }),
+        economyApi('/api/admin/map-sync', { cache: 'no-store' }),
+      ]);
+      const day = Number(summary && summary.day || 0);
+      const year = Math.floor(day / 365) + 1;
+      turnCurrentYear.textContent = `${year} (day ${day})`;
+      turnCurrentStatus.textContent = 'economy-sim';
 
-      const year = Number(published.year);
-      turnCurrentYear.textContent = String(year);
-      turnCurrentStatus.textContent = String(published.status || 'published');
-
-      const details = await turnApi(`/api/turns/show/?year=${encodeURIComponent(year)}&include=snapshot_payload&full=1`, { cache: 'no-store' });
-      const payload = details && details.snapshot_payload && typeof details.snapshot_payload === 'object' ? details.snapshot_payload : null;
-      const provinceRows = Array.isArray(payload && payload.province_treasury) ? payload.province_treasury : [];
-      const entityRows = Array.isArray(payload && payload.entity_treasury) ? payload.entity_treasury : [];
-      const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
-      const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+      const provinceRows = Array.isArray(sync && sync.provinces) ? sync.provinces : [];
+      const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.treasury || 0), 0);
+      const entityRows = Array.isArray(sync && sync.entityEconomy && sync.entityEconomy.entities) ? sync.entityEconomy.entities : [];
+      const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.treasury || 0), 0);
       turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
       turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
-      turnActionStatus.textContent = `Показан published ход ${year}.`;
+      applyEconomySyncRowsToState(provinceRows);
+      setSelection(selectedKey, null);
+      turnActionStatus.textContent = `Синхронизировано из economy sim: год ${year}.`;
     } catch (err) {
-      turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
+      turnActionStatus.textContent = `Не удалось загрузить данные economy sim: ${err && err.message ? err.message : err}`;
     }
   }
 
   async function makeNextTurn() {
     if (!btnMakeTurn) return;
     btnMakeTurn.disabled = true;
-    turnActionStatus.textContent = 'Создаю следующий ход…';
+    const years = getStepYears();
+    turnActionStatus.textContent = `Экономический шаг: ${years} год(а)…`;
     try {
-      const listBody = await turnApi('/api/turns/', { cache: 'no-store' });
-      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
-      const published = items.filter((it) => String(it && it.status || '') === 'published');
-      const sourceYear = published.length ? Number(published[published.length - 1].year || 0) : 0;
-      const targetYear = sourceYear + 1;
-
-      const created = await turnApi('/api/turns/create-from-previous/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json;charset=utf-8' },
-        body: JSON.stringify({ source_turn_year: sourceYear, target_turn_year: targetYear, ruleset_version: 'v1.0' })
-      });
-      const createdVersion = String(created && created.turn && created.turn.version || '');
-      turnActionStatus.textContent = `Ход ${targetYear} создан, считаю экономику…`;
-
-      const processed = await turnApi('/api/turns/process-economy/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': createdVersion },
-        body: JSON.stringify({ turn_year: targetYear, if_match: createdVersion })
-      });
-      const processedVersion = String(processed && processed.turn && processed.turn.version || createdVersion);
-      turnActionStatus.textContent = `Экономика для хода ${targetYear} посчитана, публикую…`;
-
-      const publishRes = await turnApi('/api/turns/publish/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': processedVersion },
-        body: JSON.stringify({ turn_year: targetYear, if_match: processedVersion })
-      });
-      const publishedVersion = String(publishRes && publishRes.turn && publishRes.turn.version || processedVersion);
-
-      turnActionStatus.textContent = `Ход ${targetYear} опубликован, обновляю map_state…`;
-      await turnApi('/api/turns/restore-state/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': publishedVersion },
-        body: JSON.stringify({ turn_year: targetYear, if_match: publishedVersion })
-      });
-
-      turnActionStatus.textContent = `Ход ${targetYear} опубликован и применён к карте.`;
+      await economyApi(`/api/tick?years=${encodeURIComponent(years)}`, { method: 'GET', cache: 'no-store' });
       await refreshTurnPanel();
+      turnActionStatus.textContent = `Готово: выполнен шаг экономики на ${years} год(а), карта синхронизирована.`;
     } catch (err) {
-      turnActionStatus.textContent = `Не удалось сделать ход: ${err && err.message ? err.message : err}`;
+      turnActionStatus.textContent = `Не удалось выполнить шаг экономики: ${err && err.message ? err.message : err}`;
     } finally {
       btnMakeTurn.disabled = false;
     }
