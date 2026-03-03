@@ -53,12 +53,22 @@ $turn['treasury_ledger'] = [
   'records' => (int)($computed['treasury_summary']['ledger_records'] ?? 0),
   'checksum' => (string)($computed['treasury_summary']['ledger_checksum'] ?? ''),
 ];
+$turn['treaties'] = [
+  'status' => 'processed',
+  'records' => count((array)($computed['treaties'] ?? [])),
+  'active_records' => count(array_filter((array)($computed['treaties'] ?? []), static fn($row) => turn_api_treaty_status_for_year((array)$row, $year) === 'active')),
+  'checksum' => hash('sha256', json_encode((array)($computed['treaties'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+];
 $turn['events'][] = [
   'category' => 'economy',
   'event_type' => 'economy_processed',
   'payload' => ['turn_year' => $year, 'records' => $turn['economy']['records'] ?? 0],
   'occurred_at' => gmdate('c'),
 ];
+foreach ((array)($computed['treaty_events'] ?? []) as $event) {
+  if (!is_array($event)) continue;
+  $turn['events'][] = $event;
+}
 
 if (!turn_api_save_turn($turn)) {
   turn_api_response(['error' => 'write_failed'], 500);
@@ -81,4 +91,5 @@ turn_api_response([
   'entity_treasury' => $saved['entity_treasury'] ?? null,
   'province_treasury' => $saved['province_treasury'] ?? null,
   'treasury_ledger' => $saved['treasury_ledger'] ?? null,
+  'treaties' => $saved['treaties'] ?? null,
 ], 200);

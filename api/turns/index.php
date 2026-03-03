@@ -23,6 +23,8 @@ foreach (($index['turns'] ?? []) as $year) {
     'entity_treasury_records' => (int)($turn['entity_treasury']['records'] ?? 0),
     'province_treasury_records' => (int)($turn['province_treasury']['records'] ?? 0),
     'treasury_ledger_records' => (int)($turn['treasury_ledger']['records'] ?? 0),
+    'treaty_records' => (int)($turn['treaties']['records'] ?? 0),
+    'active_treaty_records' => (int)($turn['treaties']['active_records'] ?? 0),
     'published_at' => $turn['published_at'] ?? null,
   ];
 }

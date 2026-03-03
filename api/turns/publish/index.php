@@ -48,6 +48,7 @@ $ruleset = turn_api_ruleset_for_turn($turn);
 $entityState = turn_api_compute_entity_state($worldState, $year);
 $economyState = turn_api_compute_economy_state($worldState, $year, $ruleset);
 $treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset);
+$treaties = turn_api_state_treaties($worldState);
 $turn['map_artifacts'] = turn_api_build_map_artifacts();
 $overlayPayload = turn_api_compute_overlay_payload($entityState, $economyState, (array)($turn['economy'] ?? []));
 $overlayArtifact = turn_api_write_overlay_artifact($year, $overlayPayload);
@@ -64,6 +65,7 @@ $endRef = turn_api_save_snapshot($year, 'end', [
   'treasury_ledger' => $treasury['ledger_rows'],
   'map_artifacts' => $turn['map_artifacts'],
   'economy_summary' => $turn['economy'] ?? null,
+  'treaties' => $treaties,
 ]);
 if (!is_array($endRef)) {
   turn_api_response(['error' => 'snapshot_write_failed', 'phase' => 'end'], 500);
@@ -95,6 +97,12 @@ $turn['treasury_ledger'] = [
   'records' => (int)($treasury['summary']['ledger_records'] ?? 0),
   'checksum' => (string)($treasury['summary']['ledger_checksum'] ?? ''),
 ];
+$turn['treaties'] = [
+  'status' => 'published',
+  'records' => count($treaties),
+  'active_records' => count(array_filter($treaties, static fn($row) => turn_api_treaty_status_for_year((array)$row, $year) === 'active')),
+  'checksum' => hash('sha256', json_encode($treaties, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+];
 $turn['status'] = 'published';
 $turn['published_at'] = gmdate('c');
 $turn['events'][] = [
@@ -103,6 +111,9 @@ $turn['events'][] = [
   'payload' => ['turn_year' => $year],
   'occurred_at' => gmdate('c'),
 ];
+foreach (turn_api_treaty_lifecycle_events($worldState, $year) as $event) {
+  $turn['events'][] = $event;
+}
 
 if (!turn_api_save_turn($turn)) {
   turn_api_response(['error' => 'write_failed'], 500);
@@ -121,4 +132,5 @@ turn_api_response([
   'entity_treasury' => $saved['entity_treasury'] ?? null,
   'province_treasury' => $saved['province_treasury'] ?? null,
   'treasury_ledger' => $saved['treasury_ledger'] ?? null,
+  'treaties' => $saved['treaties'] ?? null,
 ], 200);

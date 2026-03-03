@@ -454,7 +454,7 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
 
 
 function api_validate_state_snapshot_shape(array $state): array {
-  $expectedArrays = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'people', 'terrain_types'];
+  $expectedArrays = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'people', 'terrain_types', 'treaties'];
   foreach ($expectedArrays as $k) {
     if (array_key_exists($k, $state) && !is_array($state[$k])) {
       return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $k];
@@ -486,6 +486,20 @@ function api_validate_state_snapshot_shape(array $state): array {
       if (isset($item['province_pids']) && is_array($item['province_pids'])) {
         foreach ($item['province_pids'] as $i => $pidVal) if (!is_numeric($pidVal)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.province_pids.' . (string)$i];
       }
+      if (isset($item['diplomacy']) && !is_array($item['diplomacy'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id . '.diplomacy'];
+    }
+  }
+
+  if (isset($state['treaties']) && is_array($state['treaties'])) {
+    foreach ($state['treaties'] as $idx => $treaty) {
+      if (!is_array($treaty)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx];
+      if (isset($treaty['id']) && !is_string($treaty['id'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.id'];
+      if (isset($treaty['type']) && !is_string($treaty['type'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.type'];
+      if (isset($treaty['sides']) && !is_array($treaty['sides'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.sides'];
+      if (isset($treaty['effective_year']) && !is_numeric($treaty['effective_year'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.effective_year'];
+      if (isset($treaty['duration_years']) && !is_numeric($treaty['duration_years'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.duration_years'];
+      if (isset($treaty['penalties']) && !is_string($treaty['penalties'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.penalties'];
+      if (isset($treaty['modifiers']) && !is_array($treaty['modifiers'])) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => 'treaties.' . (string)$idx . '.modifiers'];
     }
   }
 
@@ -691,11 +705,12 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
 }
 
 function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
     if (in_array($f, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if ($f === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.diplomacy'];
     if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
     if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
     if ($f === 'emblem_box') {
@@ -853,10 +868,11 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     return ['ok' => false, 'error' => 'not_found'];
   }
 
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description'];
+  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
     if (in_array((string)$field, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if ($field === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'diplomacy'];
     if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
     if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];
     if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
@@ -885,6 +901,17 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     if ($field === 'province_pids') {
       $value = array_values(array_unique(array_map(static fn($v) => max(0, (int)$v), $value)));
       $value = array_values(array_filter($value, static fn($v) => $v > 0));
+    }
+
+    if ($field === 'diplomacy') {
+      $normalized = [];
+      foreach ((array)$value as $k => $v) {
+        $key = trim((string)$k);
+        if ($key === '') continue;
+        if (!is_scalar($v)) continue;
+        $normalized[$key] = trim((string)$v);
+      }
+      $value = $normalized;
     }
 
     if (is_string($value)) $value = trim($value);

@@ -135,6 +135,12 @@ Stage 2 treasury:
 - Финансовые коэффициенты берутся из versioned ruleset: `data/turn_rulesets.json` (`default` + `by_version`).
 - Проверки: `bash tools/contract_turn_stage2.sh` и `bash tools/e2e_turn_treasury_invariants.sh`.
 
+Stage 3 diplomacy & trade treaties:
+- `data/map_state.json` поддерживает `treaties[]` (реестр: тип, стороны, условия, `effective_year`, `duration_years`, `penalties`, `modifiers`).
+- `modifiers` договора автоматически учитываются в `process-economy` для активных (`active`) договоров: `tax_modifier`, `trade_flow`, `tariffs`, `subsidies`.
+- Жизненный цикл договора (`draft -> active -> breached/expired`) формирует события `treaty_status_changed` в `turn.events`.
+- Сводка по договорам сохраняется в turn (`treaties`) и доступна через `GET /api/turns/show/` и список `GET /api/turns/`.
+
 Каждый JSON-ответ новых API теперь включает `meta` (`api_version`, `schema_version`) для договорённости контракта на период миграции.
 
 If-Match policy (current): write endpoint'ы (`PATCH /api/provinces/patch/`, `PATCH /api/realms/patch/`, `POST /api/changes/apply/`) требуют актуальный `If-Match` (или `if_match` в body fallback). При отсутствии — `428 if_match_required`, при рассинхроне — `412 version_conflict`.
