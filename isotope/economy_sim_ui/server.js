@@ -471,84 +471,6 @@ function applySimAdminOverridesToEngine() {
   }
 }
 
-
-function loadMapStateEconomyByPid() {
-  const mapStatePath = path.join(projectRoot, "data", "map_state.json");
-  const state = loadJsonSafe(mapStatePath, null);
-  if (!state || typeof state !== "object") return new Map();
-  const provincesObj = state.provinces && typeof state.provinces === "object" ? state.provinces : {};
-  const out = new Map();
-  for (const [pidRaw, row] of Object.entries(provincesObj)) {
-    if (!row || typeof row !== "object") continue;
-    const pid = Number(row.pid || pidRaw);
-    if (!Number.isFinite(pid) || pid <= 0) continue;
-    out.set(pid, row);
-  }
-  return out;
-}
-
-function applyMapStateEconomyToEngine() {
-  const byPid = loadMapStateEconomyByPid();
-  if (!(byPid instanceof Map) || byPid.size === 0) {
-    return { applied: 0, source: "map_state_empty" };
-  }
-
-  let applied = 0;
-  for (const [pid, row] of byPid.entries()) {
-    const idx = engine.pidToIndex.get(Number(pid));
-    if (typeof idx !== "number") continue;
-    const st = engine.states[idx];
-
-    if (Number.isFinite(Number(row.population))) st.pop = Number(row.population);
-    if (Number.isFinite(Number(row.infra))) st.infra = Number(row.infra);
-    if (Number.isFinite(Number(row.treasury))) st.treasury = Number(row.treasury);
-
-    if (typeof row.market_mode === "string" && row.market_mode.trim()) {
-      st.marketMode = row.market_mode.trim();
-    } else if (typeof row.marketMode === "string" && row.marketMode.trim()) {
-      st.marketMode = row.marketMode.trim();
-    }
-
-    if (Array.isArray(row.buildings)) {
-      st.buildings = row.buildings
-        .map((b) => {
-          const type = typeof b?.type === "string" ? b.type.trim() : "";
-          const count = Math.floor(Number(b?.count));
-          if (!type || !BUILDINGS[type] || !Number.isFinite(count) || count < 0) return null;
-          return {
-            type,
-            count,
-            efficiency: Number.isFinite(Number(b?.efficiency)) ? Math.max(0.25, Math.min(2.5, Number(b.efficiency))) : 1,
-          };
-        })
-        .filter(Boolean);
-    }
-
-    const infraForCap = Math.max(0.1, st.infra);
-    st.transportCap = st.pop * infraForCap * 0.018;
-    st.worldTransportCap = st.transportCap * 3 + (st.isCity ? 900 : 350);
-    applied++;
-
-    const admin = adminStateByPid.get(pid) || { pid };
-    if (typeof row.name === "string" && row.name.trim()) {
-      admin.name = row.name.trim();
-      provinces[idx].name = row.name.trim();
-    }
-    if (typeof row.terrain === "string") {
-      admin.terrain = row.terrain;
-      provinces[idx].terrain = row.terrain;
-    }
-    admin.kingdom_id = normalizeRealmId(row.kingdom_id);
-    admin.great_house_id = normalizeRealmId(row.great_house_id);
-    admin.minor_house_id = normalizeRealmId(row.minor_house_id);
-    admin.free_city_id = normalizeRealmId(row.free_city_id);
-    adminStateByPid.set(pid, admin);
-  }
-
-  if (typeof engine._updateTargets === "function") engine._updateTargets();
-  return { applied, source: "map_state" };
-}
-
 function computeProvinceAdminStats(pid) {
   const idx = engine.pidToIndex.get(Number(pid));
   if (typeof idx !== "number") return null;
@@ -1028,11 +950,6 @@ const server = http.createServer((req, res) => {
         return sendJson(res, 200, { ok: true, ...r, config: { ...baseConfig } });
       }
 
-
-      if (pathname === "/api/admin/rebase-from-map-state" && req.method === "POST") {
-        const result = applyMapStateEconomyToEngine();
-        return sendJson(res, 200, { ok: true, ...result, day: engine.day });
-      }
 
       if (pathname === "/api/admin/write-start-state" && req.method === "POST") {
         const snapshot = engine.exportSnapshot();
