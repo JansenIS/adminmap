@@ -2,11 +2,10 @@
   "default": {
     "version": "v1.2",
     "economy": {
-      "base_income_default": 1200.0,
-      "base_income_mountain": 950.0,
-      "base_income_plains": 1500.0,
-      "base_income_sea": 800.0,
-      "year_mod_cycle": 5,
+      "base_turnover_default": 1200.0,
+      "turnover_per_owned_province": 75.0,
+      "year_growth_cycle": 5,
+      "year_growth_step": 25.0,
       "expense_base": 420.0,
       "expense_year_step": 75.0,
       "expense_year_cycle": 3
@@ -31,11 +30,10 @@
     "v1.0": {
       "version": "v1.0",
       "economy": {
-        "base_income_default": 1200.0,
-        "base_income_mountain": 950.0,
-        "base_income_plains": 1500.0,
-        "base_income_sea": 800.0,
-        "year_mod_cycle": 5,
+        "base_turnover_default": 1200.0,
+        "turnover_per_owned_province": 75.0,
+        "year_growth_cycle": 5,
+        "year_growth_step": 25.0,
         "expense_base": 420.0,
         "expense_year_step": 75.0,
         "expense_year_cycle": 3
@@ -59,11 +57,10 @@
     "v1.2": {
       "version": "v1.2",
       "economy": {
-        "base_income_default": 1200.0,
-        "base_income_mountain": 950.0,
-        "base_income_plains": 1500.0,
-        "base_income_sea": 800.0,
-        "year_mod_cycle": 5,
+        "base_turnover_default": 1200.0,
+        "turnover_per_owned_province": 75.0,
+        "year_growth_cycle": 5,
+        "year_growth_step": 25.0,
         "expense_base": 420.0,
         "expense_year_step": 75.0,
         "expense_year_cycle": 3

@@ -269,30 +269,55 @@ function turn_api_compute_entity_state(array $state, int $year, array $ruleset =
 
 function turn_api_compute_economy_state(array $state, int $year, array $ruleset): array {
   $out = [];
+  $ecoCfg = (array)($ruleset['economy'] ?? []);
+
+  $baseTurnover = (float)($ecoCfg['base_turnover_default'] ?? 1200.0);
+  $turnoverPerOwnedProvince = (float)($ecoCfg['turnover_per_owned_province'] ?? 75.0);
+  $yearGrowthCycle = max(1, (int)($ecoCfg['year_growth_cycle'] ?? 5));
+  $yearGrowthStep = (float)($ecoCfg['year_growth_step'] ?? 25.0);
+
+  $expenseBase = (float)($ecoCfg['expense_base'] ?? 420.0);
+  $expenseYearStep = (float)($ecoCfg['expense_year_step'] ?? 75.0);
+  $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
+
+  $provinceCountByOwner = [];
+  foreach (($state['provinces'] ?? []) as $prov) {
+    if (!is_array($prov)) continue;
+    $owner = trim((string)($prov['owner'] ?? ''));
+    if ($owner === '') continue;
+    if (!isset($provinceCountByOwner[$owner])) $provinceCountByOwner[$owner] = 0;
+    $provinceCountByOwner[$owner]++;
+  }
+
   foreach (($state['provinces'] ?? []) as $idx => $prov) {
     if (!is_array($prov)) continue;
     $pid = (int)($prov['pid'] ?? $idx);
     if ($pid <= 0) continue;
-    $terrain = strtolower((string)($prov['terrain'] ?? ''));
-    $ecoCfg = (array)($ruleset['economy'] ?? []);
-    $baseIncome = (float)($ecoCfg['base_income_default'] ?? 10.0);
-    if ($terrain === 'mountain') $baseIncome = (float)($ecoCfg['base_income_mountain'] ?? 8.0);
-    if ($terrain === 'plains') $baseIncome = (float)($ecoCfg['base_income_plains'] ?? 12.0);
-    if ($terrain === 'sea' || $terrain === 'ocean') $baseIncome = (float)($ecoCfg['base_income_sea'] ?? 6.0);
 
-    $yearModCycle = max(1, (int)($ecoCfg['year_mod_cycle'] ?? 5));
-    $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
-    $income = $baseIncome + ($year % $yearModCycle);
-    $expense = (float)($ecoCfg['expense_base'] ?? 4.0) + (($year % $expenseCycle) * (float)($ecoCfg['expense_year_step'] ?? 0.5));
+    $owner = trim((string)($prov['owner'] ?? ''));
+    $ownerProvinceCount = (int)($provinceCountByOwner[$owner] ?? 0);
+
+    $income = $baseTurnover
+      + ($ownerProvinceCount * $turnoverPerOwnedProvince)
+      + (($year % $yearGrowthCycle) * $yearGrowthStep);
+
+    $expense = $expenseBase + (($year % $expenseCycle) * $expenseYearStep);
+
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'balance_delta' => round($income - $expense, 2),
-      'modifiers' => ['terrain' => $terrain, 'ruleset_version' => (string)($ruleset['version'] ?? ''), 'year_mod' => ($year % max(1, (int)(($ruleset['economy']['year_mod_cycle'] ?? 5))))],
+      'modifiers' => [
+        'owner' => $owner,
+        'owner_province_count' => $ownerProvinceCount,
+        'ruleset_version' => (string)($ruleset['version'] ?? ''),
+        'year_mod' => ($year % $yearGrowthCycle),
+      ],
     ];
   }
+
   usort($out, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
   return $out;
 }
