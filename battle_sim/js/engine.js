@@ -282,6 +282,82 @@
     return out;
   }
 
+  function tokenStride(u){
+    if(!u || !u.layout) return 1;
+    const all = Math.max(1, u.layout.tokenCap || 0);
+    const shown = Math.max(1, (u.layout.tokens && u.layout.tokens.length) || 0);
+    return all / shown;
+  }
+
+  function buildTokenGrid(points, cell){
+    const grid = new Map();
+    const inv = 1 / Math.max(1e-6, cell);
+    const key = (ix,iy)=> ix + "," + iy;
+    for(let i=0;i<points.length;i++){
+      const p = points[i];
+      const ix = Math.floor(p.x * inv);
+      const iy = Math.floor(p.y * inv);
+      const k = key(ix,iy);
+      let arr = grid.get(k);
+      if(!arr){ arr=[]; grid.set(k,arr); }
+      arr.push(p);
+    }
+    return {grid, inv, key};
+  }
+
+  function getTokenWorldPoints(u, pose=null){
+    if(!u.layout) rebuildUnitLayout(u);
+    const toks = (u.layout && u.layout.tokens) ? u.layout.tokens : [];
+    const x = pose?.x ?? u.x;
+    const y = pose?.y ?? u.y;
+    const ang = pose?.ang ?? u.angle;
+    const cs = Math.cos(ang||0), sn = Math.sin(ang||0);
+    const pts = new Array(toks.length);
+    for(let i=0;i<toks.length;i++){
+      const t=toks[i];
+      pts[i] = {x: x + t.x*cs - t.y*sn, y: y + t.x*sn + t.y*cs, i};
+    }
+    return pts;
+  }
+
+  // Returns per-token contacts and deep-overlap count for A-vs-B token sets.
+  function tokenContactStats(pointsA, profA, pointsB, profB){
+    const rA = tokenRadiusForProf(profA || {});
+    const rB = tokenRadiusForProf(profB || {});
+    const rSum = rA + rB;
+    const r2 = rSum*rSum;
+    const deep = Math.max(0.001, rSum * 0.7);
+    const deep2 = deep*deep;
+    const spacing = Math.max(3, Math.min((profA?.spacing)||6, (profB?.spacing)||6));
+    const cell = Math.max(3.5, Math.max(rSum * 1.2, spacing * 1.4));
+    const {grid, inv, key} = buildTokenGrid(pointsB, cell);
+    const touchedA = new Uint8Array(pointsA.length);
+    let deepCount = 0;
+
+    for(let i=0;i<pointsA.length;i++){
+      const p = pointsA[i];
+      const ix = Math.floor(p.x * inv);
+      const iy = Math.floor(p.y * inv);
+      let touched = false;
+      for(let dx=-1;dx<=1;dx++){
+        for(let dy=-1;dy<=1;dy++){
+          const arr = grid.get(key(ix+dx, iy+dy));
+          if(!arr) continue;
+          for(let k=0;k<arr.length;k++){
+            const q=arr[k];
+            const ddx = p.x - q.x;
+            const ddy = p.y - q.y;
+            const d2 = ddx*ddx + ddy*ddy;
+            if(d2 <= r2) touched = true;
+            if(d2 < deep2) deepCount++;
+          }
+        }
+      }
+      if(touched) touchedA[i] = 1;
+    }
+    return {touchedA, deepCount, rSum};
+  }
+
   // Returns {ok:boolean, reason:string}
   function canPlaceUnitPose(u, x,y, ang){
     ensureMapObjects();
@@ -295,36 +371,49 @@
       const wy = y + (t.x*s + t.y*c);
       if(pointHitsAnyObstacle(wx,wy)) return {ok:false, reason:"obstacle"};
     }
+
+    // unit-vs-unit collision: allies can't even touch; enemies can touch but can't deeply overlap.
+    ensureLayouts();
+    const movingPoints = getTokenWorldPoints(u, {x,y,ang});
+    const movingProf = u.layout?.prof || {};
+    for(const other of scenario.units){
+      if(!other || other.id===u.id) continue;
+      if(other.state==="destroyed") continue;
+      if(!other.layout || !other.layout.tokens || other.layout.tokens.length===0) continue;
+
+      const approx = (u.layout?.collisionR ?? 28) + (other.layout?.collisionR ?? 28) + 10;
+      if(window.U.dist(x,y,other.x,other.y) > approx) continue;
+
+      const otherPoints = getTokenWorldPoints(other);
+      const st = tokenContactStats(movingPoints, movingProf, otherPoints, other.layout?.prof || {});
+      const anyContact = st.touchedA.some(v=>v===1);
+      if(!anyContact) continue;
+      if(other.side===u.side) return {ok:false, reason:"ally_contact"};
+      if(st.deepCount>0) return {ok:false, reason:"enemy_overlap"};
+    }
+
     return {ok:true, reason:""};
   }
 
-  function blocksLineOfFire(attacker, target){
+  function segmentBlocked(ax,ay,bx,by, attacker=null, target=null){
     ensureMapObjects();
-    const ax=attacker.x, ay=attacker.y, bx=target.x, by=target.y;
-
-    // buildings
     for(const b of scenario.map.objects.buildings){
       if(window.U.segIntersectsRotRect(ax,ay,bx,by,b.x,b.y,b.w,b.h,b.angle||0)) return true;
     }
 
-    // fort walls
-    const af = findFortAtPoint(ax,ay);
-    const tf = findFortAtPoint(bx,by);
-
+    const af = attacker ? findFortAtPoint(ax,ay) : null;
+    const tf = target ? findFortAtPoint(bx,by) : null;
     for(const f of scenario.map.objects.forts){
       if(!f.pts || f.pts.length<3) continue;
-
-      // attacker inside this fort can shoot through own walls
-      if(af && af.id===f.id) continue;
-
-      // both inside same fort: ignore
-      if(af && tf && af.id===tf.id && af.id===f.id) continue;
-
-      // otherwise consider walls
+      if(attacker && af && af.id===f.id) continue;
+      if(attacker && target && af && tf && af.id===tf.id && af.id===f.id) continue;
       if(segmentIntersectsFortWalls(ax,ay,bx,by,f)) return true;
     }
-
     return false;
+  }
+
+  function blocksLineOfFire(attacker, target){
+    return segmentBlocked(attacker.x, attacker.y, target.x, target.y, attacker, target);
   }
 
 
@@ -531,11 +620,11 @@ function markEngagements(force=false){
     if(attacker.firedTurn===battle.turn) return {ok:false, reason:"already_fired"};
     if(!attacker.stats.ranged) return {ok:false, reason:"no_ranged"};
 
+    ensureLayouts();
     const r = attacker.stats.ranged.range;
-    const d = window.U.dist(attacker.x, attacker.y, target.x, target.y);
-    if(d>r) return {ok:false, reason:"out_of_range"};
-
-    if(blocksLineOfFire(attacker, target)) return {ok:false, reason:"blocked"};
+    const attackerPts = getTokenWorldPoints(attacker);
+    const targetPts = getTokenWorldPoints(target);
+    if(attackerPts.length===0 || targetPts.length===0) return {ok:false, reason:"no_tokens"};
 
     const rp = window.U.clamp(battle.rp[attacker.side]||0, -3, 3);
     const cov = targetCoverBonus(target);
@@ -546,19 +635,56 @@ function markEngagements(force=false){
     acc -= cov;
     acc = window.U.clamp(acc, 0.05, 0.95);
 
-    const hit = (Math.random() < acc);
     attacker.firedTurn = battle.turn;
 
+    // token-level range + LoS: only models that can reach visible target models can shoot.
+    const tProf = target.layout?.prof || {};
+    const aProf = attacker.layout?.prof || {};
+    const cell = Math.max(4, (Math.max((aProf.spacing||6), (tProf.spacing||6)) * 1.6));
+    const {grid, inv, key} = buildTokenGrid(targetPts, cell);
+    let inRangeTokens = 0;
+    let shootersTokens = 0;
+    const r2 = r*r;
+    const search = Math.ceil(r / cell) + 1;
+
+    for(let i=0;i<attackerPts.length;i++){
+      const p = attackerPts[i];
+      const ix = Math.floor(p.x * inv);
+      const iy = Math.floor(p.y * inv);
+      let best = null;
+      for(let dx=-search; dx<=search; dx++){
+        for(let dy=-search; dy<=search; dy++){
+          const arr = grid.get(key(ix+dx, iy+dy));
+          if(!arr) continue;
+          for(let k=0;k<arr.length;k++){
+            const q = arr[k];
+            const ddx = p.x - q.x;
+            const ddy = p.y - q.y;
+            const d2 = ddx*ddx + ddy*ddy;
+            if(d2 > r2) continue;
+            if(!best || d2 < best.d2) best = {x:q.x, y:q.y, d2};
+          }
+        }
+      }
+      if(!best) continue;
+      inRangeTokens++;
+      if(!segmentBlocked(p.x, p.y, best.x, best.y, attacker, target)) shootersTokens++;
+    }
+
+    if(inRangeTokens===0) return {ok:false, reason:"out_of_range"};
+    if(shootersTokens===0) return {ok:false, reason:"blocked"};
+
+    const shootingModels = Math.max(0, Math.min(attacker.men, Math.round(shootersTokens * tokenStride(attacker))));
+    const hit = (Math.random() < acc);
     if(!hit){
       log(`↯ ${attacker.name} стреляет по ${target.name}: промах`, "mut");
       // slight morale drain for being shot at
       target.morale = window.U.clamp(target.morale - 2, 0, 100);
-      return {ok:true, hit:false, loss:0};
+      return {ok:true, hit:false, loss:0, inRangeTokens, shootersTokens, shootingModels};
     }
 
     // damage in XPL
-    const atkXpl = computeXpl(attacker);
-    let xplDmg = atkXpl * attacker.stats.ranged.power * window.U.rand(0.8,1.2);
+    let xplDmg = (shootingModels * acc) * xplPerMan(attacker) * attacker.stats.ranged.power * window.U.rand(0.8,1.2);
     xplDmg *= (1 + rp*0.05);
     xplDmg *= (1 - (target.stats.armor||0)*0.6);
 
@@ -570,7 +696,20 @@ function markEngagements(force=false){
 
     const shock = 0.35 + (capPct*2.2); // ranged shock
     applyLoss(target, loss, `огонь ${attacker.name}`, shock);
-    return {ok:true, hit:true, loss};
+    return {ok:true, hit:true, loss, inRangeTokens, shootersTokens, shootingModels};
+  }
+
+  function countEngagedModels(attacker, defender){
+    ensureLayouts();
+    if(!attacker.layout || !defender.layout) return 0;
+    const aPts = getTokenWorldPoints(attacker);
+    const dPts = getTokenWorldPoints(defender);
+    if(aPts.length===0 || dPts.length===0) return 0;
+    const st = tokenContactStats(aPts, attacker.layout.prof || {}, dPts, defender.layout.prof || {});
+    let touched = 0;
+    for(let i=0;i<st.touchedA.length;i++) if(st.touchedA[i]) touched++;
+    const models = Math.round(touched * tokenStride(attacker));
+    return Math.max(0, Math.min(attacker.men, models));
   }
 
   function resolveMeleePhase(){
@@ -596,8 +735,9 @@ function markEngagements(force=false){
       const rpA = window.U.clamp(battle.rp[a.side]||0, -3, 3);
       const rpB = window.U.clamp(battle.rp[b.side]||0, -3, 3);
 
-      const aX = computeXpl(a);
-      const bX = computeXpl(b);
+      const engagedA = countEngagedModels(a, b);
+      const engagedB = countEngagedModels(b, a);
+      if(engagedA<=0 && engagedB<=0) continue;
 
       let aMul = 1.0, bMul = 1.0;
       if(fa==="flank") aMul *= 1.25;
@@ -613,8 +753,8 @@ function markEngagements(force=false){
       const aMor = window.U.clamp(a.morale/100, 0.4, 1.15);
       const bMor = window.U.clamp(b.morale/100, 0.4, 1.15);
 
-      let xplDmgToB = aX * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05);
-      let xplDmgToA = bX * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05);
+      let xplDmgToB = engagedA * xplPerMan(a) * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05);
+      let xplDmgToA = engagedB * xplPerMan(b) * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05);
 
       xplDmgToB *= (1 - (b.stats.armor||0)*0.6);
       xplDmgToA *= (1 - (a.stats.armor||0)*0.6);
