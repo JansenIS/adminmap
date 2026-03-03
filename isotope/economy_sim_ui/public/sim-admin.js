@@ -739,7 +739,13 @@ UI.btnClearSelection?.addEventListener("click", () => {
   clearSelection();
 });
 
-setActiveTab("map");
+const initTab = (() => {
+  const raw = new URLSearchParams(window.location.search).get("tab") || "map";
+  const tab = String(raw).trim().toLowerCase();
+  return (tab === "treasury" || tab === "entities" || tab === "map") ? tab : "map";
+})();
+
+setActiveTab(initTab);
 loadAll().catch((e) => {
   UI.saveStatus.textContent = `Ошибка: ${e.message}`;
 });
