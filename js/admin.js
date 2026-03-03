@@ -329,7 +329,11 @@
     const years = getStepYears();
     turnActionStatus.textContent = `Делаю ход: шаг экономики (${years} год/лет)…`;
     try {
+      turnActionStatus.textContent = 'Синхронизирую economy sim с текущим состоянием карты…';
+      await economyApi('/api/admin/rebase-from-map-state', { method: 'POST' });
+
       const preSync = await economyApi('/api/admin/map-sync', { cache: 'no-store' });
+      turnActionStatus.textContent = `Делаю ход: шаг экономики (${years} год/лет)…`;
       await economyApi(`/api/tick?years=${encodeURIComponent(years)}`, { method: 'GET', cache: 'no-store' });
       const [postSync, summary] = await Promise.all([
         economyApi('/api/admin/map-sync', { cache: 'no-store' }),
