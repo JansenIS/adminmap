@@ -51,6 +51,13 @@
     .person-modal__kv { display:grid; gap:8px; font-size:13px; }
     .person-modal__kv b { color:#a6b4c5; }
     .person-modal__bio { margin-top:14px; line-height:1.45; color:#d8e1ec; }
+    .editor-modal { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
+    .editor-modal.open { display:flex; }
+    .editor-modal__window { width:min(900px, 98vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
+    .editor-modal__head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px; border-bottom:1px solid #223041; }
+    .editor-modal__body { padding:16px; }
+    .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
+    .editor-modal textarea { min-height:120px; }
   </style>
 </head>
 <body>
@@ -314,6 +321,47 @@
           <div><b>Вассалы:</b> <span id="personModalVassals">—</span></div>
         </div>
         <p id="personModalBio" class="person-modal__bio">Биография будет добавлена позже.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="manualEditModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
+        <div>
+          <div id="manualEditTitle" style="font-weight:700;">Редактор</div>
+          <div id="manualEditSubtitle" class="small">—</div>
+        </div>
+        <button id="manualEditClose" type="button">Закрыть</button>
+      </div>
+      <div class="editor-modal__body">
+        <div class="editor-grid">
+          <label>Название</label><input id="manualName" type="text" />
+          <label>Владелец / правитель</label><input id="manualOwner" type="text" list="peopleList" />
+          <label>Королевство ID</label><input id="manualKingdomId" type="text" />
+          <label>Большой дом ID</label><input id="manualGreatHouseId" type="text" />
+          <label>Малый дом ID</label><input id="manualMinorHouseId" type="text" />
+          <label>Вольный город ID</label><input id="manualFreeCityId" type="text" />
+          <label>Местность</label><input id="manualTerrain" type="text" />
+          <label>Казна</label><input id="manualTreasury" type="text" />
+          <label>Население</label><input id="manualPopulation" type="text" />
+          <label>Налог (доля)</label><input id="manualTax" type="text" />
+          <label>Здания (через запятую)</label><input id="manualBuildings" type="text" />
+          <label>Фон (URL/путь)</label><input id="manualBackground" type="text" />
+          <label>Карточка провинции</label><input id="manualCardImage" type="text" />
+          <label>Герб SVG</label><textarea id="manualEmblemSvg"></textarea>
+          <label>Описание</label><textarea id="manualDescription"></textarea>
+          <label>Цвет сущности</label><input id="manualColor" type="text" />
+          <label>Столица PID</label><input id="manualCapitalPid" type="text" />
+          <label>Провинции сущности (PID, через запятую)</label><input id="manualProvincePids" type="text" />
+        </div>
+        <div style="margin-top:12px;">
+          <label class="small" for="manualExtraJson">Дополнительные поля JSON (всё, что не покрыто полями выше):</label>
+          <textarea id="manualExtraJson"></textarea>
+        </div>
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="manualEditSave" type="button">Сохранить изменения</button>
+        </div>
       </div>
     </div>
   </div>

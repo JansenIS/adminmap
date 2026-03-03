@@ -103,6 +103,30 @@
   const personModalSeniors = el("personModalSeniors");
   const personModalVassals = el("personModalVassals");
   const personModalBio = el("personModalBio");
+  const manualEditModal = el("manualEditModal");
+  const manualEditTitle = el("manualEditTitle");
+  const manualEditSubtitle = el("manualEditSubtitle");
+  const manualEditClose = el("manualEditClose");
+  const manualEditSave = el("manualEditSave");
+  const manualName = el("manualName");
+  const manualOwner = el("manualOwner");
+  const manualKingdomId = el("manualKingdomId");
+  const manualGreatHouseId = el("manualGreatHouseId");
+  const manualMinorHouseId = el("manualMinorHouseId");
+  const manualFreeCityId = el("manualFreeCityId");
+  const manualTerrain = el("manualTerrain");
+  const manualTreasury = el("manualTreasury");
+  const manualPopulation = el("manualPopulation");
+  const manualTax = el("manualTax");
+  const manualBuildings = el("manualBuildings");
+  const manualBackground = el("manualBackground");
+  const manualCardImage = el("manualCardImage");
+  const manualEmblemSvg = el("manualEmblemSvg");
+  const manualDescription = el("manualDescription");
+  const manualColor = el("manualColor");
+  const manualCapitalPid = el("manualCapitalPid");
+  const manualProvincePids = el("manualProvincePids");
+  const manualExtraJson = el("manualExtraJson");
 
   alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
@@ -127,6 +151,7 @@
   const selectedKeys = new Set();
   const keyByPid = new Map();
   const pidByKey = new Map();
+  let manualEditTarget = null;
   let hexmapData = window.HEXMAP || null;
   let hexmapDataLoadPromise = null;
   const provinceCardBaseByPid = new Map();
@@ -599,6 +624,154 @@
     if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
+  }
+
+  function parseManualNumberish(raw) {
+    const txt = String(raw || "").trim();
+    if (!txt) return null;
+    const n = Number(txt.replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseManualList(raw, numeric) {
+    const parts = String(raw || "").split(',').map((v) => String(v || "").trim()).filter(Boolean);
+    if (!numeric) return parts;
+    return parts.map((v) => Number(v) >>> 0).filter(Boolean);
+  }
+
+  function pickExtraFields(source, reservedKeys) {
+    const out = {};
+    for (const [k, v] of Object.entries(source || {})) {
+      if (reservedKeys.has(k)) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
+  function openManualEditModal(map, key, meta) {
+    if (!manualEditModal) return;
+    const mode = currentMode();
+    const pd = getProvData(key);
+    if (!pd) return;
+    const entityField = MODE_TO_FIELD[mode] || "";
+    const entityId = entityField ? String(pd[entityField] || "").trim() : "";
+    const bucket = mode === 'provinces' ? null : realmBucketByType(mode);
+    const entity = entityId && bucket ? (bucket[entityId] || null) : null;
+
+    manualEditTarget = { mode, key: key >>> 0, pid: Number(pd.pid) >>> 0, entityField, entityId };
+    manualEditTitle.textContent = mode === 'provinces' ? 'Редактор провинции' : `Редактор сущности (${mode})`;
+    manualEditSubtitle.textContent = mode === 'provinces'
+      ? `${pd.name || (meta && meta.name) || '—'} · PID ${Number(pd.pid) >>> 0}`
+      : `${entity && entity.name ? entity.name : (entityId || 'не выбрана')} · PID ${Number(pd.pid) >>> 0}`;
+
+    manualName.value = String((mode === 'provinces' ? pd.name : (entity && entity.name)) || '');
+    manualOwner.value = String((mode === 'provinces' ? pd.owner : (entity && entity.ruler)) || '');
+    manualKingdomId.value = String(pd.kingdom_id || '');
+    manualGreatHouseId.value = String(pd.great_house_id || '');
+    manualMinorHouseId.value = String(pd.minor_house_id || '');
+    manualFreeCityId.value = String(pd.free_city_id || '');
+    manualTerrain.value = String(pd.terrain || '');
+    manualTreasury.value = String((mode === 'provinces' ? pd.treasury : (entity && entity.treasury)) ?? '');
+    manualPopulation.value = String((mode === 'provinces' ? pd.population : (entity && entity.population)) ?? '');
+    manualTax.value = String((mode === 'provinces' ? pd.tax_rate : (entity && entity.tax_rate)) ?? '');
+    manualBuildings.value = Array.isArray(mode === 'provinces' ? pd.buildings : (entity && entity.buildings)) ? (mode === 'provinces' ? pd.buildings : entity.buildings).join(', ') : '';
+    manualBackground.value = String((mode === 'provinces' ? (pd.background_image || pd.province_card_base_image) : (entity && entity.background_image)) || '');
+    manualCardImage.value = String((mode === 'provinces' ? pd.province_card_image : (entity && entity.card_image)) || '');
+    manualEmblemSvg.value = String((mode === 'provinces' ? pd.emblem_svg : (entity && entity.emblem_svg)) || '');
+    manualDescription.value = String((mode === 'provinces' ? pd.wiki_description : (entity && entity.description)) || '');
+    manualColor.value = String((entity && entity.color) || '');
+    manualCapitalPid.value = String((entity && entity.capital_pid) || '');
+    manualProvincePids.value = Array.isArray(entity && entity.province_pids) ? entity.province_pids.join(', ') : '';
+
+    const reservedProvince = new Set(['pid', 'name', 'owner', 'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'terrain', 'treasury', 'population', 'tax_rate', 'buildings', 'background_image', 'province_card_base_image', 'province_card_image', 'emblem_svg', 'wiki_description', 'fill_rgba', 'emblem_box', 'emblem_asset_id']);
+    const reservedEntity = new Set(['name', 'ruler', 'treasury', 'population', 'tax_rate', 'buildings', 'background_image', 'card_image', 'emblem_svg', 'description', 'color', 'capital_pid', 'province_pids', 'emblem_scale', 'emblem_box']);
+    const extras = mode === 'provinces' ? pickExtraFields(pd, reservedProvince) : pickExtraFields(entity || {}, reservedEntity);
+    manualExtraJson.value = Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '';
+
+    manualEditModal.classList.add('open');
+    manualEditModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeManualEditModal() {
+    if (!manualEditModal) return;
+    manualEditModal.classList.remove('open');
+    manualEditModal.setAttribute('aria-hidden', 'true');
+    manualEditTarget = null;
+  }
+
+  function saveManualEditFromModal(map) {
+    if (!manualEditTarget) return;
+    const pd = getProvData(manualEditTarget.key);
+    if (!pd) return;
+    const mode = manualEditTarget.mode;
+    const extrasRaw = String(manualExtraJson.value || '').trim();
+    let extra = {};
+    if (extrasRaw) extra = JSON.parse(extrasRaw);
+
+    if (mode === 'provinces') {
+      pd.name = String(manualName.value || '').trim();
+      pd.owner = ensurePerson(manualOwner.value);
+      pd.kingdom_id = String(manualKingdomId.value || '').trim();
+      pd.great_house_id = String(manualGreatHouseId.value || '').trim();
+      pd.minor_house_id = String(manualMinorHouseId.value || '').trim();
+      pd.free_city_id = String(manualFreeCityId.value || '').trim();
+      pd.terrain = String(manualTerrain.value || '').trim();
+      const treasury = parseManualNumberish(manualTreasury.value);
+      const population = parseManualNumberish(manualPopulation.value);
+      const tax = parseManualNumberish(manualTax.value);
+      if (treasury == null) delete pd.treasury; else pd.treasury = treasury;
+      if (population == null) delete pd.population; else pd.population = population;
+      if (tax == null) delete pd.tax_rate; else pd.tax_rate = tax;
+      const buildings = parseManualList(manualBuildings.value, false);
+      if (buildings.length) pd.buildings = buildings; else delete pd.buildings;
+      const bg = String(manualBackground.value || '').trim();
+      if (bg) pd.background_image = bg; else delete pd.background_image;
+      pd.province_card_image = String(manualCardImage.value || '').trim();
+      pd.emblem_svg = String(manualEmblemSvg.value || '').trim();
+      pd.emblem_box = pd.emblem_svg ? extractSvgBox(pd.emblem_svg) : null;
+      pd.wiki_description = String(manualDescription.value || '').trim();
+      Object.assign(pd, extra);
+      setSelection(manualEditTarget.key, map.getProvinceMeta(manualEditTarget.key));
+    } else {
+      const entityField = MODE_TO_FIELD[mode] || '';
+      let entityId = String(pd[entityField] || '').trim();
+      if (!entityId) {
+        entityId = `manual_${Date.now()}`;
+        pd[entityField] = entityId;
+      }
+      const bucket = realmBucketByType(mode);
+      const entity = ensureRealm(mode, entityId);
+      entity.name = String(manualName.value || '').trim();
+      entity.ruler = ensurePerson(manualOwner.value);
+      const treasury = parseManualNumberish(manualTreasury.value);
+      const population = parseManualNumberish(manualPopulation.value);
+      const tax = parseManualNumberish(manualTax.value);
+      if (treasury == null) delete entity.treasury; else entity.treasury = treasury;
+      if (population == null) delete entity.population; else entity.population = population;
+      if (tax == null) delete entity.tax_rate; else entity.tax_rate = tax;
+      const buildings = parseManualList(manualBuildings.value, false);
+      if (buildings.length) entity.buildings = buildings; else delete entity.buildings;
+      const bg = String(manualBackground.value || '').trim();
+      if (bg) entity.background_image = bg; else delete entity.background_image;
+      entity.card_image = String(manualCardImage.value || '').trim();
+      entity.emblem_svg = String(manualEmblemSvg.value || '').trim();
+      entity.emblem_box = entity.emblem_svg ? extractSvgBox(entity.emblem_svg) : null;
+      entity.description = String(manualDescription.value || '').trim();
+      entity.color = String(manualColor.value || '').trim() || entity.color || '#ff3b30';
+      const capitalPid = Number(manualCapitalPid.value) >>> 0;
+      if (capitalPid) entity.capital_pid = capitalPid; else delete entity.capital_pid;
+      entity.province_pids = parseManualList(manualProvincePids.value, true);
+      pd.kingdom_id = String(manualKingdomId.value || pd.kingdom_id || '').trim();
+      pd.great_house_id = String(manualGreatHouseId.value || pd.great_house_id || '').trim();
+      pd.minor_house_id = String(manualMinorHouseId.value || pd.minor_house_id || '').trim();
+      pd.free_city_id = String(manualFreeCityId.value || pd.free_city_id || '').trim();
+      Object.assign(entity, extra);
+      bucket[entityId] = entity;
+    }
+
+    applyLayerState(map);
+    exportStateToTextarea();
+    closeManualEditModal();
   }
 
   function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
@@ -1457,6 +1630,15 @@
 
     provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
     terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
+    if (manualEditClose) manualEditClose.addEventListener('click', closeManualEditModal);
+    if (manualEditSave) manualEditSave.addEventListener('click', () => {
+      try {
+        saveManualEditFromModal(map);
+      } catch (err) {
+        alert('Не удалось сохранить изменения: ' + (err && err.message ? err.message : err));
+      }
+    });
+    if (manualEditModal) manualEditModal.addEventListener('click', (evt) => { if (evt.target === manualEditModal) closeManualEditModal(); });
   }
 
 
@@ -1543,10 +1725,12 @@
       onClick: ({ key, meta, evt }) => {
         if (evt.ctrlKey || evt.metaKey || evt.shiftKey) {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
-        } else {
-          selectedKeys.clear(); selectedKeys.add(key);
+          setSelection(key, meta);
+          return;
         }
+        selectedKeys.clear(); selectedKeys.add(key);
         setSelection(key, meta);
+        openManualEditModal(map, key, meta);
       },
       onReady: () => applyLayerState(map)
     });
