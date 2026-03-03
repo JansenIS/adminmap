@@ -76,6 +76,25 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="muted">Ходы и казна (основная карта)</div>
+        <div class="kv">
+          <div><b>Текущий ход/год:</b> <span id="turnCurrentYear">—</span></div>
+          <div><b>Статус:</b> <span id="turnCurrentStatus">—</span></div>
+          <div><b>Казна провинций:</b> <span id="turnTreasuryProvSum">—</span></div>
+          <div><b>Казна сущностей:</b> <span id="turnTreasuryEntitySum">—</span></div>
+        </div>
+        <div class="btnrow">
+          <button id="btnMakeTurn" type="button">Сделать ход</button>
+          <button id="btnRefreshTurn" type="button">Обновить статус</button>
+          <button id="btnOpenTurnAdmin" type="button">Открыть админку хода</button>
+        </div>
+        <div class="btnrow">
+          <button id="btnOpenTreasuryView" type="button">Таблица казны провинций</button>
+          <button id="btnOpenEntitiesView" type="button">Экономика сущностей</button>
+        </div>
+        <div id="turnActionStatus" class="small" style="margin-top:8px;">—</div>
+      </div>
 
       <div class="card">
         <div class="grid">

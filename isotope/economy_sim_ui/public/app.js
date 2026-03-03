@@ -12,6 +12,8 @@ const UI = {
   tabTradeBalance: el("tabTradeBalance"),
 
   day: el("day"),
+  turn: el("turn"),
+  year: el("year"),
   popTotal: el("popTotal"),
 
   search: el("search"),
@@ -81,7 +83,11 @@ function setRunning(isRunning) {
 }
 
 function renderSummary(sum) {
+  const day = Number(sum.day ?? 0);
+  const year = Math.floor(day / 365) + 1;
   UI.day.textContent = String(sum.day ?? 0);
+  UI.turn.textContent = String(year);
+  UI.year.textContent = String(year);
   UI.popTotal.textContent = fmtInt(sum.popTotal ?? 0);
 
   const top = (sum.topGDP || [])

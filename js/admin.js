@@ -12,6 +12,16 @@
   const selPid = el("selPid");
   const selKey = el("selKey");
   const multiSelCount = el("multiSelCount");
+  const turnCurrentYear = el("turnCurrentYear");
+  const turnCurrentStatus = el("turnCurrentStatus");
+  const turnTreasuryProvSum = el("turnTreasuryProvSum");
+  const turnTreasuryEntitySum = el("turnTreasuryEntitySum");
+  const turnActionStatus = el("turnActionStatus");
+  const btnMakeTurn = el("btnMakeTurn");
+  const btnRefreshTurn = el("btnRefreshTurn");
+  const btnOpenTreasuryView = el("btnOpenTreasuryView");
+  const btnOpenEntitiesView = el("btnOpenEntitiesView");
+  const btnOpenTurnAdmin = el("btnOpenTurnAdmin");
 
   const colorInput = el("color");
   const alphaInput = el("alpha");
@@ -182,6 +192,98 @@
     if (flags && flags.USE_PARTIAL_SAVE) active.push('USE_PARTIAL_SAVE');
     if (flags && flags.USE_SERVER_RENDER) active.push('USE_SERVER_RENDER');
     flagsStatusEl.textContent = active.length ? ('Флаги: ' + active.join(', ')) : 'Флаги: backend';
+  }
+
+  function fmtMoneyCompact(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n)) return '0';
+    return Math.round(n).toLocaleString('ru-RU');
+  }
+
+  async function turnApi(path, options) {
+    const resp = await fetch(path, options);
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const err = body && (body.error || body.message) ? `${body.error || body.message}` : `HTTP ${resp.status}`;
+      throw new Error(err);
+    }
+    return body;
+  }
+
+  async function refreshTurnPanel() {
+    if (!turnCurrentYear) return;
+    turnActionStatus.textContent = 'Обновляю данные по ходу…';
+    try {
+      const listBody = await turnApi('/api/turns/?published_only=1', { cache: 'no-store' });
+      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
+      const published = items.length ? items[items.length - 1] : null;
+      if (!published || !Number.isFinite(Number(published.year))) {
+        turnCurrentYear.textContent = '—';
+        turnCurrentStatus.textContent = 'published ходов нет';
+        turnTreasuryProvSum.textContent = '—';
+        turnTreasuryEntitySum.textContent = '—';
+        turnActionStatus.textContent = 'Пока нет опубликованных ходов. Нажми «Сделать ход».';
+        return;
+      }
+
+      const year = Number(published.year);
+      turnCurrentYear.textContent = String(year);
+      turnCurrentStatus.textContent = String(published.status || 'published');
+
+      const details = await turnApi(`/api/turns/show/?year=${encodeURIComponent(year)}&include=snapshot_payload&full=1`, { cache: 'no-store' });
+      const payload = details && details.snapshot_payload && typeof details.snapshot_payload === 'object' ? details.snapshot_payload : null;
+      const provinceRows = Array.isArray(payload && payload.province_treasury) ? payload.province_treasury : [];
+      const entityRows = Array.isArray(payload && payload.entity_treasury) ? payload.entity_treasury : [];
+      const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+      const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+      turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
+      turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
+      turnActionStatus.textContent = `Показан published ход ${year}.`;
+    } catch (err) {
+      turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
+    }
+  }
+
+  async function makeNextTurn() {
+    if (!btnMakeTurn) return;
+    btnMakeTurn.disabled = true;
+    turnActionStatus.textContent = 'Создаю следующий ход…';
+    try {
+      const listBody = await turnApi('/api/turns/', { cache: 'no-store' });
+      const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
+      const published = items.filter((it) => String(it && it.status || '') === 'published');
+      const sourceYear = published.length ? Number(published[published.length - 1].year || 0) : 0;
+      const targetYear = sourceYear + 1;
+
+      const created = await turnApi('/api/turns/create-from-previous/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify({ source_turn_year: sourceYear, target_turn_year: targetYear, ruleset_version: 'v1.0' })
+      });
+      const createdVersion = String(created && created.turn && created.turn.version || '');
+      turnActionStatus.textContent = `Ход ${targetYear} создан, считаю экономику…`;
+
+      const processed = await turnApi('/api/turns/process-economy/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': createdVersion },
+        body: JSON.stringify({ turn_year: targetYear, if_match: createdVersion })
+      });
+      const processedVersion = String(processed && processed.turn && processed.turn.version || createdVersion);
+      turnActionStatus.textContent = `Экономика для хода ${targetYear} посчитана, публикую…`;
+
+      await turnApi('/api/turns/publish/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8', 'If-Match': processedVersion },
+        body: JSON.stringify({ turn_year: targetYear, if_match: processedVersion })
+      });
+
+      turnActionStatus.textContent = `Ход ${targetYear} опубликован.`;
+      await refreshTurnPanel();
+    } catch (err) {
+      turnActionStatus.textContent = `Не удалось сделать ход: ${err && err.message ? err.message : err}`;
+    } finally {
+      btnMakeTurn.disabled = false;
+    }
   }
 
 
@@ -1102,6 +1204,18 @@
 
 
   function boot(map) {
+    if (btnRefreshTurn) btnRefreshTurn.addEventListener("click", () => { refreshTurnPanel().catch(() => {}); });
+    if (btnMakeTurn) btnMakeTurn.addEventListener("click", () => { makeNextTurn().catch(() => {}); });
+    if (btnOpenTreasuryView) btnOpenTreasuryView.addEventListener("click", () => {
+      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=treasury', '_blank', 'noopener');
+    });
+    if (btnOpenEntitiesView) btnOpenEntitiesView.addEventListener("click", () => {
+      window.open('isotope/economy_sim_ui/public/sim-admin.html?tab=entities', '_blank', 'noopener');
+    });
+    if (btnOpenTurnAdmin) btnOpenTurnAdmin.addEventListener("click", () => {
+      window.open('turn_admin.html', '_blank', 'noopener');
+    });
+
     btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
     btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
@@ -1443,6 +1557,7 @@
     boot(map);
     setSelection(0, null);
     exportStateToTextarea();
+    await refreshTurnPanel();
   }
 
   main().catch(err => { console.error(err); alert("Ошибка запуска админки: " + err.message); });
