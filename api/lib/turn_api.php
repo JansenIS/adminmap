@@ -31,6 +31,63 @@ function turn_api_snapshot_path(int $year, string $phase): string {
   return turn_api_base_dir() . '/snapshots/turn_' . $year . '_' . $phase . '.json';
 }
 
+
+function turn_api_rulesets_path(): string {
+  return api_repo_root() . '/data/turn_rulesets.json';
+}
+
+function turn_api_default_ruleset(): array {
+  return [
+    'version' => 'v1.2',
+    'economy' => [
+      'base_income_default' => 10.0,
+      'base_income_mountain' => 8.0,
+      'base_income_plains' => 12.0,
+      'base_income_sea' => 6.0,
+      'year_mod_cycle' => 5,
+      'expense_base' => 4.0,
+      'expense_year_step' => 0.5,
+      'expense_year_cycle' => 3,
+    ],
+    'treasury' => [
+      'tax_rate' => 0.35,
+      'province_reserve_rate' => 0.10,
+      'province_opening_income_share' => 0.20,
+      'entity_subsidy_rate' => 0.12,
+      'entity_transfer_rate' => 0.01,
+      'entity_transfer_cap' => 5.0,
+    ],
+  ];
+}
+
+function turn_api_load_rulesets(): array {
+  $defaults = ['default' => turn_api_default_ruleset(), 'by_version' => []];
+  $path = turn_api_rulesets_path();
+  if (!is_file($path)) return $defaults;
+  $raw = @file_get_contents($path);
+  $decoded = is_string($raw) ? json_decode($raw, true) : null;
+  if (!is_array($decoded)) return $defaults;
+
+  $default = $decoded['default'] ?? null;
+  $byVersion = $decoded['by_version'] ?? null;
+  if (!is_array($default) || !is_array($byVersion)) return $defaults;
+  return ['default' => $default, 'by_version' => $byVersion];
+}
+
+function turn_api_ruleset_for_turn(array $turn): array {
+  $rulesets = turn_api_load_rulesets();
+  $version = trim((string)($turn['ruleset_version'] ?? ''));
+  $selected = null;
+  if ($version !== '' && is_array($rulesets['by_version'][$version] ?? null)) {
+    $selected = $rulesets['by_version'][$version];
+  }
+  if (!is_array($selected)) $selected = $rulesets['default'];
+
+  $merged = array_replace_recursive(turn_api_default_ruleset(), $selected);
+  $merged['version'] = $version !== '' ? $version : (string)($merged['version'] ?? 'v1.2');
+  return $merged;
+}
+
 function turn_api_ensure_store(): void {
   $base = turn_api_base_dir();
   if (!is_dir($base)) @mkdir($base, 0775, true);
@@ -203,27 +260,30 @@ function turn_api_compute_entity_state(array $state, int $year): array {
   return $out;
 }
 
-function turn_api_compute_economy_state(array $state, int $year): array {
+function turn_api_compute_economy_state(array $state, int $year, array $ruleset): array {
   $out = [];
   foreach (($state['provinces'] ?? []) as $idx => $prov) {
     if (!is_array($prov)) continue;
     $pid = (int)($prov['pid'] ?? $idx);
     if ($pid <= 0) continue;
     $terrain = strtolower((string)($prov['terrain'] ?? ''));
-    $baseIncome = 10.0;
-    if ($terrain === 'mountain') $baseIncome = 8.0;
-    if ($terrain === 'plains') $baseIncome = 12.0;
-    if ($terrain === 'sea' || $terrain === 'ocean') $baseIncome = 6.0;
+    $ecoCfg = (array)($ruleset['economy'] ?? []);
+    $baseIncome = (float)($ecoCfg['base_income_default'] ?? 10.0);
+    if ($terrain === 'mountain') $baseIncome = (float)($ecoCfg['base_income_mountain'] ?? 8.0);
+    if ($terrain === 'plains') $baseIncome = (float)($ecoCfg['base_income_plains'] ?? 12.0);
+    if ($terrain === 'sea' || $terrain === 'ocean') $baseIncome = (float)($ecoCfg['base_income_sea'] ?? 6.0);
 
-    $income = $baseIncome + ($year % 5);
-    $expense = 4.0 + (($year % 3) * 0.5);
+    $yearModCycle = max(1, (int)($ecoCfg['year_mod_cycle'] ?? 5));
+    $expenseCycle = max(1, (int)($ecoCfg['expense_year_cycle'] ?? 3));
+    $income = $baseIncome + ($year % $yearModCycle);
+    $expense = (float)($ecoCfg['expense_base'] ?? 4.0) + (($year % $expenseCycle) * (float)($ecoCfg['expense_year_step'] ?? 0.5));
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'balance_delta' => round($income - $expense, 2),
-      'modifiers' => ['terrain' => $terrain, 'year_mod' => ($year % 5)],
+      'modifiers' => ['terrain' => $terrain, 'ruleset_version' => (string)($ruleset['version'] ?? ''), 'year_mod' => ($year % max(1, (int)(($ruleset['economy']['year_mod_cycle'] ?? 5))))],
     ];
   }
   usort($out, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
@@ -267,7 +327,7 @@ function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rule
   $startSnapshotRef = turn_api_save_snapshot($targetYear, 'start', [
     'world_state' => $worldState,
     'entity_state' => turn_api_compute_entity_state($worldState, $targetYear),
-    'economy_state' => turn_api_compute_economy_state($worldState, $targetYear),
+    'economy_state' => turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])),
     'source_turn_year' => $sourceYear,
   ]);
   if (!is_array($startSnapshotRef)) {
@@ -284,7 +344,7 @@ function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rule
     'snapshot_start' => $startSnapshotRef,
     'snapshot_end' => null,
     'entity_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_entity_state($worldState, $targetYear))],
-    'economy_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_economy_state($worldState, $targetYear))],
+    'economy_state' => ['status' => 'captured_start', 'records' => count(turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])))],
     'economy' => ['status' => 'not_processed', 'checkpoint' => null, 'records' => 0, 'checksum' => null],
     'entity_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
     'province_treasury' => ['status' => 'not_processed', 'records' => 0, 'checksum' => null],
@@ -299,10 +359,12 @@ function turn_api_compute_economy_for_turn(array $turn): array {
   $snap = turn_api_load_snapshot($year, 'start');
   $state = (is_array($snap) && is_array($snap['payload']['world_state'] ?? null)) ? $snap['payload']['world_state'] : api_load_state();
 
+  $ruleset = turn_api_ruleset_for_turn($turn);
   $entityState = turn_api_compute_entity_state($state, $year);
-  $economyState = turn_api_compute_economy_state($state, $year);
+  $economyState = turn_api_compute_economy_state($state, $year, $ruleset);
   $economy = turn_api_compute_economy_summary($economyState);
-  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year);
+  $economy['ruleset_version'] = (string)($ruleset['version'] ?? '');
+  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year, $ruleset);
 
   return [
     'entity_state' => $entityState,
@@ -337,7 +399,7 @@ function turn_api_build_map_artifacts(): array {
 
 
 
-function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year): array {
+function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset): array {
   $entityRows = [];
   foreach ($entityState as $row) {
     if (!is_array($row)) continue;
@@ -369,9 +431,9 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     if ($pid <= 0) continue;
     $income = (float)($eco['income'] ?? 0.0);
     $expense = (float)($eco['expense'] ?? 0.0);
-    $tax = round($income * 0.35, 2);
-    $reserveAdd = round($income * 0.10, 2);
-    $net = round($income - $expense - $tax - $reserveAdd, 2);
+    $tCfg = (array)($ruleset['treasury'] ?? []);
+    $tax = round($income * (float)($tCfg['tax_rate'] ?? 0.35), 2);
+    $reserveAdd = round($income * (float)($tCfg['province_reserve_rate'] ?? 0.10), 2);
 
     $owner = '';
     $provinceName = '';
@@ -385,33 +447,40 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       break;
     }
 
-    $provinceRows[] = [
-      'turn_year' => $year,
-      'province_pid' => $pid,
-      'province_name' => $provinceName,
-      'owner_name' => $owner,
-      'opening_balance' => round($income * 0.2, 2),
-      'income' => round($income, 2),
-      'expense' => round($expense, 2),
-      'tax_paid_to_entity' => $tax,
-      'reserve_add' => $reserveAdd,
-      'closing_balance' => round(($income * 0.2) + $net, 2),
-      'terrain' => $terrain,
-    ];
-
     $targetEntityId = (string)($ownerToEntityId[$owner] ?? '');
+    $appliedTax = 0.0;
     if ($targetEntityId !== '' && isset($entityRows[$targetEntityId])) {
-      $entityRows[$targetEntityId]['income_tax'] = round(((float)$entityRows[$targetEntityId]['income_tax']) + $tax, 2);
+      $appliedTax = $tax;
+      $entityRows[$targetEntityId]['income_tax'] = round(((float)$entityRows[$targetEntityId]['income_tax']) + $appliedTax, 2);
       $ledger[] = [
         'turn_year' => $year,
         'entry_id' => 'L-' . $year . '-P2E-' . $pid,
         'type' => 'province_to_entity_tax',
         'from' => 'province:' . $pid,
         'to' => 'entity:' . $targetEntityId,
-        'amount' => $tax,
+        'amount' => $appliedTax,
+        'debit_account' => 'entity:' . $targetEntityId,
+        'credit_account' => 'province:' . $pid,
         'reason' => 'tax_collection',
       ];
     }
+
+    $net = round($income - $expense - $appliedTax - $reserveAdd, 2);
+    $openingShare = (float)((($ruleset['treasury'] ?? [])['province_opening_income_share'] ?? 0.2));
+    $openingBalance = round($income * $openingShare, 2);
+    $provinceRows[] = [
+      'turn_year' => $year,
+      'province_pid' => $pid,
+      'province_name' => $provinceName,
+      'owner_name' => $owner,
+      'opening_balance' => $openingBalance,
+      'income' => round($income, 2),
+      'expense' => round($expense, 2),
+      'tax_paid_to_entity' => $appliedTax,
+      'reserve_add' => $reserveAdd,
+      'closing_balance' => round($openingBalance + $net, 2),
+      'terrain' => $terrain,
+    ];
   }
 
   usort($provinceRows, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
@@ -422,7 +491,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   foreach ($entityIds as $eid) {
     $opening = (float)($entityRows[$eid]['opening_balance'] ?? 0.0);
     $incomeTax = (float)($entityRows[$eid]['income_tax'] ?? 0.0);
-    $subsidy = round($incomeTax * 0.12, 2);
+    $subsidy = round($incomeTax * (float)((($ruleset['treasury'] ?? [])['entity_subsidy_rate'] ?? 0.12)), 2);
     $entityRows[$eid]['subsidies_out'] = $subsidy;
 
     if ($subsidy > 0) {
@@ -433,6 +502,8 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
         'from' => 'entity:' . $eid,
         'to' => 'provinces_of:' . $eid,
         'amount' => $subsidy,
+        'debit_account' => 'provinces_of:' . $eid,
+        'credit_account' => 'entity:' . $eid,
         'reason' => 'infrastructure_subsidy',
       ];
     }
@@ -443,7 +514,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   if (count($entityIds) >= 2) {
     $first = $entityIds[0];
     $last = $entityIds[count($entityIds) - 1];
-    $transfer = round(min((float)$entityRows[$first]['closing_balance'] * 0.01, 5.0), 2);
+    $transfer = round(min((float)$entityRows[$first]['closing_balance'] * (float)((($ruleset['treasury'] ?? [])['entity_transfer_rate'] ?? 0.01)), (float)((($ruleset['treasury'] ?? [])['entity_transfer_cap'] ?? 5.0))), 2);
     if ($transfer > 0) {
       $entityRows[$first]['transfers_out'] = $transfer;
       $entityRows[$first]['closing_balance'] = round((float)$entityRows[$first]['closing_balance'] - $transfer, 2);
@@ -456,6 +527,8 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
         'from' => 'entity:' . $first,
         'to' => 'entity:' . $last,
         'amount' => $transfer,
+        'debit_account' => 'entity:' . $last,
+        'credit_account' => 'entity:' . $first,
         'reason' => 'obligation_payment',
       ];
     }
@@ -472,6 +545,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     'entity_treasury_checksum' => hash('sha256', json_encode($entityOut, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
     'province_treasury_checksum' => hash('sha256', json_encode($provinceRows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
     'ledger_checksum' => hash('sha256', json_encode($ledger, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+    'ruleset_version' => (string)($ruleset['version'] ?? ''),
   ];
 
   return [

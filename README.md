@@ -154,6 +154,8 @@ Stage 1 (snapshot/turn engine) endpoints:
 Stage 2 treasury:
 - `process-economy` теперь синхронно считает `entity_treasury`, `province_treasury`, `treasury_ledger` в привязке к `turn_year`.
 - `publish` сохраняет treasury-данные в `snapshot_end` для воспроизводимого восстановления.
+- Финансовые коэффициенты берутся из versioned ruleset: `data/turn_rulesets.json` (`default` + `by_version`).
+- Проверки: `bash tools/contract_turn_stage2.sh` и `bash tools/e2e_turn_treasury_invariants.sh`.
 
 Каждый JSON-ответ новых API теперь включает `meta` (`api_version`, `schema_version`) для договорённости контракта на период миграции.
 

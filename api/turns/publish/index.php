@@ -44,9 +44,10 @@ if (!is_array($startSnap) || !is_array($startSnap['payload']['world_state'] ?? n
 }
 
 $worldState = $startSnap['payload']['world_state'];
+$ruleset = turn_api_ruleset_for_turn($turn);
 $entityState = turn_api_compute_entity_state($worldState, $year);
-$economyState = turn_api_compute_economy_state($worldState, $year);
-$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year);
+$economyState = turn_api_compute_economy_state($worldState, $year, $ruleset);
+$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset);
 $turn['map_artifacts'] = turn_api_build_map_artifacts();
 $overlayPayload = turn_api_compute_overlay_payload($entityState, $economyState, (array)($turn['economy'] ?? []));
 $overlayArtifact = turn_api_write_overlay_artifact($year, $overlayPayload);
