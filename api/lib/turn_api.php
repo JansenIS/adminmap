@@ -481,7 +481,10 @@ function turn_api_compute_economy_summary(array $economyState): array {
   ];
 }
 
-function turn_api_source_state_for_new_turn(int $sourceYear): array {
+function turn_api_source_state_for_new_turn(int $sourceYear, bool $preferMapState = false): array {
+  if ($preferMapState) {
+    return api_load_state();
+  }
   if ($sourceYear > 0) {
     $source = turn_api_load_turn($sourceYear);
     if (is_array($source) && (($source['status'] ?? '') === 'published')) {
@@ -494,8 +497,8 @@ function turn_api_source_state_for_new_turn(int $sourceYear): array {
   return api_load_state();
 }
 
-function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rulesetVersion): array {
-  $worldState = turn_api_source_state_for_new_turn($sourceYear);
+function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rulesetVersion, bool $preferMapState = false): array {
+  $worldState = turn_api_source_state_for_new_turn($sourceYear, $preferMapState);
   $startSnapshotRef = turn_api_save_snapshot($targetYear, 'start', [
     'world_state' => $worldState,
     'entity_state' => turn_api_compute_entity_state($worldState, $targetYear),
@@ -604,20 +607,27 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     $income = (float)($eco['income'] ?? 0.0);
     $expense = (float)($eco['expense'] ?? 0.0);
     $tCfg = (array)($ruleset['treasury'] ?? []);
-    $tax = round($income * (float)($tCfg['tax_rate'] ?? 0.35), 2);
     $reserveAdd = round($income * (float)($tCfg['province_reserve_rate'] ?? 0.10), 2);
 
     $owner = '';
     $provinceName = '';
     $terrain = '';
+    $provinceTaxRate = null;
     foreach (($state['provinces'] ?? []) as $prov) {
       if (!is_array($prov)) continue;
       if ((int)($prov['pid'] ?? 0) !== $pid) continue;
       $owner = (string)($prov['owner'] ?? '');
       $provinceName = (string)($prov['name'] ?? '');
       $terrain = (string)($prov['terrain'] ?? '');
+      if (array_key_exists('tax_rate', $prov) && is_numeric($prov['tax_rate'])) {
+        $provinceTaxRate = (float)$prov['tax_rate'];
+      }
       break;
     }
+
+    $defaultTaxRate = (float)($tCfg['tax_rate'] ?? 0.35);
+    $taxRate = ($provinceTaxRate !== null && is_finite($provinceTaxRate) && $provinceTaxRate >= 0.0) ? $provinceTaxRate : $defaultTaxRate;
+    $tax = round($income * $taxRate, 2);
 
     $targetEntityId = (string)($ownerToEntityId[$owner] ?? '');
     $appliedTax = 0.0;
@@ -649,6 +659,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       'income' => round($income, 2),
       'expense' => round($expense, 2),
       'tax_paid_to_entity' => $appliedTax,
+      'tax_rate' => round($taxRate, 6),
       'reserve_add' => $reserveAdd,
       'closing_balance' => round($openingBalance + $net, 2),
       'terrain' => $terrain,

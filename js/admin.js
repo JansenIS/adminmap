@@ -223,6 +223,57 @@
     return Math.round(n).toLocaleString('ru-RU');
   }
 
+  function applyTurnTreasuryToProvinceState(rows) {
+    if (!state || !state.provinces || !Array.isArray(rows)) return 0;
+    let updated = 0;
+    for (const row of rows) {
+      const pid = Number(row && row.province_pid) >>> 0;
+      if (!pid) continue;
+      const pd = state.provinces[String(pid)];
+      if (!pd || typeof pd !== 'object') continue;
+      const closing = Number(row && row.closing_balance);
+      if (!Number.isFinite(closing)) continue;
+      if (Number(pd.treasury) === closing) continue;
+      pd.treasury = closing;
+      updated += 1;
+    }
+    return updated;
+  }
+
+
+  function applyTurnEconomyToProvinceState(economyRows, treasuryRows) {
+    if (!state || !state.provinces) return 0;
+    let updated = 0;
+    const taxRateByPid = new Map();
+    if (Array.isArray(treasuryRows)) {
+      for (const row of treasuryRows) {
+        const pid = Number(row && row.province_pid) >>> 0;
+        if (!pid) continue;
+        const taxRate = Number(row && row.tax_rate);
+        if (Number.isFinite(taxRate)) taxRateByPid.set(pid, taxRate);
+      }
+    }
+    for (const row of (Array.isArray(economyRows) ? economyRows : [])) {
+      const pid = Number(row && row.province_pid) >>> 0;
+      if (!pid) continue;
+      const pd = state.provinces[String(pid)];
+      if (!pd || typeof pd !== 'object') continue;
+      const pop = Number(row && row.modifiers && row.modifiers.population);
+      if (Number.isFinite(pop) && Number(pd.population) !== pop) {
+        pd.population = pop;
+        updated += 1;
+      }
+      if (taxRateByPid.has(pid)) {
+        const taxRate = taxRateByPid.get(pid);
+        if (Number(pd.tax_rate) !== taxRate) {
+          pd.tax_rate = taxRate;
+          updated += 1;
+        }
+      }
+    }
+    return updated;
+  }
+
   async function turnApi(path, options) {
     const resp = await fetch(path, options);
     const body = await resp.json().catch(() => ({}));
@@ -257,8 +308,13 @@
       const payload = details && details.snapshot_payload && typeof details.snapshot_payload === 'object' ? details.snapshot_payload : null;
       const provinceRows = Array.isArray(payload && payload.province_treasury) ? payload.province_treasury : [];
       const entityRows = Array.isArray(payload && payload.entity_treasury) ? payload.entity_treasury : [];
+      const economyRows = Array.isArray(payload && payload.economy_state) ? payload.economy_state : [];
       const provSum = provinceRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
       const entitySum = entityRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+      applyTurnTreasuryToProvinceState(provinceRows);
+      applyTurnEconomyToProvinceState(economyRows, provinceRows);
+      if (selectedKey) setSelection(selectedKey);
+      exportStateToTextarea();
       turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
       turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
       turnActionStatus.textContent = `Показан published ход ${year}.`;
@@ -278,10 +334,14 @@
       const sourceYear = published.length ? Number(published[published.length - 1].year || 0) : 0;
       const targetYear = sourceYear + 1;
 
+      turnActionStatus.textContent = 'Сохраняю изменения карты перед новым ходом…';
+      exportStateToTextarea();
+      await saveStateAsBackendVariant(stateTA.value);
+
       const created = await turnApi('/api/turns/create-from-previous/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json;charset=utf-8' },
-        body: JSON.stringify({ source_turn_year: sourceYear, target_turn_year: targetYear, ruleset_version: 'v1.0' })
+        body: JSON.stringify({ source_turn_year: sourceYear, target_turn_year: targetYear, ruleset_version: 'v1.0', prefer_map_state: true })
       });
       const createdVersion = String(created && created.turn && created.turn.version || '');
       turnActionStatus.textContent = `Ход ${targetYear} создан, считаю экономику…`;
@@ -852,7 +912,7 @@
     }
     return saveRes.json();
   }
-  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), terrain: String(pd.terrain || ""), fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
+  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), terrain: String(pd.terrain || ""), treasury: Number.isFinite(Number(pd.treasury)) ? Number(pd.treasury) : null, population: Number.isFinite(Number(pd.population)) ? Number(pd.population) : null, tax_rate: Number.isFinite(Number(pd.tax_rate)) ? Number(pd.tax_rate) : null, fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
   async function fetchIfMatchVersion() { const res = await fetch("/api/map/version/", { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status); const payload = await res.json(); const v = String(payload && payload.map_version || "").trim(); if (!v) throw new Error("map_version_missing"); return v; }
   async function persistChangesBatch(changes) { const payload = { changes: Array.isArray(changes) ? changes : [] }; const ifMatch = await fetchIfMatchVersion(); const res = await fetch(CHANGES_APPLY_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8", "If-Match": ifMatch }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "province", pid: payload.pid, changes: payload.changes }]); const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
