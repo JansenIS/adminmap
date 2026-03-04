@@ -64,7 +64,7 @@ jobs:
           python -m json.tool data/turn_rulesets.json >/dev/null
 
       - name: JS syntax sanity
-        run: node --check isotope/economy_sim_ui/public/app.js
+        run: node --check js/turn_admin.js
 
       - name: Determinism replay
         run: bash tools/ci_turn_replay_determinism.sh

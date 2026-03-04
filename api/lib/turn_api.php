@@ -746,6 +746,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
       'opening_balance' => round((float)($row['treasury_main'] ?? 0), 2),
       'income_tax' => 0.0,
       'subsidies_out' => 0.0,
+      'army_upkeep_out' => 0.0,
       'transfers_in' => 0.0,
       'transfers_out' => 0.0,
       'closing_balance' => 0.0,
@@ -766,6 +767,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
         'opening_balance' => 0.0,
         'income_tax' => 0.0,
         'subsidies_out' => 0.0,
+        'army_upkeep_out' => 0.0,
         'transfers_in' => 0.0,
         'transfers_out' => 0.0,
         'closing_balance' => 0.0,
@@ -786,6 +788,64 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   $minorToGreatRate = (float)($tCfg['minor_to_great_rate'] ?? 0.10);
   $greatDomainIncomeShare = (float)($tCfg['great_domain_income_share'] ?? 1.0);
   $greatToKingdomRate = (float)($tCfg['great_to_kingdom_rate'] ?? 0.10);
+
+  $armyUpkeepPerStrength = max(0.0, (float)($tCfg['army_upkeep_per_strength'] ?? 1.15));
+
+  $addUpkeepShare = static function (array &$shares, string $entityId, float $amount): void {
+    if ($entityId === '' || $amount <= 0.0) return;
+    $shares[$entityId] = ((float)($shares[$entityId] ?? 0.0)) + $amount;
+  };
+
+  $resolveVassalEntityId = static function (string $bucketType, string $summonerKey, string $armyId): string {
+    if ($bucketType !== 'great_houses') return '';
+    if (strpos($armyId, 'vassal:') !== 0) return '';
+    $vassalId = trim(substr($armyId, strlen('vassal:')));
+    if ($vassalId === '') return '';
+    return 'minor_houses:' . $summonerKey . '::' . $vassalId;
+  };
+
+  $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId): array {
+    $shares = [];
+    $summonerEntityId = $bucketType . ':' . $summonerKey;
+
+    foreach ((array)($realm['arrierban_units'] ?? []) as $unit) {
+      if (!is_array($unit)) continue;
+      $size = max(0.0, (float)($unit['size'] ?? 0.0));
+      if ($size <= 0.0) continue;
+      $addUpkeepShare($shares, $summonerEntityId, $size * $upkeepPerStrength);
+    }
+
+    $vassalArmies = (array)($realm['arrierban_vassal_armies'] ?? []);
+    if ($vassalArmies !== []) {
+      foreach ($vassalArmies as $army) {
+        if (!is_array($army)) continue;
+        $armyKind = trim((string)($army['army_kind'] ?? ''));
+        $armyId = trim((string)($army['army_id'] ?? ''));
+        $vassalEntityId = $resolveVassalEntityId($bucketType, $summonerKey, $armyId);
+        foreach ((array)($army['units'] ?? []) as $unit) {
+          if (!is_array($unit)) continue;
+          $size = max(0.0, (float)($unit['size'] ?? 0.0));
+          if ($size <= 0.0) continue;
+          $unitUpkeep = $size * $upkeepPerStrength;
+          if ($armyKind === 'vassal' && $vassalEntityId !== '') {
+            $addUpkeepShare($shares, $summonerEntityId, $unitUpkeep * 0.5);
+            $addUpkeepShare($shares, $vassalEntityId, $unitUpkeep * 0.5);
+          } else {
+            $addUpkeepShare($shares, $summonerEntityId, $unitUpkeep);
+          }
+        }
+      }
+    } else {
+      foreach ((array)($realm['arrierban_vassal_units'] ?? []) as $unit) {
+        if (!is_array($unit)) continue;
+        $size = max(0.0, (float)($unit['size'] ?? 0.0));
+        if ($size <= 0.0) continue;
+        $addUpkeepShare($shares, $summonerEntityId, $size * $upkeepPerStrength);
+      }
+    }
+
+    return $shares;
+  };
 
   $provinceByPid = [];
   foreach (($state['provinces'] ?? []) as $prov) {
@@ -1060,6 +1120,36 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     ];
   }
 
+
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucketType) {
+    $bucket = (array)($state[$bucketType] ?? []);
+    foreach ($bucket as $entityKey => $realm) {
+      if (!is_array($realm)) continue;
+      if (empty($realm['arrierban_active'])) continue;
+      $summonerKey = trim((string)$entityKey);
+      if ($summonerKey === '') continue;
+      $shares = $computeArmyUpkeepShares($realm, $bucketType, $summonerKey, $armyUpkeepPerStrength);
+      foreach ($shares as $payerEntityId => $rawAmount) {
+        if (!isset($entityRows[$payerEntityId])) continue;
+        $upkeep = round((float)$rawAmount, 2);
+        if ($upkeep <= 0.0) continue;
+        $entityRows[$payerEntityId]['army_upkeep_out'] = round(((float)$entityRows[$payerEntityId]['army_upkeep_out']) + $upkeep, 2);
+        $ledgerSeq++;
+        $ledger[] = [
+          'turn_year' => $year,
+          'entry_id' => 'L-' . $year . '-UPK-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+          'type' => 'entity_army_upkeep',
+          'from' => 'entity:' . $payerEntityId,
+          'to' => 'sink:army_maintenance',
+          'amount' => $upkeep,
+          'debit_account' => 'expense:army_maintenance',
+          'credit_account' => 'entity:' . $payerEntityId,
+          'reason' => 'arrierban_upkeep',
+        ];
+      }
+    }
+  }
+
   usort($provinceRows, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
 
   $entityIds = array_keys($entityRows);
@@ -1069,9 +1159,10 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     $opening = (float)($entityRows[$eid]['opening_balance'] ?? 0.0);
     $incomeTax = (float)($entityRows[$eid]['income_tax'] ?? 0.0);
     $subsidiesOut = (float)($entityRows[$eid]['subsidies_out'] ?? 0.0);
+    $armyUpkeepOut = (float)($entityRows[$eid]['army_upkeep_out'] ?? 0.0);
     $transfersIn = (float)($entityRows[$eid]['transfers_in'] ?? 0.0);
     $transfersOut = (float)($entityRows[$eid]['transfers_out'] ?? 0.0);
-    $entityRows[$eid]['closing_balance'] = round($opening + $incomeTax + $transfersIn - $subsidiesOut - $transfersOut, 2);
+    $entityRows[$eid]['closing_balance'] = round($opening + $incomeTax + $transfersIn - $subsidiesOut - $armyUpkeepOut - $transfersOut, 2);
   }
 
   $entityOut = array_values($entityRows);

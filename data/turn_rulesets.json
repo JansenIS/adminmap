@@ -51,7 +51,8 @@
       "minor_province_income_share": 0.1,
       "minor_to_great_rate": 0.1,
       "great_domain_income_share": 1.0,
-      "great_to_kingdom_rate": 0.1
+      "great_to_kingdom_rate": 0.1,
+      "army_upkeep_per_strength": 1.15
     }
   },
   "by_version": {
