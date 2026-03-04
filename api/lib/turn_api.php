@@ -40,10 +40,10 @@ function turn_api_default_ruleset(): array {
   return [
     'version' => 'v2.0',
     'economy' => [
-      'base_income_per_hex' => 520.0,
-      'base_expense_per_hex' => 290.0,
-      'population_income_per_capita' => 0.09,
-      'city_population_income_per_capita' => 0.22,
+      'base_income_per_hex' => 640.0,
+      'base_expense_per_hex' => 210.0,
+      'population_income_per_capita' => 0.11,
+      'city_population_income_per_capita' => 0.28,
       'coastal_trade_bonus' => 0.33,
       'river_trade_bonus' => 0.24,
       'terrain_income_coefficients' => [
@@ -74,16 +74,18 @@ function turn_api_default_ruleset(): array {
         'руины' => 0.91,
         'озёра/реки' => 1.05,
       ],
-      'income_random_swing' => 0.16,
-      'expense_random_swing' => 0.12,
+      'income_random_swing' => 0.12,
+      'expense_random_swing' => 0.10,
     ],
     'treasury' => [
       'tax_rate' => 0.35,
-      'province_reserve_rate' => 0.10,
+      'province_reserve_rate' => 0.06,
       'province_opening_income_share' => 0.20,
       'entity_subsidy_rate' => 0.12,
       'entity_transfer_rate' => 0.01,
       'entity_transfer_cap' => 5.0,
+      'province_entity_tax_rate' => 0.12,
+      'army_upkeep_per_strength' => 11.5,
     ],
   ];
 }
@@ -533,7 +535,7 @@ function turn_api_compute_economy_state(array $state, int $year, array $ruleset)
       $income = $income * max(0.0, $incomeMult);
     }
 
-    $arrierbanIncomePenalty = max(0.0, min(1.0, (float)($prov['arrierban_income_penalty'] ?? 0.0)));
+    $arrierbanIncomePenalty = max(0.0, min(1.0, ((float)($prov['arrierban_income_penalty'] ?? 0.0)) * 10.0));
     if ($arrierbanIncomePenalty > 0.0) {
       $income = $income * (1.0 - $arrierbanIncomePenalty);
     }
@@ -733,12 +735,23 @@ function turn_api_build_map_artifacts(): array {
 
 
 function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset): array {
+  $kingdomRulingHouseById = [];
+  foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
+    if (!is_array($kingdom)) continue;
+    $kid = trim((string)$kingdomId);
+    if ($kid === '') continue;
+    $rulingHouseId = trim((string)($kingdom['ruling_house_id'] ?? ''));
+    if ($rulingHouseId === '') continue;
+    $kingdomRulingHouseById[$kid] = $rulingHouseId;
+  }
+
   $entityRows = [];
   $entityMetaById = [];
   foreach ($entityState as $row) {
     if (!is_array($row)) continue;
     $entityId = (string)($row['entity_id'] ?? '');
     if ($entityId === '') continue;
+    if ((string)($row['entity_type'] ?? '') === 'kingdoms') continue;
     $entityRows[$entityId] = [
       'turn_year' => $year,
       'entity_id' => $entityId,
@@ -798,10 +811,17 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
 
   $resolveVassalEntityId = static function (string $bucketType, string $summonerKey, string $armyId): string {
     if ($bucketType === 'great_houses') {
-      if (strpos($armyId, 'vassal:') !== 0) return '';
-      $vassalId = trim(substr($armyId, strlen('vassal:')));
-      if ($vassalId === '') return '';
-      return 'minor_houses:' . $summonerKey . '::' . $vassalId;
+      if (strpos($armyId, 'vassal:') === 0) {
+        $vassalId = trim(substr($armyId, strlen('vassal:')));
+        if ($vassalId === '') return '';
+        return 'minor_houses:' . $summonerKey . '::' . $vassalId;
+      }
+      if (strpos($armyId, 'vassal_great_house:') === 0) {
+        $greatHouseId = trim(substr($armyId, strlen('vassal_great_house:')));
+        if ($greatHouseId === '') return '';
+        return 'great_houses:' . $greatHouseId;
+      }
+      return '';
     }
     if ($bucketType === 'kingdoms') {
       if (strpos($armyId, 'vassal_great_house:') !== 0) return '';
@@ -812,9 +832,13 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     return '';
   };
 
-  $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId): array {
+  $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId, $kingdomRulingHouseById): array {
     $shares = [];
     $summonerEntityId = $bucketType . ':' . $summonerKey;
+    if ($bucketType === 'kingdoms') {
+      $rulingHouseId = (string)($kingdomRulingHouseById[$summonerKey] ?? '');
+      if ($rulingHouseId !== '') $summonerEntityId = 'great_houses:' . $rulingHouseId;
+    }
 
     foreach ((array)($realm['arrierban_units'] ?? []) as $unit) {
       if (!is_array($unit)) continue;
@@ -917,14 +941,7 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   $ledgerSeq = 0;
   $minorGrossIncome = [];
   $greatGrossIncome = [];
-  $greatKingdomById = [];
-  foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
-    if (!is_array($kingdom)) continue;
-    $kid = trim((string)$kingdomId);
-    if ($kid === '') continue;
-    $rulingHouseId = trim((string)($kingdom['ruling_house_id'] ?? ''));
-    if ($rulingHouseId !== '') $greatKingdomById[$rulingHouseId] = $kid;
-  }
+  $greatOverlordHouseById = [];
   foreach ($economyState as $eco) {
     if (!is_array($eco)) continue;
     $pid = (int)($eco['province_pid'] ?? 0);
@@ -952,8 +969,11 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     $greatHouseId = trim((string)($provinceByPid[$pid]['great_house_id'] ?? ''));
     $minorHouseId = trim((string)($provinceByPid[$pid]['minor_house_id'] ?? ''));
     $kingdomId = trim((string)($provinceByPid[$pid]['kingdom_id'] ?? ''));
-    if ($greatHouseId !== '' && $kingdomId !== '' && !isset($greatKingdomById[$greatHouseId])) {
-      $greatKingdomById[$greatHouseId] = $kingdomId;
+    if ($greatHouseId !== '' && $kingdomId !== '' && !isset($greatOverlordHouseById[$greatHouseId])) {
+      $overlordHouseId = (string)($kingdomRulingHouseById[$kingdomId] ?? '');
+      if ($overlordHouseId !== '' && $overlordHouseId !== $greatHouseId) {
+        $greatOverlordHouseById[$greatHouseId] = $overlordHouseId;
+      }
     }
 
     $minorKey = '';
@@ -1101,35 +1121,29 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     ];
   }
 
-  foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
-    if (!is_array($kingdom)) continue;
-    $kid = trim((string)$kingdomId);
-    if ($kid === '') continue;
-    $kingdomEntityId = 'kingdoms:' . $kid;
-    $kingdomName = (string)($kingdom['name'] ?? $kid);
-    $ensureEntityRow($entityRows, $entityMetaById, $kingdomEntityId, $kingdomName, 'kingdoms', $year);
-  }
-
   foreach ($greatGrossIncome as $greatEntityId => $greatIncomeBase) {
     if (!isset($entityRows[$greatEntityId])) continue;
     $greatHouseId = preg_replace('/^great_houses:/', '', (string)$greatEntityId);
-    $kingdomId = (string)($greatKingdomById[$greatHouseId] ?? '');
-    if ($kingdomId === '') continue;
-    $kingdomEntityId = 'kingdoms:' . $kingdomId;
-    if (!isset($entityRows[$kingdomEntityId])) continue;
+    $overlordHouseId = (string)($greatOverlordHouseById[$greatHouseId] ?? '');
+    if ($overlordHouseId === '') continue;
+    $overlordEntityId = 'great_houses:' . $overlordHouseId;
+    if (!isset($entityRows[$overlordEntityId])) {
+      $overlordName = (string)((($state['great_houses'] ?? [])[$overlordHouseId]['name'] ?? $overlordHouseId));
+      $ensureEntityRow($entityRows, $entityMetaById, $overlordEntityId, $overlordName, 'great_houses', $year);
+    }
     $payment = round((float)$greatIncomeBase * $greatToKingdomRate, 2);
     if ($payment <= 0) continue;
     $entityRows[$greatEntityId]['transfers_out'] = round(((float)$entityRows[$greatEntityId]['transfers_out']) + $payment, 2);
-    $entityRows[$kingdomEntityId]['transfers_in'] = round(((float)$entityRows[$kingdomEntityId]['transfers_in']) + $payment, 2);
+    $entityRows[$overlordEntityId]['transfers_in'] = round(((float)$entityRows[$overlordEntityId]['transfers_in']) + $payment, 2);
     $ledgerSeq++;
     $ledger[] = [
       'turn_year' => $year,
       'entry_id' => 'L-' . $year . '-G2K-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
-      'type' => 'great_to_kingdom_tithe',
+      'type' => 'great_to_ruling_house_tithe',
       'from' => 'entity:' . $greatEntityId,
-      'to' => 'entity:' . $kingdomEntityId,
+      'to' => 'entity:' . $overlordEntityId,
       'amount' => $payment,
-      'debit_account' => 'entity:' . $kingdomEntityId,
+      'debit_account' => 'entity:' . $overlordEntityId,
       'credit_account' => 'entity:' . $greatEntityId,
       'reason' => 'royal_tithe',
     ];

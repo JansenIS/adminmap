@@ -56,6 +56,7 @@
   const btnNewRealm = el("newRealm");
   const realmArrierbanBtn = el("realmArrierbanBtn");
   const realmDomainArrierbanBtn = el("realmDomainArrierbanBtn");
+  const realmRoyalArrierbanBtn = el("realmRoyalArrierbanBtn");
   const realmArrierbanDismissBtn = el("realmArrierbanDismissBtn");
   const realmArmyManageBtn = el("realmArmyManageBtn");
   const realmArrierbanOutput = el("realmArrierbanOutput");
@@ -1571,6 +1572,31 @@
     loadRealmFields();
   }
 
+  function kingdomIdsRuledByGreatHouse(greatHouseId) {
+    const target = String(greatHouseId || "").trim();
+    if (!target) return [];
+    const ids = [];
+    for (const [kid, kingdom] of Object.entries(state.kingdoms || {})) {
+      if (!kingdom || typeof kingdom !== "object") continue;
+      if (String(kingdom.ruling_house_id || "").trim() === target) ids.push(String(kid));
+    }
+    return ids;
+  }
+
+  function updateRoyalArrierbanButtonVisibility(type, id) {
+    if (!realmRoyalArrierbanBtn) return;
+    const ruledKingdoms = type === "great_houses" ? kingdomIdsRuledByGreatHouse(id) : [];
+    realmRoyalArrierbanBtn.style.display = ruledKingdoms.length ? "" : "none";
+    realmRoyalArrierbanBtn.disabled = ruledKingdoms.length === 0;
+    if (ruledKingdoms.length > 1) {
+      realmRoyalArrierbanBtn.title = `Дом правит несколькими королевствами (${ruledKingdoms.join(", ")}). Будет использовано первое.`;
+    } else if (ruledKingdoms.length === 1) {
+      realmRoyalArrierbanBtn.title = `Созыв по королевству ${ruledKingdoms[0]}`;
+    } else {
+      realmRoyalArrierbanBtn.title = "";
+    }
+  }
+
   function loadRealmFields() {
     const type = realmTypeSelect.value;
     const id = realmSelect.value;
@@ -1599,6 +1625,7 @@
     if (realmWarlikeCoeffInput) realmWarlikeCoeffInput.value = String(clampWarlikeCoeff(realm && realm.warlike_coeff));
     if (displayRuler) ensurePerson(displayRuler);
     realmEmblemScaleVal.textContent = realmEmblemScaleInput.value;
+    updateRoyalArrierbanButtonVisibility(type, id);
     if (realmArrierbanOutput) realmArrierbanOutput.textContent = "";
   }
 
@@ -1898,7 +1925,9 @@
     pendingArrierbanPlan = plan;
     const ruler = String(plan.calc.realm.ruler || "").trim() || "Без правителя";
     if (arrierbanTitle) arrierbanTitle.textContent = `Арьербан — ${ruler}`;
-    if (arrierbanSubtitle) arrierbanSubtitle.textContent = plan.domainOnly ? `Доменных провинций: ${plan.calc.domainPids.length}, без созыва вассалов` : `Доменных провинций: ${plan.calc.domainPids.length}, доп. вассальных армий: ${plan.calc.supportingArmies}`;
+    if (arrierbanSubtitle) arrierbanSubtitle.textContent = plan.royalKingdomId
+      ? `Королевский призыв по ${plan.royalKingdomId}: доменных провинций ${plan.calc.domainPids.length}, вассальных армий ${plan.calc.supportingArmies}`
+      : (plan.domainOnly ? `Доменных провинций: ${plan.calc.domainPids.length}, без созыва вассалов` : `Доменных провинций: ${plan.calc.domainPids.length}, доп. вассальных армий: ${plan.calc.supportingArmies}`);
     if (arrierbanPools) arrierbanPools.textContent = `Пулы доменного призыва: рыцари ${plan.calc.pools.knights}, нехты ${plan.calc.pools.nehts}, сержанты ${plan.calc.pools.sergeants}, ополчение ${plan.calc.pools.militia}.`;
     if (arrierbanRemaining) arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(plan.calc, null)}.`;
     if (arrierbanValidation) arrierbanValidation.textContent = "";
@@ -1983,7 +2012,7 @@
     for (const row of rows) {
       if (row.population <= 0 || row.levy <= 0) continue;
       row.pd.population = Math.max(0, Math.floor(row.population - row.levy));
-      row.pd.arrierban_income_penalty = Math.max(0, Math.min(1, row.levy / row.population));
+      row.pd.arrierban_income_penalty = Math.max(0, Math.min(1, (row.levy / row.population) * 10));
       row.pd.arrierban_levy = (Number(row.pd.arrierban_levy) || 0) + row.levy;
       row.pd.arrierban_raised = true;
     }
@@ -2868,8 +2897,34 @@
       }
     }
 
+    async function startRoyalArrierban() {
+      const type = realmTypeSelect.value;
+      const id = realmSelect.value;
+      if (!id || type !== "great_houses") return alert("Королевский призыв доступен для Правящего Дома (Большого Дома).");
+      const ruledKingdoms = kingdomIdsRuledByGreatHouse(id);
+      if (!ruledKingdoms.length) return alert("Выбранный Большой Дом не является правящим для королевства.");
+      const kingdomId = ruledKingdoms[0];
+      if (!realmArrierbanOutput) return;
+      try {
+        await ensureHexmapDataLoaded();
+        const data = await ensureBattleSimDataLoaded();
+        const realm = getRealmRuntime(type, id);
+        if (realm.arrierban_active) {
+          realmArrierbanOutput.textContent = "Арьербан уже активен для этой сущности. Сначала распустите войско.";
+          return;
+        }
+        const calc = calculateArrierbanForRealm("kingdoms", kingdomId);
+        if (!calc) throw new Error("Не удалось рассчитать королевский призыв.");
+        const domainDefs = arrierbanDomainUnitDefs("kingdoms", (data && data.UNIT_CATALOG) || {});
+        openArrierbanModal({ type, id, calc, catalog: (data && data.UNIT_CATALOG) || {}, domainDefs, domainOnly: false, royalKingdomId: kingdomId });
+      } catch (err) {
+        realmArrierbanOutput.textContent = "Не удалось подготовить королевский призыв: " + (err && err.message ? err.message : err);
+      }
+    }
+
     if (realmArrierbanBtn) realmArrierbanBtn.addEventListener("click", () => { startArrierban(false).catch(() => {}); });
     if (realmDomainArrierbanBtn) realmDomainArrierbanBtn.addEventListener("click", () => { startArrierban(true).catch(() => {}); });
+    if (realmRoyalArrierbanBtn) realmRoyalArrierbanBtn.addEventListener("click", () => { startRoyalArrierban().catch(() => {}); });
     if (realmArrierbanDismissBtn) realmArrierbanDismissBtn.addEventListener("click", () => {
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
@@ -2903,7 +2958,8 @@
         if (arrierbanValidation) arrierbanValidation.textContent = collected.error || "Проверьте распределение.";
         return;
       }
-      const vassalArmies = plan.domainOnly ? [] : arrierbanRandomVassalArmies(plan.type, plan.calc, plan.catalog);
+      const vassalMode = plan.royalKingdomId ? "kingdoms" : plan.type;
+      const vassalArmies = plan.domainOnly ? [] : arrierbanRandomVassalArmies(vassalMode, plan.calc, plan.catalog);
       const vassalUnits = vassalArmies.flatMap((a) => Array.isArray(a.units) ? a.units : []);
       realm.arrierban_units = collected.units;
       realm.arrierban_vassal_armies = vassalArmies;
@@ -2913,7 +2969,8 @@
       const applied = applyArrierbanToProvinces(plan.calc, collected.units, vassalUnits);
       applyLayerState(map);
       exportStateToTextarea();
-      realmArrierbanOutput.textContent = formatArrierbanText(plan.calc, collected.units, vassalArmies, applied.totalLevy);
+      const prefix = plan.royalKingdomId ? `Королевский призыв (${plan.royalKingdomId})\n` : "";
+      realmArrierbanOutput.textContent = prefix + formatArrierbanText(plan.calc, collected.units, vassalArmies, applied.totalLevy);
       closeArrierbanModal();
     });
 
