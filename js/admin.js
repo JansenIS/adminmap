@@ -894,11 +894,11 @@
     }
     for (const pd of Object.values(obj.provinces || {})) {
       if (!pd || typeof pd !== "object") continue;
-      if (typeof pd.kingdom_id !== "string") pd.kingdom_id = "";
-      if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
-      if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
-      if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
-      if (typeof pd.special_territory_id !== "string") pd.special_territory_id = "";
+      pd.kingdom_id = String(pd.kingdom_id || "").trim();
+      pd.great_house_id = String(pd.great_house_id || "").trim();
+      pd.minor_house_id = String(pd.minor_house_id || "").trim();
+      pd.free_city_id = String(pd.free_city_id || "").trim();
+      pd.special_territory_id = String(pd.special_territory_id || "").trim();
     }
   }
 
