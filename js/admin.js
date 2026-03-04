@@ -1333,7 +1333,8 @@
         if (!v || typeof v !== "object") continue;
         if ((Math.random() * 100) >= triggerChance) continue;
         const vid = String(v.id || "").trim() || `vassal_${supportingSources.length + 1}`;
-        supportingSources.push({ id: `vassal:${vid}`, name: String(v.name || vid), kind: "vassal" });
+        const vassalCapitalPid = Number(v.capital_pid) >>> 0 || (Array.isArray(v.province_pids) && v.province_pids.length ? (Number(v.province_pids[0]) >>> 0) : 0);
+        supportingSources.push({ id: `vassal:${vid}`, name: String(v.name || vid), kind: "vassal", muster_pid: vassalCapitalPid });
       }
       const assigned = new Set((layer.domain_pids || []).map((x) => Number(x) >>> 0).filter(Boolean));
       for (const v of layer.vassals) for (const raw of (v && v.province_pids || [])) { const pid = Number(raw) >>> 0; if (pid) assigned.add(pid); }
@@ -1343,7 +1344,8 @@
         const pid = Number(pd.pid) >>> 0;
         if (!pid || assigned.has(pid)) continue;
         if ((Math.random() * 100) >= triggerChance) continue;
-        supportingSources.push({ id: `unassigned:${pid}`, name: `Неназначенная провинция ${pid}`, kind: "unassigned" });
+        const realmCapitalPid = Number(realm.capital_pid) >>> 0 || (Array.isArray(domainPids) && domainPids.length ? (Number(domainPids[0]) >>> 0) : 0);
+        supportingSources.push({ id: `unassigned:${pid}`, name: `Неназначенная провинция ${pid}`, kind: "unassigned", muster_pid: realmCapitalPid });
       }
     }
 
@@ -1428,7 +1430,13 @@
         const size = Math.max(Math.ceil(base * 0.1), Math.round(base * (0.8 + (Math.random() * 0.6))));
         units.push({ source: "vassal_random", unit_id: id, unit_name: String(unit.name || id), size, base_size: base });
       }
-      armies.push({ army_id: String(src.id || `feudal_${armies.length + 1}`), army_name: String(src.name || `Феодальная армия ${armies.length + 1}`), army_kind: String(src.kind || "vassal"), units });
+      armies.push({
+        army_id: String(src.id || `feudal_${armies.length + 1}`),
+        army_name: String(src.name || `Феодальная армия ${armies.length + 1}`),
+        army_kind: String(src.kind || "vassal"),
+        muster_pid: Number(src.muster_pid) >>> 0,
+        units,
+      });
     }
     return armies;
   }
@@ -1700,7 +1708,13 @@
     if (Array.isArray(realm.arrierban_vassal_armies) && realm.arrierban_vassal_armies.length) {
       for (const a of realm.arrierban_vassal_armies) {
         if (!a || typeof a !== "object") continue;
-        armies.push({ army_id: String(a.army_id || `feudal_${armies.length}`), army_name: String(a.army_name || "Феодальная армия"), army_kind: String(a.army_kind || "vassal"), units: Array.isArray(a.units) ? a.units.map((u) => Object.assign({}, u)) : [] });
+        armies.push({
+          army_id: String(a.army_id || `feudal_${armies.length}`),
+          army_name: String(a.army_name || "Феодальная армия"),
+          army_kind: String(a.army_kind || "vassal"),
+          muster_pid: Number(a.muster_pid) >>> 0,
+          units: Array.isArray(a.units) ? a.units.map((u) => Object.assign({}, u)) : [],
+        });
       }
     } else if (Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.length) {
       armies.push({ army_id: "feudal_legacy", army_name: "Феодальная армия", army_kind: "vassal", units: realm.arrierban_vassal_units.map((u) => Object.assign({}, u)) });
@@ -2054,6 +2068,17 @@
     armyMarkersLayer.appendChild(marker);
   }
 
+  function getArmyMarkerPointByPid(pid) {
+    const key = keyForPid(pid);
+    const meta = key ? mapInstanceRef && mapInstanceRef.getProvinceMeta(key) : null;
+    if (!meta) return null;
+    const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+    const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+    const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, key };
+  }
+
   function renderArmyMarkers() {
     clearArmyMarkers();
     if (!armyMarkersLayer || !state || !mapInstanceRef) return;
@@ -2067,9 +2092,32 @@
         const x = Number(info.x) || 0;
         const y = Number(info.y) || 0;
         const hasDomain = Array.isArray(realm.arrierban_units) && realm.arrierban_units.length > 0;
-        const hasFeudal = (Array.isArray(realm.arrierban_vassal_armies) && realm.arrierban_vassal_armies.some((a) => a && Array.isArray(a.units) && a.units.length > 0)) || (Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.length > 0);
-        if (hasDomain) createArmyMarker(hasFeudal ? x - 14 : x, y, info.colorHex, info.emblemSrc, "Доменная армия", false);
-        if (hasFeudal) createArmyMarker(hasDomain ? x + 14 : x, y, info.colorHex, info.emblemSrc, "Феодальная армия", true);
+        const feudalArmies = Array.isArray(realm.arrierban_vassal_armies) ? realm.arrierban_vassal_armies : [];
+        const hasFeudalLegacy = !feudalArmies.length && Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.length > 0;
+        const unassignedFeudal = feudalArmies.filter((a) => {
+          if (!a || !Array.isArray(a.units) || !a.units.length) return false;
+          const kind = String(a.army_kind || "");
+          return kind === "unassigned" || String(a.army_id || "").startsWith("unassigned:");
+        });
+        const vassalFeudal = feudalArmies.filter((a) => {
+          if (!a || !Array.isArray(a.units) || !a.units.length) return false;
+          return !unassignedFeudal.includes(a);
+        });
+
+        const hasRealmCapitalFeudal = hasFeudalLegacy || unassignedFeudal.length > 0;
+        if (hasDomain) createArmyMarker(hasRealmCapitalFeudal ? x - 14 : x, y, info.colorHex, info.emblemSrc, "Доменная армия", false);
+        if (hasRealmCapitalFeudal) {
+          const unassignedLabel = unassignedFeudal.length > 0 ? `Феодальная нераспределённая армия (${unassignedFeudal.length})` : "Феодальная армия";
+          createArmyMarker(hasDomain ? x + 14 : x, y, info.colorHex, info.emblemSrc, unassignedLabel, true);
+        }
+
+        for (let idx = 0; idx < vassalFeudal.length; idx++) {
+          const army = vassalFeudal[idx];
+          const point = getArmyMarkerPointByPid(Number(army.muster_pid) >>> 0) || info;
+          const dx = vassalFeudal.length > 1 ? ((idx % 3) - 1) * 12 : 0;
+          const dy = vassalFeudal.length > 1 ? (Math.floor(idx / 3) * 12) : 0;
+          createArmyMarker(point.x + dx, point.y + dy, info.colorHex, info.emblemSrc, `Феодальная армия: ${String(army.army_name || army.army_id || "вассал")}`, true);
+        }
       }
     }
   }
@@ -2519,6 +2567,7 @@
         army_id: String(a.army_id || `feudal_${idx + 1}`),
         army_name: String(a.army_name || `Феодальная армия ${idx + 1}`),
         army_kind: String(a.army_kind || "vassal"),
+        muster_pid: Number(a.muster_pid) >>> 0,
         units: sanitizeArmyUnits(a.units || []),
       })).filter((a) => a.units.length > 0);
       realm.arrierban_vassal_units = realm.arrierban_vassal_armies.flatMap((a) => a.units || []);
