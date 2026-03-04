@@ -1973,11 +1973,23 @@
     armyMarkersLayer.innerHTML = "";
   }
 
+  function realmHasAnyArmies(realm) {
+    if (!realm || typeof realm !== "object") return false;
+    const domain = Array.isArray(realm.arrierban_units) && realm.arrierban_units.some((u) => u && (Number(u.size) || 0) > 0);
+    const feudalLegacy = Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.some((u) => u && (Number(u.size) || 0) > 0);
+    const feudalArmies = Array.isArray(realm.arrierban_vassal_armies) && realm.arrierban_vassal_armies.some((a) => a && Array.isArray(a.units) && a.units.some((u) => u && (Number(u.size) || 0) > 0));
+    return domain || feudalLegacy || feudalArmies;
+  }
+
   function getRealmArmyMarkerInfo(type, id, realm) {
     const field = MODE_TO_FIELD[type] || "";
     let capitalPid = Number(realm && realm.capital_pid) >>> 0;
+    let fallbackKey = Number(realm && realm.capital_key) >>> 0;
     if (!capitalPid && Array.isArray(realm && realm.province_pids) && realm.province_pids.length > 0) {
       capitalPid = Number(realm.province_pids[0]) >>> 0;
+    }
+    if (!fallbackKey && Array.isArray(realm && realm.province_keys) && realm.province_keys.length > 0) {
+      fallbackKey = Number(realm.province_keys[0]) >>> 0;
     }
     if (!capitalPid && type === "great_houses") {
       const layer = realm && realm.minor_house_layer && typeof realm.minor_house_layer === "object" ? realm.minor_house_layer : null;
@@ -1998,10 +2010,11 @@
         if (!pd || typeof pd !== "object") continue;
         if (String(pd[field] || "").trim() !== targetId) continue;
         capitalPid = Number(pd.pid) >>> 0;
+        fallbackKey = keyForPid(capitalPid);
         if (capitalPid) break;
       }
     }
-    const key = capitalPid ? keyForPid(capitalPid) : 0;
+    const key = capitalPid ? keyForPid(capitalPid) : fallbackKey;
     const meta = key ? mapInstanceRef && mapInstanceRef.getProvinceMeta(key) : null;
     if (!meta) return null;
     const colorHex = String(realm && realm.color || "#3f6aa2");
@@ -2036,7 +2049,7 @@
     for (const type of allTypes) {
       const bucket = realmBucketByType(type);
       for (const [id, realm] of Object.entries(bucket || {})) {
-        if (!realm || !realm.arrierban_active) continue;
+        if (!realm || (!realm.arrierban_active && !realmHasAnyArmies(realm))) continue;
         const info = getRealmArmyMarkerInfo(type, id, realm);
         if (!info) continue;
         const xPct = (info.x / Math.max(1, mapInstanceRef.W)) * 100;
