@@ -99,8 +99,10 @@
             <option value="free_cities">Вольный Город</option>
             <option value="special_territories">Особая территория</option>
           </select>
-          <label>ID сущности</label>
-          <input id="playerTokenEntityId" type="text" placeholder="например: drachenland" />
+          <label>Сущность</label>
+          <select id="playerTokenEntityId">
+            <option value="">Загрузка…</option>
+          </select>
         </div>
         <div class="btnrow"><button id="playerTokenCreateBtn" type="button">Сгенерировать готовую ссылку</button></div>
         <input id="playerTokenLink" type="text" readonly placeholder="Ссылка появится здесь" style="margin-top:8px;" />
