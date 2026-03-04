@@ -1273,6 +1273,36 @@
     return bucket[id];
   }
 
+  function getRealmRuntime(type, id, opts) {
+    const create = !(opts && opts.create === false);
+    if (type !== "minor_houses") return create ? ensureRealm(type, id) : (realmBucketByType(type)[id] || null);
+    const ref = resolveVassalRealmRef(id);
+    if (!ref) return create ? ensureRealm(type, id) : (realmBucketByType(type)[id] || null);
+
+    const bucket = realmBucketByType(type);
+    if (!bucket[id] && create) bucket[id] = {};
+    const realm = bucket[id] || null;
+    if (!realm) return null;
+
+    const vassal = ref.vassal || {};
+    const fallbackCapital = Array.isArray(vassal.province_pids) && vassal.province_pids.length ? (Number(vassal.province_pids[0]) >>> 0) : 0;
+    const capitalPid = Number(vassal.capital_pid) >>> 0 || fallbackCapital;
+    const capitalProv = capitalPid ? state.provinces && state.provinces[String(capitalPid)] : null;
+
+    realm.name = String(vassal.name || ref.vassalId || id);
+    realm.ruler = String(vassal.ruler || "");
+    realm.color = String(vassal.color || (ref.gh && ref.gh.color) || "#ff3b30");
+    realm.capital_pid = capitalPid;
+    realm.province_pids = Array.isArray(vassal.province_pids) ? vassal.province_pids.map((x) => Number(x) >>> 0).filter(Boolean) : [];
+    realm.warlike_coeff = clampWarlikeCoeff((ref.gh && ref.gh.warlike_coeff) || realm.warlike_coeff || 30);
+    realm.emblem_svg = String((capitalProv && capitalProv.emblem_svg) || "");
+    realm.emblem_box = (capitalProv && Array.isArray(capitalProv.emblem_box) && capitalProv.emblem_box.length === 2)
+      ? [Number(capitalProv.emblem_box[0]) || 2000, Number(capitalProv.emblem_box[1]) || 2400]
+      : null;
+
+    return realm;
+  }
+
   function collectProvinceIdsForArrierban(realm, mode) {
     const pids = new Set();
     if (Array.isArray(realm && realm.province_pids)) {
@@ -1296,11 +1326,27 @@
         if (String(pd.great_house_id || "").trim() === String(realm.id || "").trim()) pids.add(pid);
       }
     }
+    if (mode === "minor_houses") {
+      const ref = resolveVassalRealmRef(realm && realm.id);
+      if (ref && Array.isArray(ref.vassal && ref.vassal.province_pids)) {
+        for (const raw of ref.vassal.province_pids) {
+          const pid = Number(raw) >>> 0;
+          if (pid > 0) pids.add(pid);
+        }
+      }
+      const refId = ref ? String(ref.vassalId || "").trim() : String(realm && realm.id || "").trim();
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd || typeof pd !== "object") continue;
+        if (String(pd.minor_house_id || "").trim() !== refId) continue;
+        const pid = Number(pd.pid) >>> 0;
+        if (pid > 0) pids.add(pid);
+      }
+    }
     return Array.from(pids);
   }
 
   function calculateArrierbanForRealm(mode, id) {
-    const realm = id ? realmBucketByType(mode)[id] : null;
+    const realm = id ? getRealmRuntime(mode, id) : null;
     if (!realm) return null;
     const warlikeCoeff = clampWarlikeCoeff(realm.warlike_coeff);
     const loyaltyCoeff = Math.max(0, Math.min(100, Number(realm.loyalty_coeff) || 0));
@@ -2399,12 +2445,12 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
-      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Арьербан запускается для Королевств, Больших Домов и Вольных Городов. Для вассалов используйте арьербан сюзерена.");
+      if (type === "minor_houses" && resolveVassalRealmRef(id) && !domainOnly) return alert("Для Малого Дома доступен только созыв доменного войска. Используйте кнопку «Созвать доменное войско».");
       if (!realmArrierbanOutput) return;
       try {
         await ensureHexmapDataLoaded();
         const data = await ensureBattleSimDataLoaded();
-        const realm = ensureRealm(type, id);
+        const realm = getRealmRuntime(type, id);
         if (realm.arrierban_active) {
           realmArrierbanOutput.textContent = "Арьербан уже активен для этой сущности. Сначала распустите войско.";
           return;
@@ -2423,8 +2469,7 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
-      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Для вассалов роспуск армий выполняется через арьербан сюзерена.");
-      const realm = ensureRealm(type, id);
+      const realm = getRealmRuntime(type, id);
       if (!realm.arrierban_active) return alert("У сущности нет активных армий для роспуска.");
       const rows = getRealmArrierbanProvinceRows(type, id);
       const mobilizedTotal = rows.reduce((sum, row) => sum + row.levy, 0);
@@ -2447,7 +2492,7 @@
     if (arrierbanApply) arrierbanApply.addEventListener("click", () => {
       if (!pendingArrierbanPlan) return;
       const plan = pendingArrierbanPlan;
-      const realm = ensureRealm(plan.type, plan.id);
+      const realm = getRealmRuntime(plan.type, plan.id);
       const collected = collectDomainUnitsFromModal(plan);
       if (!collected.ok) {
         if (arrierbanValidation) arrierbanValidation.textContent = collected.error || "Проверьте распределение.";
@@ -2471,7 +2516,6 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
-      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Менеджмент армий для вассалов выполняется через сюзерена.");
       openArmyManageModal(type, id);
     });
     if (armyManageClose) armyManageClose.addEventListener("click", closeArmyManageModal);
