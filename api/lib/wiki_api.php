@@ -6,7 +6,19 @@ require_once __DIR__ . '/state_api.php';
 require_once __DIR__ . '/genealogy_api.php';
 
 function api_wiki_allowed_entity_types(): array {
-  return ['kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+  return ['kingdoms', 'great_houses', 'minor_houses', 'vassals', 'free_cities'];
+}
+
+function api_wiki_canonical_entity_type(string $entityType): string {
+  $type = trim($entityType);
+  if ($type === 'vassals') return 'minor_houses';
+  return $type;
+}
+
+function api_wiki_entity_type_for_link(string $entityType): string {
+  $canonical = api_wiki_canonical_entity_type($entityType);
+  if ($canonical === 'minor_houses') return 'vassals';
+  return $canonical;
 }
 
 function api_wiki_page_link(string $kind, array $params): string {
@@ -225,6 +237,7 @@ function api_wiki_build_province_page(array $state, int $pid): ?array {
 }
 
 function api_wiki_entity_children(array $state, string $entityType, string $id): array {
+  $entityType = api_wiki_canonical_entity_type($entityType);
   $children = ['entities' => [], 'provinces' => []];
 
   $childEntityTypes = [
@@ -278,7 +291,7 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
         'entity_type' => $childType,
         'id' => (string)$childId,
         'name' => trim((string)($child['name'] ?? '')),
-        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => $childType, 'id' => (string)$childId]),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link($childType), 'id' => (string)$childId]),
       ];
     }
   }
@@ -300,6 +313,7 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
 
 function api_wiki_build_entity_page(array $state, string $entityType, string $id): ?array {
   if (!in_array($entityType, api_wiki_allowed_entity_types(), true)) return null;
+  $entityType = api_wiki_canonical_entity_type($entityType);
   $realm = ($state[$entityType] ?? [])[$id] ?? null;
   if (!is_array($realm)) return null;
 
@@ -333,7 +347,7 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
         'entity_type' => 'kingdoms',
         'id' => $kingdomId,
         'name' => trim((string)($kingdom['name'] ?? $kingdomId)),
-        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'kingdoms', 'id' => $kingdomId]),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link('kingdoms'), 'id' => $kingdomId]),
       ];
       break;
     }
@@ -429,15 +443,17 @@ function api_wiki_list_pages(array $state): array {
   }
 
   foreach (api_wiki_allowed_entity_types() as $entityType) {
+    $canonicalType = api_wiki_canonical_entity_type($entityType);
+    if ($canonicalType !== $entityType) continue;
     foreach (($state[$entityType] ?? []) as $id => $realm) {
       if (!is_array($realm)) continue;
       $pages[] = [
         'page_key' => 'entity:' . $entityType . ':' . $id,
         'kind' => 'entity',
-        'entity_type' => $entityType,
+        'entity_type' => api_wiki_entity_type_for_link($entityType),
         'id' => (string)$id,
         'title' => trim((string)($realm['name'] ?? '')),
-        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => $entityType, 'id' => (string)$id]),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link($entityType), 'id' => (string)$id]),
       ];
     }
   }
@@ -506,6 +522,7 @@ function api_wiki_validate_patch_payload(array $payload): array {
     $entityType = trim((string)($payload['entity_type'] ?? ''));
     $id = trim((string)($payload['id'] ?? ''));
     if (!in_array($entityType, api_wiki_allowed_entity_types(), true)) return ['ok' => false, 'error' => 'invalid_entity_type'];
+    $entityType = api_wiki_canonical_entity_type($entityType);
     if ($id === '') return ['ok' => false, 'error' => 'invalid_id'];
 
     $mapped = [];

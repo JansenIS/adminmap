@@ -1182,8 +1182,51 @@
     if (v.ruler) ensurePerson(v.ruler);
   }
   function buildRealmEntries(type) {
+    if (type === "minor_houses") {
+      const out = [];
+      for (const [ghId, ghRealm] of Object.entries(state.great_houses || {})) {
+        const layer = ghRealm && ghRealm.minor_house_layer && typeof ghRealm.minor_house_layer === "object" ? ghRealm.minor_house_layer : null;
+        if (!layer || !Array.isArray(layer.vassals)) continue;
+        for (const v of layer.vassals) {
+          if (!v || typeof v !== "object") continue;
+          const vid = String(v.id || "").trim();
+          if (!vid) continue;
+          const id = `vassal:${ghId}:${vid}`;
+          out.push([id, {
+            id,
+            name: String(v.name || vid),
+            ruler: String(v.ruler || ""),
+            color: String(v.color || ghRealm.color || "#ff3b30"),
+            capital_pid: Number(v.capital_pid) >>> 0,
+            province_pids: Array.isArray(v.province_pids) ? v.province_pids.map((x) => Number(x) >>> 0).filter(Boolean) : [],
+            emblem_svg: "",
+            emblem_box: null,
+            emblem_scale: 1,
+            warlike_coeff: clampWarlikeCoeff((ghRealm && ghRealm.warlike_coeff) || 30),
+            __vassal_ref: { great_house_id: ghId, vassal_id: vid }
+          }]);
+        }
+      }
+      return out;
+    }
     const bucket = realmBucketByType(type);
     return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 }, r)]);
+  }
+
+  function resolveVassalRealmRef(realmId) {
+    const raw = String(realmId || "");
+    if (!raw.startsWith("vassal:")) return null;
+    const parts = raw.split(":");
+    if (parts.length < 3) return null;
+    const ghId = parts[1];
+    const vassalId = parts.slice(2).join(":");
+    if (!ghId || !vassalId) return null;
+    const gh = (state.great_houses || {})[ghId];
+    const layer = gh && gh.minor_house_layer && typeof gh.minor_house_layer === "object" ? gh.minor_house_layer : null;
+    if (!layer || !Array.isArray(layer.vassals)) return null;
+    const vassal = layer.vassals.find((v) => v && String(v.id || "") === vassalId) || null;
+    if (!vassal) return null;
+    return { ghId, vassalId, vassal, gh };
   }
 
   function rebuildRealmSelect() {
@@ -1199,7 +1242,20 @@
   function loadRealmFields() {
     const type = realmTypeSelect.value;
     const id = realmSelect.value;
-    const realm = id ? realmBucketByType(type)[id] : null;
+    let realm = id ? realmBucketByType(type)[id] : null;
+    if (!realm && type === "minor_houses") {
+      const ref = resolveVassalRealmRef(id);
+      if (ref) {
+        realm = {
+          name: ref.vassal.name || ref.vassalId,
+          ruler: String(ref.vassal.ruler || ""),
+          color: String(ref.vassal.color || (ref.gh && ref.gh.color) || "#ff3b30"),
+          capital_pid: Number(ref.vassal.capital_pid) >>> 0,
+          emblem_scale: 1,
+          warlike_coeff: clampWarlikeCoeff((ref.gh && ref.gh.warlike_coeff) || 30)
+        };
+      }
+    }
     realmNameInput.value = realm ? (realm.name || id) : "";
     realmRulerInput.value = realm ? String(realm.ruler || "") : "";
     realmColorInput.value = realm && realm.color ? realm.color : "#ff3b30";
@@ -1474,6 +1530,22 @@
     for (const key of Object.keys(allocations)) {
       const cap = Number(plan.calc.pools[key] || 0);
       if (allocations[key] > cap) return { ok: false, error: `Превышен лимит для ${unitCategoryLabel(key)}: ${allocations[key]} из ${cap}.` };
+    }
+    if (units.length === 0) {
+      const fallbackOrder = ["militia", "sergeants", "nehts", "knights"];
+      let fallbackSource = "";
+      for (const key of fallbackOrder) {
+        if ((Number(plan.calc.pools[key]) || 0) > 0) { fallbackSource = key; break; }
+      }
+      const allDefs = arrierbanDomainUnitDefs(plan.catalog || {});
+      if (!fallbackSource && allDefs.length) fallbackSource = String(allDefs[0].source || "militia");
+      const defs = allDefs.find((x) => String(x.source) === fallbackSource) || allDefs[0] || null;
+      if (!defs) return { ok: false, error: "Невозможно собрать армию: отсутствует базовый шаблон отряда." };
+      const cap = Math.max(1, Math.floor(Number(plan.calc.pools[fallbackSource]) || 0));
+      const baseSize = Math.max(1, Number(defs.baseSize) || 1);
+      const size = Math.max(1, Math.min(cap, baseSize));
+      units.push({ source: fallbackSource, unit_id: defs.id, unit_name: String(defs.name || defs.id), size, base_size: baseSize });
+      allocations[fallbackSource] += size;
     }
     if (arrierbanRemaining) arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(plan.calc, allocations)}.`;
     return { ok: true, units, allocations };
@@ -1902,10 +1974,27 @@
   function getRealmArmyMarkerInfo(type, id, realm) {
     const field = MODE_TO_FIELD[type] || "";
     let capitalPid = Number(realm && realm.capital_pid) >>> 0;
+    if (!capitalPid && Array.isArray(realm && realm.province_pids) && realm.province_pids.length > 0) {
+      capitalPid = Number(realm.province_pids[0]) >>> 0;
+    }
+    if (!capitalPid && type === "great_houses") {
+      const layer = realm && realm.minor_house_layer && typeof realm.minor_house_layer === "object" ? realm.minor_house_layer : null;
+      if (layer && Array.isArray(layer.domain_pids) && layer.domain_pids.length > 0) capitalPid = Number(layer.domain_pids[0]) >>> 0;
+    }
+    let targetId = String(id || "").trim();
+    if (type === "minor_houses") {
+      const ref = resolveVassalRealmRef(id);
+      if (ref) {
+        targetId = String(ref.vassalId || "").trim();
+        if (!capitalPid && Array.isArray(ref.vassal && ref.vassal.province_pids) && ref.vassal.province_pids.length > 0) {
+          capitalPid = Number(ref.vassal.province_pids[0]) >>> 0;
+        }
+      }
+    }
     if (!capitalPid && field) {
       for (const pd of Object.values(state.provinces || {})) {
         if (!pd || typeof pd !== "object") continue;
-        if (String(pd[field] || "").trim() !== String(id || "").trim()) continue;
+        if (String(pd[field] || "").trim() !== targetId) continue;
         capitalPid = Number(pd.pid) >>> 0;
         if (capitalPid) break;
       }
@@ -2072,9 +2161,29 @@
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
-    btnNewRealm.addEventListener("click", () => { const id = prompt("ID сущности (латиница/цифры):"); if (!id) return; ensureRealm(realmTypeSelect.value, id.trim()); rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea(); });
+    btnNewRealm.addEventListener("click", () => {
+      if (realmTypeSelect.value === "minor_houses") {
+        alert("Для «Малых Домов» используйте блок «Слой Малые Дома» ниже: там создаются вассалы.");
+        return;
+      }
+      const id = prompt("ID сущности (латиница/цифры):");
+      if (!id) return;
+      ensureRealm(realmTypeSelect.value, id.trim());
+      rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea();
+    });
     btnSaveRealm.addEventListener("click", async () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      if (type === "minor_houses") {
+        const ref = resolveVassalRealmRef(id);
+        if (ref) {
+          ref.vassal.name = String(realmNameInput.value || ref.vassalId).trim() || ref.vassalId;
+          ref.vassal.ruler = ensurePerson(realmRulerInput.value);
+          ref.vassal.color = String(realmColorInput.value || "#ff3b30");
+          ref.vassal.capital_pid = Number(realmCapitalInput.value) >>> 0;
+          rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); setSelection(selectedKey, map.getProvinceMeta(selectedKey)); exportStateToTextarea();
+          return;
+        }
+      }
       const realm = ensureRealm(type, id);
       realm.name = String(realmNameInput.value || id).trim() || id;
       realm.ruler = ensurePerson(realmRulerInput.value);
@@ -2090,6 +2199,26 @@
     });
     btnAddSelectedToRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      if (type === "minor_houses") {
+        const ref = resolveVassalRealmRef(id);
+        if (!ref) return;
+        const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
+        const pids = [];
+        for (const key of keys) {
+          const pd = getProvData(key);
+          if (!pd) continue;
+          const pid = Number(pd.pid) >>> 0;
+          if (!pid) continue;
+          pd.minor_house_id = ref.vassalId;
+          pd.great_house_id = ref.ghId;
+          pids.push(pid);
+        }
+        const set = new Set(Array.isArray(ref.vassal.province_pids) ? ref.vassal.province_pids.map((v) => Number(v) >>> 0).filter(Boolean) : []);
+        for (const pid of pids) set.add(pid);
+        ref.vassal.province_pids = Array.from(set);
+        applyLayerState(map); exportStateToTextarea();
+        return;
+      }
       const field = MODE_TO_FIELD[type]; const realm = ensureRealm(type, id);
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       for (const key of keys) { const pd = getProvData(key); if (pd) pd[field] = id; }
@@ -2098,6 +2227,25 @@
     });
     btnRemoveSelectedFromRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      if (type === "minor_houses") {
+        const ref = resolveVassalRealmRef(id);
+        if (!ref) return;
+        const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
+        const remove = new Set();
+        for (const key of keys) {
+          const pd = getProvData(key);
+          if (!pd) continue;
+          const pid = Number(pd.pid) >>> 0;
+          if (!pid) continue;
+          if (String(pd.minor_house_id || "") === ref.vassalId) pd.minor_house_id = "";
+          remove.add(pid);
+        }
+        ref.vassal.province_pids = (Array.isArray(ref.vassal.province_pids) ? ref.vassal.province_pids : [])
+          .map((v) => Number(v) >>> 0)
+          .filter((pid) => pid && !remove.has(pid));
+        applyLayerState(map); exportStateToTextarea();
+        return;
+      }
       const field = MODE_TO_FIELD[type];
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       for (const key of keys) { const pd = getProvData(key); if (pd && pd[field] === id) pd[field] = ""; }
@@ -2108,12 +2256,23 @@
     realmEmblemFile.addEventListener("change", async () => {
       const file = realmEmblemFile.files && realmEmblemFile.files[0]; realmEmblemFile.value = ""; if (!file) return;
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      if (type === "minor_houses" && resolveVassalRealmRef(id)) {
+        alert("У вассалов герб задаётся через столичную провинцию (герб провинции), а не через сущность.");
+        return;
+      }
       const text = String(await file.text() || "").replace(/^﻿/, "");
       const safeSvg = sanitizeSvgText(text);
       const realm = ensureRealm(type, id); realm.emblem_svg = safeSvg; realm.emblem_box = extractSvgBox(safeSvg);
       applyLayerState(map); exportStateToTextarea();
     });
-    realmRemoveEmblemBtn.addEventListener("click", () => { const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return; const realm = ensureRealm(type, id); realm.emblem_svg = ""; realm.emblem_box = null; applyLayerState(map); exportStateToTextarea(); });
+    realmRemoveEmblemBtn.addEventListener("click", () => {
+      const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
+      if (type === "minor_houses" && resolveVassalRealmRef(id)) {
+        alert("У вассалов герб задаётся через столичную провинцию.");
+        return;
+      }
+      const realm = ensureRealm(type, id); realm.emblem_svg = ""; realm.emblem_box = null; applyLayerState(map); exportStateToTextarea();
+    });
 
 
     if (arrierbanClose) arrierbanClose.addEventListener("click", closeArrierbanModal);
@@ -2161,6 +2320,7 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
+      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Арьербан запускается для Королевств, Больших Домов и Вольных Городов. Для вассалов используйте арьербан сюзерена.");
       if (!realmArrierbanOutput) return;
       try {
         await ensureHexmapDataLoaded();
@@ -2184,6 +2344,7 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
+      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Для вассалов роспуск армий выполняется через арьербан сюзерена.");
       const realm = ensureRealm(type, id);
       if (!realm.arrierban_active) return alert("У сущности нет активных армий для роспуска.");
       const rows = getRealmArrierbanProvinceRows(type, id);
@@ -2231,6 +2392,7 @@
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
       if (!id) return alert("Сначала выберите сущность.");
+      if (type === "minor_houses" && resolveVassalRealmRef(id)) return alert("Менеджмент армий для вассалов выполняется через сюзерена.");
       openArmyManageModal(type, id);
     });
     if (armyManageClose) armyManageClose.addEventListener("click", closeArmyManageModal);

@@ -81,7 +81,7 @@ const CATEGORY_FILTERS = [
   { id: 'clans', label: 'Рода', match: (p) => String(p.kind || '') === 'clan' },
   { id: 'kingdoms', label: 'Королевства', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'kingdoms' },
   { id: 'great_houses', label: 'Большие Дома', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'great_houses' },
-  { id: 'minor_houses', label: 'Малые Дома', match: (p) => (String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'minor_houses') || /vassal/i.test(String(p.page_key || '')) || /вассал/u.test(String(p.title || '')) },
+  { id: 'minor_houses', label: 'Малые Дома', match: (p) => (String(p.kind || '') === 'entity' && (String(p.entity_type || '') === 'minor_houses' || String(p.entity_type || '') === 'vassals')) || /vassal/i.test(String(p.page_key || '')) || /вассал/u.test(String(p.title || '')) },
   { id: 'special_territories', label: 'Особые Территории', match: (p) => (String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'special_territories') || /особ/i.test(String(p.title || '')) || /special/i.test(String(p.page_key || '')) },
   { id: 'free_cities', label: 'Вольные Города', match: (p) => String(p.kind || '') === 'entity' && String(p.entity_type || '') === 'free_cities' },
 ];
