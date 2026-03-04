@@ -2019,15 +2019,18 @@
     if (!meta) return null;
     const colorHex = String(realm && realm.color || "#3f6aa2");
     const emblemSrc = emblemSourceToDataUri(realm && realm.emblem_svg || "");
-    return { x: Number(meta.cx || 0), y: Number(meta.cy || 0), colorHex, emblemSrc, key };
+    const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+    const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+    const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
+    return { x, y, colorHex, emblemSrc, key };
   }
 
-  function createArmyMarker(xPct, yPct, colorHex, emblemSrc, label, isFeudal) {
+  function createArmyMarker(xPx, yPx, colorHex, emblemSrc, label, isFeudal) {
     if (!armyMarkersLayer) return;
     const marker = document.createElement("div");
     marker.className = isFeudal ? "army-marker army-marker--feudal" : "army-marker";
-    marker.style.left = `${xPct}%`;
-    marker.style.top = `${yPct}%`;
+    marker.style.left = `${Math.round(Number(xPx) || 0)}px`;
+    marker.style.top = `${Math.round(Number(yPx) || 0)}px`;
     marker.style.background = colorHex;
     marker.title = label;
     if (emblemSrc) {
@@ -2052,12 +2055,12 @@
         if (!realm || (!realm.arrierban_active && !realmHasAnyArmies(realm))) continue;
         const info = getRealmArmyMarkerInfo(type, id, realm);
         if (!info) continue;
-        const xPct = (info.x / Math.max(1, mapInstanceRef.W)) * 100;
-        const yPct = (info.y / Math.max(1, mapInstanceRef.H)) * 100;
+        const x = Number(info.x) || 0;
+        const y = Number(info.y) || 0;
         const hasDomain = Array.isArray(realm.arrierban_units) && realm.arrierban_units.length > 0;
         const hasFeudal = (Array.isArray(realm.arrierban_vassal_armies) && realm.arrierban_vassal_armies.some((a) => a && Array.isArray(a.units) && a.units.length > 0)) || (Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.length > 0);
-        if (hasDomain) createArmyMarker(hasFeudal ? xPct - 0.7 : xPct, yPct, info.colorHex, info.emblemSrc, "Доменная армия", false);
-        if (hasFeudal) createArmyMarker(hasDomain ? xPct + 0.7 : xPct, yPct, info.colorHex, info.emblemSrc, "Феодальная армия", true);
+        if (hasDomain) createArmyMarker(hasFeudal ? x - 14 : x, y, info.colorHex, info.emblemSrc, "Доменная армия", false);
+        if (hasFeudal) createArmyMarker(hasDomain ? x + 14 : x, y, info.colorHex, info.emblemSrc, "Феодальная армия", true);
       }
     }
   }
@@ -2801,6 +2804,9 @@
 
     await map.init();
     rebuildPidKeyMaps(map);
+    // `onReady` can fire before PID↔KEY maps are built; redraw once more so army markers
+    // can resolve capitals via keyForPid on the first render.
+    applyLayerState(map);
     initZoomControls(map);
     boot(map);
     setSelection(0, null);
