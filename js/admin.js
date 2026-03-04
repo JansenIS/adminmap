@@ -171,7 +171,7 @@
   updateFlagsStatusText(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
-  const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
+  const MODE_TO_FIELD = { provinces: null, war: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
 
@@ -1802,13 +1802,14 @@
         if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       }
       const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
-      if (!hideProvinceEmblems && emblemSrc) {
+      const provinceEmblemsHidden = hideProvinceEmblems || mode === "war";
+      if (!provinceEmblemsHidden && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
         map.setEmblem(key, emblemSrc, box);
       }
     }
 
-    if (mode !== "provinces") {
+    if (mode !== "provinces" && mode !== "war") {
       if (mode === "minor_houses") {
         drawMinorHousesLayer(map);
       } else {
@@ -1934,7 +1935,8 @@
 
   function syncProvEmblemsToggleLabel() {
     if (!toggleProvEmblemsBtn) return;
-    toggleProvEmblemsBtn.textContent = hideProvinceEmblems ? "Показать геральдику провинций" : "Скрыть геральдику провинций";
+    const forcedHidden = currentMode() === "war";
+    toggleProvEmblemsBtn.textContent = (hideProvinceEmblems || forcedHidden) ? "Показать геральдику провинций" : "Скрыть геральдику провинций";
   }
 
   function sanitizeSvgText(svgText) { return String(svgText || "").replace(/<script[\s\S]*?<\/script\s*>/gi, ""); }
@@ -2144,7 +2146,11 @@
     btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
 
-    viewModeSelect.addEventListener("change", () => applyLayerState(map));
+    viewModeSelect.addEventListener("change", () => {
+      if (currentMode() === "war") hideProvinceEmblems = true;
+      syncProvEmblemsToggleLabel();
+      applyLayerState(map);
+    });
     if (toggleProvEmblemsBtn) {
       toggleProvEmblemsBtn.addEventListener("click", () => {
         hideProvinceEmblems = !hideProvinceEmblems;
