@@ -649,12 +649,28 @@ function turn_api_source_state_for_new_turn(int $sourceYear, bool $preferMapStat
 function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rulesetVersion, bool $preferMapState = false): array {
   $worldState = turn_api_source_state_for_new_turn($sourceYear, $preferMapState);
   $treaties = turn_api_state_treaties($worldState);
+  $previousEntityTreasury = [];
+  $previousProvinceTreasury = [];
+  if ($sourceYear > 0) {
+    $sourceSnap = turn_api_load_snapshot($sourceYear, 'end');
+    if (is_array($sourceSnap) && is_array($sourceSnap['payload'] ?? null)) {
+      $payload = (array)$sourceSnap['payload'];
+      if (is_array($payload['entity_treasury'] ?? null)) {
+        $previousEntityTreasury = array_values((array)$payload['entity_treasury']);
+      }
+      if (is_array($payload['province_treasury'] ?? null)) {
+        $previousProvinceTreasury = array_values((array)$payload['province_treasury']);
+      }
+    }
+  }
   $startSnapshotRef = turn_api_save_snapshot($targetYear, 'start', [
     'world_state' => $worldState,
     'entity_state' => turn_api_compute_entity_state($worldState, $targetYear),
     'economy_state' => turn_api_compute_economy_state($worldState, $targetYear, turn_api_ruleset_for_turn(['ruleset_version' => $rulesetVersion])),
     'treaties' => $treaties,
     'source_turn_year' => $sourceYear,
+    'previous_entity_treasury' => $previousEntityTreasury,
+    'previous_province_treasury' => $previousProvinceTreasury,
   ]);
   if (!is_array($startSnapshotRef)) {
     turn_api_response(['error' => 'snapshot_write_failed', 'phase' => 'start'], 500);
@@ -689,7 +705,10 @@ function turn_api_build_base_turn(int $sourceYear, int $targetYear, string $rule
 function turn_api_compute_economy_for_turn(array $turn): array {
   $year = (int)($turn['year'] ?? 0);
   $snap = turn_api_load_snapshot($year, 'start');
-  $state = (is_array($snap) && is_array($snap['payload']['world_state'] ?? null)) ? $snap['payload']['world_state'] : api_load_state();
+  $payload = (is_array($snap) && is_array($snap['payload'] ?? null)) ? (array)$snap['payload'] : [];
+  $state = is_array($payload['world_state'] ?? null) ? $payload['world_state'] : api_load_state();
+  $previousEntityClosingById = turn_api_previous_entity_closing_by_id(is_array($payload['previous_entity_treasury'] ?? null) ? (array)$payload['previous_entity_treasury'] : []);
+  $previousProvinceClosingByPid = turn_api_previous_province_closing_by_pid(is_array($payload['previous_province_treasury'] ?? null) ? (array)$payload['previous_province_treasury'] : []);
 
   $ruleset = turn_api_ruleset_for_turn($turn);
   $entityState = turn_api_compute_entity_state($state, $year);
@@ -697,7 +716,7 @@ function turn_api_compute_economy_for_turn(array $turn): array {
   $economyState = turn_api_compute_economy_state($state, $year, $ruleset);
   $economy = turn_api_compute_economy_summary($economyState);
   $economy['ruleset_version'] = (string)($ruleset['version'] ?? '');
-  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year, $ruleset);
+  $treasury = turn_api_compute_treasury($state, $entityState, $economyState, $year, $ruleset, $previousEntityClosingById, $previousProvinceClosingByPid);
 
   return [
     'entity_state' => $entityState,
@@ -734,7 +753,41 @@ function turn_api_build_map_artifacts(): array {
 
 
 
-function turn_api_compute_treasury(array $state, array $entityState, array $economyState, int $year, array $ruleset): array {
+function turn_api_previous_entity_closing_by_id(array $rows): array {
+  $out = [];
+  foreach ($rows as $row) {
+    if (!is_array($row)) continue;
+    $entityId = trim((string)($row['entity_id'] ?? ''));
+    if ($entityId === '') continue;
+    $closing = $row['closing_balance'] ?? null;
+    if (!is_numeric($closing)) continue;
+    $out[$entityId] = round((float)$closing, 2);
+  }
+  return $out;
+}
+
+function turn_api_previous_province_closing_by_pid(array $rows): array {
+  $out = [];
+  foreach ($rows as $row) {
+    if (!is_array($row)) continue;
+    $pid = (int)($row['province_pid'] ?? 0);
+    if ($pid <= 0) continue;
+    $closing = $row['closing_balance'] ?? null;
+    if (!is_numeric($closing)) continue;
+    $out[$pid] = round((float)$closing, 2);
+  }
+  return $out;
+}
+
+function turn_api_compute_treasury(
+  array $state,
+  array $entityState,
+  array $economyState,
+  int $year,
+  array $ruleset,
+  array $previousEntityClosingById = [],
+  array $previousProvinceClosingByPid = []
+): array {
   $kingdomRulingHouseById = [];
   foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
     if (!is_array($kingdom)) continue;
@@ -752,11 +805,14 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
     $entityId = (string)($row['entity_id'] ?? '');
     if ($entityId === '') continue;
     if ((string)($row['entity_type'] ?? '') === 'kingdoms') continue;
+    $opening = isset($previousEntityClosingById[$entityId]) && is_numeric($previousEntityClosingById[$entityId])
+      ? round((float)$previousEntityClosingById[$entityId], 2)
+      : round((float)($row['treasury_main'] ?? 0), 2);
     $entityRows[$entityId] = [
       'turn_year' => $year,
       'entity_id' => $entityId,
       'entity_name' => (string)($row['entity_name'] ?? ''),
-      'opening_balance' => round((float)($row['treasury_main'] ?? 0), 2),
+      'opening_balance' => $opening,
       'income_tax' => 0.0,
       'subsidies_out' => 0.0,
       'army_upkeep_out' => 0.0,
@@ -1076,7 +1132,9 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
 
     $net = round($income - $expense - $appliedTax - $entityIncomeSharePaid - $reserveAdd, 2);
     $openingShare = (float)((($ruleset['treasury'] ?? [])['province_opening_income_share'] ?? 0.2));
-    $openingBalance = round($income * $openingShare, 2);
+    $openingBalance = isset($previousProvinceClosingByPid[$pid]) && is_numeric($previousProvinceClosingByPid[$pid])
+      ? round((float)$previousProvinceClosingByPid[$pid], 2)
+      : round($income * $openingShare, 2);
     $provinceRows[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
