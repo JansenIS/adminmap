@@ -54,6 +54,7 @@
   const btnNewRealm = el("newRealm");
   const realmArrierbanBtn = el("realmArrierbanBtn");
   const realmDomainArrierbanBtn = el("realmDomainArrierbanBtn");
+  const realmArrierbanDismissBtn = el("realmArrierbanDismissBtn");
   const realmArmyManageBtn = el("realmArmyManageBtn");
   const realmArrierbanOutput = el("realmArrierbanOutput");
   const arrierbanModal = el("arrierbanModal");
@@ -1433,6 +1434,81 @@
     ].join("\n");
   }
 
+
+
+  function getRealmArrierbanProvinceRows(type, id) {
+    const field = MODE_TO_FIELD[type] || "";
+    if (!field) return [];
+    const rows = [];
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || typeof pd !== "object") continue;
+      if (String(pd[field] || "").trim() !== String(id || "").trim()) continue;
+      const levy = Math.max(0, Math.floor(Number(pd.arrierban_levy) || 0));
+      if (levy <= 0) continue;
+      rows.push({ pd, levy, pid: Number(pd.pid) || 0 });
+    }
+    rows.sort((a, b) => a.pid - b.pid);
+    return rows;
+  }
+
+  function distributeEvenLoss(totalLoss, capacities) {
+    const losses = capacities.map(() => 0);
+    let remaining = Math.max(0, Math.floor(Number(totalLoss) || 0));
+    let active = capacities.map((_, idx) => idx).filter((idx) => capacities[idx] > 0);
+    while (remaining > 0 && active.length) {
+      const share = Math.max(1, Math.floor(remaining / active.length));
+      const next = [];
+      for (const idx of active) {
+        const cap = Math.max(0, capacities[idx] - losses[idx]);
+        if (cap <= 0) continue;
+        const add = Math.min(cap, share, remaining);
+        if (add <= 0) continue;
+        losses[idx] += add;
+        remaining -= add;
+        if (losses[idx] < capacities[idx]) next.push(idx);
+        if (remaining <= 0) break;
+      }
+      active = next;
+    }
+    return losses;
+  }
+
+  function dismissArrierbanWithLosses(type, id, requestedLosses) {
+    const realm = ensureRealm(type, id);
+    const rows = getRealmArrierbanProvinceRows(type, id);
+    const mobilizedTotal = rows.reduce((sum, row) => sum + row.levy, 0);
+    const fieldTotal = Math.max(0, Math.floor((Array.isArray(realm.arrierban_units) ? realm.arrierban_units : []).reduce((sum, row) => sum + (Number(row && row.size) || 0), 0) + (Array.isArray(realm.arrierban_vassal_units) ? realm.arrierban_vassal_units : []).reduce((sum, row) => sum + (Number(row && row.size) || 0), 0)));
+    const impliedLosses = Math.max(0, mobilizedTotal - fieldTotal);
+    const losses = Math.min(mobilizedTotal, Math.max(impliedLosses, Math.floor(Number(requestedLosses) || 0)));
+    const lossByProvince = distributeEvenLoss(losses, rows.map((row) => row.levy));
+
+    let returnedTotal = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const returned = Math.max(0, row.levy - (lossByProvince[i] || 0));
+      row.pd.population = Math.max(0, Math.floor((Number(row.pd.population) || 0) + returned));
+      row.pd.arrierban_levy = 0;
+      row.pd.arrierban_income_penalty = 0;
+      row.pd.arrierban_raised = false;
+      returnedTotal += returned;
+    }
+
+    realm.arrierban_units = [];
+    realm.arrierban_vassal_armies = [];
+    realm.arrierban_vassal_units = [];
+    realm.arrierban_active = false;
+    realm.arrierban_domain_only = false;
+
+    return {
+      mobilizedTotal,
+      fieldTotal,
+      impliedLosses,
+      losses,
+      returnedTotal,
+      provinces: rows.length,
+    };
+  }
+
   function normalizeArmyUnits(units) {
     const out = [];
     const map = new Map();
@@ -1958,6 +2034,29 @@
 
     if (realmArrierbanBtn) realmArrierbanBtn.addEventListener("click", () => { startArrierban(false).catch(() => {}); });
     if (realmDomainArrierbanBtn) realmDomainArrierbanBtn.addEventListener("click", () => { startArrierban(true).catch(() => {}); });
+    if (realmArrierbanDismissBtn) realmArrierbanDismissBtn.addEventListener("click", () => {
+      const type = realmTypeSelect.value;
+      const id = realmSelect.value;
+      if (!id) return alert("Сначала выберите сущность.");
+      const realm = ensureRealm(type, id);
+      if (!realm.arrierban_active) return alert("У сущности нет активных армий для роспуска.");
+      const rows = getRealmArrierbanProvinceRows(type, id);
+      const mobilizedTotal = rows.reduce((sum, row) => sum + row.levy, 0);
+      const fieldTotal = Math.max(0, Math.floor((Array.isArray(realm.arrierban_units) ? realm.arrierban_units : []).reduce((sum, row) => sum + (Number(row && row.size) || 0), 0) + (Array.isArray(realm.arrierban_vassal_units) ? realm.arrierban_vassal_units : []).reduce((sum, row) => sum + (Number(row && row.size) || 0), 0)));
+      const impliedLosses = Math.max(0, mobilizedTotal - fieldTotal);
+      const input = prompt(`Потери при возвращении войск (0..${mobilizedTotal}). Будут распределены равномерно по провинциям.`, String(impliedLosses));
+      if (input == null) return;
+      const requestedLosses = Math.max(0, Math.floor(Number(input) || 0));
+      const summary = dismissArrierbanWithLosses(type, id, requestedLosses);
+      applyLayerState(map);
+      exportStateToTextarea();
+      if (realmArrierbanOutput) realmArrierbanOutput.textContent = [
+        `Армии распущены и вернулись в провинции: ${summary.provinces}.`,
+        `Всего призвано: ${summary.mobilizedTotal}.`,
+        `Возвращено в население: ${summary.returnedTotal}.`,
+        `Потери учтены: ${summary.losses} (минимум по текущей численности в поле: ${summary.impliedLosses}).`,
+      ].join("\n");
+    });
 
     if (arrierbanApply) arrierbanApply.addEventListener("click", () => {
       if (!pendingArrierbanPlan) return;

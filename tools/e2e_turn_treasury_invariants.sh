@@ -33,13 +33,17 @@ ledger=snap['treasury_ledger']
 
 # province invariant
 for r in provs:
-    lhs=round(float(r['opening_balance']) + float(r['income']) - float(r['expense']) - float(r['tax_paid_to_entity']) - float(r.get('entity_income_share_paid',0)) - float(r['reserve_add']),2)
-    rhs=round(float(r['closing_balance']),2)
-    assert lhs==rhs, ('province_balance_mismatch', r['province_pid'], lhs, rhs)
+    opening=float(r.get('opening_balance', 0) or 0)
+    income=float(r.get('income', 0) or 0)
+    mandatory_out=float(r.get('expense', 0) or 0) + float(r.get('tax_paid_to_entity', 0) or 0) + float(r.get('reserve_add', 0) or 0)
+    optional_out=sum(float(r.get(k, 0) or 0) for k in ('entity_income_share_paid',))
+    lhs=round(opening + income - mandatory_out - optional_out, 2)
+    rhs=round(float(r.get('closing_balance', 0) or 0),2)
+    assert lhs==rhs, ('province_balance_mismatch', r.get('province_pid'), lhs, rhs)
 
 # entity invariant
 for r in ents:
-    lhs=round(float(r['opening_balance']) + float(r['income_tax']) - float(r['subsidies_out']) + float(r.get('transfers_in',0)) - float(r.get('transfers_out',0)),2)
+    lhs=round(float(r['opening_balance']) + float(r['income_tax']) - float(r['subsidies_out']) - float(r.get('army_upkeep_out',0)) + float(r.get('transfers_in',0)) - float(r.get('transfers_out',0)),2)
     rhs=round(float(r['closing_balance']),2)
     assert lhs==rhs, ('entity_balance_mismatch', r['entity_id'], lhs, rhs)
 
