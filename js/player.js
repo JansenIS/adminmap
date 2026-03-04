@@ -19,6 +19,16 @@
     return [(n>>16)&255,(n>>8)&255,n&255,a];
   }
 
+  function boostColor(rgba, boost){
+    const b = Number(boost || 0);
+    return [
+      Math.min(255, (rgba[0] || 0) + b),
+      Math.min(255, (rgba[1] || 0) + b),
+      Math.min(255, (rgba[2] || 0) + b),
+      rgba[3] == null ? 140 : rgba[3]
+    ];
+  }
+
   function showProvinceInfo(p){
     $('infoName').textContent = p ? (p.name || '—') : '—';
     $('infoPid').textContent = p ? String(p.pid || '—') : '—';
@@ -66,14 +76,76 @@
         const realm = (realms[mode] || {})[realmId] || null;
         rgba = toRgbaFromHex(realm && realm.color, p.is_owned ? 170 : 120);
       }
+      if (selectedPid && Number(p.pid) === selectedPid) {
+        rgba = boostColor(rgba, 45);
+      }
       map.setFill(key, rgba);
       if (p.is_owned && p.emblem_svg && mode === 'provinces') {
         map.setEmblem(key, `data:image/svg+xml;base64,${MapUtils.toBase64Utf8(p.emblem_svg)}`, null, {margin:0.12});
       }
-      if (selectedPid && Number(p.pid) === selectedPid) {
-        map.setSelectedHighlight(key, [255,255,255,70]);
-      }
     }
+  }
+
+  function initZoomControls(){
+    const mapArea = $('mapArea');
+    const mapWrap = $('mapWrap');
+    const baseMap = $('baseMap');
+    if (!mapArea || !mapWrap || !baseMap || !map) return;
+
+    const MIN_ZOOM = 0.1;
+    const MAX_ZOOM = 12;
+    const WHEEL_FACTOR = 1.12;
+    let currentScale = 1;
+
+    function getBaseSize(){
+      return [baseMap.naturalWidth || map.W || 0, baseMap.naturalHeight || map.H || 0];
+    }
+    function getFitScale(){
+      const [W, H] = getBaseSize();
+      if (!W || !H) return 1;
+      const sx = mapArea.clientWidth / W;
+      const sy = mapArea.clientHeight / H;
+      return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(sx, sy)));
+    }
+    function setZoom(newScale, anchorClientX, anchorClientY){
+      newScale = Number(newScale);
+      if (!isFinite(newScale) || newScale <= 0) newScale = 1;
+      newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+      const [W, H] = getBaseSize();
+      if (!W || !H) return;
+
+      const anchorX = (anchorClientX == null ? mapArea.clientWidth / 2 : anchorClientX);
+      const anchorY = (anchorClientY == null ? mapArea.clientHeight / 2 : anchorClientY);
+      const worldX = (mapArea.scrollLeft + anchorX) / currentScale;
+      const worldY = (mapArea.scrollTop + anchorY) / currentScale;
+
+      currentScale = newScale;
+      mapWrap.style.width = Math.round(W * currentScale) + 'px';
+      mapWrap.style.height = Math.round(H * currentScale) + 'px';
+      mapArea.scrollLeft = Math.max(0, worldX * currentScale - anchorX);
+      mapArea.scrollTop = Math.max(0, worldY * currentScale - anchorY);
+    }
+
+    document.querySelectorAll('.zoomBtn').forEach((btn)=>{
+      btn.addEventListener('click', ()=>{
+        const target = btn.getAttribute('data-zoom');
+        if (target === 'fit') return setZoom(getFitScale());
+        setZoom(target);
+      });
+    });
+
+    mapArea.addEventListener('wheel', (evt)=>{
+      if (!evt.deltaY) return;
+      evt.preventDefault();
+      const nextScale = evt.deltaY < 0 ? currentScale * WHEEL_FACTOR : currentScale / WHEEL_FACTOR;
+      setZoom(nextScale, evt.clientX - mapArea.getBoundingClientRect().left, evt.clientY - mapArea.getBoundingClientRect().top);
+    }, { passive:false });
+
+    window.addEventListener('resize', ()=>{
+      if (Math.abs(currentScale - getFitScale()) < 0.001) setZoom(getFitScale());
+    });
+
+    setZoom(1);
   }
 
   async function load(){
@@ -118,6 +190,7 @@
         }
       });
       await map.init();
+      initZoomControls();
     }
     paintMap();
   }
@@ -141,8 +214,16 @@
     setStatus('Арьербан созван.'); await load();
   };
   $('moveBtn').onclick = async ()=>{
-    await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'move',army_id:$('armySelect').value,to_pid:Number($('movePid').value||0)})});
-    setStatus('Армия перемещена.'); await load();
+    try {
+      await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'move',army_id:$('armySelect').value,to_pid:Number($('movePid').value||0)})});
+      setStatus('Армия перемещена.'); await load();
+    } catch (e) {
+      if (e && e.message === 'pid_not_owned') {
+        setStatus('Нельзя перемещать армию в не принадлежащую вам провинцию.', true);
+        return;
+      }
+      throw e;
+    }
   };
   $('disbandBtn').onclick = async ()=>{
     await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'disband',army_id:$('armySelect').value})});
