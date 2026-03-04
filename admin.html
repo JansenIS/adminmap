@@ -14,7 +14,7 @@
     .card { margin-top:12px; padding:12px; background:#0b0f14; border:1px solid #223041; border-radius:12px; }
     .grid { display:grid; grid-template-columns: 120px 1fr; gap:10px; align-items:center; }
     .grid label { font-size:12px; color:#a6b4c5; }
-    input[type="text"], select { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; outline:none; }
+    input[type="text"], input[type="number"], select { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; outline:none; }
     select[multiple] { height: 160px; }
     input[type="color"]{ width:52px; height:32px; border:0; background:transparent; padding:0; }
     input[type="range"]{ width:100%; }
@@ -58,6 +58,17 @@
     .editor-modal__body { padding:16px; }
     .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
     .editor-modal textarea { min-height:120px; }
+
+    .arrierban-grid { display:grid; grid-template-columns: 1.2fr 90px 130px 120px; gap:8px; align-items:center; }
+    .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
+    .arrierban-grid input[type="number"] { padding:6px 8px; }
+
+    .army-markers-layer { position:absolute; inset:0; pointer-events:none; z-index:6; }
+    .army-marker { position:absolute; width:42px; height:42px; border-radius:999px; border:2px solid rgba(230,240,255,.9); box-shadow:0 4px 12px rgba(0,0,0,.35); transform:translate(-50%, -50%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,.7); overflow:hidden; }
+    .army-marker--feudal { width:36px; height:36px; }
+    .army-marker__emblem { width:62%; height:62%; object-fit:contain; border-radius:50%; background:rgba(0,0,0,.18); }
+    .army-manager-list { display:grid; gap:6px; max-height:340px; overflow:auto; }
+    .army-manager-row { display:grid; grid-template-columns: 24px 90px 1fr 90px; gap:8px; align-items:center; font-size:12px; border:1px solid #2b3f56; border-radius:8px; padding:6px; }
   </style>
 </head>
 <body>
@@ -230,6 +241,8 @@
             <input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" />
             <span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span>
           </div>
+          <label>Коэффициент воинственности (1..100)</label>
+          <input id="realmWarlikeCoeff" type="number" min="1" max="100" step="1" value="30" />
         </div>
         <div class="btnrow">
           <button id="newRealm" type="button">Новая сущность</button>
@@ -238,7 +251,11 @@
           <button id="removeSelectedFromRealm" type="button">Убрать выделенные провинции</button>
           <button id="realmUploadEmblemBtn" type="button">Загрузить герб сущности</button>
           <button id="realmRemoveEmblemBtn" type="button">Удалить герб сущности</button>
+          <button id="realmArrierbanBtn" type="button">Арьербан (созыв войск)</button>
+          <button id="realmDomainArrierbanBtn" type="button">Созвать доменное войско</button>
+          <button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
         </div>
+        <pre id="realmArrierbanOutput" class="small" style="margin-top:10px; white-space:pre-wrap;"></pre>
         <input id="realmEmblemFile" type="file" accept="image/svg+xml,.svg" style="display:none;" />
       </div>
 
@@ -299,6 +316,7 @@
         <canvas id="fill"></canvas>
         <canvas id="emblems"></canvas>
         <canvas id="hover"></canvas>
+        <div id="armyMarkers" class="army-markers-layer"></div>
       </div>
       <div id="tooltip"></div>
     </main>
@@ -361,6 +379,57 @@
       </div>
     </div>
   </div>
+
+
+  <div id="arrierbanModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
+        <div>
+          <div id="arrierbanTitle" style="font-weight:700;">Арьербан</div>
+          <div id="arrierbanSubtitle" class="small">—</div>
+        </div>
+        <button id="arrierbanClose" type="button">Закрыть</button>
+      </div>
+      <div class="editor-modal__body">
+        <div id="arrierbanPools" class="small" style="margin-bottom:10px;">—</div>
+        <div class="arrierban-grid arrierban-grid__head">
+          <div>Отряд</div><div>Стандарт</div><div>Мин. размер (10%)</div><div>Назначить</div>
+        </div>
+        <div id="arrierbanRows" style="margin-top:8px; display:grid; gap:6px;"></div>
+        <div id="arrierbanValidation" class="small" style="margin-top:10px; color:#ffb4b4;"></div>
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="arrierbanApply" type="button">Подтвердить созыв</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="armyManageModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
+        <div>
+          <div id="armyManageTitle" style="font-weight:700;">Менеджмент армий</div>
+          <div id="armyManageSubtitle" class="small">—</div>
+        </div>
+        <button id="armyManageClose" type="button">Закрыть</button>
+      </div>
+      <div class="editor-modal__body">
+        <div id="armyManageList" class="army-manager-list"></div>
+        <div class="grid" style="margin-top:10px;">
+          <label>Размер для отделения</label>
+          <input id="armySplitSize" type="number" min="1" step="1" value="10" />
+        </div>
+        <div id="armyManageValidation" class="small" style="margin-top:10px; color:#ffb4b4;"></div>
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="armyMergeBtn" type="button">Слить выбранные</button>
+          <button id="armySplitBtn" type="button">Разделить выбранный</button>
+          <button id="armyNormalizeBtn" type="button">Объединить одинаковые в армии</button>
+          <button id="armyManageSave" type="button">Сохранить армии</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <script src="js/feature_flags.js"></script>
   <script src="js/state_loader.js"></script>
