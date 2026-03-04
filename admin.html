@@ -59,8 +59,10 @@
     .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
     .editor-modal textarea { min-height:120px; }
 
-    .arrierban-grid { display:grid; grid-template-columns: 1.2fr 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
+    .arrierban-grid { display:grid; grid-template-columns: 1.1fr 110px 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
     .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
+    .arrierban-category { margin-top:12px; border-top:1px solid #2b3f56; padding-top:10px; }
+    .arrierban-category__title { font-size:12px; font-weight:700; margin-bottom:8px; color:#d9e5f2; }
     .arrierban-grid input[type="number"] { padding:6px 8px; }
     .arrierban-row-alloc { display:grid; gap:6px; }
     .arrierban-row-alloc__entry { display:flex; gap:6px; align-items:center; }
@@ -74,6 +76,8 @@
     .army-marker--feudal { width:36px; height:36px; }
     .army-marker__emblem { width:62%; height:62%; object-fit:contain; border-radius:50%; background:rgba(0,0,0,.18); }
     .army-manager-list { display:grid; gap:6px; max-height:340px; overflow:auto; }
+    .army-manager-category { margin-top:8px; border-top:1px solid #2b3f56; padding-top:8px; }
+    .army-manager-category__title { font-size:11px; color:#a6b4c5; text-transform:uppercase; letter-spacing:.04em; }
     .army-manager-row { display:grid; grid-template-columns: 24px 90px 1fr 90px; gap:8px; align-items:center; font-size:12px; border:1px solid #2b3f56; border-radius:8px; padding:6px; }
   </style>
 </head>
@@ -399,8 +403,9 @@
       </div>
       <div class="editor-modal__body">
         <div id="arrierbanPools" class="small" style="margin-bottom:10px;">—</div>
+        <div id="arrierbanRemaining" class="small" style="margin-bottom:10px;">—</div>
         <div class="arrierban-grid arrierban-grid__head">
-          <div>Отряд</div><div>Стандарт</div><div>Мин. размер (10%)</div><div>Поотрядное распределение</div>
+          <div>Отряд</div><div>Категория</div><div>Стандарт</div><div>Мин. размер (10%)</div><div>Поотрядное распределение</div>
         </div>
         <div id="arrierbanRows" style="margin-top:8px; display:grid; gap:6px;"></div>
         <div id="arrierbanValidation" class="small" style="margin-top:10px; color:#ffb4b4;"></div>

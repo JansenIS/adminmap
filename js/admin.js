@@ -61,6 +61,7 @@
   const arrierbanTitle = el("arrierbanTitle");
   const arrierbanSubtitle = el("arrierbanSubtitle");
   const arrierbanPools = el("arrierbanPools");
+  const arrierbanRemaining = el("arrierbanRemaining");
   const arrierbanRows = el("arrierbanRows");
   const arrierbanValidation = el("arrierbanValidation");
   const arrierbanClose = el("arrierbanClose");
@@ -1260,12 +1261,12 @@
       else domainHexes += Array.isArray(hexmapData && hexmapData.hexes) ? hexmapData.hexes.filter((h) => (Number(h && h.p) >>> 0) === pid).length : 0;
     }
 
-    const sergeantsPool = Math.floor((domainPopulation / 3) * (warlikeCoeff / 100));
+    const sergeantsPool = Math.floor(((domainPopulation / 3) * (warlikeCoeff / 100)) / 10);
     const pools = {
       knights: Math.floor((domainHexes / 10) * (warlikeCoeff / 100)),
-      nehts: Math.floor(Math.floor(domainHexes / 3) * (warlikeCoeff / 100) * 10),
+      nehts: Math.floor((Math.floor(domainHexes / 3) * (warlikeCoeff / 100) * 10) / 10),
       sergeants: sergeantsPool,
-      militia: Math.floor(Math.max(0, domainPopulation - sergeantsPool) * (warlikeCoeff / 100)),
+      militia: Math.floor((Math.max(0, domainPopulation - sergeantsPool) * (warlikeCoeff / 100)) / 10),
     };
 
     const supportingSources = [];
@@ -1335,6 +1336,27 @@
     ];
   }
 
+  function unitCategoryLabel(source) {
+    const map = { militia: "Ополчение", sergeants: "Сержанты", nehts: "Нехты", knights: "Рыцари" };
+    return map[String(source || "")] || "Прочее";
+  }
+
+  function resolveUnitCategory(unit) {
+    const source = String(unit && unit.source || "");
+    if (["militia", "sergeants", "nehts", "knights"].includes(source)) return source;
+    const byId = { militia: "militia", militia_tr: "militia", shot: "sergeants", pikes: "sergeants", assault150: "sergeants", bikes: "nehts", palatines: "knights", preventors100: "knights" };
+    return byId[String(unit && unit.unit_id || "")] || "other";
+  }
+
+  function formatRemainingPools(calc, allocations) {
+    const keys = ["militia", "sergeants", "nehts", "knights"];
+    return keys.map((key) => {
+      const cap = Math.max(0, Math.floor(Number(calc && calc.pools && calc.pools[key]) || 0));
+      const used = Math.max(0, Math.floor(Number(allocations && allocations[key]) || 0));
+      return `${unitCategoryLabel(key)}: ${Math.max(0, cap - used)} из ${cap}`;
+    }).join(", ");
+  }
+
   function arrierbanRandomVassalArmies(calc, catalog) {
     const ids = ["militia", "militia_tr", "shot", "pikes", "assault150", "bikes", "palatines", "preventors100"];
     const armies = [];
@@ -1382,6 +1404,7 @@
     allocWrap.appendChild(addBtn);
 
     row.appendChild(Object.assign(document.createElement("div"), { textContent: def.name }));
+    row.appendChild(Object.assign(document.createElement("div"), { textContent: unitCategoryLabel(def.source) }));
     row.appendChild(Object.assign(document.createElement("div"), { textContent: String(def.baseSize) }));
     row.appendChild(Object.assign(document.createElement("div"), { textContent: String(minSize) }));
     row.appendChild(allocWrap);
@@ -1395,10 +1418,20 @@
     if (arrierbanTitle) arrierbanTitle.textContent = `Арьербан — ${ruler}`;
     if (arrierbanSubtitle) arrierbanSubtitle.textContent = plan.domainOnly ? `Доменных провинций: ${plan.calc.domainPids.length}, без созыва вассалов` : `Доменных провинций: ${plan.calc.domainPids.length}, доп. вассальных армий: ${plan.calc.supportingArmies}`;
     if (arrierbanPools) arrierbanPools.textContent = `Пулы доменного призыва: рыцари ${plan.calc.pools.knights}, нехты ${plan.calc.pools.nehts}, сержанты ${plan.calc.pools.sergeants}, ополчение ${plan.calc.pools.militia}.`;
+    if (arrierbanRemaining) arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(plan.calc, null)}.`;
     if (arrierbanValidation) arrierbanValidation.textContent = "";
 
     arrierbanRows.innerHTML = "";
-    for (const def of plan.domainDefs) arrierbanRows.appendChild(buildArrierbanDomainRow(def));
+    const categories = ["militia", "sergeants", "nehts", "knights"];
+    for (const category of categories) {
+      const defs = plan.domainDefs.filter((def) => def.source === category);
+      if (!defs.length) continue;
+      const header = document.createElement("div");
+      header.className = "arrierban-category";
+      header.innerHTML = `<div class="arrierban-category__title">${unitCategoryLabel(category)}</div>`;
+      arrierbanRows.appendChild(header);
+      for (const def of defs) arrierbanRows.appendChild(buildArrierbanDomainRow(def));
+    }
 
     arrierbanModal.classList.add("open");
     arrierbanModal.setAttribute("aria-hidden", "false");
@@ -1409,6 +1442,18 @@
     arrierbanModal.classList.remove("open");
     arrierbanModal.setAttribute("aria-hidden", "true");
     pendingArrierbanPlan = null;
+  }
+
+  function updateArrierbanRemainingCounter() {
+    if (!pendingArrierbanPlan || !arrierbanRows || !arrierbanRemaining) return;
+    const allocations = { militia: 0, sergeants: 0, nehts: 0, knights: 0 };
+    const inputs = Array.from(arrierbanRows.querySelectorAll('input[type="number"]'));
+    for (const input of inputs) {
+      const source = String(input.dataset.source || "");
+      if (!(source in allocations)) continue;
+      allocations[source] += Math.max(0, Math.floor(Number(input.value) || 0));
+    }
+    arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(pendingArrierbanPlan.calc, allocations)}.`;
   }
 
   function collectDomainUnitsFromModal(plan) {
@@ -1428,8 +1473,9 @@
     }
     for (const key of Object.keys(allocations)) {
       const cap = Number(plan.calc.pools[key] || 0);
-      if (allocations[key] > cap) return { ok: false, error: `Превышен лимит для ${key}: ${allocations[key]} из ${cap}.` };
+      if (allocations[key] > cap) return { ok: false, error: `Превышен лимит для ${unitCategoryLabel(key)}: ${allocations[key]} из ${cap}.` };
     }
+    if (arrierbanRemaining) arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(plan.calc, allocations)}.`;
     return { ok: true, units, allocations };
   }
 
@@ -1609,19 +1655,35 @@
     const armies = pendingArmyManage && Array.isArray(pendingArmyManage.armies) ? pendingArmyManage.armies : [];
     pendingArmyManage.flatRows = [];
     armyManageList.innerHTML = "";
-    armies.forEach((army, armyIdx) => {
-      const units = Array.isArray(army.units) ? army.units : [];
-      for (let unitIdx = 0; unitIdx < units.length; unitIdx++) {
-        const row = units[unitIdx];
-        const flatIdx = pendingArmyManage.flatRows.length;
-        pendingArmyManage.flatRows.push({ armyIdx, unitIdx });
-        const div = document.createElement("div");
-        div.className = "army-manager-row";
-        const armyLabel = `${army.army_kind === "domain" ? "Домен" : "Феод"}: ${army.army_name}`;
-        div.innerHTML = `<input type="checkbox" data-idx="${flatIdx}" /><div>${armyLabel}</div><div>${row.unit_name || row.unit_id || "unit"}</div><div>${Number(row.size) || 0}</div>`;
-        armyManageList.appendChild(div);
+    const categories = ["militia", "sergeants", "nehts", "knights", "other"];
+    for (const category of categories) {
+      const section = document.createElement("div");
+      section.className = "army-manager-category";
+      section.innerHTML = `<div class="army-manager-category__title">${unitCategoryLabel(category)}</div>`;
+      let hasRows = false;
+      armies.forEach((army, armyIdx) => {
+        const units = Array.isArray(army.units) ? army.units : [];
+        for (let unitIdx = 0; unitIdx < units.length; unitIdx++) {
+          const row = units[unitIdx];
+          if (resolveUnitCategory(row) !== category) continue;
+          hasRows = true;
+          const flatIdx = pendingArmyManage.flatRows.length;
+          pendingArmyManage.flatRows.push({ armyIdx, unitIdx });
+          const div = document.createElement("div");
+          div.className = "army-manager-row";
+          const armyLabel = `${army.army_kind === "domain" ? "Домен" : "Феод"}: ${army.army_name}`;
+          div.innerHTML = `<input type="checkbox" data-idx="${flatIdx}" /><div>${armyLabel}</div><div>${row.unit_name || row.unit_id || "unit"}</div><div>${Number(row.size) || 0}</div>`;
+          section.appendChild(div);
+        }
+      });
+      if (!hasRows) {
+        const empty = document.createElement("div");
+        empty.className = "small";
+        empty.textContent = "Нет отрядов";
+        section.appendChild(empty);
       }
-    });
+      armyManageList.appendChild(section);
+    }
   }
 
   function armyManageSelectedEntries() {
@@ -2073,6 +2135,7 @@
         allocWrap.insertBefore(entry, addBtn || null);
         const input = entry.querySelector('input[type="number"]');
         if (input) input.focus();
+        updateArrierbanRemainingCounter();
       } else if (action === "remove-arrierban-row") {
         const entry = btn.closest('.arrierban-row-alloc__entry');
         if (!entry) return;
@@ -2080,12 +2143,20 @@
         if (entries.length <= 1) {
           const input = entry.querySelector('input[type="number"]');
           if (input) input.value = '0';
+          updateArrierbanRemainingCounter();
           return;
         }
         entry.remove();
+        updateArrierbanRemainingCounter();
       }
     });
 
+
+    if (arrierbanRows) arrierbanRows.addEventListener("input", (evt) => {
+      const input = evt.target && evt.target.matches && evt.target.matches('input[type="number"]') ? evt.target : null;
+      if (!input) return;
+      updateArrierbanRemainingCounter();
+    });
     async function startArrierban(domainOnly) {
       const type = realmTypeSelect.value;
       const id = realmSelect.value;
