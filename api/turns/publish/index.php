@@ -44,10 +44,12 @@ if (!is_array($startSnap) || !is_array($startSnap['payload']['world_state'] ?? n
 }
 
 $worldState = $startSnap['payload']['world_state'];
+$previousEntityClosingById = turn_api_previous_entity_closing_by_id(is_array($startSnap['payload']['previous_entity_treasury'] ?? null) ? (array)$startSnap['payload']['previous_entity_treasury'] : []);
+$previousProvinceClosingByPid = turn_api_previous_province_closing_by_pid(is_array($startSnap['payload']['previous_province_treasury'] ?? null) ? (array)$startSnap['payload']['previous_province_treasury'] : []);
 $ruleset = turn_api_ruleset_for_turn($turn);
 $entityState = turn_api_compute_entity_state($worldState, $year);
 $economyState = turn_api_compute_economy_state($worldState, $year, $ruleset);
-$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset);
+$treasury = turn_api_compute_treasury($worldState, $entityState, $economyState, $year, $ruleset, $previousEntityClosingById, $previousProvinceClosingByPid);
 $treaties = turn_api_state_treaties($worldState);
 $turn['map_artifacts'] = turn_api_build_map_artifacts();
 $overlayPayload = turn_api_compute_overlay_payload($entityState, $economyState, (array)($turn['economy'] ?? []));
