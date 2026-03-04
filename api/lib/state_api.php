@@ -69,7 +69,25 @@ function api_load_state(): array {
     api_json_response(['error' => 'state_decode_failed'], 500);
   }
 
-  return $decoded;
+  return api_normalize_loaded_state($decoded);
+}
+
+function api_normalize_loaded_state(array $state): array {
+  if (!isset($state['free_cities']) || !is_array($state['free_cities'])) $state['free_cities'] = [];
+  if (!isset($state['special_territories']) || !is_array($state['special_territories'])) $state['special_territories'] = [];
+
+  // Backward compatibility for partially migrated states:
+  // provinces may already point to special_territory_id, while realm cards still live in free_cities.
+  // In this case we materialize missing special_territories entries at read time so rendering works.
+  foreach (($state['provinces'] ?? []) as $pd) {
+    if (!is_array($pd)) continue;
+    $specialId = trim((string)($pd['special_territory_id'] ?? ''));
+    if ($specialId === '' || isset($state['special_territories'][$specialId])) continue;
+    if (!isset($state['free_cities'][$specialId]) || !is_array($state['free_cities'][$specialId])) continue;
+    $state['special_territories'][$specialId] = $state['free_cities'][$specialId];
+  }
+
+  return $state;
 }
 
 function api_save_state(array $state): bool {
