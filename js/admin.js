@@ -199,6 +199,7 @@
   let pendingArmyManage = null;
   let selectedWarArmyId = "";
   let selectedWarReachableKeys = [];
+  let currentWarTurnYear = null;
   const provinceCardBaseByPid = new Map();
   const CARD_TARGET_W = 1280;
   const CARD_TARGET_H = 720;
@@ -360,6 +361,7 @@
       const items = Array.isArray(listBody && listBody.items) ? listBody.items : [];
       const published = items.length ? items[items.length - 1] : null;
       if (!published || !Number.isFinite(Number(published.year))) {
+        currentWarTurnYear = null;
         turnCurrentYear.textContent = '—';
         turnCurrentStatus.textContent = 'published ходов нет';
         turnTreasuryProvSum.textContent = '—';
@@ -369,6 +371,7 @@
       }
 
       const year = Number(published.year);
+      currentWarTurnYear = year;
       turnCurrentYear.textContent = String(year);
       turnCurrentStatus.textContent = String(published.status || 'published');
 
@@ -630,6 +633,8 @@
             army_id: "domain",
             army_name: "Доменная армия",
             current_pid: Number(prev.current_pid || defaultPid) >>> 0,
+            moved_this_turn: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? !!prev.moved_this_turn : false,
+            moved_turn_year: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? Number(prev.moved_turn_year) : null,
           });
         }
 
@@ -649,6 +654,8 @@
               army_id: armyId,
               army_name: String(a.army_name || armyId),
               current_pid: Number(prev.current_pid || a.muster_pid || defaultPid) >>> 0,
+              moved_this_turn: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? !!prev.moved_this_turn : false,
+              moved_turn_year: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? Number(prev.moved_turn_year) : null,
             });
           });
         } else if (Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.some((u) => u && (Number(u.size) || 0) > 0)) {
@@ -663,6 +670,8 @@
             army_id: "feudal_legacy",
             army_name: "Феодальная армия",
             current_pid: Number(prev.current_pid || defaultPid) >>> 0,
+            moved_this_turn: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? !!prev.moved_this_turn : false,
+            moved_turn_year: Number(prev.moved_turn_year) === Number(currentWarTurnYear) ? Number(prev.moved_turn_year) : null,
           });
         }
       }
@@ -674,6 +683,7 @@
 
   function computeWarReachableKeys(army) {
     if (!army || !mapInstanceRef) return [];
+    if (army.moved_this_turn) return [];
     const center = getProvinceCenterByPid(Number(army.current_pid) >>> 0);
     if (!center) return [];
     const avgSize = computeAverageProvinceSizePx();
@@ -707,7 +717,8 @@
       const opt = document.createElement("option");
       opt.value = String(row.war_army_id || "");
       const pid = Number(row.current_pid) >>> 0;
-      opt.textContent = `${row.realm_name} • ${row.army_name} • PID ${pid}`;
+      const movedBadge = row.moved_this_turn ? " • ход уже сделан" : "";
+      opt.textContent = `${row.realm_name} • ${row.army_name} • PID ${pid}${movedBadge}`;
       warArmySelect.appendChild(opt);
     }
 
@@ -724,7 +735,9 @@
     if (warMoveReachCount) warMoveReachCount.textContent = selected ? String(selectedWarReachableKeys.length) : "—";
     if (warMoveHint) {
       warMoveHint.textContent = selected
-        ? `Выбрано: ${selected.realm_name} / ${selected.army_name}. Кликните по подсвеченной провинции для перемещения.`
+        ? (selected.moved_this_turn
+          ? `Выбрано: ${selected.realm_name} / ${selected.army_name}. Эта армия уже двигалась в текущем ходу и не может двигаться повторно.`
+          : `Выбрано: ${selected.realm_name} / ${selected.army_name}. Кликните по подсвеченной провинции для перемещения.`)
         : "Выберите армию, затем кликните по подсвеченной провинции на карте.";
     }
 
@@ -738,11 +751,14 @@
     const armies = ensureWarArmiesState();
     const selected = armies.find((a) => String(a.war_army_id) === String(selectedWarArmyId));
     if (!selected) return false;
+    if (selected.moved_this_turn) return false;
     const k = Number(targetKey) >>> 0;
     if (!k || !selectedWarReachableKeys.includes(k)) return false;
     const pid = Number(pidByKey.get(k) || 0) >>> 0;
     if (!pid) return false;
     selected.current_pid = pid;
+    selected.moved_this_turn = true;
+    selected.moved_turn_year = Number.isFinite(Number(currentWarTurnYear)) ? Number(currentWarTurnYear) : null;
     updateWarArmyPanel();
     renderArmyMarkers();
     return true;
