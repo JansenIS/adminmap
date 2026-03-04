@@ -259,7 +259,11 @@
       const meta = this.getProvinceMeta(k);
       if (!meta) return;
       const [x0, y0, x1, y1] = meta.bbox;
-      this.emblemCtx.clearRect(x0, y0, x1 - x0, y1 - y0);
+      const mask = this._getClipMaskCanvas(k);
+      this.emblemCtx.save();
+      this.emblemCtx.globalCompositeOperation = "destination-out";
+      this.emblemCtx.drawImage(mask, x0, y0);
+      this.emblemCtx.restore();
     }
 
     clearAllEmblems() {
@@ -316,7 +320,11 @@
       const bw = x1 - x0, bh = y1 - y0;
       if (bw <= 0 || bh <= 0) return;
 
-      this.emblemCtx.clearRect(x0, y0, bw, bh);
+      const mask = this._getClipMaskCanvas(k);
+      this.emblemCtx.save();
+      this.emblemCtx.globalCompositeOperation = "destination-out";
+      this.emblemCtx.drawImage(mask, x0, y0);
+      this.emblemCtx.restore();
       const img = await this._loadImageCached(emblem.src);
 
       const marginFrac = clamp(emblem.margin, 0, 0.45);
@@ -351,7 +359,6 @@
       pctx.imageSmoothingEnabled = true;
       pctx.drawImage(img, dx, dy, tw, th);
 
-      const mask = this._getClipMaskCanvas(k);
       pctx.globalCompositeOperation = "destination-in";
       pctx.drawImage(mask, 0, 0);
       pctx.globalCompositeOperation = "source-over";
