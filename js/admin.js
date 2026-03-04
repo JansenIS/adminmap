@@ -1261,12 +1261,12 @@
       else domainHexes += Array.isArray(hexmapData && hexmapData.hexes) ? hexmapData.hexes.filter((h) => (Number(h && h.p) >>> 0) === pid).length : 0;
     }
 
-    const sergeantsPool = Math.floor(((domainPopulation / 3) * (warlikeCoeff / 100)) / 10);
+    const sergeantsPool = Math.floor(((domainPopulation / 3) * (warlikeCoeff / 100)) / 50);
     const pools = {
       knights: Math.floor((domainHexes / 10) * (warlikeCoeff / 100)),
       nehts: Math.floor((Math.floor(domainHexes / 3) * (warlikeCoeff / 100) * 10) / 10),
       sergeants: sergeantsPool,
-      militia: Math.floor((Math.max(0, domainPopulation - sergeantsPool) * (warlikeCoeff / 100)) / 10),
+      militia: Math.floor((Math.max(0, domainPopulation - sergeantsPool) * (warlikeCoeff / 100)) / 50),
     };
 
     const supportingSources = [];

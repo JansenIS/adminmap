@@ -585,7 +585,7 @@ function turn_api_generate_start_population_and_treasury(array &$state): array {
     $isCity = $terrain === 'город';
 
     $basePerHex = 500 + (int)round((turn_api_seeded_noise(1, $pid, 'population_per_hex') + 1.0) * 250.0);
-    $population = $hexCount * $basePerHex;
+    $population = (int)round(($hexCount * $basePerHex) / 5);
     if ($isCity) {
       $cityMult = 4.0 + ((turn_api_seeded_noise(1, $pid, 'city_pop_boost') + 1.0) * 2.0);
       $population = (int)round($population * $cityMult);
