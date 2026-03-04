@@ -112,6 +112,10 @@
           <div><b>Казна провинций:</b> <span id="turnTreasuryProvSum">—</span></div>
           <div><b>Казна сущностей:</b> <span id="turnTreasuryEntitySum">—</span></div>
         </div>
+        <details style="margin-top:8px;">
+          <summary class="small">Показать казну сущностей</summary>
+          <div id="turnEntityTreasuryList" class="small" style="margin-top:6px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
+        </details>
         <div class="btnrow">
           <button id="btnMakeTurn" type="button">Сделать ход</button>
           <button id="btnRefreshTurn" type="button">Обновить статус</button>
@@ -263,8 +267,8 @@
           <input id="realmName" type="text" placeholder="Название" />
           <label>Правитель</label>
           <input id="realmRuler" type="text" list="peopleList" placeholder="Имя правителя (добавит в список)" />
-          <label>Правящий дом (ID БД)</label>
-          <input id="realmRulingHouse" type="text" placeholder="Только для королевств" />
+          <label>Правящий БД</label>
+          <select id="realmRulingHouse"></select>
           <label>Цвет</label>
           <input id="realmColor" type="color" value="#ff3b30" />
           <label>Столица KEY</label>
