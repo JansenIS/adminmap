@@ -85,7 +85,10 @@ function turn_api_default_ruleset(): array {
       'entity_transfer_rate' => 0.01,
       'entity_transfer_cap' => 5.0,
       'province_entity_tax_rate' => 0.12,
-      'army_upkeep_per_strength' => 11.5,
+      'great_to_kingdom_rate' => 0.18,
+      'kingdom_vassal_house_tax_rate' => 0.28,
+      'royal_callup_vassal_upkeep_share' => 0.8,
+      'army_upkeep_per_strength' => 60.0,
     ],
   ];
 }
@@ -789,13 +792,23 @@ function turn_api_compute_treasury(
   array $previousProvinceClosingByPid = []
 ): array {
   $kingdomRulingHouseById = [];
+  $kingdomVassalHousesById = [];
   foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
     if (!is_array($kingdom)) continue;
     $kid = trim((string)$kingdomId);
     if ($kid === '') continue;
+
     $rulingHouseId = trim((string)($kingdom['ruling_house_id'] ?? ''));
-    if ($rulingHouseId === '') continue;
-    $kingdomRulingHouseById[$kid] = $rulingHouseId;
+    if ($rulingHouseId !== '') {
+      $kingdomRulingHouseById[$kid] = $rulingHouseId;
+    }
+
+    $vassalIds = [];
+    foreach ((array)($kingdom['vassal_house_ids'] ?? []) as $ghIdRaw) {
+      $ghId = trim((string)$ghIdRaw);
+      if ($ghId !== '') $vassalIds[$ghId] = true;
+    }
+    if ($vassalIds !== []) $kingdomVassalHousesById[$kid] = array_keys($vassalIds);
   }
 
   $entityRows = [];
@@ -857,6 +870,8 @@ function turn_api_compute_treasury(
   $minorToGreatRate = (float)($tCfg['minor_to_great_rate'] ?? 0.10);
   $greatDomainIncomeShare = (float)($tCfg['great_domain_income_share'] ?? 1.0);
   $greatToKingdomRate = (float)($tCfg['great_to_kingdom_rate'] ?? 0.10);
+  $kingdomVassalHouseTaxRate = (float)($tCfg['kingdom_vassal_house_tax_rate'] ?? $greatToKingdomRate);
+  $royalCallupVassalUpkeepShare = max(0.0, min(1.0, (float)($tCfg['royal_callup_vassal_upkeep_share'] ?? 0.7)));
 
   $armyUpkeepPerStrength = max(0.0, (float)($tCfg['army_upkeep_per_strength'] ?? 1.15));
 
@@ -888,7 +903,7 @@ function turn_api_compute_treasury(
     return '';
   };
 
-  $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId, $kingdomRulingHouseById): array {
+  $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId, $kingdomRulingHouseById, $royalCallupVassalUpkeepShare): array {
     $shares = [];
     $summonerEntityId = $bucketType . ':' . $summonerKey;
     if ($bucketType === 'kingdoms') {
@@ -916,8 +931,10 @@ function turn_api_compute_treasury(
           if ($size <= 0.0) continue;
           $unitUpkeep = $size * $upkeepPerStrength;
           if ($armyKind === 'vassal' && $vassalEntityId !== '') {
-            $addUpkeepShare($shares, $summonerEntityId, $unitUpkeep * 0.5);
-            $addUpkeepShare($shares, $vassalEntityId, $unitUpkeep * 0.5);
+            $vassalShare = ($bucketType === 'kingdoms') ? $royalCallupVassalUpkeepShare : 0.5;
+            $summonerShare = max(0.0, 1.0 - $vassalShare);
+            $addUpkeepShare($shares, $summonerEntityId, $unitUpkeep * $summonerShare);
+            $addUpkeepShare($shares, $vassalEntityId, $unitUpkeep * $vassalShare);
           } else {
             $addUpkeepShare($shares, $summonerEntityId, $unitUpkeep);
           }
@@ -1027,7 +1044,8 @@ function turn_api_compute_treasury(
     $kingdomId = trim((string)($provinceByPid[$pid]['kingdom_id'] ?? ''));
     if ($greatHouseId !== '' && $kingdomId !== '' && !isset($greatOverlordHouseById[$greatHouseId])) {
       $overlordHouseId = (string)($kingdomRulingHouseById[$kingdomId] ?? '');
-      if ($overlordHouseId !== '' && $overlordHouseId !== $greatHouseId) {
+      $explicit = (array)($kingdomVassalHousesById[$kingdomId] ?? []);
+      if ($overlordHouseId !== '' && $overlordHouseId !== $greatHouseId && in_array($greatHouseId, $explicit, true)) {
         $greatOverlordHouseById[$greatHouseId] = $overlordHouseId;
       }
     }
@@ -1179,6 +1197,15 @@ function turn_api_compute_treasury(
     ];
   }
 
+  foreach ($kingdomVassalHousesById as $kid => $vassals) {
+    $overlordHouseId = (string)($kingdomRulingHouseById[$kid] ?? '');
+    if ($overlordHouseId === '') continue;
+    foreach ($vassals as $greatHouseId) {
+      if ($greatHouseId === '' || $greatHouseId === $overlordHouseId) continue;
+      if (!isset($greatOverlordHouseById[$greatHouseId])) $greatOverlordHouseById[$greatHouseId] = $overlordHouseId;
+    }
+  }
+
   foreach ($greatGrossIncome as $greatEntityId => $greatIncomeBase) {
     if (!isset($entityRows[$greatEntityId])) continue;
     $greatHouseId = preg_replace('/^great_houses:/', '', (string)$greatEntityId);
@@ -1189,7 +1216,9 @@ function turn_api_compute_treasury(
       $overlordName = (string)((($state['great_houses'] ?? [])[$overlordHouseId]['name'] ?? $overlordHouseId));
       $ensureEntityRow($entityRows, $entityMetaById, $overlordEntityId, $overlordName, 'great_houses', $year);
     }
-    $payment = round((float)$greatIncomeBase * $greatToKingdomRate, 2);
+        $isExplicitKingdomVassal = isset($greatOverlordHouseById[$greatHouseId]);
+    $tributeRate = $isExplicitKingdomVassal ? $kingdomVassalHouseTaxRate : $greatToKingdomRate;
+    $payment = round((float)$greatIncomeBase * $tributeRate, 2);
     if ($payment <= 0) continue;
     $entityRows[$greatEntityId]['transfers_out'] = round(((float)$entityRows[$greatEntityId]['transfers_out']) + $payment, 2);
     $entityRows[$overlordEntityId]['transfers_in'] = round(((float)$entityRows[$overlordEntityId]['transfers_in']) + $payment, 2);

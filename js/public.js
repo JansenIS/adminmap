@@ -329,7 +329,12 @@
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         realm.ruler = String(realm.ruler || "").trim();
-        if (type === "kingdoms") realm.ruling_house_id = String(realm.ruling_house_id || "").trim();
+        if (type === "kingdoms") {
+          realm.ruling_house_id = String(realm.ruling_house_id || "").trim();
+          realm.vassal_house_ids = Array.isArray(realm.vassal_house_ids)
+            ? realm.vassal_house_ids.map((v) => String(v || "").trim()).filter(Boolean)
+            : [];
+        }
       }
     }
     for (const realm of Object.values(obj.great_houses || {})) {

@@ -705,11 +705,15 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
 }
 
 function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
-  $allowed = ['name', 'ruler', 'ruling_house_id', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
+  $allowed = ['name', 'ruler', 'ruling_house_id', 'vassal_house_ids', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
     if (in_array($f, ['name','ruler','ruling_house_id','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if ($f === 'vassal_house_ids') {
+      if (!is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.vassal_house_ids'];
+      foreach ($value as $i => $v) if (!is_scalar($v)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.vassal_house_ids.' . (string)$i];
+    }
     if ($f === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.diplomacy'];
     if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
     if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
@@ -869,22 +873,31 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     return ['ok' => false, 'error' => 'not_found'];
   }
 
-  $allowed = ['name', 'ruler', 'ruling_house_id', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
+  $allowed = ['name', 'ruler', 'ruling_house_id', 'vassal_house_ids', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
     if (in_array((string)$field, ['name','ruler','ruling_house_id','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if ($field === 'vassal_house_ids') {
+      if (!is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassal_house_ids'];
+      foreach ($value as $i => $v) if (!is_scalar($v)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassal_house_ids.' . (string)$i];
+    }
     if ($field === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'diplomacy'];
     if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
     if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];
     if (in_array($field, ['warlike_coeff','loyalty_coeff'], true) && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     if ($field === 'emblem_box' && !($value === null || (is_array($value) && count($value) === 2))) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_box'];
     if ($field === 'province_pids' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'province_pids'];
+    if ($field === 'vassal_house_ids' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassal_house_ids'];
   }
 
   $updated = 0;
   foreach ($changes as $field => $value) {
     if ($field === 'capital_pid') {
       $value = max(0, (int)$value);
+    }
+
+    if ($field === 'vassal_house_ids') {
+      $value = array_values(array_filter(array_map(static fn($v): string => trim((string)$v), (array)$value), static fn($v): bool => $v !== ''));
     }
 
     if ($field === 'emblem_scale') {
