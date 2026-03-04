@@ -43,6 +43,7 @@
   const realmSelect = el("realmSelect");
   const realmNameInput = el("realmName");
   const realmRulerInput = el("realmRuler");
+  const realmRulingHouseInput = el("realmRulingHouse");
   const realmColorInput = el("realmColor");
   const realmCapitalInput = el("realmCapital");
   const realmEmblemScaleInput = el("realmEmblemScale");
@@ -543,6 +544,7 @@
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         realm.ruler = String(realm.ruler || "").trim();
+        if (type === "kingdoms") realm.ruling_house_id = String(realm.ruling_house_id || "").trim();
       }
     }
     for (const realm of Object.values(obj.great_houses || {})) {
@@ -701,10 +703,61 @@
   }
 
 
+  function getKingdomRulingHouse(kingdom) {
+    if (!kingdom || typeof kingdom !== "object") return null;
+    const rid = String(kingdom.ruling_house_id || "").trim();
+    if (!rid) return null;
+    return (state.great_houses || {})[rid] || null;
+  }
+
+  function getKingdomEffectiveRuler(kingdom) {
+    const rulingHouse = getKingdomRulingHouse(kingdom);
+    const ruler = String(rulingHouse && rulingHouse.ruler || "").trim();
+    if (ruler) return ruler;
+    return String(kingdom && kingdom.ruler || "").trim();
+  }
+
+  function getKingdomEffectiveCapitalPid(kingdom) {
+    const rulingHouse = getKingdomRulingHouse(kingdom);
+    const pid = Number(rulingHouse && (rulingHouse.capital_pid || rulingHouse.capital_key) || 0) >>> 0;
+    if (pid > 0) return pid;
+    return Number(kingdom && (kingdom.capital_pid || kingdom.capital_key) || 0) >>> 0;
+  }
+
+  function getKingdomArrierbanContext(kingdomId, kingdom) {
+    const kid = String(kingdomId || "").trim();
+    const rulingHouseId = String(kingdom && kingdom.ruling_house_id || "").trim();
+    const rulingHouse = rulingHouseId ? ((state.great_houses || {})[rulingHouseId] || null) : null;
+    if (!kid || !rulingHouse) return { rulingHouseId: "", rulingHouse: null, domainPids: [], supportingSources: [] };
+
+    const layer = rulingHouse.minor_house_layer && typeof rulingHouse.minor_house_layer === "object" ? rulingHouse.minor_house_layer : null;
+    const domainSet = new Set((layer && Array.isArray(layer.domain_pids) ? layer.domain_pids : []).map((v) => Number(v) >>> 0).filter(Boolean));
+    const supporting = [];
+    const seenGreat = new Set([rulingHouseId]);
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || typeof pd !== "object") continue;
+      if (String(pd.kingdom_id || "").trim() !== kid) continue;
+      const ghId = String(pd.great_house_id || "").trim();
+      if (!ghId || seenGreat.has(ghId)) continue;
+      seenGreat.add(ghId);
+      const gh = (state.great_houses || {})[ghId];
+      if (!gh || typeof gh !== "object") continue;
+      supporting.push({
+        id: `vassal_great_house:${ghId}`,
+        name: String(gh.name || ghId),
+        kind: "vassal",
+        muster_pid: Number(gh.capital_pid || gh.capital_key || 0) >>> 0
+      });
+    }
+
+    return { rulingHouseId, rulingHouse, domainPids: Array.from(domainSet), supportingSources: supporting };
+  }
+
+
   function getProvinceSuzerainSenior(pd) {
     if (!pd || typeof pd !== "object") return { suzerain: "", senior: "" };
     const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
-    const suzerain = String(kingdom && kingdom.ruler || "").trim();
+    const suzerain = getKingdomEffectiveRuler(kingdom);
 
     const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
     let senior = String(greatHouse && greatHouse.ruler || "").trim();
@@ -979,7 +1032,7 @@
     if (!Number.isFinite(n)) return 30;
     return Math.max(1, Math.min(100, Math.round(n)));
   }
-  function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), ruler: String(realm.ruler || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [], warlike_coeff: clampWarlikeCoeff(realm.warlike_coeff) }; }
+  function buildRealmPatchFromState(realm) { return { name: String(realm.name || ""), ruler: String(realm.ruler || ""), ruling_house_id: String(realm.ruling_house_id || ""), color: String(realm.color || "#ff3b30"), capital_pid: Number(realm.capital_pid || 0) >>> 0, emblem_scale: Math.max(0.2, Math.min(3, Number(realm.emblem_scale) || 1)), emblem_svg: String(realm.emblem_svg || ""), emblem_box: (Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2) ? realm.emblem_box : null, province_pids: Array.isArray(realm.province_pids) ? realm.province_pids.map(v => Number(v) >>> 0).filter(Boolean) : [], warlike_coeff: clampWarlikeCoeff(realm.warlike_coeff) }; }
   async function persistRealmPatch(type, id, realm) { const payload = { type: String(type || ""), id: String(id || ""), changes: buildRealmPatchFromState(realm) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "realm", type: payload.type, id: payload.id, changes: payload.changes }]); const res = await fetch(REALM_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
 
   async function uploadProvinceCardImage(pid, imageDataUrl) {
@@ -1210,7 +1263,7 @@
       return out;
     }
     const bucket = realmBucketByType(type);
-    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 }, r)]);
+    return Object.entries(bucket).map(([id, r]) => [id, Object.assign({ id, name: id, ruler: "", ruling_house_id: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 }, r)]);
   }
 
   function resolveVassalRealmRef(realmId) {
@@ -1256,26 +1309,45 @@
         };
       }
     }
+    const displayRuler = type === "kingdoms" ? getKingdomEffectiveRuler(realm) : String(realm && realm.ruler || "");
+    const displayCapitalPid = type === "kingdoms" ? getKingdomEffectiveCapitalPid(realm) : Number(realm && (realm.capital_pid || realm.capital_key) || 0) >>> 0;
     realmNameInput.value = realm ? (realm.name || id) : "";
-    realmRulerInput.value = realm ? String(realm.ruler || "") : "";
+    realmRulerInput.value = realm ? String(displayRuler || "") : "";
+    if (realmRulingHouseInput) realmRulingHouseInput.value = type === "kingdoms" ? String(realm && realm.ruling_house_id || "") : "";
     realmColorInput.value = realm && realm.color ? realm.color : "#ff3b30";
-    realmCapitalInput.value = realm && (realm.capital_pid || realm.capital_key) ? String(realm.capital_pid || realm.capital_key) : "";
+    realmCapitalInput.value = displayCapitalPid ? String(displayCapitalPid) : "";
     realmEmblemScaleInput.value = String(realm && realm.emblem_scale ? realm.emblem_scale : 1);
     if (realmWarlikeCoeffInput) realmWarlikeCoeffInput.value = String(clampWarlikeCoeff(realm && realm.warlike_coeff));
-    if (realm && realm.ruler) ensurePerson(realm.ruler);
+    if (displayRuler) ensurePerson(displayRuler);
     realmEmblemScaleVal.textContent = realmEmblemScaleInput.value;
     if (realmArrierbanOutput) realmArrierbanOutput.textContent = "";
   }
 
   function ensureRealm(type, id) {
     const bucket = realmBucketByType(type);
-    if (!bucket[id]) bucket[id] = { name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 };
+    if (!bucket[id]) bucket[id] = { name: id, ruler: "", ruling_house_id: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 };
     return bucket[id];
   }
 
   function getRealmRuntime(type, id, opts) {
     const create = !(opts && opts.create === false);
-    if (type !== "minor_houses") return create ? ensureRealm(type, id) : (realmBucketByType(type)[id] || null);
+    if (type !== "minor_houses") {
+      const realm = create ? ensureRealm(type, id) : (realmBucketByType(type)[id] || null);
+      if (!realm) return null;
+      if (type === "kingdoms") {
+        const rid = String(realm.ruling_house_id || "").trim();
+        const rulingHouse = rid ? ((state.great_houses || {})[rid] || null) : null;
+        if (rulingHouse && typeof rulingHouse === "object") {
+          realm.ruler = String(rulingHouse.ruler || realm.ruler || "");
+          realm.capital_pid = Number(rulingHouse.capital_pid || rulingHouse.capital_key || realm.capital_pid || 0) >>> 0;
+          const layer = rulingHouse.minor_house_layer && typeof rulingHouse.minor_house_layer === "object" ? rulingHouse.minor_house_layer : null;
+          if (layer && Array.isArray(layer.domain_pids) && layer.domain_pids.length) {
+            realm.province_pids = layer.domain_pids.map((x) => Number(x) >>> 0).filter(Boolean);
+          }
+        }
+      }
+      return realm;
+    }
     const ref = resolveVassalRealmRef(id);
     if (!ref) return create ? ensureRealm(type, id) : (realmBucketByType(type)[id] || null);
 
@@ -1310,6 +1382,11 @@
         const pid = Number(raw) >>> 0;
         if (pid > 0) pids.add(pid);
       }
+    }
+    if (mode === "kingdoms") {
+      const ctx = getKingdomArrierbanContext(realm && realm.id, realm);
+      for (const pid of (ctx.domainPids || [])) if (pid > 0) pids.add(pid);
+      return Array.from(pids);
     }
     if (mode === "great_houses") {
       const layer = realm && realm.minor_house_layer && typeof realm.minor_house_layer === "object" ? realm.minor_house_layer : null;
@@ -1373,6 +1450,13 @@
 
     const supportingSources = [];
     const triggerChance = Math.max(0, Math.min(100, loyaltyCoeff + warlikeCoeff));
+    if (mode === "kingdoms") {
+      const ctx = getKingdomArrierbanContext(id, realm);
+      for (const src of (ctx.supportingSources || [])) {
+        if ((Math.random() * 100) >= triggerChance) continue;
+        supportingSources.push(src);
+      }
+    }
     const layer = mode === "great_houses" && realm.minor_house_layer && typeof realm.minor_house_layer === "object" ? realm.minor_house_layer : null;
     if (layer && Array.isArray(layer.vassals)) {
       for (const v of layer.vassals) {
@@ -1620,7 +1704,7 @@
 
   function formatArrierbanText(calc, domainUnits, vassalArmies, appliedTotal) {
     if (!calc) return "Сущность не найдена.";
-    const ruler = String(calc.realm.ruler || "").trim() || "Без правителя";
+    const ruler = calc && calc.realm ? (String(getKingdomEffectiveRuler(calc.realm) || "").trim() || String(calc.realm.ruler || "").trim() || "Без правителя") : "Без правителя";
     const feudalArmies = Array.isArray(vassalArmies) ? vassalArmies : [];
     const feudalUnitsTotal = feudalArmies.reduce((sum, a) => sum + ((a && Array.isArray(a.units)) ? a.units.length : 0), 0);
     return [
@@ -2314,6 +2398,14 @@
       realm.ruler = ensurePerson(realmRulerInput.value);
       realm.color = String(realmColorInput.value || "#ff3b30");
       realm.capital_pid = Number(realmCapitalInput.value) >>> 0;
+      if (type === "kingdoms") {
+        realm.ruling_house_id = String(realmRulingHouseInput && realmRulingHouseInput.value || "").trim();
+        const rulingHouse = realm.ruling_house_id ? ((state.great_houses || {})[realm.ruling_house_id] || null) : null;
+        if (rulingHouse && typeof rulingHouse === "object") {
+          realm.ruler = ensurePerson(rulingHouse.ruler);
+          realm.capital_pid = Number(rulingHouse.capital_pid || rulingHouse.capital_key || realm.capital_pid || 0) >>> 0;
+        }
+      }
       realm.emblem_scale = Math.max(0.2, Math.min(3, Number(realmEmblemScaleInput.value) || 1));
       realm.warlike_coeff = clampWarlikeCoeff(realmWarlikeCoeffInput ? realmWarlikeCoeffInput.value : realm.warlike_coeff);
       rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id; loadRealmFields(); applyLayerState(map); setSelection(selectedKey, map.getProvinceMeta(selectedKey)); exportStateToTextarea();

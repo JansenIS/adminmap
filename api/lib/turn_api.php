@@ -797,11 +797,19 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   };
 
   $resolveVassalEntityId = static function (string $bucketType, string $summonerKey, string $armyId): string {
-    if ($bucketType !== 'great_houses') return '';
-    if (strpos($armyId, 'vassal:') !== 0) return '';
-    $vassalId = trim(substr($armyId, strlen('vassal:')));
-    if ($vassalId === '') return '';
-    return 'minor_houses:' . $summonerKey . '::' . $vassalId;
+    if ($bucketType === 'great_houses') {
+      if (strpos($armyId, 'vassal:') !== 0) return '';
+      $vassalId = trim(substr($armyId, strlen('vassal:')));
+      if ($vassalId === '') return '';
+      return 'minor_houses:' . $summonerKey . '::' . $vassalId;
+    }
+    if ($bucketType === 'kingdoms') {
+      if (strpos($armyId, 'vassal_great_house:') !== 0) return '';
+      $greatHouseId = trim(substr($armyId, strlen('vassal_great_house:')));
+      if ($greatHouseId === '') return '';
+      return 'great_houses:' . $greatHouseId;
+    }
+    return '';
   };
 
   $computeArmyUpkeepShares = static function (array $realm, string $bucketType, string $summonerKey, float $upkeepPerStrength) use ($addUpkeepShare, $resolveVassalEntityId): array {
@@ -910,6 +918,13 @@ function turn_api_compute_treasury(array $state, array $entityState, array $econ
   $minorGrossIncome = [];
   $greatGrossIncome = [];
   $greatKingdomById = [];
+  foreach (($state['kingdoms'] ?? []) as $kingdomId => $kingdom) {
+    if (!is_array($kingdom)) continue;
+    $kid = trim((string)$kingdomId);
+    if ($kid === '') continue;
+    $rulingHouseId = trim((string)($kingdom['ruling_house_id'] ?? ''));
+    if ($rulingHouseId !== '') $greatKingdomById[$rulingHouseId] = $kid;
+  }
   foreach ($economyState as $eco) {
     if (!is_array($eco)) continue;
     $pid = (int)($eco['province_pid'] ?? 0);

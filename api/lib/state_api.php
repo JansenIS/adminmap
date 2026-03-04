@@ -705,11 +705,11 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
 }
 
 function api_validate_realm_changes_schema(array $changes, string $prefix = 'changes'): array {
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
+  $allowed = ['name', 'ruler', 'ruling_house_id', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
-    if (in_array($f, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
+    if (in_array($f, ['name','ruler','ruling_house_id','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
     if ($f === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.diplomacy'];
     if ($f === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.capital_pid'];
     if ($f === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.emblem_scale'];
@@ -869,10 +869,10 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
     return ['ok' => false, 'error' => 'not_found'];
   }
 
-  $allowed = ['name', 'ruler', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
+  $allowed = ['name', 'ruler', 'ruling_house_id', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
   foreach ($changes as $field => $value) {
     if (!in_array((string)$field, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
-    if (in_array((string)$field, ['name','ruler','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
+    if (in_array((string)$field, ['name','ruler','ruling_house_id','color','emblem_svg','wiki_description'], true) && !is_string($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     if ($field === 'diplomacy' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'diplomacy'];
     if ($field === 'capital_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'capital_pid'];
     if ($field === 'emblem_scale' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'emblem_scale'];

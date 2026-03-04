@@ -167,10 +167,24 @@
   }
   function getStateProvinceByPid(pid) { if (!state || !state.provinces) return null; return state.provinces[String(Number(pid) || 0)] || null; }
 
+  function getKingdomRulingHouse(kingdom) {
+    if (!kingdom || typeof kingdom !== "object") return null;
+    const rid = String(kingdom.ruling_house_id || "").trim();
+    if (!rid) return null;
+    return (state.great_houses || {})[rid] || null;
+  }
+
+  function getKingdomEffectiveRuler(kingdom) {
+    const rulingHouse = getKingdomRulingHouse(kingdom);
+    const ruler = String(rulingHouse && rulingHouse.ruler || "").trim();
+    if (ruler) return ruler;
+    return String(kingdom && kingdom.ruler || "").trim();
+  }
+
   function getProvinceSuzerainSenior(pd) {
     if (!pd || typeof pd !== "object") return { suzerain: "", senior: "" };
     const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
-    const suzerain = String(kingdom && kingdom.ruler || "").trim();
+    const suzerain = getKingdomEffectiveRuler(kingdom);
 
     const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
     let senior = String(greatHouse && greatHouse.ruler || "").trim();
@@ -315,6 +329,7 @@
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         realm.ruler = String(realm.ruler || "").trim();
+        if (type === "kingdoms") realm.ruling_house_id = String(realm.ruling_house_id || "").trim();
       }
     }
     for (const realm of Object.values(obj.great_houses || {})) {
