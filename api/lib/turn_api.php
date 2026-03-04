@@ -533,6 +533,11 @@ function turn_api_compute_economy_state(array $state, int $year, array $ruleset)
       $income = $income * max(0.0, $incomeMult);
     }
 
+    $arrierbanIncomePenalty = max(0.0, min(1.0, (float)($prov['arrierban_income_penalty'] ?? 0.0)));
+    if ($arrierbanIncomePenalty > 0.0) {
+      $income = $income * (1.0 - $arrierbanIncomePenalty);
+    }
+
     $out[] = [
       'turn_year' => $year,
       'province_pid' => $pid,
@@ -549,6 +554,7 @@ function turn_api_compute_economy_state(array $state, int $year, array $ruleset)
         'river_trade' => $isRiver,
         'income_noise' => round($incomeNoise, 4),
         'expense_noise' => round($expenseNoise, 4),
+        'arrierban_income_penalty' => round($arrierbanIncomePenalty, 4),
         'treaty_effects' => $treatyMods ? [
           'entity_id' => $entityId,
           'tax_modifier' => round((float)($treatyMods['tax_modifier'] ?? 0.0), 4),
