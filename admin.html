@@ -133,6 +133,26 @@
           </select>
         </div>
       </div>
+
+      <div class="card" id="warMoveCard">
+        <div class="muted">Передвижение армий (режим «Война»)</div>
+        <div class="grid" style="margin-top:10px; grid-template-columns: 130px 1fr;">
+          <label>Армия</label>
+          <select id="warArmySelect"></select>
+
+          <label>Радиус за ход</label>
+          <div id="warMoveRadius" class="small">—</div>
+
+          <label>Доступно провинций</label>
+          <div id="warMoveReachCount" class="small">—</div>
+        </div>
+        <div class="btnrow">
+          <button id="warRefreshArmies" type="button">Обновить список армий</button>
+          <button id="warClearSelection" type="button">Снять выбор армии</button>
+        </div>
+        <div id="warMoveHint" class="small" style="margin-top:8px;">Выберите армию, затем кликните по подсвеченной провинции на карте.</div>
+      </div>
+
       <div class="card">
         <div class="muted">Масштаб карты</div>
         <div class="btnrow" style="margin-top:10px;">

@@ -79,6 +79,13 @@
   const armyManageSave = el("armyManageSave");
   const armyNormalizeBtn = el("armyNormalizeBtn");
   const armyMarkersLayer = el("armyMarkers");
+  const warMoveCard = el("warMoveCard");
+  const warArmySelect = el("warArmySelect");
+  const warMoveRadius = el("warMoveRadius");
+  const warMoveReachCount = el("warMoveReachCount");
+  const warRefreshArmies = el("warRefreshArmies");
+  const warClearSelection = el("warClearSelection");
+  const warMoveHint = el("warMoveHint");
   const realmUploadEmblemBtn = el("realmUploadEmblemBtn");
   const realmRemoveEmblemBtn = el("realmRemoveEmblemBtn");
   const realmEmblemFile = el("realmEmblemFile");
@@ -190,6 +197,8 @@
   let pendingArrierbanPlan = null;
   let mapInstanceRef = null;
   let pendingArmyManage = null;
+  let selectedWarArmyId = "";
+  let selectedWarReachableKeys = [];
   const provinceCardBaseByPid = new Map();
   const CARD_TARGET_W = 1280;
   const CARD_TARGET_H = 720;
@@ -532,6 +541,213 @@
   function keyForPid(pid) { const p = Number(pid); return keyByPid.get(p) || 0; }
   function getProvData(key) { const pid = pidByKey.get(key >>> 0) || 0; return pid ? (state.provinces[String(pid)] || null) : null; }
   function currentMode() { return viewModeSelect.value || "provinces"; }
+  function isWarAdminPage() {
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("war_admin") === "1";
+  }
+
+  function provinceMetaByPid(pid) {
+    const key = keyForPid(pid);
+    return key ? (mapInstanceRef && mapInstanceRef.getProvinceMeta(key)) : null;
+  }
+
+  function getProvinceCenterByPid(pid) {
+    const meta = provinceMetaByPid(pid);
+    if (!meta) return null;
+    const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+    const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+    const y = centroid && centroid[1] != null ? Number(meta.centroid[1]) : Number(meta.cy || 0);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, key: Number(meta.key || keyForPid(pid)) >>> 0 };
+  }
+
+  function computeAverageProvinceSizePx() {
+    if (!mapInstanceRef || !mapInstanceRef.provincesByKey) return 0;
+    let sum = 0;
+    let cnt = 0;
+    for (const meta of mapInstanceRef.provincesByKey.values()) {
+      if (!meta || Number(meta.pid) === 95) continue;
+      const area = Number(meta.area_px || 0);
+      if (!(area > 0)) continue;
+      const radius = Math.sqrt(area / Math.PI);
+      if (!Number.isFinite(radius) || radius <= 0) continue;
+      sum += radius;
+      cnt += 1;
+    }
+    return cnt ? (sum / cnt) : 0;
+  }
+
+  function realmDefaultArmyPid(type, id, realm) {
+    const field = MODE_TO_FIELD[type] || "";
+    let capitalPid = Number(realm && realm.capital_pid) >>> 0;
+    if (!capitalPid && Array.isArray(realm && realm.province_pids) && realm.province_pids.length > 0) capitalPid = Number(realm.province_pids[0]) >>> 0;
+    if (!capitalPid && type === "minor_houses") {
+      const ref = resolveVassalRealmRef(id);
+      if (ref && Array.isArray(ref.vassal && ref.vassal.province_pids) && ref.vassal.province_pids.length > 0) capitalPid = Number(ref.vassal.province_pids[0]) >>> 0;
+    }
+    if (!capitalPid && field) {
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd || typeof pd !== "object") continue;
+        if (String(pd[field] || "").trim() !== String(id || "").trim()) continue;
+        capitalPid = Number(pd.pid) >>> 0;
+        if (capitalPid) break;
+      }
+    }
+    return capitalPid;
+  }
+
+  function ensureWarArmiesState() {
+    if (!state || typeof state !== "object") return [];
+    if (!Array.isArray(state.war_armies)) state.war_armies = [];
+
+    const existing = new Map();
+    for (const row of state.war_armies) {
+      if (!row || typeof row !== "object") continue;
+      const id = String(row.war_army_id || "").trim();
+      if (!id) continue;
+      existing.set(id, row);
+    }
+
+    const out = [];
+    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+    for (const type of allTypes) {
+      const bucket = realmBucketByType(type);
+      for (const [id, realm] of Object.entries(bucket || {})) {
+        if (!realm || (!realm.arrierban_active && !realmHasAnyArmies(realm))) continue;
+        const realmName = String(realm.name || id);
+        const defaultPid = realmDefaultArmyPid(type, id, realm);
+
+        const domainUnits = Array.isArray(realm.arrierban_units) ? realm.arrierban_units : [];
+        if (domainUnits.some((u) => u && (Number(u.size) || 0) > 0)) {
+          const warArmyId = `${type}:${id}:domain`;
+          const prev = existing.get(warArmyId) || {};
+          out.push({
+            war_army_id: warArmyId,
+            realm_type: type,
+            realm_id: id,
+            realm_name: realmName,
+            army_kind: "domain",
+            army_id: "domain",
+            army_name: "Доменная армия",
+            current_pid: Number(prev.current_pid || defaultPid) >>> 0,
+          });
+        }
+
+        const feudalArmies = Array.isArray(realm.arrierban_vassal_armies) ? realm.arrierban_vassal_armies : [];
+        if (feudalArmies.length) {
+          feudalArmies.forEach((a, idx) => {
+            if (!a || !Array.isArray(a.units) || !a.units.some((u) => u && (Number(u.size) || 0) > 0)) return;
+            const armyId = String(a.army_id || `feudal_${idx + 1}`);
+            const warArmyId = `${type}:${id}:${armyId}`;
+            const prev = existing.get(warArmyId) || {};
+            out.push({
+              war_army_id: warArmyId,
+              realm_type: type,
+              realm_id: id,
+              realm_name: realmName,
+              army_kind: String(a.army_kind || "vassal"),
+              army_id: armyId,
+              army_name: String(a.army_name || armyId),
+              current_pid: Number(prev.current_pid || a.muster_pid || defaultPid) >>> 0,
+            });
+          });
+        } else if (Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.some((u) => u && (Number(u.size) || 0) > 0)) {
+          const warArmyId = `${type}:${id}:feudal_legacy`;
+          const prev = existing.get(warArmyId) || {};
+          out.push({
+            war_army_id: warArmyId,
+            realm_type: type,
+            realm_id: id,
+            realm_name: realmName,
+            army_kind: "vassal",
+            army_id: "feudal_legacy",
+            army_name: "Феодальная армия",
+            current_pid: Number(prev.current_pid || defaultPid) >>> 0,
+          });
+        }
+      }
+    }
+
+    state.war_armies = out.filter((row) => Number(row.current_pid) > 0);
+    return state.war_armies;
+  }
+
+  function computeWarReachableKeys(army) {
+    if (!army || !mapInstanceRef) return [];
+    const center = getProvinceCenterByPid(Number(army.current_pid) >>> 0);
+    if (!center) return [];
+    const avgSize = computeAverageProvinceSizePx();
+    const rangePx = avgSize * 8;
+    if (!(rangePx > 0)) return [];
+    const range2 = rangePx * rangePx;
+    const keys = [];
+    for (const [key, meta] of mapInstanceRef.provincesByKey.entries()) {
+      if (!meta) continue;
+      const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+      const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+      const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      const dx = x - center.x;
+      const dy = y - center.y;
+      if ((dx * dx + dy * dy) <= range2) keys.push(key >>> 0);
+    }
+    return keys;
+  }
+
+  function updateWarArmyPanel() {
+    if (!warArmySelect) return;
+    const armies = ensureWarArmiesState();
+    warArmySelect.innerHTML = "";
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "— выберите армию —";
+    warArmySelect.appendChild(empty);
+
+    for (const row of armies) {
+      const opt = document.createElement("option");
+      opt.value = String(row.war_army_id || "");
+      const pid = Number(row.current_pid) >>> 0;
+      opt.textContent = `${row.realm_name} • ${row.army_name} • PID ${pid}`;
+      warArmySelect.appendChild(opt);
+    }
+
+    const stillExists = armies.some((a) => String(a.war_army_id) === String(selectedWarArmyId));
+    if (!stillExists) selectedWarArmyId = "";
+    warArmySelect.value = selectedWarArmyId;
+
+    const selected = armies.find((a) => String(a.war_army_id) === String(selectedWarArmyId)) || null;
+    const avgSize = computeAverageProvinceSizePx();
+    const rangePx = avgSize * 8;
+    if (warMoveRadius) warMoveRadius.textContent = rangePx > 0 ? `${Math.round(rangePx)} px (8 × ${avgSize.toFixed(1)} px)` : "—";
+
+    selectedWarReachableKeys = selected ? computeWarReachableKeys(selected) : [];
+    if (warMoveReachCount) warMoveReachCount.textContent = selected ? String(selectedWarReachableKeys.length) : "—";
+    if (warMoveHint) {
+      warMoveHint.textContent = selected
+        ? `Выбрано: ${selected.realm_name} / ${selected.army_name}. Кликните по подсвеченной провинции для перемещения.`
+        : "Выберите армию, затем кликните по подсвеченной провинции на карте.";
+    }
+
+    if (mapInstanceRef) {
+      if (currentMode() === "war" && selectedWarReachableKeys.length) mapInstanceRef.setHoverHighlights(selectedWarReachableKeys, [120, 230, 255, 78]);
+      else mapInstanceRef.clearHover();
+    }
+  }
+
+  function moveSelectedWarArmyToKey(targetKey) {
+    const armies = ensureWarArmiesState();
+    const selected = armies.find((a) => String(a.war_army_id) === String(selectedWarArmyId));
+    if (!selected) return false;
+    const k = Number(targetKey) >>> 0;
+    if (!k || !selectedWarReachableKeys.includes(k)) return false;
+    const pid = Number(pidByKey.get(k) || 0) >>> 0;
+    if (!pid) return false;
+    selected.current_pid = pid;
+    updateWarArmyPanel();
+    renderArmyMarkers();
+    return true;
+  }
+
   function realmBucketByType(type) { if (!state[type] || typeof state[type] !== "object") state[type] = {}; return state[type]; }
 
   function ensureFeudalSchema(obj) {
@@ -2212,6 +2428,22 @@
   function renderArmyMarkers() {
     clearArmyMarkers();
     if (!armyMarkersLayer || !state || !mapInstanceRef) return;
+
+    if (currentMode() === "war") {
+      const armies = ensureWarArmiesState();
+      for (const army of armies) {
+        const realm = realmBucketByType(army.realm_type || "")[army.realm_id] || {};
+        const info = getRealmArmyMarkerInfo(army.realm_type, army.realm_id, realm);
+        const point = getArmyMarkerPointByPid(Number(army.current_pid) >>> 0) || info;
+        if (!point) continue;
+        const colorHex = String((info && info.colorHex) || realm.color || "#3f6aa2");
+        const emblemSrc = String((info && info.emblemSrc) || "");
+        const isFeudal = String(army.army_kind || "") !== "domain";
+        createArmyMarker(point.x, point.y, colorHex, emblemSrc, `${army.realm_name}: ${army.army_name}`, isFeudal);
+      }
+      return;
+    }
+
     const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
     for (const type of allTypes) {
       const bucket = realmBucketByType(type);
@@ -2351,9 +2583,18 @@
 
     viewModeSelect.addEventListener("change", () => {
       if (currentMode() === "war") hideProvinceEmblems = true;
+      if (warMoveCard) warMoveCard.style.display = (currentMode() === "war") ? "block" : "none";
       syncProvEmblemsToggleLabel();
       applyLayerState(map);
+      updateWarArmyPanel();
+      refreshCurrentSelectionUI();
     });
+    if (warArmySelect) warArmySelect.addEventListener("change", () => {
+      selectedWarArmyId = String(warArmySelect.value || "");
+      updateWarArmyPanel();
+    });
+    if (warRefreshArmies) warRefreshArmies.addEventListener("click", () => { updateWarArmyPanel(); renderArmyMarkers(); });
+    if (warClearSelection) warClearSelection.addEventListener("click", () => { selectedWarArmyId = ""; updateWarArmyPanel(); });
     if (toggleProvEmblemsBtn) {
       toggleProvEmblemsBtn.addEventListener("click", () => {
         hideProvinceEmblems = !hideProvinceEmblems;
@@ -2982,8 +3223,12 @@
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",
-      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); if (currentMode() === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } },
+      onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); if (currentMode() === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } else if (currentMode() === "war" && selectedWarReachableKeys.length) { map.setHoverHighlights(selectedWarReachableKeys, [120, 230, 255, 78]); } },
       onClick: ({ key, meta, evt }) => {
+        if (currentMode() === "war" && selectedWarArmyId) {
+          const moved = moveSelectedWarArmyToKey(key);
+          if (moved) { setSelection(key, meta); return; }
+        }
         if (evt.ctrlKey || evt.metaKey || evt.shiftKey) {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
           setSelection(key, meta);
@@ -3003,6 +3248,13 @@
     applyLayerState(map);
     initZoomControls(map);
     boot(map);
+    if (isWarAdminPage()) {
+      viewModeSelect.value = "war";
+      viewModeSelect.dispatchEvent(new Event("change"));
+      viewModeSelect.disabled = true;
+    }
+    if (warMoveCard) warMoveCard.style.display = (currentMode() === "war") ? "block" : "none";
+    updateWarArmyPanel();
     setSelection(0, null);
     exportStateToTextarea();
     await refreshTurnPanel();
