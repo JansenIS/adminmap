@@ -33,6 +33,11 @@
   const suzerainText = el("suzerainText");
   const seniorText = el("seniorText");
   const terrainSelect = el("terrainSelect");
+  const provincePropsCard = el("provincePropsCard");
+  const provincePropsCount = el("provincePropsCount");
+  const provincePropsTerrain = el("provincePropsTerrain");
+  const provincePropsApply = el("provincePropsApply");
+  const provincePropsClear = el("provincePropsClear");
 
   const btnApplyFill = el("applyFill");
   const btnClearFill = el("clearFill");
@@ -182,9 +187,14 @@
   updateFlagsStatusText(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
-  const MODE_TO_FIELD = { provinces: null, war: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
+  const MODE_TO_FIELD = { provinces: null, province_properties: null, war: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
+  const TERRAIN_MODE_COLORS = [
+    "#ef4444", "#f97316", "#f59e0b", "#eab308",
+    "#84cc16", "#22c55e", "#10b981", "#14b8a6",
+    "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899"
+  ];
 
   let state = null;
   let selectedKey = 0;
@@ -881,7 +891,54 @@
     for (const p of state.people) { const opt = document.createElement("option"); opt.value = p; peopleDatalist.appendChild(opt); }
   }
 
-  function rebuildTerrainSelect() { const list = Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK; const cur = terrainSelect.value || ""; terrainSelect.innerHTML = ""; const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; terrainSelect.appendChild(o0); for (const t of list) { const o = document.createElement("option"); o.value = t; o.textContent = t; terrainSelect.appendChild(o); } terrainSelect.value = cur; }
+  function terrainTypesList() {
+    return Array.isArray(state.terrain_types) && state.terrain_types.length ? state.terrain_types : TERRAIN_TYPES_FALLBACK;
+  }
+
+  function rebuildTerrainSelect() {
+    const list = terrainTypesList();
+    const cur = terrainSelect.value || "";
+    const propsCur = provincePropsTerrain ? (provincePropsTerrain.value || "") : "";
+
+    terrainSelect.innerHTML = "";
+    const o0 = document.createElement("option");
+    o0.value = "";
+    o0.textContent = "—";
+    terrainSelect.appendChild(o0);
+    for (const t of list) {
+      const o = document.createElement("option");
+      o.value = t;
+      o.textContent = t;
+      terrainSelect.appendChild(o);
+    }
+    terrainSelect.value = cur;
+
+    if (provincePropsTerrain) {
+      provincePropsTerrain.innerHTML = "";
+      for (const t of list) {
+        const o = document.createElement("option");
+        o.value = t;
+        o.textContent = t;
+        provincePropsTerrain.appendChild(o);
+      }
+      if (list.includes(propsCur)) provincePropsTerrain.value = propsCur;
+    }
+  }
+
+  function terrainColorMap() {
+    const list = terrainTypesList();
+    const out = new Map();
+    for (let i = 0; i < list.length; i++) {
+      out.set(String(list[i] || "").trim(), TERRAIN_MODE_COLORS[i % TERRAIN_MODE_COLORS.length]);
+    }
+    return out;
+  }
+
+  function updateProvincePropertiesPanel() {
+    const enabled = currentMode() === "province_properties";
+    if (provincePropsCard) provincePropsCard.style.display = enabled ? "block" : "none";
+    if (provincePropsCount) provincePropsCount.textContent = String(selectedKeys.size || (selectedKey ? 1 : 0));
+  }
 
   function syncPeopleFromRealmRulers() {
     for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
@@ -1114,6 +1171,16 @@
     if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
+    updateProvincePropertiesPanel();
+  }
+
+  function refreshCurrentSelectionUI() {
+    updateProvincePropertiesPanel();
+    if (selectedKey && mapInstanceRef) {
+      setSelection(selectedKey, mapInstanceRef.getProvinceMeta(selectedKey));
+    } else {
+      setSelection(0, null);
+    }
   }
 
   function parseManualNumberish(raw) {
@@ -2306,21 +2373,27 @@
     map.clearAllFills();
     map.clearAllEmblems();
 
+    const terrainColors = mode === "province_properties" ? terrainColorMap() : null;
     for (const pd of Object.values(state.provinces)) {
       const key = keyForPid(pd.pid);
       if (!key) continue;
       if (mode === "provinces") {
         if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
+      } else if (mode === "province_properties") {
+        const terrain = String(pd.terrain || "").trim();
+        const hex = (terrainColors && terrainColors.get(terrain)) || "#64748b";
+        const [r, g, b] = MapUtils.hexToRgb(hex);
+        map.setFill(key, [r, g, b, 165]);
       }
       const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
-      const provinceEmblemsHidden = hideProvinceEmblems || mode === "war";
+      const provinceEmblemsHidden = hideProvinceEmblems || mode === "war" || mode === "province_properties";
       if (!provinceEmblemsHidden && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };
         map.setEmblem(key, emblemSrc, box);
       }
     }
 
-    if (mode !== "provinces" && mode !== "war") {
+    if (mode !== "provinces" && mode !== "war" && mode !== "province_properties") {
       if (mode === "minor_houses") {
         drawMinorHousesLayer(map);
       } else {
@@ -2738,6 +2811,40 @@
       syncProvEmblemsToggleLabel();
       applyLayerState(map);
       updateWarArmyPanel();
+      refreshCurrentSelectionUI();
+    });
+    if (provincePropsApply) provincePropsApply.addEventListener("click", async () => {
+      const terrain = String((provincePropsTerrain && provincePropsTerrain.value) || "").trim();
+      if (!terrain) return alert("Выберите тип местности");
+      const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
+      if (!keys.length) return alert("Сначала выберите провинции на карте");
+      keys.forEach((key) => {
+        const pd = getProvData(key);
+        if (!pd) return;
+        pd.terrain = terrain;
+      });
+      if (selectedKey) {
+        const pd = getProvData(selectedKey);
+        terrainSelect.value = pd && pd.terrain ? pd.terrain : "";
+      }
+      applyLayerState(map);
+      refreshCurrentSelectionUI();
+      exportStateToTextarea();
+      if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) {
+        try {
+          const changes = keys
+            .map((key) => getProvData(key))
+            .filter(Boolean)
+            .map((pd) => ({ kind: "province", pid: Number(pd.pid) >>> 0, changes: { terrain: String(pd.terrain || "") } }));
+          if (changes.length) await persistChangesBatch(changes);
+        } catch (err) {
+          alert("PATCH массового изменения местности не удался: " + (err && err.message ? err.message : err));
+        }
+      }
+    });
+    if (provincePropsClear) provincePropsClear.addEventListener("click", () => {
+      selectedKeys.clear();
+      selectedKey = 0;
       refreshCurrentSelectionUI();
     });
     if (warArmySelect) warArmySelect.addEventListener("change", () => {
@@ -3410,6 +3517,12 @@
         if (currentMode() === "war" && selectedWarArmyId) {
           const moved = moveSelectedWarArmyToKey(key);
           if (moved) { setSelection(key, meta); return; }
+        }
+        if (currentMode() === "province_properties") {
+          if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
+          selectedKey = key >>> 0;
+          setSelection(key, meta);
+          return;
         }
         if (evt.ctrlKey || evt.metaKey || evt.shiftKey) {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
