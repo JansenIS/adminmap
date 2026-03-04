@@ -72,6 +72,10 @@ function api_load_state(): array {
   return $decoded;
 }
 
+function api_save_state(array $state): bool {
+  return api_atomic_write_json(api_state_path(), $state);
+}
+
 function api_state_mtime(): int {
   return (int)@filemtime(api_state_path()) ?: time();
 }
