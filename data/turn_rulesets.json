@@ -51,8 +51,10 @@
       "minor_province_income_share": 0.1,
       "minor_to_great_rate": 0.1,
       "great_domain_income_share": 1.0,
-      "great_to_kingdom_rate": 0.1,
-      "army_upkeep_per_strength": 11.5
+      "great_to_kingdom_rate": 0.18,
+      "army_upkeep_per_strength": 60.0,
+      "kingdom_vassal_house_tax_rate": 0.28,
+      "royal_callup_vassal_upkeep_share": 0.8
     }
   },
   "by_version": {
