@@ -101,6 +101,87 @@ function player_entity_treasury(array $state, string $entityType, string $entity
   return round($entityTreasury + $provinceTreasury, 2);
 }
 
+function player_normalize_units(array $units): array {
+  $out = [];
+  foreach ($units as $unit) {
+    if (!is_array($unit)) continue;
+    $unitId = trim((string)($unit['unit_id'] ?? ''));
+    $size = max(0, (int)($unit['size'] ?? 0));
+    if ($unitId === '' || $size <= 0) continue;
+    $out[] = [
+      'source' => (string)($unit['source'] ?? ''),
+      'unit_id' => $unitId,
+      'unit_name' => (string)($unit['unit_name'] ?? $unitId),
+      'size' => $size,
+      'base_size' => max(1, (int)($unit['base_size'] ?? 1)),
+    ];
+  }
+  return $out;
+}
+
+function player_compose_armies_from_realm(array $realm): array {
+  $armies = [];
+  $domainUnits = player_normalize_units(is_array($realm['arrierban_units'] ?? null) ? $realm['arrierban_units'] : []);
+  if (count($domainUnits)) {
+    $size = 0; foreach ($domainUnits as $u) $size += (int)$u['size'];
+    $musterPid = (int)($realm['capital_pid'] ?? 0);
+    $armies[] = [
+      'army_id' => 'domain',
+      'army_name' => 'Доменная армия',
+      'army_kind' => 'domain',
+      'location_pid' => $musterPid,
+      'muster_pid' => $musterPid,
+      'size' => $size,
+      'units' => $domainUnits,
+    ];
+  }
+
+  $vassalArmies = is_array($realm['arrierban_vassal_armies'] ?? null) ? $realm['arrierban_vassal_armies'] : [];
+  foreach ($vassalArmies as $idx => $a) {
+    if (!is_array($a)) continue;
+    $units = player_normalize_units(is_array($a['units'] ?? null) ? $a['units'] : []);
+    if (!count($units)) continue;
+    $size = 0; foreach ($units as $u) $size += (int)$u['size'];
+    $armyId = trim((string)($a['army_id'] ?? ''));
+    if ($armyId === '') $armyId = 'feudal_' . ($idx + 1);
+    $musterPid = (int)($a['muster_pid'] ?? 0);
+    $armies[] = [
+      'army_id' => $armyId,
+      'army_name' => (string)($a['army_name'] ?? ('Феодальная армия ' . ($idx + 1))),
+      'army_kind' => (string)($a['army_kind'] ?? 'vassal'),
+      'location_pid' => $musterPid,
+      'muster_pid' => $musterPid,
+      'size' => $size,
+      'units' => $units,
+    ];
+  }
+
+  // fallback for legacy player_armies
+  if (!count($armies) && is_array($realm['player_armies'] ?? null)) {
+    foreach ($realm['player_armies'] as $army) {
+      if (!is_array($army)) continue;
+      $units = player_normalize_units(is_array($army['units'] ?? null) ? $army['units'] : []);
+      $legacySize = max(0, (int)($army['size'] ?? 0));
+      if (!count($units) && $legacySize > 0) {
+        $units[] = ['source' => 'legacy', 'unit_id' => 'militia', 'unit_name' => 'Милиция', 'size' => $legacySize, 'base_size' => 1];
+      }
+      if (!count($units)) continue;
+      $size = 0; foreach ($units as $u) $size += (int)$u['size'];
+      $armies[] = [
+        'army_id' => (string)($army['army_id'] ?? ''),
+        'army_name' => (string)($army['army_name'] ?? 'Армия'),
+        'army_kind' => (string)($army['army_kind'] ?? 'domain'),
+        'location_pid' => (int)($army['location_pid'] ?? 0),
+        'muster_pid' => (int)($army['muster_pid'] ?? 0),
+        'size' => $size,
+        'units' => $units,
+      ];
+    }
+  }
+
+  return $armies;
+}
+
 function player_resolve_session(array $state, string $token): ?array {
   $tokens = player_prune_tokens(player_load_tokens());
   if (!isset($tokens[$token]) || !is_array($tokens[$token])) return null;
@@ -112,7 +193,7 @@ function player_resolve_session(array $state, string $token): ?array {
   $pids = player_owned_pids($state, $entityType, $entityId);
   $pop = player_population_stats($state, $pids);
   $realm = $state[$entityType][$entityId];
-  $armies = is_array($realm['player_armies'] ?? null) ? array_values($realm['player_armies']) : [];
+  $armies = player_compose_armies_from_realm($realm);
 
   return [
     'token_meta' => [
