@@ -104,6 +104,11 @@
   const splitFreeCitiesList = el("splitFreeCitiesList");
   const splitStatus = el("splitStatus");
 
+  const minorParentTypeSelect = el("minorParentType");
+  const minorParentLabel = el("minorParentLabel");
+  const minorEntityLabel = el("minorEntityLabel");
+  const minorEntityNameLabel = el("minorEntityNameLabel");
+  const minorEntityRulerLabel = el("minorEntityRulerLabel");
   const minorGreatHouseSelect = el("minorGreatHouseSelect");
   const minorVassalSelect = el("minorVassalSelect");
   const minorVassalName = el("minorVassalName");
@@ -868,7 +873,8 @@
         }
       }
     }
-    for (const realm of Object.values(obj.great_houses || {})) {
+    for (const collection of [obj.great_houses || {}, obj.special_territories || {}]) {
+      for (const realm of Object.values(collection)) {
       if (!realm || typeof realm !== "object") continue;
       if (!isPlainObject(realm.minor_house_layer)) realm.minor_house_layer = {};
       const layer = realm.minor_house_layer;
@@ -884,6 +890,7 @@
         capital_pid: Number(v && v.capital_pid || 0) >>> 0,
         province_pids: Array.isArray(v && v.province_pids) ? v.province_pids.map(x => Number(x) >>> 0).filter(Boolean) : []
       }));
+      }
     }
     for (const pd of Object.values(obj.provinces || {})) {
       if (!pd || typeof pd !== "object") continue;
@@ -1495,6 +1502,27 @@
     return shades.slice(0, 10);
   }
 
+  function getMinorParentType() {
+    const t = String(minorParentTypeSelect && minorParentTypeSelect.value || "great_houses").trim();
+    return t === "special_territories" ? "special_territories" : "great_houses";
+  }
+
+  function getMinorParentLayer(parentType, parentId) {
+    const type = parentType === "special_territories" ? "special_territories" : "great_houses";
+    const realm = realmBucketByType(type)[parentId];
+    if (!realm) return null;
+    if (!isPlainObject(realm.minor_house_layer)) realm.minor_house_layer = {};
+    const layer = realm.minor_house_layer;
+    if (!Array.isArray(layer.domain_pids)) layer.domain_pids = [];
+    if (!Array.isArray(layer.vassals)) layer.vassals = [];
+    if (type === "great_houses") {
+      if (!(Number(layer.capital_pid) > 0)) layer.capital_pid = Number(realm.capital_pid || realm.capital_key || 0) >>> 0;
+    } else {
+      layer.capital_pid = 0;
+    }
+    return layer;
+  }
+
   function getGreatHouseMinorLayer(greatHouseId) {
     const realm = realmBucketByType("great_houses")[greatHouseId];
     if (!realm) return null;
@@ -1524,63 +1552,95 @@
   function drawMinorHousesLayer(map) {
     drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0);
     drawRealmLayer(map, "free_cities", 230, 0);
-    drawRealmLayer(map, "special_territories", 230, 0);
-    for (const [id, realm] of Object.entries(realmBucketByType("great_houses"))) {
-      const baseHex = realm && realm.color ? realm.color : "#ff3b30";
-      const [r, g, b] = MapUtils.hexToRgb(baseHex);
-      const allKeys = [];
-      for (const pd of Object.values(state.provinces || {})) {
-        if (!pd || pd.great_house_id !== id) continue;
-        const key = keyForPid(pd.pid);
-        if (key) allKeys.push(key);
+
+    const drawParentEntities = (parentType) => {
+      const bucket = realmBucketByType(parentType);
+      for (const [id, realm] of Object.entries(bucket)) {
+        const baseHex = realm && realm.color ? realm.color : "#ff3b30";
+        const [r, g, b] = MapUtils.hexToRgb(baseHex);
+        const allKeys = [];
+        for (const pd of Object.values(state.provinces || {})) {
+          if (!pd) continue;
+          const parentId = parentType === "great_houses" ? pd.great_house_id : pd.special_territory_id;
+          if (parentId !== id) continue;
+          const key = keyForPid(pd.pid);
+          if (key) allKeys.push(key);
+        }
+        if (!allKeys.length) continue;
+
+        const layer = getMinorParentLayer(parentType, id);
+        const capKey = parentType === "great_houses" ? keyForPid(layer && layer.capital_pid ? layer.capital_pid : 0) : 0;
+        const domainKeys = new Set((layer && layer.domain_pids || []).map(pid => keyForPid(pid)).filter(Boolean));
+        const vassalPalette = buildVassalPalette(baseHex);
+
+        const vassalKeys = new Set();
+        for (let i = 0; i < (layer && layer.vassals ? layer.vassals.length : 0); i++) {
+          const v = layer.vassals[i];
+          const vHex = v.color || vassalPalette[i % vassalPalette.length] || baseHex;
+          v.color = vHex;
+          const [vr, vg, vb] = MapUtils.hexToRgb(vHex);
+          for (const pid of (v.province_pids || [])) {
+            const key = keyForPid(pid);
+            if (!key) continue;
+            vassalKeys.add(key);
+            const isVassalCapital = (Number(v.capital_pid) >>> 0) === (Number(pid) >>> 0);
+            map.setFill(key, [vr, vg, vb, isVassalCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
+          }
+        }
+
+        for (const key of allKeys) {
+          if (key === capKey) continue;
+          if (vassalKeys.has(key)) continue;
+          if (parentType === "great_houses" && domainKeys.has(key)) continue;
+          map.setFill(key, [r, g, b, MINOR_ALPHA.rest]);
+        }
+        if (parentType === "great_houses") {
+          for (const key of domainKeys) {
+            if (key === capKey || vassalKeys.has(key)) continue;
+            map.setFill(key, [r, g, b, MINOR_ALPHA.domain]);
+          }
+        }
+        if (capKey) {
+          map.setFill(capKey, [r, g, b, MINOR_ALPHA.capital]);
+          const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
+          if (emblemSrc) {
+            const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
+            map.setEmblem(capKey, emblemSrc, box, { scale: realm.emblem_scale || 1 });
+          }
+        }
       }
-      if (!allKeys.length) continue;
+    };
 
-      const layer = getGreatHouseMinorLayer(id);
-      const capKey = keyForPid(layer && layer.capital_pid ? layer.capital_pid : 0);
-      const domainKeys = new Set((layer && layer.domain_pids || []).map(pid => keyForPid(pid)).filter(Boolean));
-      const vassalPalette = buildVassalPalette(baseHex);
+    drawParentEntities("great_houses");
+    drawParentEntities("special_territories");
+  }
 
-      const vassalKeys = new Set();
-      for (let i = 0; i < (layer && layer.vassals ? layer.vassals.length : 0); i++) {
+
+  function drawSpecialTerritoryEntitiesLayer(map) {
+    for (const [id, realm] of Object.entries(realmBucketByType("special_territories"))) {
+      const baseHex = realm && realm.color ? realm.color : "#9b59b6";
+      const palette = buildVassalPalette(baseHex);
+      const layer = getMinorParentLayer("special_territories", id);
+      if (!layer) continue;
+      for (let i = 0; i < layer.vassals.length; i++) {
         const v = layer.vassals[i];
-        const vHex = v.color || vassalPalette[i % vassalPalette.length] || baseHex;
+        const vHex = v.color || palette[i % palette.length] || baseHex;
         v.color = vHex;
         const [vr, vg, vb] = MapUtils.hexToRgb(vHex);
         for (const pid of (v.province_pids || [])) {
           const key = keyForPid(pid);
           if (!key) continue;
-          vassalKeys.add(key);
           const isVassalCapital = (Number(v.capital_pid) >>> 0) === (Number(pid) >>> 0);
           map.setFill(key, [vr, vg, vb, isVassalCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
-        }
-      }
-
-      for (const key of allKeys) {
-        if (key === capKey) continue;
-        if (domainKeys.has(key)) continue;
-        if (vassalKeys.has(key)) continue;
-        map.setFill(key, [r, g, b, MINOR_ALPHA.rest]);
-      }
-      for (const key of domainKeys) {
-        if (key === capKey || vassalKeys.has(key)) continue;
-        map.setFill(key, [r, g, b, MINOR_ALPHA.domain]);
-      }
-      if (capKey) {
-        map.setFill(capKey, [r, g, b, MINOR_ALPHA.capital]);
-        const emblemSrc = emblemSourceToDataUri(realm.emblem_svg);
-        if (emblemSrc) {
-          const box = realm.emblem_box ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
-          map.setEmblem(capKey, emblemSrc, box, { scale: realm.emblem_scale || 1 });
         }
       }
     }
   }
 
-  function renderMinorPalette(greatHouseId) {
+  function renderMinorPalette(parentId, parentType = "great_houses") {
     if (!minorPalette) return;
     minorPalette.innerHTML = "";
-    const realm = realmBucketByType("great_houses")[greatHouseId] || null;
+    const realm = realmBucketByType(parentType)[parentId] || null;
     const shades = buildVassalPalette(realm && realm.color ? realm.color : "#ff3b30");
     for (const hex of shades) {
       const d = document.createElement("div");
@@ -1591,20 +1651,31 @@
     }
   }
 
+  function syncMinorLayerLabels() {
+    const parentType = getMinorParentType();
+    const isSpecial = parentType === "special_territories";
+    if (minorParentLabel) minorParentLabel.textContent = isSpecial ? "Особая Территория" : "Большой Дом";
+    if (minorEntityLabel) minorEntityLabel.textContent = isSpecial ? "Сущность Территории" : "Вассал";
+    if (minorEntityNameLabel) minorEntityNameLabel.textContent = isSpecial ? "Имя сущности" : "Имя вассала";
+    if (minorEntityRulerLabel) minorEntityRulerLabel.textContent = isSpecial ? "Правитель сущности" : "Правитель вассала";
+  }
+
   function rebuildMinorHouseControls() {
     if (!minorGreatHouseSelect) return;
-    const curGh = minorGreatHouseSelect.value;
+    const parentType = getMinorParentType();
+    syncMinorLayerLabels();
+    const curParent = minorGreatHouseSelect.value;
     minorGreatHouseSelect.innerHTML = "";
     const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; minorGreatHouseSelect.appendChild(o0);
-    for (const [id, realm] of buildRealmEntries("great_houses")) {
+    for (const [id, realm] of buildRealmEntries(parentType)) {
       const o = document.createElement("option");
       o.value = id;
       o.textContent = realm.name || id;
       minorGreatHouseSelect.appendChild(o);
     }
-    minorGreatHouseSelect.value = curGh && realmBucketByType("great_houses")[curGh] ? curGh : minorGreatHouseSelect.value;
-    const gh = minorGreatHouseSelect.value;
-    const layer = gh ? getGreatHouseMinorLayer(gh) : null;
+    minorGreatHouseSelect.value = curParent && realmBucketByType(parentType)[curParent] ? curParent : minorGreatHouseSelect.value;
+    const parentId = minorGreatHouseSelect.value;
+    const layer = parentId ? getMinorParentLayer(parentType, parentId) : null;
     if (minorVassalSelect) {
       const curV = minorVassalSelect.value;
       minorVassalSelect.innerHTML = "";
@@ -1617,17 +1688,18 @@
       }
       minorVassalSelect.value = curV;
     }
-    renderMinorPalette(gh);
+    renderMinorPalette(parentId, parentType);
     loadMinorVassalFields();
   }
 
 
   function loadMinorVassalFields() {
     if (!minorVassalSelect || !minorVassalName || !minorVassalRuler) return;
-    const gh = minorGreatHouseSelect ? minorGreatHouseSelect.value : "";
+    const parentType = getMinorParentType();
+    const parentId = minorGreatHouseSelect ? minorGreatHouseSelect.value : "";
     const vid = minorVassalSelect.value;
-    if (!gh || !vid) return;
-    const layer = getGreatHouseMinorLayer(gh);
+    if (!parentId || !vid) return;
+    const layer = getMinorParentLayer(parentType, parentId);
     const v = (layer.vassals || []).find(x => x.id === vid);
     if (!v) return;
     minorVassalName.value = v.name || "";
@@ -1637,28 +1709,36 @@
   function buildRealmEntries(type) {
     if (type === "minor_houses") {
       const out = [];
-      for (const [ghId, ghRealm] of Object.entries(state.great_houses || {})) {
-        const layer = ghRealm && ghRealm.minor_house_layer && typeof ghRealm.minor_house_layer === "object" ? ghRealm.minor_house_layer : null;
-        if (!layer || !Array.isArray(layer.vassals)) continue;
+      const pushLayer = (parentType, parentId, parentRealm, layer) => {
         for (const v of layer.vassals) {
           if (!v || typeof v !== "object") continue;
           const vid = String(v.id || "").trim();
           if (!vid) continue;
-          const id = `vassal:${ghId}:${vid}`;
+          const id = `vassal:${parentType}:${parentId}:${vid}`;
           out.push([id, {
             id,
             name: String(v.name || vid),
             ruler: String(v.ruler || ""),
-            color: String(v.color || ghRealm.color || "#ff3b30"),
+            color: String(v.color || parentRealm.color || "#ff3b30"),
             capital_pid: Number(v.capital_pid) >>> 0,
             province_pids: Array.isArray(v.province_pids) ? v.province_pids.map((x) => Number(x) >>> 0).filter(Boolean) : [],
             emblem_svg: "",
             emblem_box: null,
             emblem_scale: 1,
-            warlike_coeff: clampWarlikeCoeff((ghRealm && ghRealm.warlike_coeff) || 30),
-            __vassal_ref: { great_house_id: ghId, vassal_id: vid }
+            warlike_coeff: clampWarlikeCoeff((parentRealm && parentRealm.warlike_coeff) || 30),
+            __vassal_ref: { parent_type: parentType, parent_id: parentId, vassal_id: vid }
           }]);
         }
+      };
+      for (const [ghId, ghRealm] of Object.entries(state.great_houses || {})) {
+        const layer = ghRealm && ghRealm.minor_house_layer && typeof ghRealm.minor_house_layer === "object" ? ghRealm.minor_house_layer : null;
+        if (!layer || !Array.isArray(layer.vassals)) continue;
+        pushLayer("great_houses", ghId, ghRealm, layer);
+      }
+      for (const [stId, stRealm] of Object.entries(state.special_territories || {})) {
+        const layer = stRealm && stRealm.minor_house_layer && typeof stRealm.minor_house_layer === "object" ? stRealm.minor_house_layer : null;
+        if (!layer || !Array.isArray(layer.vassals)) continue;
+        pushLayer("special_territories", stId, stRealm, layer);
       }
       return out;
     }
@@ -1670,16 +1750,17 @@
     const raw = String(realmId || "");
     if (!raw.startsWith("vassal:")) return null;
     const parts = raw.split(":");
-    if (parts.length < 3) return null;
-    const ghId = parts[1];
-    const vassalId = parts.slice(2).join(":");
-    if (!ghId || !vassalId) return null;
-    const gh = (state.great_houses || {})[ghId];
-    const layer = gh && gh.minor_house_layer && typeof gh.minor_house_layer === "object" ? gh.minor_house_layer : null;
+    if (parts.length < 4) return null;
+    const parentType = parts[1] === "special_territories" ? "special_territories" : "great_houses";
+    const parentId = parts[2];
+    const vassalId = parts.slice(3).join(":");
+    if (!parentId || !vassalId) return null;
+    const parentRealm = (state[parentType] || {})[parentId];
+    const layer = parentRealm && parentRealm.minor_house_layer && typeof parentRealm.minor_house_layer === "object" ? parentRealm.minor_house_layer : null;
     if (!layer || !Array.isArray(layer.vassals)) return null;
     const vassal = layer.vassals.find((v) => v && String(v.id || "") === vassalId) || null;
     if (!vassal) return null;
-    return { ghId, vassalId, vassal, gh };
+    return { parentType, parentId, vassalId, vassal, parentRealm, ghId: parentId, gh: parentRealm };
   }
 
   function rebuildRealmSelect() {
@@ -2510,6 +2591,7 @@
         drawMinorHousesLayer(map);
       } else {
         drawRealmLayer(map, mode, 150, 0.6);
+        if (mode === "free_cities") drawSpecialTerritoryEntitiesLayer(map);
         if (REALM_OVERLAY_MODES.has(mode)) {
           drawRealmLayer(map, "free_cities", 230, 0.75);
           drawRealmLayer(map, "special_territories", 230, 0.75);
@@ -2570,9 +2652,59 @@
         for (const key of keys) fills.set(key, [r, g, b, 255]);
       }
       for (const [id, realm] of Object.entries(realmBucketByType("special_territories"))) {
-        const [r, g, b] = MapUtils.hexToRgb(realm && realm.color ? realm.color : "#9b59b6");
-        const keys = collectProvinceKeysByRealmId(null, "special_territory_id", id);
+        const [sr, sg, sb] = MapUtils.hexToRgb((realm && realm.color) || "#9b59b6");
+        const palette = buildVassalPalette((realm && realm.color) || "#9b59b6");
+        const layer = getMinorParentLayer("special_territories", id);
+        if (!layer) continue;
+        const assignedKeys = new Set(collectProvinceKeysByRealmId(null, "special_territory_id", id));
+        const entityKeys = new Set();
+        for (let i = 0; i < layer.vassals.length; i++) {
+          const v = layer.vassals[i];
+          const vHex = v.color || palette[i % palette.length] || (realm && realm.color) || "#9b59b6";
+          const rgb = MapUtils.hexToRgb(vHex);
+          for (const pid of (v.province_pids || [])) {
+            const key = keyForPid(pid);
+            if (!key) continue;
+            entityKeys.add(key);
+            fills.set(key, [rgb[0] | 0, rgb[1] | 0, rgb[2] | 0, 255]);
+          }
+        }
+        for (const key of assignedKeys) {
+          if (entityKeys.has(key)) continue;
+          fills.set(key, [sr | 0, sg | 0, sb | 0, 255]);
+        }
+      }
+      return fills;
+    }
+
+    if (mode === "free_cities") {
+      for (const [id, realm] of Object.entries(realmBucketByType("free_cities"))) {
+        const [r, g, b] = MapUtils.hexToRgb(realm && realm.color ? realm.color : "#ff3b30");
+        const keys = collectProvinceKeysByRealmId(null, "free_city_id", id);
         for (const key of keys) fills.set(key, [r, g, b, 255]);
+      }
+      for (const [id, realm] of Object.entries(realmBucketByType("special_territories"))) {
+        const [sr, sg, sb] = MapUtils.hexToRgb((realm && realm.color) || "#9b59b6");
+        const palette = buildVassalPalette((realm && realm.color) || "#9b59b6");
+        const layer = getMinorParentLayer("special_territories", id);
+        if (!layer) continue;
+        const assignedKeys = new Set(collectProvinceKeysByRealmId(null, "special_territory_id", id));
+        const entityKeys = new Set();
+        for (let i = 0; i < layer.vassals.length; i++) {
+          const v = layer.vassals[i];
+          const vHex = v.color || palette[i % palette.length] || (realm && realm.color) || "#9b59b6";
+          const rgb = MapUtils.hexToRgb(vHex);
+          for (const pid of (v.province_pids || [])) {
+            const key = keyForPid(pid);
+            if (!key) continue;
+            entityKeys.add(key);
+            fills.set(key, [rgb[0] | 0, rgb[1] | 0, rgb[2] | 0, 255]);
+          }
+        }
+        for (const key of assignedKeys) {
+          if (entityKeys.has(key)) continue;
+          fills.set(key, [sr | 0, sg | 0, sb | 0, 255]);
+        }
       }
       return fills;
     }
@@ -2992,6 +3124,7 @@
       runSplitFreeCitiesMigration({ dryRun: false, map }).catch(() => {});
     });
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
+    if (minorParentTypeSelect) minorParentTypeSelect.addEventListener("change", rebuildMinorHouseControls);
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
     btnNewRealm.addEventListener("click", () => {
@@ -3370,15 +3503,18 @@
     });
 
     if (minorSetCapitalBtn) minorSetCapitalBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; if (!gh || !selectedKey) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; if (!parentId || !selectedKey) return;
+      const layer = getMinorParentLayer(parentType, parentId);
+      if (parentType === "special_territories") return;
       layer.capital_pid = pidByKey.get(selectedKey) || 0;
       rebuildMinorHouseControls();
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorAddDomainBtn) minorAddDomainBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; if (!gh) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; if (!parentId) return;
+      const layer = getMinorParentLayer(parentType, parentId);
+      if (!layer) return;
+      if (parentType === "special_territories") return;
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       const set = new Set(layer.domain_pids || []);
       for (const key of keys) {
@@ -3389,22 +3525,26 @@
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorRemoveDomainBtn) minorRemoveDomainBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; if (!gh) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; if (!parentId) return;
+      const layer = getMinorParentLayer(parentType, parentId);
+      if (!layer) return;
+      if (parentType === "special_territories") return;
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       const remove = new Set(keys.map(key => pidByKey.get(key) || 0).filter(Boolean));
       layer.domain_pids = (layer.domain_pids || []).filter(pid => !remove.has(pid));
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorCreateVassalBtn) minorCreateVassalBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; if (!gh) return;
-      const layer = getGreatHouseMinorLayer(gh);
-      const name = String(minorVassalName.value || "").trim() || `Вассал ${layer.vassals.length + 1}`;
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; if (!parentId) return;
+      const layer = getMinorParentLayer(parentType, parentId);
+      if (!layer) return;
+      const defaultLabel = parentType === "special_territories" ? "Сущность" : "Вассал";
+      const name = String(minorVassalName.value || "").trim() || `${defaultLabel} ${layer.vassals.length + 1}`;
       const ruler = ensurePerson(minorVassalRuler.value);
       const idBase = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-zа-я0-9_\-]/gi, "").slice(0, 32) || `vassal_${layer.vassals.length + 1}`;
       let id = idBase; let n = 2;
       while (layer.vassals.some(v => v.id === id)) { id = `${idBase}_${n++}`; }
-      const palette = buildVassalPalette((realmBucketByType("great_houses")[gh] || {}).color || "#ff3b30");
+      const palette = buildVassalPalette((realmBucketByType(parentType)[parentId] || {}).color || "#ff3b30");
       layer.vassals.push({ id, name, ruler, color: palette[layer.vassals.length % palette.length] || "", capital_pid: 0, province_pids: [] });
       minorVassalName.value = "";
       minorVassalRuler.value = "";
@@ -3412,8 +3552,8 @@
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorVassalName) minorVassalName.addEventListener("change", () => {
-      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!parentId || !vid) return;
+      const layer = getMinorParentLayer(parentType, parentId);
       const v = layer.vassals.find(x => x.id === vid); if (!v) return;
       v.name = String(minorVassalName.value || "").trim() || v.name;
       rebuildMinorHouseControls();
@@ -3421,8 +3561,8 @@
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorVassalRuler) minorVassalRuler.addEventListener("change", () => {
-      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!parentId || !vid) return;
+      const layer = getMinorParentLayer(parentType, parentId);
       const v = layer.vassals.find(x => x.id === vid); if (!v) return;
       v.ruler = ensurePerson(minorVassalRuler.value);
       applyLayerState(map); exportStateToTextarea();
@@ -3436,8 +3576,8 @@
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorAddVassalProvincesBtn) minorAddVassalProvincesBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!parentId || !vid) return;
+      const layer = getMinorParentLayer(parentType, parentId);
       const v = layer.vassals.find(x => x.id === vid); if (!v) return;
       const set = new Set(v.province_pids || []);
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
@@ -3449,8 +3589,8 @@
       applyLayerState(map); exportStateToTextarea();
     });
     if (minorRemoveVassalProvincesBtn) minorRemoveVassalProvincesBtn.addEventListener("click", () => {
-      const gh = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!gh || !vid) return;
-      const layer = getGreatHouseMinorLayer(gh);
+      const parentType = getMinorParentType(); const parentId = minorGreatHouseSelect.value; const vid = minorVassalSelect.value; if (!parentId || !vid) return;
+      const layer = getMinorParentLayer(parentType, parentId);
       const v = layer.vassals.find(x => x.id === vid); if (!v) return;
       const keys = selectedKeys.size ? Array.from(selectedKeys) : (selectedKey ? [selectedKey] : []);
       const remove = new Set(keys.map(key => pidByKey.get(key) || 0).filter(Boolean));

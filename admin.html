@@ -333,27 +333,32 @@
       </div>
 
       <div class="card">
-        <div class="muted">Слой «Малые Дома» для выбранного Большого Дома</div>
+        <div class="muted">Слой «Малые Дома / Вольные Города» для Больших Домов и Особых Территорий</div>
         <div class="grid" style="margin-top:10px;">
-          <label>Большой Дом</label>
+          <label>Тип родителя</label>
+          <select id="minorParentType">
+            <option value="great_houses">Большие Дома</option>
+            <option value="special_territories">Особые Территории</option>
+          </select>
+          <label id="minorParentLabel">Большой Дом</label>
           <select id="minorGreatHouseSelect"></select>
-          <label>Вассал</label>
+          <label id="minorEntityLabel">Сущность</label>
           <select id="minorVassalSelect"></select>
-          <label>Имя вассала</label>
-          <input id="minorVassalName" type="text" placeholder="Новый вассал" />
-          <label>Правитель вассала</label>
-          <input id="minorVassalRuler" type="text" list="peopleList" placeholder="Имя правителя вассала" />
+          <label id="minorEntityNameLabel">Имя сущности</label>
+          <input id="minorVassalName" type="text" placeholder="Новая сущность" />
+          <label id="minorEntityRulerLabel">Правитель сущности</label>
+          <input id="minorVassalRuler" type="text" list="peopleList" placeholder="Имя правителя сущности" />
         </div>
         <div class="btnrow">
           <button id="minorSetCapital" type="button">Столица = выбранная провинция</button>
           <button id="minorAddDomain" type="button">Домен + выделенные</button>
           <button id="minorRemoveDomain" type="button">Домен - выделенные</button>
-          <button id="minorCreateVassal" type="button">Создать вассала</button>
-          <button id="minorSetVassalCapital" type="button">Столица вассала = выбранная</button>
-          <button id="minorAddVassalProvinces" type="button">Вассал + выделенные</button>
-          <button id="minorRemoveVassalProvinces" type="button">Вассал - выделенные</button>
+          <button id="minorCreateVassal" type="button">Создать сущность</button>
+          <button id="minorSetVassalCapital" type="button">Столица сущности = выбранная</button>
+          <button id="minorAddVassalProvinces" type="button">Сущность + выделенные</button>
+          <button id="minorRemoveVassalProvinces" type="button">Сущность - выделенные</button>
         </div>
-        <div class="small" style="margin-top:8px;">Цвета вассалов рассчитываются автоматически (10 оттенков цвета БД).</div>
+        <div class="small" style="margin-top:8px;">Цвета сущностей рассчитываются автоматически (10 оттенков цвета родителя). Для Особых Территорий назначенные, но не включённые в сущности провинции заливаются цветом территории с высокой прозрачностью.</div>
         <div id="minorPalette" class="palette"></div>
       </div>
       <div class="card">
