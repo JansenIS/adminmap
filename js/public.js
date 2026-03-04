@@ -728,11 +728,10 @@
   async function applyState(map) {
     const mode = viewModeSelect.value || "provinces";
     map.clearAllFills(); map.clearAllEmblems();
-    const serverLayerApplied = await applyServerLayerIfEnabled(map, mode);
+    const serverLayerApplied = mode !== "provinces" && await applyServerLayerIfEnabled(map, mode);
     for (const pd of Object.values(state.provinces)) {
       const key = keyForPid(map, pd.pid);
       if (!key) continue;
-      if (!serverLayerApplied && mode === "provinces" && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
       const emblemSrc = emblemSourceToDataUri(pd.emblem_svg);
       if (!hideProvinceEmblems && emblemSrc) {
         const box = pd.emblem_box ? { w: +pd.emblem_box[0], h: +pd.emblem_box[1] } : { w: 2000, h: 2400 };

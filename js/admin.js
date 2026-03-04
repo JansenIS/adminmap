@@ -2377,9 +2377,7 @@
     for (const pd of Object.values(state.provinces)) {
       const key = keyForPid(pd.pid);
       if (!key) continue;
-      if (mode === "provinces") {
-        if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) map.setFill(key, pd.fill_rgba);
-      } else if (mode === "province_properties") {
+      if (mode === "province_properties") {
         const terrain = String(pd.terrain || "").trim();
         const hex = (terrainColors && terrainColors.get(terrain)) || "#64748b";
         const [r, g, b] = MapUtils.hexToRgb(hex);
@@ -2393,7 +2391,7 @@
       }
     }
 
-    if (mode !== "provinces" && mode !== "war" && mode !== "province_properties") {
+    if (mode !== "war" && mode !== "province_properties") {
       if (mode === "minor_houses") {
         drawMinorHousesLayer(map);
       } else {
@@ -2419,16 +2417,6 @@
 
   function buildLayerExportFillMap(mode) {
     const fills = new Map();
-    if (mode === "provinces") {
-      for (const pd of Object.values(state.provinces || {})) {
-        if (!pd) continue;
-        const key = keyForPid(pd.pid);
-        if (!key || !Array.isArray(pd.fill_rgba) || pd.fill_rgba.length < 3) continue;
-        fills.set(key, [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0, 255]);
-      }
-      return fills;
-    }
-
     if (mode === "minor_houses") {
       const byKey = new Map();
       for (const [id, realm] of Object.entries(realmBucketByType("great_houses"))) {
