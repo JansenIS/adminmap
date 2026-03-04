@@ -1260,11 +1260,12 @@
       else domainHexes += Array.isArray(hexmapData && hexmapData.hexes) ? hexmapData.hexes.filter((h) => (Number(h && h.p) >>> 0) === pid).length : 0;
     }
 
+    const sergeantsPool = Math.floor((domainPopulation / 3) * (warlikeCoeff / 100));
     const pools = {
-      knights: Math.floor(domainHexes / 3),
+      knights: Math.floor((domainHexes / 10) * (warlikeCoeff / 100)),
       nehts: Math.floor(Math.floor(domainHexes / 3) * (warlikeCoeff / 100) * 10),
-      sergeants: Math.floor((domainPopulation / 3) * (warlikeCoeff / 100)),
-      militia: Math.floor(Math.max(0, domainPopulation - Math.floor((domainPopulation / 3) * (warlikeCoeff / 100))) / 30),
+      sergeants: sergeantsPool,
+      militia: Math.floor(Math.max(0, domainPopulation - sergeantsPool) * (warlikeCoeff / 100)),
     };
 
     const supportingSources = [];
@@ -1354,6 +1355,39 @@
     return armies;
   }
 
+  function createArrierbanUnitInput(def, value) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "arrierban-row-alloc__entry";
+    wrapper.innerHTML = `<input type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(value) || 0))}" data-unit-id="${def.id}" data-source="${def.source}" data-base-size="${def.baseSize}" /><button type="button" class="arrierban-row-alloc__remove" data-action="remove-arrierban-row" title="Удалить отряд">−</button>`;
+    return wrapper;
+  }
+
+  function buildArrierbanDomainRow(def) {
+    const row = document.createElement("div");
+    row.className = "arrierban-grid";
+    const minSize = Math.max(1, Math.ceil(def.baseSize * 0.1));
+
+    const allocWrap = document.createElement("div");
+    allocWrap.className = "arrierban-row-alloc";
+    allocWrap.dataset.unitId = def.id;
+    allocWrap.dataset.source = def.source;
+    allocWrap.dataset.baseSize = String(def.baseSize);
+    allocWrap.appendChild(createArrierbanUnitInput(def, 0));
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "arrierban-row-alloc__add";
+    addBtn.dataset.action = "add-arrierban-row";
+    addBtn.textContent = "+ Добавить отряд";
+    allocWrap.appendChild(addBtn);
+
+    row.appendChild(Object.assign(document.createElement("div"), { textContent: def.name }));
+    row.appendChild(Object.assign(document.createElement("div"), { textContent: String(def.baseSize) }));
+    row.appendChild(Object.assign(document.createElement("div"), { textContent: String(minSize) }));
+    row.appendChild(allocWrap);
+    return row;
+  }
+
   function openArrierbanModal(plan) {
     if (!arrierbanModal || !arrierbanRows) return;
     pendingArrierbanPlan = plan;
@@ -1364,13 +1398,7 @@
     if (arrierbanValidation) arrierbanValidation.textContent = "";
 
     arrierbanRows.innerHTML = "";
-    for (const def of plan.domainDefs) {
-      const row = document.createElement("div");
-      row.className = "arrierban-grid";
-      const minSize = Math.max(1, Math.ceil(def.baseSize * 0.1));
-      row.innerHTML = `<div>${def.name}</div><div>${def.baseSize}</div><div>${minSize}</div><input type="number" min="0" step="1" value="0" data-unit-id="${def.id}" data-source="${def.source}" data-base-size="${def.baseSize}" />`;
-      arrierbanRows.appendChild(row);
-    }
+    for (const def of plan.domainDefs) arrierbanRows.appendChild(buildArrierbanDomainRow(def));
 
     arrierbanModal.classList.add("open");
     arrierbanModal.setAttribute("aria-hidden", "false");
@@ -1524,6 +1552,24 @@
       map.get(key).size += size;
     }
     for (const v of map.values()) out.push(v);
+    return out;
+  }
+
+  function sanitizeArmyUnits(units) {
+    const out = [];
+    for (const unit of (Array.isArray(units) ? units : [])) {
+      if (!unit || typeof unit !== "object") continue;
+      const unitId = String(unit.unit_id || "").trim();
+      const size = Math.max(0, Math.floor(Number(unit.size) || 0));
+      if (!unitId || size <= 0) continue;
+      out.push({
+        source: String(unit.source || ""),
+        unit_id: unitId,
+        unit_name: String(unit.unit_name || unitId),
+        size,
+        base_size: Math.max(1, Number(unit.base_size) || 1),
+      });
+    }
     return out;
   }
 
@@ -2010,6 +2056,35 @@
 
     if (arrierbanClose) arrierbanClose.addEventListener("click", closeArrierbanModal);
     if (arrierbanModal) arrierbanModal.addEventListener("click", (evt) => { if (evt.target === arrierbanModal) closeArrierbanModal(); });
+    if (arrierbanRows) arrierbanRows.addEventListener("click", (evt) => {
+      const btn = evt.target && evt.target.closest ? evt.target.closest('button[data-action]') : null;
+      if (!btn) return;
+      const action = String(btn.dataset.action || "");
+      const allocWrap = btn.closest('.arrierban-row-alloc');
+      if (!allocWrap) return;
+      const unitId = String(allocWrap.dataset.unitId || "");
+      const source = String(allocWrap.dataset.source || "");
+      const baseSize = Math.max(1, Number(allocWrap.dataset.baseSize) || 1);
+      const def = { id: unitId, source, baseSize };
+
+      if (action === "add-arrierban-row") {
+        const addBtn = allocWrap.querySelector('button[data-action="add-arrierban-row"]');
+        const entry = createArrierbanUnitInput(def, 0);
+        allocWrap.insertBefore(entry, addBtn || null);
+        const input = entry.querySelector('input[type="number"]');
+        if (input) input.focus();
+      } else if (action === "remove-arrierban-row") {
+        const entry = btn.closest('.arrierban-row-alloc__entry');
+        if (!entry) return;
+        const entries = allocWrap.querySelectorAll('.arrierban-row-alloc__entry');
+        if (entries.length <= 1) {
+          const input = entry.querySelector('input[type="number"]');
+          if (input) input.value = '0';
+          return;
+        }
+        entry.remove();
+      }
+    });
 
     async function startArrierban(domainOnly) {
       const type = realmTypeSelect.value;
@@ -2175,12 +2250,12 @@
       const realm = ensureRealm(pendingArmyManage.type, pendingArmyManage.id);
       const domainArmy = pendingArmyManage.armies.find((a) => a && a.army_kind === "domain") || { units: [] };
       const feudalArmies = pendingArmyManage.armies.filter((a) => a && a.army_kind !== "domain");
-      realm.arrierban_units = normalizeArmyUnits(domainArmy.units || []);
+      realm.arrierban_units = sanitizeArmyUnits(domainArmy.units || []);
       realm.arrierban_vassal_armies = feudalArmies.map((a, idx) => ({
         army_id: String(a.army_id || `feudal_${idx + 1}`),
         army_name: String(a.army_name || `Феодальная армия ${idx + 1}`),
         army_kind: String(a.army_kind || "vassal"),
-        units: normalizeArmyUnits(a.units || []),
+        units: sanitizeArmyUnits(a.units || []),
       })).filter((a) => a.units.length > 0);
       realm.arrierban_vassal_units = realm.arrierban_vassal_armies.flatMap((a) => a.units || []);
       realm.arrierban_active = (realm.arrierban_units.length + realm.arrierban_vassal_units.length) > 0;
