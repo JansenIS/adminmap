@@ -13,7 +13,7 @@
   const modalMinorHouseName = el("modalMinorHouseName"); const modalProvinceHerald = el("modalProvinceHerald"); const modalProvinceTitle = el("modalProvinceTitle"); const modalProvinceDescription = el("modalProvinceDescription");
   const personModal = el("personModal"); const personModalClose = el("personModalClose"); const personModalPhoto = el("personModalPhoto"); const personModalName = el("personModalName"); const personModalSuzerain = el("personModalSuzerain"); const personModalSeniors = el("personModalSeniors"); const personModalVassals = el("personModalVassals"); const personModalBio = el("personModalBio");
   const DEFAULT_STATE_URL = "/api/map/bootstrap/";
-  const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
+  const MODE_TO_FIELD = { provinces: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id", special_territories: "special_territory_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
   let state = null; let selectedKey = 0; let hideProvinceEmblems = false;
@@ -147,7 +147,7 @@
     const visible = (mode === "kingdoms" || mode === "great_houses") && !!selectedMicroTarget;
     openMicroMapBtn.classList.toggle("hidden", !visible);
     if (!visible) return;
-    const kindLabel = selectedMicroTarget.kind === "free_city"
+    const kindLabel = (selectedMicroTarget.kind === "free_city" || selectedMicroTarget.kind === "special_territory")
       ? "территории"
       : (selectedMicroTarget.kind === "great_house" ? "Большого Дома" : "королевства");
     openMicroMapBtn.textContent = `Перейти на микрокарту ${kindLabel}: ${selectedMicroTarget.name}`;
@@ -160,6 +160,7 @@
     if (mode === "great_houses" && pd.great_house_id && (state.great_houses || {})[pd.great_house_id]) {
       return { kind: "great_house", id: pd.great_house_id, name: state.great_houses[pd.great_house_id].name || pd.great_house_id };
     }
+    if (pd.special_territory_id && (state.special_territories || {})[pd.special_territory_id]) return { kind: "special_territory", id: pd.special_territory_id, name: state.special_territories[pd.special_territory_id].name || pd.special_territory_id };
     if (pd.free_city_id && (state.free_cities || {})[pd.free_city_id]) return { kind: "free_city", id: pd.free_city_id, name: state.free_cities[pd.free_city_id].name || pd.free_city_id };
     if (pd.kingdom_id && (state.kingdoms || {})[pd.kingdom_id]) return { kind: "kingdom", id: pd.kingdom_id, name: state.kingdoms[pd.kingdom_id].name || pd.kingdom_id };
     if (mode === "great_houses" && pd.great_house_id) return { kind: "great_house", id: pd.great_house_id, name: pd.great_house_id };
@@ -304,7 +305,7 @@
       const decoded = dataUriSvgToText(src);
       if (decoded) pd.emblem_svg = sanitizeSvgText(decoded);
     }
-    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"]) {
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         const src = String(realm.emblem_svg || "");
@@ -319,13 +320,14 @@
     if (!obj.great_houses || typeof obj.great_houses !== "object") obj.great_houses = {};
     if (!obj.minor_houses || typeof obj.minor_houses !== "object") obj.minor_houses = {};
     if (!obj.free_cities || typeof obj.free_cities !== "object") obj.free_cities = {};
+    if (!obj.special_territories || typeof obj.special_territories !== "object") obj.special_territories = {};
     if (!obj.people_profiles || typeof obj.people_profiles !== "object") obj.people_profiles = {};
     for (const p of (Array.isArray(obj.people) ? obj.people : [])) {
       const n = String(p || "").trim();
       if (!n) continue;
       if (!obj.people_profiles[n] || typeof obj.people_profiles[n] !== "object") obj.people_profiles[n] = { photo_url: "", bio: "" };
     }
-    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"]) {
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         realm.ruler = String(realm.ruler || "").trim();
@@ -359,6 +361,7 @@
       if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
       if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
       if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
+      if (typeof pd.special_territory_id !== "string") pd.special_territory_id = "";
     }
   }
 
@@ -460,6 +463,7 @@
   function drawMinorHousesLayer(map, drawFills = true) {
     drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0, drawFills);
     drawRealmLayer(map, "free_cities", 230, 0, drawFills);
+    drawRealmLayer(map, "special_territories", 230, 0, drawFills);
     for (const [id, realm] of Object.entries(state.great_houses || {})) {
       const baseHex = realm && realm.color ? realm.color : "#ff3b30";
       const [r, g, b] = MapUtils.hexToRgb(baseHex);
@@ -744,7 +748,10 @@
         drawMinorHousesLayer(map, !serverLayerApplied);
       } else {
         drawRealmLayer(map, mode, 150, 0.6, !serverLayerApplied);
-        if (REALM_OVERLAY_MODES.has(mode)) drawRealmLayer(map, "free_cities", 230, 0.75, !serverLayerApplied);
+        if (REALM_OVERLAY_MODES.has(mode)) {
+          drawRealmLayer(map, "free_cities", 230, 0.75, !serverLayerApplied);
+          drawRealmLayer(map, "special_territories", 230, 0.75, !serverLayerApplied);
+        }
       }
     }
     await map.repaintAllEmblems();

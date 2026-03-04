@@ -97,6 +97,12 @@
   const realmUploadEmblemBtn = el("realmUploadEmblemBtn");
   const realmRemoveEmblemBtn = el("realmRemoveEmblemBtn");
   const realmEmblemFile = el("realmEmblemFile");
+  const splitSelectAllBtn = el("splitSelectAll");
+  const splitSelectNoneBtn = el("splitSelectNone");
+  const splitDryRunBtn = el("splitDryRun");
+  const splitApplyBtn = el("splitApply");
+  const splitFreeCitiesList = el("splitFreeCitiesList");
+  const splitStatus = el("splitStatus");
 
   const minorGreatHouseSelect = el("minorGreatHouseSelect");
   const minorVassalSelect = el("minorVassalSelect");
@@ -183,11 +189,12 @@
   const PROVINCE_CARD_UPLOAD_ENDPOINT = "/api/provinces/card/upload/";
   const REALM_PATCH_ENDPOINT = "/api/realms/patch/";
   const CHANGES_APPLY_ENDPOINT = "/api/changes/apply/";
+  const SPLIT_FREE_CITIES_ENDPOINT = "/api/migration/split-free-cities/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
   updateFlagsStatusText(APP_FLAGS);
 
   const TERRAIN_TYPES_FALLBACK = ["равнины", "холмы", "горы", "лес", "болота", "степь", "пустоши", "побережье", "остров", "город", "руины", "озёра/реки"];
-  const MODE_TO_FIELD = { provinces: null, province_properties: null, war: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id" };
+  const MODE_TO_FIELD = { provinces: null, province_properties: null, war: null, kingdoms: "kingdom_id", great_houses: "great_house_id", minor_houses: "minor_house_id", free_cities: "free_city_id", special_territories: "special_territory_id" };
   const REALM_OVERLAY_MODES = new Set(["kingdoms", "great_houses", "minor_houses"]);
   const MINOR_ALPHA = { rest: 40, vassal: 100, vassal_capital: 170, domain: 160, capital: 200 };
   const TERRAIN_MODE_COLORS = [
@@ -688,7 +695,7 @@
     }
 
     const out = [];
-    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"];
     for (const type of allTypes) {
       const bucket = realmBucketByType(type);
       for (const [id, realm] of Object.entries(bucket || {})) {
@@ -847,8 +854,9 @@
     if (!isPlainObject(obj.great_houses)) obj.great_houses = {};
     if (!isPlainObject(obj.minor_houses)) obj.minor_houses = {};
     if (!isPlainObject(obj.free_cities)) obj.free_cities = {};
+    if (!isPlainObject(obj.special_territories)) obj.special_territories = {};
     if (!isPlainObject(obj.people_profiles)) obj.people_profiles = {};
-    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"]) {
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         realm.ruler = String(realm.ruler || "").trim();
@@ -883,6 +891,7 @@
       if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
       if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
       if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
+      if (typeof pd.special_territory_id !== "string") pd.special_territory_id = "";
     }
   }
 
@@ -941,7 +950,7 @@
   }
 
   function syncPeopleFromRealmRulers() {
-    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"]) {
       for (const realm of Object.values(state[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         if (realm.ruler) ensurePerson(realm.ruler);
@@ -1240,7 +1249,7 @@
     manualCapitalPid.value = String((entity && entity.capital_pid) || '');
     manualProvincePids.value = Array.isArray(entity && entity.province_pids) ? entity.province_pids.join(', ') : '';
 
-    const reservedProvince = new Set(['pid', 'name', 'owner', 'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'terrain', 'treasury', 'population', 'tax_rate', 'buildings', 'background_image', 'province_card_base_image', 'province_card_image', 'emblem_svg', 'wiki_description', 'fill_rgba', 'emblem_box', 'emblem_asset_id']);
+    const reservedProvince = new Set(['pid', 'name', 'owner', 'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'special_territory_id', 'terrain', 'treasury', 'population', 'tax_rate', 'buildings', 'background_image', 'province_card_base_image', 'province_card_image', 'emblem_svg', 'wiki_description', 'fill_rgba', 'emblem_box', 'emblem_asset_id']);
     const reservedEntity = new Set(['name', 'ruler', 'treasury', 'population', 'tax_rate', 'buildings', 'background_image', 'card_image', 'emblem_svg', 'description', 'color', 'capital_pid', 'province_pids', 'emblem_scale', 'emblem_box']);
     const extras = mode === 'provinces' ? pickExtraFields(pd, reservedProvince) : pickExtraFields(entity || {}, reservedEntity);
     manualExtraJson.value = Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '';
@@ -1272,6 +1281,7 @@
       pd.great_house_id = String(manualGreatHouseId.value || '').trim();
       pd.minor_house_id = String(manualMinorHouseId.value || '').trim();
       pd.free_city_id = String(manualFreeCityId.value || '').trim();
+      pd.special_territory_id = String(pd.special_territory_id || '').trim();
       pd.terrain = String(manualTerrain.value || '').trim();
       const treasury = parseManualNumberish(manualTreasury.value);
       const population = parseManualNumberish(manualPopulation.value);
@@ -1322,6 +1332,7 @@
       pd.great_house_id = String(manualGreatHouseId.value || pd.great_house_id || '').trim();
       pd.minor_house_id = String(manualMinorHouseId.value || pd.minor_house_id || '').trim();
       pd.free_city_id = String(manualFreeCityId.value || pd.free_city_id || '').trim();
+      pd.special_territory_id = String(pd.special_territory_id || '').trim();
       Object.assign(entity, extra);
       bucket[entityId] = entity;
     }
@@ -1411,7 +1422,7 @@
     }
     return saveRes.json();
   }
-  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), terrain: String(pd.terrain || ""), treasury: Number.isFinite(Number(pd.treasury)) ? Number(pd.treasury) : null, population: Number.isFinite(Number(pd.population)) ? Number(pd.population) : null, tax_rate: Number.isFinite(Number(pd.tax_rate)) ? Number(pd.tax_rate) : null, fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), province_card_image: String(pd.province_card_image || "") }; }
+  function buildProvincePatchFromState(pd) { return { name: String(pd.name || ""), owner: String(pd.owner || ""), terrain: String(pd.terrain || ""), treasury: Number.isFinite(Number(pd.treasury)) ? Number(pd.treasury) : null, population: Number.isFinite(Number(pd.population)) ? Number(pd.population) : null, tax_rate: Number.isFinite(Number(pd.tax_rate)) ? Number(pd.tax_rate) : null, fill_rgba: (Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) ? pd.fill_rgba : null, emblem_svg: String(pd.emblem_svg || ""), emblem_box: (Array.isArray(pd.emblem_box) && pd.emblem_box.length === 2) ? pd.emblem_box : null, emblem_asset_id: String(pd.emblem_asset_id || ""), kingdom_id: String(pd.kingdom_id || ""), great_house_id: String(pd.great_house_id || ""), minor_house_id: String(pd.minor_house_id || ""), free_city_id: String(pd.free_city_id || ""), special_territory_id: String(pd.special_territory_id || ""), province_card_image: String(pd.province_card_image || "") }; }
   async function fetchIfMatchVersion() { const res = await fetch("/api/map/version/", { cache: "no-store" }); if (!res.ok) throw new Error("HTTP " + res.status); const payload = await res.json(); const v = String(payload && payload.map_version || "").trim(); if (!v) throw new Error("map_version_missing"); return v; }
   async function persistChangesBatch(changes) { const payload = { changes: Array.isArray(changes) ? changes : [] }; const ifMatch = await fetchIfMatchVersion(); const res = await fetch(CHANGES_APPLY_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json;charset=utf-8", "If-Match": ifMatch }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
   async function persistSelectedProvincePatch() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; const payload = { pid: Number(pd.pid) >>> 0, changes: buildProvincePatchFromState(pd) }; if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) return persistChangesBatch([{ kind: "province", pid: payload.pid, changes: payload.changes }]); const res = await fetch(PROVINCE_PATCH_ENDPOINT, { method: "PATCH", headers: { "Content-Type": "application/json;charset=utf-8" }, body: JSON.stringify(payload) }); if (!res.ok) throw new Error("HTTP " + res.status); }
@@ -1513,6 +1524,7 @@
   function drawMinorHousesLayer(map) {
     drawRealmLayer(map, "great_houses", MINOR_ALPHA.rest, 0);
     drawRealmLayer(map, "free_cities", 230, 0);
+    drawRealmLayer(map, "special_territories", 230, 0);
     for (const [id, realm] of Object.entries(realmBucketByType("great_houses"))) {
       const baseHex = realm && realm.color ? realm.color : "#ff3b30";
       const [r, g, b] = MapUtils.hexToRgb(baseHex);
@@ -1741,6 +1753,108 @@
     realmEmblemScaleVal.textContent = realmEmblemScaleInput.value;
     updateRoyalArrierbanButtonVisibility(type, id);
     if (realmArrierbanOutput) realmArrierbanOutput.textContent = "";
+  }
+
+
+
+  function setSplitStatus(text) {
+    if (!splitStatus) return;
+    splitStatus.textContent = String(text || '—');
+  }
+
+  function splitSelectedIdsFromUi() {
+    if (!splitFreeCitiesList) return [];
+    return Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]:checked'))
+      .map((el) => String(el.getAttribute('data-realm-id') || '').trim())
+      .filter(Boolean);
+  }
+
+  function freeCityProvinceCount(id) {
+    const target = String(id || '').trim();
+    if (!target) return 0;
+    let count = 0;
+    for (const pd of Object.values(state.provinces || {})) {
+      if (!pd || typeof pd !== 'object') continue;
+      if (String(pd.free_city_id || '').trim() === target) count++;
+    }
+    return count;
+  }
+
+  function rebuildSplitFreeCitiesList() {
+    if (!splitFreeCitiesList) return;
+    const entries = Object.entries(state && state.free_cities ? state.free_cities : {})
+      .map(([id, realm]) => ({ id: String(id || ''), name: String((realm && realm.name) || id || ''), count: freeCityProvinceCount(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+    splitFreeCitiesList.innerHTML = '';
+    if (!entries.length) {
+      splitFreeCitiesList.textContent = 'Вольных городов не найдено.';
+      return;
+    }
+
+    for (const item of entries) {
+      const row = document.createElement('label');
+      row.style.display = 'flex';
+      row.style.gap = '8px';
+      row.style.alignItems = 'center';
+      row.style.padding = '3px 0';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.setAttribute('data-realm-id', item.id);
+
+      const text = document.createElement('span');
+      text.textContent = `${item.name} (${item.id}) · провинций: ${item.count}`;
+
+      row.appendChild(cb);
+      row.appendChild(text);
+      splitFreeCitiesList.appendChild(row);
+    }
+  }
+
+  async function runSplitFreeCitiesMigration({ dryRun = true, map = null } = {}) {
+    const ids = splitSelectedIdsFromUi();
+    if (!ids.length) {
+      setSplitStatus('Сначала отметьте хотя бы одну сущность.');
+      return;
+    }
+
+    try {
+      const payload = { ids, dry_run: !!dryRun };
+      if (!dryRun) payload.if_match = await fetchIfMatchVersion();
+      const res = await fetch(SPLIT_FREE_CITIES_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data && data.error) ? String(data.error) : ('HTTP ' + res.status));
+
+      const moved = Number(data.moved_total || 0);
+      const missing = Number(data.missing_total || 0);
+      const relinked = Number(data.relinked_provinces || 0);
+      setSplitStatus(`Готово. moved=${moved}, missing=${missing}, relinked_provinces=${relinked}`);
+
+      if (!dryRun) {
+        const loader = window.AdminMapStateLoader;
+        if (loader && typeof loader.loadStateBackendOnly === 'function') {
+          const loaded = await loader.loadStateBackendOnly();
+          state = loaded.state;
+          ensureFeudalSchema(state);
+          syncPeopleFromRealmRulers();
+          rebuildPeopleControls();
+          rebuildTerrainSelect();
+          rebuildRealmSelect();
+          rebuildMinorHouseControls();
+          if (map) applyLayerState(map);
+          exportStateToTextarea();
+          refreshCurrentSelectionUI();
+          rebuildSplitFreeCitiesList();
+        }
+      }
+    } catch (err) {
+      setSplitStatus('Ошибка: ' + (err && err.message ? err.message : err));
+    }
   }
 
   function ensureRealm(type, id) {
@@ -2396,7 +2510,10 @@
         drawMinorHousesLayer(map);
       } else {
         drawRealmLayer(map, mode, 150, 0.6);
-        if (REALM_OVERLAY_MODES.has(mode)) drawRealmLayer(map, "free_cities", 230, 0.75);
+        if (REALM_OVERLAY_MODES.has(mode)) {
+          drawRealmLayer(map, "free_cities", 230, 0.75);
+          drawRealmLayer(map, "special_territories", 230, 0.75);
+        }
       }
     }
 
@@ -2450,6 +2567,11 @@
       for (const [id, realm] of Object.entries(realmBucketByType("free_cities"))) {
         const [r, g, b] = MapUtils.hexToRgb(realm && realm.color ? realm.color : "#ff3b30");
         const keys = collectProvinceKeysByRealmId(null, "free_city_id", id);
+        for (const key of keys) fills.set(key, [r, g, b, 255]);
+      }
+      for (const [id, realm] of Object.entries(realmBucketByType("special_territories"))) {
+        const [r, g, b] = MapUtils.hexToRgb(realm && realm.color ? realm.color : "#9b59b6");
+        const keys = collectProvinceKeysByRealmId(null, "special_territory_id", id);
         for (const key of keys) fills.set(key, [r, g, b, 255]);
       }
       return fills;
@@ -2656,7 +2778,7 @@
       return;
     }
 
-    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"];
     for (const type of allTypes) {
       const bucket = realmBucketByType(type);
       for (const [id, realm] of Object.entries(bucket || {})) {
@@ -2703,7 +2825,7 @@
       const decoded = dataUriSvgToText(src);
       if (decoded) pd.emblem_svg = sanitizeSvgText(decoded);
     }
-    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities"]) {
+    for (const type of ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"]) {
       for (const realm of Object.values(obj[type] || {})) {
         if (!realm || typeof realm !== "object") continue;
         const src = String(realm.emblem_svg || "");
@@ -2854,6 +2976,21 @@
     window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeArrierbanModal(); closeArmyManageModal(); } });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
+    if (splitSelectAllBtn) splitSelectAllBtn.addEventListener('click', () => {
+      if (!splitFreeCitiesList) return;
+      for (const cb of Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]'))) cb.checked = true;
+      setSplitStatus('Выбраны все сущности из списка.');
+    });
+    if (splitSelectNoneBtn) splitSelectNoneBtn.addEventListener('click', () => {
+      if (!splitFreeCitiesList) return;
+      for (const cb of Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]'))) cb.checked = false;
+      setSplitStatus('Выбор очищен.');
+    });
+    if (splitDryRunBtn) splitDryRunBtn.addEventListener('click', () => { runSplitFreeCitiesMigration({ dryRun: true, map }).catch(() => {}); });
+    if (splitApplyBtn) splitApplyBtn.addEventListener('click', () => {
+      if (!confirm('Перенести выбранные сущности из "Вольных городов" в "Особые территории"?')) return;
+      runSplitFreeCitiesMigration({ dryRun: false, map }).catch(() => {});
+    });
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
@@ -3497,6 +3634,7 @@
     const genealogyCharacters = await loadGenealogyCharacters();
     mergeGenealogyPeopleIntoState(genealogyCharacters);
     rebuildPeopleControls(); syncPeopleFromRealmRulers(); rebuildTerrainSelect(); rebuildRealmSelect();
+    rebuildSplitFreeCitiesList();
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",

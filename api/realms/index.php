@@ -6,7 +6,7 @@ require_once dirname(__DIR__) . '/lib/state_api.php';
 $state = api_load_state();
 $mtime = api_state_mtime();
 $type = (string)($_GET['type'] ?? '');
-$allowed = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+$allowed = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
 $profile = (string)($_GET['profile'] ?? 'full');
 if (!in_array($type, $allowed, true)) {
   api_json_response(['error' => 'invalid_type', 'allowed' => $allowed], 400, $mtime);
@@ -17,6 +17,7 @@ $ownerTypeByRealmType = [
   'great_houses' => 'great_house',
   'minor_houses' => 'minor_house',
   'free_cities' => 'free_city',
+  'special_territories' => 'special_territory',
 ];
 $refs = api_build_refs_by_owner_from_file_or_state($state);
 $ownerType = $ownerTypeByRealmType[$type] ?? $type;

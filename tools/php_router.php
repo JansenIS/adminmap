@@ -14,7 +14,7 @@ if (preg_match('#^/api/provinces/(\d+)/?$#', $path, $m)) {
   require $root . '/api/provinces/show/index.php';
   return true;
 }
-if (preg_match('#^/api/realms/(kingdoms|great_houses|minor_houses|free_cities)/([^/]+)/?$#', $path, $m)) {
+if (preg_match('#^/api/realms/(kingdoms|great_houses|minor_houses|free_cities|special_territories)/([^/]+)/?$#', $path, $m)) {
   $_GET['type'] = $m[1];
   $_GET['id'] = urldecode($m[2]);
   require $root . '/api/realms/show/index.php';

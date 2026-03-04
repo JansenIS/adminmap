@@ -26,7 +26,8 @@
 
   const LABELS = {
     great_house: "Большой Дом",
-    free_city: "Территория",
+    free_city: "Вольный город",
+    special_territory: "Особая территория",
     kingdom: "Королевство"
   };
 
@@ -97,6 +98,10 @@
       const owner = state.great_houses[pd.great_house_id];
       return { kind: "great_house", id: pd.great_house_id, name: owner.name || pd.great_house_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
     }
+    if (pd.special_territory_id && state.special_territories && state.special_territories[pd.special_territory_id]) {
+      const owner = state.special_territories[pd.special_territory_id];
+      return { kind: "special_territory", id: pd.special_territory_id, name: owner.name || pd.special_territory_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
+    }
     if (pd.free_city_id && state.free_cities && state.free_cities[pd.free_city_id]) {
       const owner = state.free_cities[pd.free_city_id];
       return { kind: "free_city", id: pd.free_city_id, name: owner.name || pd.free_city_id, color: owner.color || "#778193", emblemSvg: owner.emblem_svg || "", emblemBox: owner.emblem_box || null, emblemScale: Number(owner.emblem_scale) || 1 };
@@ -160,9 +165,13 @@
       const name = state?.great_houses?.[pd.great_house_id]?.name || pd.great_house_id;
       return `Большой Дом: ${name}`;
     }
+    if (pd.special_territory_id) {
+      const name = state?.special_territories?.[pd.special_territory_id]?.name || pd.special_territory_id;
+      return `Особая территория: ${name}`;
+    }
     if (pd.free_city_id) {
       const name = state?.free_cities?.[pd.free_city_id]?.name || pd.free_city_id;
-      return `Территория: ${name}`;
+      return `Вольный город: ${name}`;
     }
     if (pd.kingdom_id) {
       const name = state?.kingdoms?.[pd.kingdom_id]?.name || pd.kingdom_id;
@@ -567,6 +576,7 @@
       if (!pd) continue;
       if (selectedKind === "great_house" && pd.great_house_id === selectedId) selectedProvincePids.add(pid);
       if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "special_territory" && pd.special_territory_id === selectedId) selectedProvincePids.add(pid);
       if (selectedKind === "kingdom" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
     }
 
@@ -580,11 +590,10 @@
     for (const pid of selectedProvincePids) visibleProvincePids.add(pid);
     for (const pid of neighborProvincePids) visibleProvincePids.add(pid);
 
-    const label = (selectedKind === "great_house")
-      ? (state.great_houses?.[selectedId]?.name || selectedId)
-      : ((selectedKind === "free_city")
-        ? (state.free_cities?.[selectedId]?.name || selectedId)
-        : (state.kingdoms?.[selectedId]?.name || selectedId));
+    let label = state.kingdoms?.[selectedId]?.name || selectedId;
+    if (selectedKind === "great_house") label = state.great_houses?.[selectedId]?.name || selectedId;
+    else if (selectedKind === "free_city") label = state.free_cities?.[selectedId]?.name || selectedId;
+    else if (selectedKind === "special_territory") label = state.special_territories?.[selectedId]?.name || selectedId;
     const selectedTypeLabel = LABELS[selectedKind] || "Область";
     title.textContent = `${selectedTypeLabel}: ${label}. Показано провинций: ${visibleProvincePids.size}.`;
 

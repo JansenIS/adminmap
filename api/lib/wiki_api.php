@@ -6,7 +6,7 @@ require_once __DIR__ . '/state_api.php';
 require_once __DIR__ . '/genealogy_api.php';
 
 function api_wiki_allowed_entity_types(): array {
-  return ['kingdoms', 'great_houses', 'minor_houses', 'vassals', 'free_cities'];
+  return ['kingdoms', 'great_houses', 'minor_houses', 'vassals', 'free_cities', 'special_territories'];
 }
 
 function api_wiki_canonical_entity_type(string $entityType): string {
@@ -218,6 +218,7 @@ function api_wiki_build_province_page(array $state, int $pid): ?array {
       'great_house_id' => $greatHouseId,
       'minor_house_id' => trim((string)($province['minor_house_id'] ?? '')),
       'free_city_id' => trim((string)($province['free_city_id'] ?? '')),
+      'special_territory_id' => trim((string)($province['special_territory_id'] ?? '')),
       'kingdom' => is_array($kingdom) ? [
         'id' => $kingdomId,
         'name' => trim((string)($kingdom['name'] ?? $kingdomId)),
@@ -241,10 +242,11 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
   $children = ['entities' => [], 'provinces' => []];
 
   $childEntityTypes = [
-    'kingdoms' => ['great_houses', 'minor_houses', 'free_cities'],
+    'kingdoms' => ['great_houses', 'minor_houses', 'free_cities', 'special_territories'],
     'great_houses' => ['minor_houses'],
     'minor_houses' => [],
     'free_cities' => [],
+    'special_territories' => [],
   ];
 
   $provinceFieldByType = [
@@ -252,6 +254,7 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
     'great_houses' => 'great_house_id',
     'minor_houses' => 'minor_house_id',
     'free_cities' => 'free_city_id',
+    'special_territories' => 'special_territory_id',
   ];
 
   foreach (($childEntityTypes[$entityType] ?? []) as $childType) {
@@ -322,6 +325,7 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
     'great_houses' => 'great_house',
     'minor_houses' => 'minor_house',
     'free_cities' => 'free_city',
+  'special_territories' => 'special_territory',
   ];
 
   $refs = api_build_refs_by_owner_from_file_or_state($state);
