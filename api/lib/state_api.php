@@ -93,7 +93,7 @@ function api_collect_people_names_from_state(array $state): array {
     $addName((string)($province['owner'] ?? ''));
   }
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $bucket) {
     foreach (($state[$bucket] ?? []) as $realm) {
       if (!is_array($realm)) continue;
       $addName((string)($realm['ruler'] ?? ''));
@@ -132,7 +132,7 @@ function api_replace_person_name_in_state(array &$state, string $fromName, strin
   }
   unset($province);
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $bucket) {
     foreach (($state[$bucket] ?? []) as &$realm) {
       if (!is_array($realm)) continue;
       $realm['ruler'] = $replace((string)($realm['ruler'] ?? ''));
@@ -203,6 +203,7 @@ function api_build_provinces_index(array $state, array $refsByOwner = []): array
       'great_house_id' => (string)($pd['great_house_id'] ?? ''),
       'minor_house_id' => (string)($pd['minor_house_id'] ?? ''),
       'free_city_id' => (string)($pd['free_city_id'] ?? ''),
+      'special_territory_id' => (string)($pd['special_territory_id'] ?? ''),
       'fill_rgba' => (is_array($pd['fill_rgba'] ?? null) && count($pd['fill_rgba']) === 4) ? array_values($pd['fill_rgba']) : null,
       'province_card_image' => (string)($pd['province_card_image'] ?? ''),
       'wiki_description' => (string)($pd['wiki_description'] ?? ''),
@@ -379,14 +380,15 @@ function api_emblem_migration_from_state(array $state): array {
     $storeAsset('province_emblem', 'province', $ownerId, $normalized, $box, null);
   }
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $realmType) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $realmType) {
     foreach (($state[$realmType] ?? []) as $realmId => $realm) {
       if (!is_array($realm)) continue;
       $normalized = api_normalize_svg_payload((string)($realm['emblem_svg'] ?? ''));
       if ($normalized === null) continue;
       $box = isset($realm['emblem_box']) && is_array($realm['emblem_box']) ? $realm['emblem_box'] : null;
       $scale = isset($realm['emblem_scale']) ? (float)$realm['emblem_scale'] : null;
-            $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city'];
+            $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city',
+  'special_territories' => 'special_territory'];
       $ownerType = $ownerTypeMap[$realmType] ?? $realmType;
       $storeAsset('realm_emblem', $ownerType, (string)$realmId, $normalized, $box, $scale);
     }
@@ -423,7 +425,8 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
   }
   unset($province);
 
-  $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city'];
+  $ownerTypeMap = ['kingdoms' => 'kingdom', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city',
+  'special_territories' => 'special_territory'];
   foreach ($ownerTypeMap as $bucket => $ownerType) {
     foreach (($converted[$bucket] ?? []) as $realmId => &$realm) {
       if (!is_array($realm)) continue;
@@ -454,7 +457,7 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
 
 
 function api_validate_state_snapshot_shape(array $state): array {
-  $expectedArrays = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'people', 'terrain_types', 'treaties'];
+  $expectedArrays = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories', 'people', 'terrain_types', 'treaties'];
   foreach ($expectedArrays as $k) {
     if (array_key_exists($k, $state) && !is_array($state[$k])) {
       return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $k];
@@ -475,7 +478,7 @@ function api_validate_state_snapshot_shape(array $state): array {
     }
   }
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucket) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $bucket) {
     if (!isset($state[$bucket]) || !is_array($state[$bucket])) continue;
     foreach ($state[$bucket] as $id => $item) {
       if (!is_array($item)) return ['ok' => false, 'error' => 'invalid_state_shape', 'field' => $bucket . '.' . (string)$id];
@@ -673,13 +676,13 @@ function api_validate_province_changes_schema(array $changes, string $prefix = '
   $allowed = [
     'name', 'owner', 'suzerain', 'senior', 'terrain',
     'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
-    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
+    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'special_territory_id',
     'province_card_image', 'wiki_description',
   ];
   foreach ($changes as $field => $value) {
     $f = (string)$field;
     if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
-    if (in_array($f, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image','wiki_description'], true) && !is_string($value)) {
+    if (in_array($f, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','special_territory_id','province_card_image','wiki_description'], true) && !is_string($value)) {
       return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.' . $f];
     }
     if ($f === 'vassals') {
@@ -811,7 +814,7 @@ function api_patch_province(array $state, int $pid, array $changes): array {
   $allowed = [
     'name', 'owner', 'suzerain', 'senior', 'terrain',
     'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
-    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id',
+    'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'special_territory_id',
     'province_card_image', 'wiki_description',
   ];
 
@@ -819,7 +822,7 @@ function api_patch_province(array $state, int $pid, array $changes): array {
     if (!in_array((string)$field, $allowed, true)) {
       return ['ok' => false, 'error' => 'invalid_field', 'field' => (string)$field];
     }
-    if (in_array((string)$field, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','province_card_image','wiki_description'], true) && !is_string($value)) {
+    if (in_array((string)$field, ['name','owner','suzerain','senior','terrain','emblem_svg','emblem_asset_id','kingdom_id','great_house_id','minor_house_id','free_city_id','special_territory_id','province_card_image','wiki_description'], true) && !is_string($value)) {
       return ['ok' => false, 'error' => 'invalid_type', 'field' => (string)$field];
     }
     if ($field === 'vassals' && !is_array($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => 'vassals'];
@@ -867,7 +870,7 @@ function api_patch_province(array $state, int $pid, array $changes): array {
 
 
 function api_patch_realm(array $state, string $type, string $id, array $changes): array {
-  $allowedTypes = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+  $allowedTypes = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
   if (!in_array($type, $allowedTypes, true)) return ['ok' => false, 'error' => 'invalid_type'];
   if (!isset($state[$type]) || !is_array($state[$type]) || !isset($state[$type][$id]) || !is_array($state[$type][$id])) {
     return ['ok' => false, 'error' => 'not_found'];
@@ -1026,6 +1029,7 @@ function api_layer_color_for_province(array $state, array $pd, string $mode): ?a
     'great_houses' => ['field' => 'great_house_id', 'bucket' => 'great_houses', 'fallback' => '#ff3b30'],
     'minor_houses' => ['field' => 'minor_house_id', 'bucket' => 'minor_houses', 'fallback' => '#ffd166'],
     'free_cities' => ['field' => 'free_city_id', 'bucket' => 'free_cities', 'fallback' => '#ff7a1a'],
+    'special_territories' => ['field' => 'special_territory_id', 'bucket' => 'special_territories', 'fallback' => '#9b59b6'],
   ];
   if (!isset($modeMap[$mode])) return null;
   $cfg = $modeMap[$mode];
@@ -1214,7 +1218,7 @@ function api_run_next_job(array $state): array {
   $type = (string)($job['type'] ?? '');
   if ($type === 'rebuild_layers') {
     $mode = (string)($job['payload']['mode'] ?? 'all');
-    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','minor_houses','free_cities'] : [$mode];
+    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','minor_houses','free_cities','special_territories'] : [$mode];
     $allOk = true;
     $total = count($modes);
     $done = 0;

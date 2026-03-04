@@ -317,7 +317,7 @@ function turn_api_hex_counts_by_pid(): array {
 
 function turn_api_realm_entity_rows(array $state): array {
   $rows = [];
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $type) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $type) {
     foreach (($state[$type] ?? []) as $idx => $realm) {
       if (!is_array($realm)) continue;
       $id = trim((string)($realm['id'] ?? ($realm['name'] ?? (string)$idx)));
@@ -1237,7 +1237,7 @@ function turn_api_compute_treasury(
   }
 
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities'] as $bucketType) {
+  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $bucketType) {
     $bucket = (array)($state[$bucketType] ?? []);
     foreach ($bucket as $entityKey => $realm) {
       if (!is_array($realm)) continue;

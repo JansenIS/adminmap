@@ -8,7 +8,7 @@
     USE_SERVER_RENDER: true,
   };
 
-  const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities"];
+  const REALM_TYPES = ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"];
 
   function parseBool(v) {
     if (v === true || v === "1" || v === "true") return true;

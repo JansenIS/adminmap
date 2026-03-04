@@ -16,7 +16,7 @@ $z = isset($_GET['z']) ? max(0, (int)$_GET['z']) : 0;
 $x = isset($_GET['x']) ? max(0, (int)$_GET['x']) : 0;
 $y = isset($_GET['y']) ? max(0, (int)$_GET['y']) : 0;
 $mode = trim((string)($_GET['mode'] ?? 'provinces'));
-$allowedModes = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+$allowedModes = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
 if (!in_array($mode, $allowedModes, true)) {
   api_json_response(['error' => 'invalid_mode', 'allowed' => $allowedModes], 400, $mtime);
 }

@@ -15,7 +15,7 @@ if (!$valid['ok']) api_json_response(['error' => $valid['error'], 'field' => $va
 
 $mode = trim((string)($payload['mode'] ?? 'all'));
 $maxAttempts = (int)($payload['max_attempts'] ?? 1);
-$allowedModes = ['all', 'provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities'];
+$allowedModes = ['all', 'provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
 if (!in_array($mode, $allowedModes, true)) {
   api_json_response(['error' => 'invalid_mode', 'allowed' => $allowedModes], 400, api_state_mtime());
 }
