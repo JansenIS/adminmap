@@ -16,6 +16,7 @@
   const turnCurrentStatus = el("turnCurrentStatus");
   const turnTreasuryProvSum = el("turnTreasuryProvSum");
   const turnTreasuryEntitySum = el("turnTreasuryEntitySum");
+  const turnEntityTreasuryList = el("turnEntityTreasuryList");
   const turnActionStatus = el("turnActionStatus");
   const btnMakeTurn = el("btnMakeTurn");
   const btnRefreshTurn = el("btnRefreshTurn");
@@ -292,6 +293,49 @@
     return Math.round(n).toLocaleString('ru-RU');
   }
 
+  function renderTurnEntityTreasury(rows) {
+    if (!turnEntityTreasuryList) return;
+    if (!Array.isArray(rows) || !rows.length) {
+      turnEntityTreasuryList.textContent = '—';
+      return;
+    }
+    const items = rows.slice().sort((a, b) => Number(b && b.closing_balance || 0) - Number(a && a.closing_balance || 0));
+    turnEntityTreasuryList.textContent = items
+      .map((row) => {
+        const type = String(row && row.entity_type || '').trim();
+        const eid = String(row && row.entity_id || '').trim();
+        const name = String(row && row.entity_name || eid || '—').trim();
+        const closing = fmtMoneyCompact(row && row.closing_balance);
+        const incomeTax = fmtMoneyCompact(row && row.income_tax);
+        return `${name} [${type || '?'}] — ${closing} (налоги: ${incomeTax})`;
+      })
+      .join('\n');
+  }
+
+  function rebuildRulingHouseSelect() {
+    if (!realmRulingHouseInput) return;
+    const current = String(realmRulingHouseInput.value || '').trim();
+    const kingdomMode = realmTypeSelect && realmTypeSelect.value === 'kingdoms';
+    realmRulingHouseInput.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '— Не выбран —';
+    realmRulingHouseInput.appendChild(noneOpt);
+    const houses = Object.entries((state && state.great_houses) || {}).map(([id, house]) => ({
+      id,
+      name: String(house && house.name || id).trim() || id
+    })).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    for (const house of houses) {
+      const opt = document.createElement('option');
+      opt.value = house.id;
+      opt.textContent = `${house.name} (${house.id})`;
+      realmRulingHouseInput.appendChild(opt);
+    }
+    realmRulingHouseInput.disabled = !kingdomMode;
+    realmRulingHouseInput.value = current;
+    if (realmRulingHouseInput.value !== current) realmRulingHouseInput.value = '';
+  }
+
   function applyTurnTreasuryToProvinceState(rows) {
     if (!state || !state.provinces || !Array.isArray(rows)) return 0;
     let updated = 0;
@@ -366,6 +410,7 @@
         turnCurrentStatus.textContent = 'published ходов нет';
         turnTreasuryProvSum.textContent = '—';
         turnTreasuryEntitySum.textContent = '—';
+        renderTurnEntityTreasury([]);
         turnActionStatus.textContent = 'Пока нет опубликованных ходов. Нажми «Сделать ход».';
         return;
       }
@@ -388,6 +433,7 @@
       exportStateToTextarea();
       turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
       turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
+      renderTurnEntityTreasury(entityRows);
       turnActionStatus.textContent = `Показан published ход ${year}.`;
     } catch (err) {
       turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
@@ -1521,6 +1567,7 @@
     const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; realmSelect.appendChild(o0);
     for (const [id, realm] of buildRealmEntries(type)) { const o = document.createElement("option"); o.value = id; o.textContent = realm.name || id; realmSelect.appendChild(o); }
     realmSelect.value = cur;
+    rebuildRulingHouseSelect();
     loadRealmFields();
   }
 
