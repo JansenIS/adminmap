@@ -247,6 +247,12 @@ php tools/job_worker.php --interval-ms=1500
 
 ### Разделение «Вольных Городов» и «Особых Территорий» (аккуратный перенос)
 
+UI вариант: в `admin.html` есть блок «Перенос: Вольные Города → Особые Территории» со списком и чекбоксами (кнопки dry-run/перенос).
+
+API вариант:
+- `POST /api/migration/split-free-cities/` (`ids[]`, `dry_run`, `if_match`)
+
+
 Если у вас в текущем `map_state.json` всё лежит в `free_cities`, используйте CLI-миграцию:
 
 ```bash

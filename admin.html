@@ -320,6 +320,19 @@
       </div>
 
       <div class="card">
+        <div class="muted">Перенос: Вольные Города → Особые Территории</div>
+        <div class="small" style="margin-top:8px;">Отметь сущности списком и нажми «Перенести». Провинции с выбранными ID будут автоматически перелинкованы: <code>free_city_id → special_territory_id</code>.</div>
+        <div class="btnrow" style="margin-top:10px;">
+          <button id="splitSelectAll" type="button">Выбрать все</button>
+          <button id="splitSelectNone" type="button">Снять выбор</button>
+          <button id="splitDryRun" type="button">Проверить (dry-run)</button>
+          <button id="splitApply" type="button">Перенести</button>
+        </div>
+        <div id="splitFreeCitiesList" class="small" style="margin-top:10px; max-height:180px; overflow:auto; border:1px solid #2b3f56; border-radius:8px; padding:8px;">Список будет загружен…</div>
+        <div id="splitStatus" class="small" style="margin-top:8px; white-space:pre-wrap;">—</div>
+      </div>
+
+      <div class="card">
         <div class="muted">Слой «Малые Дома» для выбранного Большого Дома</div>
         <div class="grid" style="margin-top:10px;">
           <label>Большой Дом</label>

@@ -39,31 +39,11 @@ if ($fromFile !== null && $fromFile !== '') {
   $state = api_load_state();
 }
 
-if (!isset($state['free_cities']) || !is_array($state['free_cities'])) $state['free_cities'] = [];
-if (!isset($state['special_territories']) || !is_array($state['special_territories'])) $state['special_territories'] = [];
-
-$moved = [];
-$missing = [];
-foreach ($ids as $id) {
-  if (!array_key_exists($id, $state['free_cities'])) {
-    $missing[] = $id;
-    continue;
-  }
-  $state['special_territories'][$id] = $state['free_cities'][$id];
-  unset($state['free_cities'][$id]);
-  $moved[] = $id;
-}
-
-$relinked = 0;
-foreach (($state['provinces'] ?? []) as &$pd) {
-  if (!is_array($pd)) continue;
-  $fc = trim((string)($pd['free_city_id'] ?? ''));
-  if ($fc === '' || !in_array($fc, $moved, true)) continue;
-  $pd['special_territory_id'] = $fc;
-  $pd['free_city_id'] = '';
-  $relinked++;
-}
-unset($pd);
+$res = api_split_free_cities_state($state, $ids);
+$moved = (array)($res['moved_ids'] ?? []);
+$missing = (array)($res['missing_ids'] ?? []);
+$relinked = (int)($res['relinked_provinces'] ?? 0);
+$state = (array)($res['state'] ?? $state);
 
 $out = [
   'ok' => true,

@@ -456,6 +456,76 @@ function api_build_migrated_bundle(array $state, bool $includeLegacySvg = false)
 }
 
 
+
+
+function api_split_free_cities_state(array $state, array $ids): array {
+  if (!isset($state['free_cities']) || !is_array($state['free_cities'])) $state['free_cities'] = [];
+  if (!isset($state['special_territories']) || !is_array($state['special_territories'])) $state['special_territories'] = [];
+
+  $cleanIds = [];
+  foreach ($ids as $id) {
+    $v = trim((string)$id);
+    if ($v === '') continue;
+    $cleanIds[$v] = true;
+  }
+  $cleanIds = array_keys($cleanIds);
+
+  $moved = [];
+  $missing = [];
+  foreach ($cleanIds as $id) {
+    if (!array_key_exists($id, $state['free_cities'])) {
+      $missing[] = $id;
+      continue;
+    }
+    $state['special_territories'][$id] = $state['free_cities'][$id];
+    unset($state['free_cities'][$id]);
+    $moved[] = $id;
+  }
+
+  $relinked = 0;
+  foreach (($state['provinces'] ?? []) as &$pd) {
+    if (!is_array($pd)) continue;
+    $fc = trim((string)($pd['free_city_id'] ?? ''));
+    if ($fc === '' || !in_array($fc, $moved, true)) continue;
+    $pd['special_territory_id'] = $fc;
+    $pd['free_city_id'] = '';
+    $relinked++;
+  }
+  unset($pd);
+
+  if (!empty($moved)) $state['generated_utc'] = gmdate('c');
+
+  return [
+    'ok' => true,
+    'state' => $state,
+    'moved_ids' => $moved,
+    'missing_ids' => $missing,
+    'moved_total' => count($moved),
+    'missing_total' => count($missing),
+    'relinked_provinces' => $relinked,
+  ];
+}
+
+function api_validate_split_free_cities_payload(array $payload): array {
+  $allowedTop = ['ids', 'dry_run', 'if_match'];
+  foreach ($payload as $k => $_) {
+    if (!in_array((string)$k, $allowedTop, true)) return ['ok' => false, 'error' => 'invalid_payload_field', 'field' => (string)$k];
+  }
+  if (!isset($payload['ids']) || !is_array($payload['ids'])) {
+    return ['ok' => false, 'error' => 'invalid_payload', 'required' => ['ids:list', 'dry_run?:bool', 'if_match:string(header or body)']];
+  }
+  foreach ($payload['ids'] as $i => $id) {
+    if (!is_scalar($id)) return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'ids.' . (string)$i];
+  }
+  if (array_key_exists('dry_run', $payload) && !is_bool($payload['dry_run'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'dry_run'];
+  }
+  if (array_key_exists('if_match', $payload) && !is_string($payload['if_match'])) {
+    return ['ok' => false, 'error' => 'invalid_payload_type', 'field' => 'if_match'];
+  }
+  return ['ok' => true];
+}
+
 function api_validate_state_snapshot_shape(array $state): array {
   $expectedArrays = ['provinces', 'kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories', 'people', 'terrain_types', 'treaties'];
   foreach ($expectedArrays as $k) {
