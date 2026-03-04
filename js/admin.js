@@ -2029,8 +2029,17 @@
     if (!armyMarkersLayer) return;
     const marker = document.createElement("div");
     marker.className = isFeudal ? "army-marker army-marker--feudal" : "army-marker";
-    marker.style.left = `${Math.round(Number(xPx) || 0)}px`;
-    marker.style.top = `${Math.round(Number(yPx) || 0)}px`;
+    const mapW = Number(mapInstanceRef && mapInstanceRef.W) || 0;
+    const mapH = Number(mapInstanceRef && mapInstanceRef.H) || 0;
+    const x = Number(xPx) || 0;
+    const y = Number(yPx) || 0;
+    if (mapW > 0 && mapH > 0) {
+      marker.style.left = `${(x / mapW) * 100}%`;
+      marker.style.top = `${(y / mapH) * 100}%`;
+    } else {
+      marker.style.left = `${Math.round(x)}px`;
+      marker.style.top = `${Math.round(y)}px`;
+    }
     marker.style.background = colorHex;
     marker.title = label;
     if (emblemSrc) {
