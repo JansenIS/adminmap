@@ -1746,14 +1746,22 @@
     return rows;
   }
 
-  function arrierbanDomainUnitDefs(catalog) {
+  function canSummonPalatinesAndPreventors(mode) {
+    return mode === "kingdoms" || mode === "great_houses";
+  }
+
+  function arrierbanDomainUnitDefs(mode, catalog) {
     const mk = (source, id) => ({ source, id, name: String((catalog[id] || {}).name || id), baseSize: Number((catalog[id] || {}).baseSize) || 1 });
-    return [
+    const defs = [
       mk("militia", "militia"), mk("militia", "militia_tr"),
       mk("sergeants", "shot"), mk("sergeants", "pikes"), mk("sergeants", "assault150"),
-      mk("nehts", "bikes"),
-      mk("knights", "palatines"), mk("knights", "preventors100"),
+      mk("nehts", "bikes"), mk("nehts", "dragoons"), mk("nehts", "ulans"), mk("nehts", "foot_nehts"),
+      mk("knights", "foot_knights"), mk("knights", "moto_knights"),
     ];
+    if (canSummonPalatinesAndPreventors(mode)) {
+      defs.push(mk("knights", "palatines"), mk("knights", "preventors100"));
+    }
+    return defs;
   }
 
   function unitCategoryLabel(source) {
@@ -1764,7 +1772,7 @@
   function resolveUnitCategory(unit) {
     const source = String(unit && unit.source || "");
     if (["militia", "sergeants", "nehts", "knights"].includes(source)) return source;
-    const byId = { militia: "militia", militia_tr: "militia", shot: "sergeants", pikes: "sergeants", assault150: "sergeants", bikes: "nehts", palatines: "knights", preventors100: "knights" };
+    const byId = { militia: "militia", militia_tr: "militia", shot: "sergeants", pikes: "sergeants", assault150: "sergeants", bikes: "nehts", dragoons: "nehts", ulans: "nehts", foot_nehts: "nehts", palatines: "knights", preventors100: "knights", foot_knights: "knights", moto_knights: "knights" };
     return byId[String(unit && unit.unit_id || "")] || "other";
   }
 
@@ -1777,8 +1785,9 @@
     }).join(", ");
   }
 
-  function arrierbanRandomVassalArmies(calc, catalog) {
-    const ids = ["militia", "militia_tr", "shot", "pikes", "assault150", "bikes", "palatines", "preventors100"];
+  function arrierbanRandomVassalArmies(mode, calc, catalog) {
+    const ids = ["militia", "militia_tr", "shot", "pikes", "assault150", "bikes", "dragoons", "ulans", "foot_nehts", "foot_knights", "moto_knights"];
+    if (canSummonPalatinesAndPreventors(mode)) ids.push("palatines", "preventors100");
     const armies = [];
     const sources = Array.isArray(calc && calc.supportingSources) ? calc.supportingSources : [];
     for (const src of sources) {
@@ -1907,7 +1916,7 @@
       for (const key of fallbackOrder) {
         if ((Number(plan.calc.pools[key]) || 0) > 0) { fallbackSource = key; break; }
       }
-      const allDefs = arrierbanDomainUnitDefs(plan.catalog || {});
+      const allDefs = arrierbanDomainUnitDefs(plan.type, plan.catalog || {});
       if (!fallbackSource && allDefs.length) fallbackSource = String(allDefs[0].source || "militia");
       const defs = allDefs.find((x) => String(x.source) === fallbackSource) || allDefs[0] || null;
       if (!defs) return { ok: false, error: "Невозможно собрать армию: отсутствует базовый шаблон отряда." };
@@ -2805,7 +2814,7 @@
           return;
         }
         const calc = calculateArrierbanForRealm(type, id);
-        const domainDefs = arrierbanDomainUnitDefs((data && data.UNIT_CATALOG) || {});
+        const domainDefs = arrierbanDomainUnitDefs(type, (data && data.UNIT_CATALOG) || {});
         openArrierbanModal({ type, id, calc, catalog: (data && data.UNIT_CATALOG) || {}, domainDefs, domainOnly: !!domainOnly });
       } catch (err) {
         realmArrierbanOutput.textContent = "Не удалось подготовить арьербан: " + (err && err.message ? err.message : err);
@@ -2847,7 +2856,7 @@
         if (arrierbanValidation) arrierbanValidation.textContent = collected.error || "Проверьте распределение.";
         return;
       }
-      const vassalArmies = plan.domainOnly ? [] : arrierbanRandomVassalArmies(plan.calc, plan.catalog);
+      const vassalArmies = plan.domainOnly ? [] : arrierbanRandomVassalArmies(plan.type, plan.calc, plan.catalog);
       const vassalUnits = vassalArmies.flatMap((a) => Array.isArray(a.units) ? a.units : []);
       realm.arrierban_units = collected.units;
       realm.arrierban_vassal_armies = vassalArmies;
