@@ -338,6 +338,24 @@
     if (realmRulingHouseInput.value !== current) realmRulingHouseInput.value = '';
   }
 
+  function rebuildVassalHousesSelect() {
+    if (!realmVassalHousesInput) return;
+    const current = new Set(Array.from(realmVassalHousesInput.selectedOptions || []).map((opt) => String(opt.value || "").trim()).filter(Boolean));
+    const kingdomMode = realmTypeSelect && realmTypeSelect.value === "kingdoms";
+    realmVassalHousesInput.innerHTML = "";
+    const houses = Object.entries((state && state.great_houses) || {})
+      .map(([id, house]) => ({ id, name: String(house && house.name || id).trim() || id }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    for (const house of houses) {
+      const opt = document.createElement("option");
+      opt.value = house.id;
+      opt.textContent = `${house.name} (${house.id})`;
+      if (current.has(house.id)) opt.selected = true;
+      realmVassalHousesInput.appendChild(opt);
+    }
+    realmVassalHousesInput.disabled = !kingdomMode;
+  }
+
   function applyTurnTreasuryToProvinceState(rows) {
     if (!state || !state.provinces || !Array.isArray(rows)) return 0;
     let updated = 0;
@@ -1593,6 +1611,7 @@
     for (const [id, realm] of buildRealmEntries(type)) { const o = document.createElement("option"); o.value = id; o.textContent = realm.name || id; realmSelect.appendChild(o); }
     realmSelect.value = cur;
     rebuildRulingHouseSelect();
+    rebuildVassalHousesSelect();
     loadRealmFields();
   }
 
@@ -1643,7 +1662,10 @@
     realmNameInput.value = realm ? (realm.name || id) : "";
     realmRulerInput.value = realm ? String(displayRuler || "") : "";
     if (realmRulingHouseInput) realmRulingHouseInput.value = type === "kingdoms" ? String(realm && realm.ruling_house_id || "") : "";
-    if (realmVassalHousesInput) realmVassalHousesInput.value = type === "kingdoms" ? ((Array.isArray(realm && realm.vassal_house_ids) ? realm.vassal_house_ids : []).join(", ")) : "";
+    if (realmVassalHousesInput) {
+      const selected = new Set(type === "kingdoms" ? (Array.isArray(realm && realm.vassal_house_ids) ? realm.vassal_house_ids : []) : []);
+      for (const opt of Array.from(realmVassalHousesInput.options || [])) opt.selected = selected.has(String(opt.value || ""));
+    }
     realmColorInput.value = realm && realm.color ? realm.color : "#ff3b30";
     realmCapitalInput.value = displayCapitalPid ? String(displayCapitalPid) : "";
     realmEmblemScaleInput.value = String(realm && realm.emblem_scale ? realm.emblem_scale : 1);
@@ -2770,7 +2792,9 @@
       realm.capital_pid = Number(realmCapitalInput.value) >>> 0;
       if (type === "kingdoms") {
         realm.ruling_house_id = String(realmRulingHouseInput && realmRulingHouseInput.value || "").trim();
-        realm.vassal_house_ids = parseManualList(realmVassalHousesInput && realmVassalHousesInput.value, false).map((v) => String(v || "").trim()).filter(Boolean);
+        realm.vassal_house_ids = Array.from((realmVassalHousesInput && realmVassalHousesInput.selectedOptions) || [])
+          .map((opt) => String(opt && opt.value || "").trim())
+          .filter(Boolean);
         const rulingHouse = realm.ruling_house_id ? ((state.great_houses || {})[realm.ruling_house_id] || null) : null;
         if (rulingHouse && typeof rulingHouse === "object") {
           realm.ruler = ensurePerson(rulingHouse.ruler);
