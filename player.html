@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Панель игрока</title>
+  <style>
+    body{margin:0;background:#071018;color:#e8f1ff;font-family:Inter,system-ui,sans-serif}
+    .layout{display:grid;grid-template-columns:390px 1fr;height:100vh}
+    .side{overflow:auto;padding:14px;border-right:1px solid #1c3347;background:#0d1824}
+    .card{background:#111f2d;border:1px solid #27435c;border-radius:14px;padding:12px;margin-bottom:12px}
+    h1{margin:0 0 8px;font-size:18px}.muted{color:#9db4cb;font-size:12px}
+    input,textarea,select,button{width:100%;box-sizing:border-box;background:#0a1520;color:#eef5ff;border:1px solid #2a4760;border-radius:10px;padding:8px}
+    textarea{min-height:78px} button{cursor:pointer;font-weight:700}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .kv{font-size:12px;line-height:1.55}.kv b{display:inline-block;min-width:100px;color:#9db4cb}
+    #mapWrap{position:relative;display:inline-block} #baseMap,canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+    .map{overflow:auto;padding:14px}
+    .status{font-size:12px;color:#9bd39f}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="side">
+      <h1>Панель игрока</h1>
+      <div class="muted" id="entityName">Загрузка…</div>
+
+      <div class="card">
+        <div>Казна: <b id="treasury">0</b></div>
+        <div>Население: <b id="population">0</b></div>
+        <div class="muted" id="musterCap"></div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Режим отображения карты</div>
+        <select id="viewMode" style="margin-top:8px;">
+          <option value="provinces">Физическая карта</option>
+          <option value="kingdoms">Королевства</option>
+          <option value="great_houses">Большие Дома</option>
+          <option value="minor_houses">Малые Дома</option>
+          <option value="free_cities">Вольные Города</option>
+          <option value="special_territories">Особые Территории</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="muted">Провинция под курсором/выбором</div>
+        <div class="kv">
+          <div><b>Название</b><span id="infoName">—</span></div>
+          <div><b>PID</b><span id="infoPid">—</span></div>
+          <div><b>Владелец</b><span id="infoOwner">—</span></div>
+          <div><b>Сюзерен</b><span id="infoSuzerain">—</span></div>
+          <div><b>Сеньор</b><span id="infoSenior">—</span></div>
+          <div><b>Местность</b><span id="infoTerrain">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Сущность</h3>
+        <textarea id="entityDesc" placeholder="Описание сущности"></textarea>
+        <input id="entityImage" placeholder="URL изображения" />
+        <textarea id="entityEmblem" placeholder="SVG герба сущности"></textarea>
+        <button id="saveEntity">Сохранить сущность</button>
+      </div>
+
+      <div class="card">
+        <h3>Провинция (только свои)</h3>
+        <select id="provinceSelect"></select>
+        <textarea id="provinceDesc" placeholder="Описание провинции"></textarea>
+        <input id="provinceImage" placeholder="URL картинки провинции" />
+        <textarea id="provinceEmblem" placeholder="SVG герба провинции"></textarea>
+        <button id="saveProvince">Сохранить провинцию</button>
+      </div>
+
+      <div class="card">
+        <h3>Армии</h3>
+        <div class="row"><input id="musterPid" placeholder="PID" /><input id="musterSize" placeholder="Численность" /></div>
+        <input id="musterName" placeholder="Название армии" />
+        <button id="musterBtn">Созвать арьербан</button>
+        <select id="armySelect"></select>
+        <div class="row"><input id="movePid" placeholder="PID перемещения" /><button id="moveBtn">Переместить</button></div>
+        <button id="disbandBtn">Распустить без потерь</button>
+      </div>
+      <div class="status" id="status"></div>
+    </aside>
+    <main class="map">
+      <div id="mapWrap">
+        <img id="baseMap" src="map.png" alt="map" />
+        <canvas id="fill"></canvas><canvas id="emblems"></canvas><canvas id="hover"></canvas>
+      </div>
+    </main>
+  </div>
+  <script src="js/app_core.js"></script>
+  <script src="js/player.js"></script>
+</body>
+</html>

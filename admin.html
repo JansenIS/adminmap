@@ -87,6 +87,25 @@
       <h1>Админка: провинции</h1>
       <div class="muted">Клик по провинции — выбор. Данные и гербы сохраняются в backend API.</div>
 
+
+      <div class="card">
+        <div class="muted">Ссылка игрока на 24 часа</div>
+        <div class="grid" style="margin-top:8px; grid-template-columns:120px 1fr;">
+          <label>Тип сущности</label>
+          <select id="playerTokenEntityType">
+            <option value="kingdoms">Королевство</option>
+            <option value="great_houses">Большой Дом</option>
+            <option value="minor_houses">Малый Дом</option>
+            <option value="free_cities">Вольный Город</option>
+            <option value="special_territories">Особая территория</option>
+          </select>
+          <label>ID сущности</label>
+          <input id="playerTokenEntityId" type="text" placeholder="например: drachenland" />
+        </div>
+        <div class="btnrow"><button id="playerTokenCreateBtn" type="button">Сгенерировать готовую ссылку</button></div>
+        <input id="playerTokenLink" type="text" readonly placeholder="Ссылка появится здесь" style="margin-top:8px;" />
+      </div>
+
       <div class="card">
         <div class="muted">Режим миграции</div>
         <div id="flagsStatus" class="small" style="margin-top:6px;">Флаги: backend</div>
@@ -514,5 +533,6 @@
   <script src="js/state_loader.js"></script>
   <script src="js/app_core.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/admin_player_tokens.js"></script>
 </body>
 </html>
