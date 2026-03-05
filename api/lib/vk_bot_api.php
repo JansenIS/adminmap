@@ -51,6 +51,15 @@ function vk_bot_log_error(string $message): void {
   @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . ' ' . $message . "\n", FILE_APPEND);
 }
 
+function vk_bot_set_last_render_error(?string $reason): void {
+  $GLOBALS['vk_bot_last_render_error'] = $reason;
+}
+
+function vk_bot_get_last_render_error(): ?string {
+  $reason = $GLOBALS['vk_bot_last_render_error'] ?? null;
+  return is_string($reason) && $reason !== '' ? $reason : null;
+}
+
 function vk_bot_slug(string $value): string {
   $v = preg_replace('/[^\pL\pN]+/u', '_', trim($value));
   $v = trim((string)$v, '_');
@@ -160,7 +169,9 @@ function vk_bot_free_provinces_for_territory(array $state, string $type, string 
 }
 
 function vk_bot_render_territory_free_map(array $state, string $territoryType, string $territoryId, array $freeProvinces): ?string {
+  vk_bot_set_last_render_error(null);
   if (!function_exists('imagecreatetruecolor')) {
+    vk_bot_set_last_render_error('gd_extension_missing');
     vk_bot_log_error('render_map_error: gd_extension_missing');
     return null;
   }
@@ -168,10 +179,12 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   $meta = vk_bot_load_json_file($root . '/provinces.json', []);
   $mask = @imagecreatefrompng($root . '/provinces_id.png');
   if (!is_array($meta['provinces'] ?? null)) {
+    vk_bot_set_last_render_error('provinces_meta_missing_or_invalid');
     vk_bot_log_error('render_map_error: provinces_meta_missing_or_invalid');
     return null;
   }
   if (!$mask) {
+    vk_bot_set_last_render_error('provinces_id_png_unreadable');
     vk_bot_log_error('render_map_error: provinces_id_png_unreadable');
     return null;
   }
@@ -194,6 +207,7 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     $allPids[] = (int)$pid;
   }
   if (empty($allPids)) {
+    vk_bot_set_last_render_error('no_territory_provinces_found');
     vk_bot_log_error('render_map_error: no_territory_provinces_found type=' . $territoryType . ' id=' . $territoryId);
     return null;
   }
@@ -206,6 +220,7 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     $maxX = max($maxX, (int)$bbox[2]); $maxY = max($maxY, (int)$bbox[3]);
   }
   if ($maxX <= $minX || $maxY <= $minY) {
+    vk_bot_set_last_render_error('invalid_bbox_for_territory');
     vk_bot_log_error('render_map_error: invalid_bbox_for_territory type=' . $territoryType . ' id=' . $territoryId);
     return null;
   }
@@ -248,12 +263,14 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
 
   $dir = $root . '/data/vk_bot/territory_images';
   if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+    vk_bot_set_last_render_error('cannot_create_output_dir');
     vk_bot_log_error('render_map_error: cannot_create_output_dir path=' . $dir);
     return null;
   }
   $name = $territoryType . '_' . vk_bot_slug($territoryId) . '_' . date('Ymd_His') . '_' . random_int(1000, 9999) . '.png';
   $full = $dir . '/' . $name;
   if (!imagepng($img, $full)) {
+    vk_bot_set_last_render_error('imagepng_failed');
     vk_bot_log_error('render_map_error: imagepng_failed path=' . $full);
     imagedestroy($img);
     imagedestroy($mask);
