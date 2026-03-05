@@ -12,6 +12,40 @@
   };
 
   async function fetchEntitiesByType(type) {
+    if (type === 'minor_houses') {
+      const [great, special] = await Promise.all([
+        fetch('/api/realms/?type=great_houses&profile=compact', { cache: 'no-store' }),
+        fetch('/api/realms/?type=special_territories&profile=compact', { cache: 'no-store' }),
+      ]);
+      if (!great.ok) throw new Error(`HTTP ${great.status}`);
+      if (!special.ok) throw new Error(`HTTP ${special.status}`);
+      const greatPayload = await great.json();
+      const specialPayload = await special.json();
+      const out = [];
+      const collect = (parentType, payload) => {
+        const realms = Array.isArray(payload && payload.items) ? payload.items : [];
+        for (const realm of realms) {
+          if (!realm || typeof realm !== 'object') continue;
+          const parentId = String(realm.id || '').trim();
+          if (!parentId) continue;
+          const layer = realm.minor_house_layer;
+          if (!layer || typeof layer !== 'object' || !Array.isArray(layer.vassals)) continue;
+          for (const v of layer.vassals) {
+            if (!v || typeof v !== 'object') continue;
+            const vassalId = String(v.id || '').trim();
+            if (!vassalId) continue;
+            out.push({
+              id: `vassal:${parentType}:${parentId}:${vassalId}`,
+              name: String(v.name || vassalId),
+            });
+          }
+        }
+      };
+      collect('great_houses', greatPayload);
+      collect('special_territories', specialPayload);
+      return out;
+    }
+
     const res = await fetch(`/api/realms/?type=${encodeURIComponent(type)}&profile=compact`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
@@ -35,23 +69,25 @@
     if (type !== 'minor_houses') return [];
 
     const out = new Map();
-    const collect = (bucket) => {
+    const collect = (parentType, bucket) => {
       if (!bucket || typeof bucket !== 'object') return;
-      for (const realm of Object.values(bucket)) {
+      for (const [parentId, realm] of Object.entries(bucket)) {
         if (!realm || typeof realm !== 'object') continue;
         const layer = realm.minor_house_layer;
         if (!layer || typeof layer !== 'object' || !Array.isArray(layer.vassals)) continue;
         for (const v of layer.vassals) {
           if (!v || typeof v !== 'object') continue;
           const id = String(v.id || '').trim();
-          if (!id || out.has(id)) continue;
+          if (!id) continue;
+          const key = `vassal:${parentType}:${String(parentId).trim()}:${id}`;
+          if (out.has(key)) continue;
           const name = String(v.name || id).trim() || id;
-          out.set(id, { id, name });
+          out.set(key, { id: key, name });
         }
       }
     };
-    collect(state.great_houses);
-    collect(state.special_territories);
+    collect('great_houses', state.great_houses);
+    collect('special_territories', state.special_territories);
     return Array.from(out.values());
   }
 
@@ -61,6 +97,9 @@
     let list = [];
     try {
       list = await fetchEntitiesByType(type);
+      if (!list.length && type === 'minor_houses') {
+        list = entitiesByType(type);
+      }
     } catch (err) {
       list = entitiesByType(type);
     }
@@ -83,12 +122,7 @@
 
   typeEl.addEventListener('change', refill);
 
-  const initInterval = setInterval(() => {
-    if (window.state && Object.keys(window.state).length) {
-      clearInterval(initInterval);
-      refill();
-    }
-  }, 150);
+  refill();
 
   btn.addEventListener('click', async () => {
     const entity_type = String(typeEl.value || '');
