@@ -19,7 +19,6 @@ if ($session === null) api_json_response(['error' => 'invalid_or_expired_token']
 
 $entityType = (string)$session['entity']['type'];
 $entityId = (string)$session['entity']['id'];
-$owned = array_flip($session['owned_pids']);
 $realm =& $state[$entityType][$entityId];
 
 if (!is_array($realm['arrierban_units'] ?? null)) $realm['arrierban_units'] = [];
@@ -61,6 +60,26 @@ $sanitizeArmy = static function (array $army) use ($normalizeUnits): array {
     'size' => $size,
   ];
 };
+
+$canSummonPalatinesAndPreventors = static function (string $mode): bool {
+  return $mode === 'kingdoms' || $mode === 'great_houses';
+};
+
+$unitCatalog = [
+  'militia' => ['name' => 'Крестьянское ополчение', 'base_size' => 1000],
+  'militia_tr' => ['name' => 'Тренированное крестьянское ополчение', 'base_size' => 1000],
+  'shot' => ['name' => 'Ополчение с электропневматикой', 'base_size' => 500],
+  'pikes' => ['name' => 'Ополчение с электрокопьями', 'base_size' => 500],
+  'assault150' => ['name' => 'Штурмовая баталия', 'base_size' => 150],
+  'bikes' => ['name' => 'Рейтары', 'base_size' => 50],
+  'dragoons' => ['name' => 'Драгуны', 'base_size' => 50],
+  'ulans' => ['name' => 'Уланы', 'base_size' => 50],
+  'foot_nehts' => ['name' => 'Пешие нехты', 'base_size' => 100],
+  'foot_knights' => ['name' => 'Пешие рыцари', 'base_size' => 100],
+  'moto_knights' => ['name' => 'Мотоконные рыцари', 'base_size' => 20],
+  'palatines' => ['name' => 'Палатинские всадники', 'base_size' => 20],
+  'preventors100' => ['name' => 'Пешие превенторы', 'base_size' => 100],
+];
 
 $collectProvinceIdsForArrierban = static function (string $mode, string $id, array $realmObj) use ($state): array {
   $pids = [];
@@ -120,6 +139,39 @@ $calculateArrierbanForRealm = static function (string $mode, string $id, array $
 
   $supportingSources = [];
   $triggerChance = max(0, min(100, $loyaltyCoeff + $warlikeCoeff));
+  if ($mode === 'kingdoms') {
+    $rulingHouseId = trim((string)($realmObj['ruling_house_id'] ?? ''));
+    $seenGreat = [];
+    if ($rulingHouseId !== '') $seenGreat[$rulingHouseId] = true;
+
+    $explicitVassalIds = [];
+    if (is_array($realmObj['vassal_house_ids'] ?? null)) {
+      foreach ($realmObj['vassal_house_ids'] as $raw) {
+        $ghId = trim((string)$raw);
+        if ($ghId !== '') $explicitVassalIds[$ghId] = true;
+      }
+    }
+    foreach (array_keys($explicitVassalIds) as $ghId) {
+      if (isset($seenGreat[$ghId])) continue;
+      $gh = $state['great_houses'][$ghId] ?? null;
+      if (!is_array($gh)) continue;
+      if ((mt_rand() / mt_getrandmax()) * 100 >= $triggerChance) continue;
+      $seenGreat[$ghId] = true;
+      $supportingSources[] = ['id' => 'vassal_great_house:' . $ghId, 'name' => (string)($gh['name'] ?? $ghId), 'kind' => 'vassal', 'muster_pid' => (int)($gh['capital_pid'] ?? $gh['capital_key'] ?? 0)];
+    }
+
+    foreach (($state['provinces'] ?? []) as $pd) {
+      if (!is_array($pd)) continue;
+      if (trim((string)($pd['kingdom_id'] ?? '')) !== $id) continue;
+      $ghId = trim((string)($pd['great_house_id'] ?? ''));
+      if ($ghId === '' || isset($seenGreat[$ghId])) continue;
+      $gh = $state['great_houses'][$ghId] ?? null;
+      if (!is_array($gh)) continue;
+      if ((mt_rand() / mt_getrandmax()) * 100 >= $triggerChance) continue;
+      $seenGreat[$ghId] = true;
+      $supportingSources[] = ['id' => 'vassal_great_house:' . $ghId, 'name' => (string)($gh['name'] ?? $ghId), 'kind' => 'vassal', 'muster_pid' => (int)($gh['capital_pid'] ?? $gh['capital_key'] ?? 0)];
+    }
+  }
   if ($mode === 'great_houses') {
     $layer = is_array($realmObj['minor_house_layer'] ?? null) ? $realmObj['minor_house_layer'] : null;
     if ($layer && is_array($layer['vassals'] ?? null)) {
@@ -132,37 +184,71 @@ $calculateArrierbanForRealm = static function (string $mode, string $id, array $
         if ($musterPid <= 0 && is_array($v['province_pids'] ?? null) && count($v['province_pids'])) $musterPid = (int)$v['province_pids'][0];
         $supportingSources[] = ['id' => 'vassal:' . $vid, 'name' => (string)($v['name'] ?? $vid), 'kind' => 'vassal', 'muster_pid' => $musterPid];
       }
+      $assigned = [];
+      foreach ((is_array($layer['domain_pids'] ?? null) ? $layer['domain_pids'] : []) as $raw) {
+        $pid = (int)$raw;
+        if ($pid > 0) $assigned[$pid] = true;
+      }
+      foreach ($layer['vassals'] as $v) {
+        if (!is_array($v)) continue;
+        foreach ((is_array($v['province_pids'] ?? null) ? $v['province_pids'] : []) as $raw) {
+          $pid = (int)$raw;
+          if ($pid > 0) $assigned[$pid] = true;
+        }
+      }
+      foreach (($state['provinces'] ?? []) as $pd) {
+        if (!is_array($pd)) continue;
+        if (trim((string)($pd['great_house_id'] ?? '')) !== $id) continue;
+        $pid = (int)($pd['pid'] ?? 0);
+        if ($pid <= 0 || isset($assigned[$pid])) continue;
+        if ((mt_rand() / mt_getrandmax()) * 100 >= $triggerChance) continue;
+        $realmCapitalPid = (int)($realmObj['capital_pid'] ?? 0);
+        if ($realmCapitalPid <= 0 && count($domainPids)) $realmCapitalPid = (int)$domainPids[0];
+        $supportingSources[] = ['id' => 'unassigned:' . $pid, 'name' => 'Неназначенная провинция ' . $pid, 'kind' => 'unassigned', 'muster_pid' => $realmCapitalPid];
+      }
     }
   }
 
   return ['realm' => $realmObj, 'domainPids' => $domainPids, 'pools' => $pools, 'supportingSources' => $supportingSources];
 };
 
-$arrierbanDomainUnitDefs = static function (): array {
-  return [
-    ['source' => 'militia', 'id' => 'militia', 'name' => 'Милиция', 'base_size' => 1],
-    ['source' => 'sergeants', 'id' => 'sergeants', 'name' => 'Сержанты', 'base_size' => 1],
-    ['source' => 'nehts', 'id' => 'nehts', 'name' => 'Нейты', 'base_size' => 1],
-    ['source' => 'knights', 'id' => 'knights', 'name' => 'Рыцари', 'base_size' => 1],
+$arrierbanDomainUnitDefs = static function (string $mode) use ($unitCatalog, $canSummonPalatinesAndPreventors): array {
+  $mk = static function (string $source, string $id) use ($unitCatalog): array {
+    $cfg = $unitCatalog[$id] ?? ['name' => $id, 'base_size' => 1];
+    return ['source' => $source, 'id' => $id, 'name' => (string)$cfg['name'], 'base_size' => max(1, (int)($cfg['base_size'] ?? 1))];
+  };
+  $defs = [
+    $mk('militia', 'militia'), $mk('militia', 'militia_tr'),
+    $mk('sergeants', 'shot'), $mk('sergeants', 'pikes'), $mk('sergeants', 'assault150'),
+    $mk('nehts', 'bikes'), $mk('nehts', 'dragoons'), $mk('nehts', 'ulans'), $mk('nehts', 'foot_nehts'),
+    $mk('knights', 'foot_knights'), $mk('knights', 'moto_knights'),
   ];
+  if ($canSummonPalatinesAndPreventors($mode)) {
+    $defs[] = $mk('knights', 'palatines');
+    $defs[] = $mk('knights', 'preventors100');
+  }
+  return $defs;
 };
 
-$defaultUnitsFromPools = static function (array $pools) use ($arrierbanDomainUnitDefs): array {
-  $defs = $arrierbanDomainUnitDefs();
+$defaultUnitsFromPools = static function (string $mode, array $pools) use ($arrierbanDomainUnitDefs): array {
+  $defs = $arrierbanDomainUnitDefs($mode);
+  $picked = [];
   $out = [];
   foreach ($defs as $d) {
     $source = (string)$d['source'];
+    if (isset($picked[$source])) continue;
     $size = max(0, (int)($pools[$source] ?? 0));
     if ($size <= 0) continue;
+    $picked[$source] = true;
     $out[] = ['source' => $source, 'unit_id' => (string)$d['id'], 'unit_name' => (string)$d['name'], 'size' => $size, 'base_size' => (int)$d['base_size']];
   }
   return $out;
 };
 
-$collectUnitsFromPayload = static function ($rows, array $pools) use ($arrierbanDomainUnitDefs, $normalizeUnits): array {
+$collectUnitsFromPayload = static function (string $mode, $rows, array $pools) use ($arrierbanDomainUnitDefs): array {
   if (!is_array($rows) || !count($rows)) return [];
   $defs = [];
-  foreach ($arrierbanDomainUnitDefs() as $def) {
+  foreach ($arrierbanDomainUnitDefs($mode) as $def) {
     if (!is_array($def)) continue;
     $defs[trim((string)($def['id'] ?? ''))] = $def;
   }
@@ -189,7 +275,37 @@ $collectUnitsFromPayload = static function ($rows, array $pools) use ($arrierban
       'base_size' => max(1, (int)($def['base_size'] ?? 1)),
     ];
   }
-  return $normalizeUnits($out);
+  return $out;
+};
+
+$arrierbanRandomVassalArmies = static function (string $mode, array $calc) use ($unitCatalog, $canSummonPalatinesAndPreventors): array {
+  $ids = ['militia', 'militia_tr', 'shot', 'pikes', 'assault150', 'bikes', 'dragoons', 'ulans', 'foot_nehts', 'foot_knights', 'moto_knights'];
+  if ($canSummonPalatinesAndPreventors($mode)) {
+    $ids[] = 'palatines';
+    $ids[] = 'preventors100';
+  }
+  $armies = [];
+  foreach ((array)($calc['supportingSources'] ?? []) as $src) {
+    if (!is_array($src)) continue;
+    $units = [];
+    $unitCount = 1 + random_int(0, 1);
+    for ($i = 0; $i < $unitCount; $i++) {
+      $id = $ids[random_int(0, max(0, count($ids) - 1))];
+      $cfg = $unitCatalog[$id] ?? null;
+      if (!is_array($cfg)) continue;
+      $base = max(1, (int)($cfg['base_size'] ?? 1));
+      $size = max((int)ceil($base * 0.1), (int)round($base * (0.8 + (mt_rand() / mt_getrandmax()) * 0.6)));
+      $units[] = ['source' => 'vassal_random', 'unit_id' => $id, 'unit_name' => (string)($cfg['name'] ?? $id), 'size' => $size, 'base_size' => $base];
+    }
+    $armies[] = [
+      'army_id' => (string)($src['id'] ?? ('feudal_' . (count($armies) + 1))),
+      'army_name' => (string)($src['name'] ?? ('Феодальная армия ' . (count($armies) + 1))),
+      'army_kind' => (string)($src['kind'] ?? 'vassal'),
+      'muster_pid' => (int)($src['muster_pid'] ?? 0),
+      'units' => $units,
+    ];
+  }
+  return $armies;
 };
 
 $composeArmies = static function (array $realmObj) use ($normalizeUnits): array {
@@ -332,30 +448,17 @@ if ($action === 'muster_plan' || $action === 'muster') {
       'mode' => $mode,
       'pools' => (array)($calc['pools'] ?? []),
       'supporting_sources' => array_values((array)($calc['supportingSources'] ?? [])),
-      'domain_unit_defs' => $arrierbanDomainUnitDefs(),
-      'default_units' => $defaultUnitsFromPools((array)($calc['pools'] ?? [])),
+      'domain_unit_defs' => $arrierbanDomainUnitDefs($mode === 'royal' ? 'kingdoms' : $entityType),
+      'default_units' => $defaultUnitsFromPools($mode === 'royal' ? 'kingdoms' : $entityType, (array)($calc['pools'] ?? [])),
     ], 200, api_state_mtime());
   }
 
-  $domainUnits = $collectUnitsFromPayload($payload['muster_units'] ?? null, (array)($calc['pools'] ?? []));
-  if (!count($domainUnits)) $domainUnits = $defaultUnitsFromPools((array)($calc['pools'] ?? []));
+  $ruleMode = ($mode === 'royal') ? 'kingdoms' : $entityType;
+  $domainUnits = $collectUnitsFromPayload($ruleMode, $payload['muster_units'] ?? null, (array)($calc['pools'] ?? []));
+  if (!count($domainUnits)) $domainUnits = $defaultUnitsFromPools($ruleMode, (array)($calc['pools'] ?? []));
   if (!count($domainUnits)) api_json_response(['error' => 'muster_empty'], 400, api_state_mtime());
 
-  $vassalArmies = [];
-  if ($mode !== 'domain') {
-    foreach ((array)($calc['supportingSources'] ?? []) as $src) {
-      if (!is_array($src)) continue;
-      $id = trim((string)($src['id'] ?? ''));
-      if ($id === '') continue;
-      $vassalArmies[] = [
-        'army_id' => preg_replace('/[^a-zA-Z0-9_:\-]/', '_', $id),
-        'army_name' => (string)($src['name'] ?? $id),
-        'army_kind' => (string)($src['kind'] ?? 'vassal'),
-        'muster_pid' => (int)($src['muster_pid'] ?? 0),
-        'units' => $defaultUnitsFromPools((array)($calc['pools'] ?? [])),
-      ];
-    }
-  }
+  $vassalArmies = ($mode === 'domain') ? [] : $arrierbanRandomVassalArmies($ruleMode, $calc);
 
   $realm['arrierban_units'] = $domainUnits;
   $realm['arrierban_vassal_armies'] = $vassalArmies;
@@ -374,7 +477,7 @@ if ($action === 'muster_plan' || $action === 'muster') {
   if ($action === 'move') {
     $armyId = trim((string)($payload['army_id'] ?? ''));
     $toPid = (int)($payload['to_pid'] ?? 0);
-    if ($armyId === '' || !isset($owned[$toPid])) api_json_response(['error' => 'invalid_move_payload'], 400, api_state_mtime());
+    if ($armyId === '' || $toPid <= 0) api_json_response(['error' => 'invalid_move_payload'], 400, api_state_mtime());
     $idx = $findArmyIdx($flat, $armyId);
     if ($idx < 0) api_json_response(['error' => 'army_not_found'], 404, api_state_mtime());
 
@@ -406,7 +509,7 @@ if ($action === 'muster_plan' || $action === 'muster') {
     foreach ($rows as &$row) {
       if (!is_array($row)) $row = [];
       $pid = (int)($row['location_pid'] ?? $row['muster_pid'] ?? 0);
-      if ($pid > 0 && !isset($owned[$pid])) api_json_response(['error' => 'army_location_not_owned'], 400, api_state_mtime());
+      if ($pid <= 0) api_json_response(['error' => 'army_location_invalid'], 400, api_state_mtime());
       $row['muster_pid'] = $pid;
     }
     unset($row);

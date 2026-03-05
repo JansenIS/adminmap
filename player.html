@@ -32,16 +32,26 @@
     .modal.open{display:flex}
     .modalCard{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#102131;border:1px solid #32506a;border-radius:14px;padding:14px}
     .modalClose{float:right;width:auto;padding:6px 10px}
-    .armyUnits{margin-top:8px;border:1px solid #2d4c65;border-radius:10px;padding:8px;max-height:220px;overflow:auto}
-    .armyUnitRow{display:grid;grid-template-columns:24px 1fr 70px;gap:8px;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #20384e}
-    .armyUnitRow:last-child{border-bottom:none}
-    .editor-modal{position:fixed;inset:0;background:rgba(3,8,12,.72);display:none;align-items:center;justify-content:center;padding:20px;z-index:40}
+    .editor-modal{position:fixed;inset:0;z-index:120;background:rgba(3,8,12,.72);display:none;align-items:center;justify-content:center;padding:20px}
     .editor-modal.open{display:flex}
-    .editor-modal__card{width:min(920px,98vw);max-height:90vh;overflow:auto;background:#102131;border:1px solid #32506a;border-radius:14px;padding:14px}
-    .arrierban-grid{display:grid;grid-template-columns:1fr 210px;gap:8px;align-items:center;border:1px solid #2b3f56;border-radius:8px;padding:8px;margin-bottom:6px}
+    .editor-modal__window{width:min(900px,98vw);max-height:95vh;overflow:auto;background:#102131;border:1px solid #32506a;border-radius:16px;box-shadow:0 22px 70px rgba(0,0,0,.48)}
+    .editor-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041}
+    .editor-modal__body{padding:16px}
+    .small{font-size:11px;color:#a6b4c5;line-height:1.35}
+    .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .grid{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+    .grid label{font-size:12px;color:#a6b4c5}
+    .arrierban-grid{display:grid;grid-template-columns:1.1fr 110px 90px 130px minmax(220px,1fr);gap:8px;align-items:start}
+    .arrierban-grid__head{font-size:11px;color:#a6b4c5}
+    .arrierban-category{margin-top:12px;border-top:1px solid #2b3f56;padding-top:10px}
+    .arrierban-category__title{font-size:12px;font-weight:700;margin-bottom:8px;color:#d9e5f2}
     .arrierban-row-alloc__entry{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin-bottom:6px}
     .arrierban-row-alloc__remove{width:auto;padding:6px 10px}
     .arrierban-row-alloc__add{width:auto;padding:6px 10px}
+    .army-manager-list{display:grid;gap:6px;max-height:340px;overflow:auto}
+    .army-manager-category{margin-top:8px;border-top:1px solid #2b3f56;padding-top:8px}
+    .army-manager-category__title{font-size:11px;color:#a6b4c5;text-transform:uppercase;letter-spacing:.04em}
+    .army-manager-row{display:grid;grid-template-columns:24px 90px 1fr 90px;gap:8px;align-items:center;font-size:12px;border:1px solid #2b3f56;border-radius:8px;padding:6px}
   </style>
 </head>
 <body>
@@ -115,11 +125,8 @@
         <button id="musterRoyalBtn" style="display:none;">Королевский Призыв</button>
         <select id="armySelect"></select>
         <div class="row"><button id="addFeudalArmyBtn">Добавить феодальную армию</button><button id="removeArmyBtn">Удалить выбранную армию</button></div>
+        <button id="armyManageBtn" type="button">Менеджмент армий</button>
         <div class="row"><input id="movePid" placeholder="PID перемещения" /><button id="moveBtn">Переместить</button></div>
-        <div class="armyUnits" id="armyUnits"></div>
-        <div class="row"><input id="splitSize" placeholder="Размер отделения" /><button id="splitBtn">Разделить</button></div>
-        <div class="row"><button id="mergeBtn">Слить отмеченные</button><button id="normalizeBtn">Нормализовать</button></div>
-        <button id="saveArmyManage">Сохранить структуру армий</button>
         <button id="disbandBtn">Распустить без потерь</button>
       </div>
       <div class="status" id="status"></div>
@@ -149,20 +156,50 @@
     </div>
   </div>
   <div id="arrierbanModal" class="editor-modal" aria-hidden="true">
-    <div class="editor-modal__card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
         <div>
           <div id="arrierbanTitle" style="font-weight:700;">Призыв</div>
-          <div id="arrierbanSubtitle" class="mutedSmall">—</div>
+          <div id="arrierbanSubtitle" class="small">—</div>
         </div>
         <button id="arrierbanClose" type="button" style="width:auto;">Закрыть</button>
       </div>
-      <div id="arrierbanPools" class="mutedSmall" style="margin-top:8px;">—</div>
-      <div id="arrierbanRemaining" class="mutedSmall" style="margin-top:4px;">—</div>
-      <div id="arrierbanRows" style="margin-top:10px;"></div>
-      <div id="arrierbanValidation" class="mutedSmall" style="color:#ffb4b4;margin-top:8px;"></div>
-      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-        <button id="arrierbanApply" type="button" style="width:auto;">Применить призыв</button>
+      <div class="editor-modal__body">
+        <div id="arrierbanPools" class="small" style="margin-bottom:10px;">—</div>
+        <div id="arrierbanRemaining" class="small" style="margin-bottom:10px;">—</div>
+        <div class="arrierban-grid arrierban-grid__head">
+          <div>Отряд</div><div>Категория</div><div>Стандарт</div><div>Мин. размер (10%)</div><div>Поотрядное распределение</div>
+        </div>
+        <div id="arrierbanRows" style="margin-top:8px;display:grid;gap:6px;"></div>
+        <div id="arrierbanValidation" class="small" style="color:#ffb4b4;margin-top:8px;"></div>
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="arrierbanApply" type="button">Подтвердить созыв</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="armyManageModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
+        <div>
+          <div id="armyManageTitle" style="font-weight:700;">Менеджмент армий</div>
+          <div id="armyManageSubtitle" class="small">—</div>
+        </div>
+        <button id="armyManageClose" type="button">Закрыть</button>
+      </div>
+      <div class="editor-modal__body">
+        <div id="armyManageList" class="army-manager-list"></div>
+        <div class="grid" style="margin-top:10px;">
+          <label>Размер для отделения</label>
+          <input id="armySplitSize" type="number" min="1" step="1" value="10" />
+        </div>
+        <div id="armyManageValidation" class="small" style="margin-top:10px;color:#ffb4b4;"></div>
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="armyMergeBtn" type="button">Слить выбранные</button>
+          <button id="armySplitBtn" type="button">Разделить выбранный</button>
+          <button id="armyNormalizeBtn" type="button">Объединить одинаковые в армии</button>
+          <button id="armyManageSave" type="button">Сохранить армии</button>
+        </div>
       </div>
     </div>
   </div>

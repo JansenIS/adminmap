@@ -13,6 +13,8 @@
   let minorHouseByPid = new Map();
   let pendingArmies = [];
   let pendingArrierbanPlan = null;
+  let pendingArmyManage = null;
+  let selectedWarReachableKeys = [];
 
   const armyMarkersLayer = $('armyMarkers');
   const arrierbanModal = $('arrierbanModal');
@@ -24,6 +26,17 @@
   const arrierbanValidation = $('arrierbanValidation');
   const arrierbanClose = $('arrierbanClose');
   const arrierbanApply = $('arrierbanApply');
+  const armyManageModal = $('armyManageModal');
+  const armyManageTitle = $('armyManageTitle');
+  const armyManageSubtitle = $('armyManageSubtitle');
+  const armyManageList = $('armyManageList');
+  const armyManageClose = $('armyManageClose');
+  const armyManageValidation = $('armyManageValidation');
+  const armySplitSize = $('armySplitSize');
+  const armyMergeBtn = $('armyMergeBtn');
+  const armySplitBtn = $('armySplitBtn');
+  const armyNormalizeBtn = $('armyNormalizeBtn');
+  const armyManageSave = $('armyManageSave');
 
   function dataUriSvgToText(src){
     const s = String(src || '').trim();
@@ -152,66 +165,69 @@
     $('infoTerrain').textContent = p ? (p.terrain || '—') : '—';
   }
 
-  function unitCategoryLabel(category) {
-    const key = String(category || '').trim().toLowerCase();
-    if (key === 'knights') return 'Рыцари';
-    if (key === 'nehts') return 'Нейты';
-    if (key === 'sergeants') return 'Сержанты';
-    if (key === 'militia') return 'Милиция';
-    return 'Прочее';
+  function unitCategoryLabel(source) {
+    const map = { militia: 'Ополчение', sergeants: 'Сержанты', nehts: 'Нехты', knights: 'Рыцари' };
+    return map[String(source || '')] || 'Прочее';
   }
 
   function resolveUnitCategory(unit) {
-    if (!unit) return 'other';
-    const source = String(unit.source || '').trim().toLowerCase();
-    if (source === 'knights' || source === 'nehts' || source === 'sergeants' || source === 'militia') return source;
-    const id = String(unit.unit_id || '').trim().toLowerCase();
-    if (id.includes('knight')) return 'knights';
-    if (id.includes('neht')) return 'nehts';
-    if (id.includes('sergeant')) return 'sergeants';
-    if (id.includes('militia')) return 'militia';
-    return 'other';
+    const source = String(unit && unit.source || '');
+    if (['militia', 'sergeants', 'nehts', 'knights'].includes(source)) return source;
+    const byId = { militia: 'militia', militia_tr: 'militia', shot: 'sergeants', pikes: 'sergeants', assault150: 'sergeants', bikes: 'nehts', dragoons: 'nehts', ulans: 'nehts', foot_nehts: 'nehts', palatines: 'knights', preventors100: 'knights', foot_knights: 'knights', moto_knights: 'knights' };
+    return byId[String(unit && unit.unit_id || '')] || 'other';
   }
 
-  function formatRemainingPools(pools, allocations){
-    const base = pools || {};
-    const used = { knights:0, nehts:0, sergeants:0, militia:0 };
-    for (const row of (allocations || [])) {
-      const source = String(row && row.source || '');
-      if (!(source in used)) continue;
-      used[source] += Math.max(0, Math.floor(Number(row && row.size) || 0));
-    }
-    const parts = [];
-    ['knights','nehts','sergeants','militia'].forEach((k)=>{
-      const left = Math.max(0, (Math.floor(Number(base[k]) || 0) - used[k]));
-      parts.push(`${unitCategoryLabel(k).toLowerCase()} ${left}`);
-    });
-    return parts.join(', ');
+  function formatRemainingPools(plan, allocations) {
+    const pools = (plan && plan.pools) || {};
+    const keys = ['militia', 'sergeants', 'nehts', 'knights'];
+    return keys.map((key) => {
+      const cap = Math.max(0, Math.floor(Number(pools[key]) || 0));
+      const used = Math.max(0, Math.floor(Number(allocations && allocations[key]) || 0));
+      return `${unitCategoryLabel(key)}: ${Math.max(0, cap - used)} из ${cap}`;
+    }).join(', ');
+  }
+
+  function createArrierbanUnitInput(def, value) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'arrierban-row-alloc__entry';
+    wrapper.innerHTML = `<input type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(value) || 0))}" data-unit-id="${def.id}" data-source="${def.source}" data-base-size="${def.base_size}" /><button type="button" class="arrierban-row-alloc__remove" data-action="remove-arrierban-row" title="Удалить отряд">−</button>`;
+    return wrapper;
   }
 
   function buildArrierbanDomainRow(def){
     const row = document.createElement('div');
     row.className = 'arrierban-grid';
-    row.innerHTML = `<div>${def.name || def.id || 'unit'}</div><div class="arrierban-row-alloc"></div>`;
-    const wrap = row.querySelector('.arrierban-row-alloc');
-    const entry = document.createElement('div');
-    entry.className = 'arrierban-row-alloc__entry';
-    entry.innerHTML = `<input type="number" min="0" step="1" value="0" data-unit-id="${def.id}" data-source="${def.source}" data-base-size="${Math.max(1, Number(def.base_size)||1)}" /><button type="button" class="arrierban-row-alloc__remove" data-action="remove-arrierban-row">−</button>`;
-    wrap.appendChild(entry);
+    const minSize = Math.max(1, Math.ceil((Number(def.base_size) || 1) * 0.1));
+    const wrap = document.createElement('div');
+    wrap.className = 'arrierban-row-alloc';
+    wrap.dataset.unitId = def.id;
+    wrap.dataset.source = def.source;
+    wrap.dataset.baseSize = String(def.base_size);
+    wrap.appendChild(createArrierbanUnitInput(def, 0));
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'arrierban-row-alloc__add';
     addBtn.dataset.action = 'add-arrierban-row';
-    addBtn.textContent = '+ отряд';
+    addBtn.textContent = '+ Добавить отряд';
     wrap.appendChild(addBtn);
+    row.appendChild(Object.assign(document.createElement('div'), { textContent: def.name || def.id || 'unit' }));
+    row.appendChild(Object.assign(document.createElement('div'), { textContent: unitCategoryLabel(def.source) }));
+    row.appendChild(Object.assign(document.createElement('div'), { textContent: String(Math.max(1, Number(def.base_size)||1)) }));
+    row.appendChild(Object.assign(document.createElement('div'), { textContent: String(minSize) }));
+    row.appendChild(wrap);
     return row;
   }
 
   function updateArrierbanRemaining(){
     if (!pendingArrierbanPlan || !arrierbanRows || !arrierbanRemaining) return;
+    const allocations = { militia: 0, sergeants: 0, nehts: 0, knights: 0 };
     const inputs = Array.from(arrierbanRows.querySelectorAll('input[type="number"]'));
-    const allocations = inputs.map((input)=>({ source: String(input.dataset.source || ''), size: Math.max(0, Math.floor(Number(input.value) || 0)) }));
-    arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(pendingArrierbanPlan.pools, allocations)}.`;
+    for (const input of inputs) {
+      const source = String(input.dataset.source || '');
+      if (!(source in allocations)) continue;
+      allocations[source] += Math.max(0, Math.floor(Number(input.value) || 0));
+    }
+    arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(pendingArrierbanPlan, allocations)}.`;
   }
 
   function collectArrierbanAllocations(){
@@ -239,15 +255,14 @@
     pendingArrierbanPlan = Object.assign({}, plan || {}, { mode: String(mode || (plan && plan.mode) || 'domain') });
     if (arrierbanTitle) arrierbanTitle.textContent = 'Арьербан';
     if (arrierbanSubtitle) arrierbanSubtitle.textContent = mode === 'royal' ? 'Королевский призыв' : (mode === 'vassal' ? 'Вассальный призыв' : 'Доменный призыв');
-    if (arrierbanPools) arrierbanPools.textContent = `Пулы: рыцари ${plan.pools.knights||0}, нейты ${plan.pools.nehts||0}, сержанты ${plan.pools.sergeants||0}, милиция ${plan.pools.militia||0}.`;
+    if (arrierbanPools) arrierbanPools.textContent = `Пулы доменного призыва: рыцари ${plan.pools.knights||0}, нехты ${plan.pools.nehts||0}, сержанты ${plan.pools.sergeants||0}, ополчение ${plan.pools.militia||0}.`;
     if (arrierbanValidation) arrierbanValidation.textContent = '';
     arrierbanRows.innerHTML = '';
     const categories = ['militia','sergeants','nehts','knights'];
     categories.forEach((cat)=>{
       const header = document.createElement('div');
-      header.className = 'mutedSmall';
-      header.style.margin = '10px 0 6px';
-      header.textContent = unitCategoryLabel(cat);
+      header.className = 'arrierban-category';
+      header.innerHTML = `<div class="arrierban-category__title">${unitCategoryLabel(cat)}</div>`;
       arrierbanRows.appendChild(header);
       (plan.domain_unit_defs || []).filter((d)=>String(d.source||'')===cat).forEach((def)=>{
         const row = buildArrierbanDomainRow(def);
@@ -279,6 +294,63 @@
     const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     return { x, y };
+  }
+
+  function getProvinceCenterByPid(pid) {
+    const key = keyForPid(pid);
+    const meta = key ? map && map.getProvinceMeta(key) : null;
+    if (!meta) return null;
+    const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+    const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+    const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  function computeAverageProvinceSizePx() {
+    if (!map || !map.provincesByKey || !map.provincesByKey.size) return 0;
+    let acc = 0;
+    let cnt = 0;
+    for (const meta of map.provincesByKey.values()) {
+      if (!meta) continue;
+      const size = Math.max(Number(meta.w || 0), Number(meta.h || 0));
+      if (!(size > 0)) continue;
+      acc += size;
+      cnt += 1;
+    }
+    return cnt ? (acc / cnt) : 0;
+  }
+
+  function computeWarReachableKeysForArmy(army) {
+    if (!army || !map) return [];
+    const center = getProvinceCenterByPid(Number(army.location_pid) || Number(army.muster_pid) || 0);
+    if (!center) return [];
+    const avgSize = computeAverageProvinceSizePx();
+    const rangePx = avgSize * 8;
+    if (!(rangePx > 0)) return [];
+    const range2 = rangePx * rangePx;
+    const keys = [];
+    for (const [key, meta] of map.provincesByKey.entries()) {
+      if (!meta) continue;
+      const centroid = Array.isArray(meta.centroid) ? meta.centroid : null;
+      const x = centroid && centroid[0] != null ? Number(centroid[0]) : Number(meta.cx || 0);
+      const y = centroid && centroid[1] != null ? Number(centroid[1]) : Number(meta.cy || 0);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      const dx = x - center.x;
+      const dy = y - center.y;
+      if ((dx * dx + dy * dy) <= range2) keys.push(key >>> 0);
+    }
+    return keys;
+  }
+
+  function updateSelectedArmyReachability() {
+    const sel = $('armySelect');
+    const armyId = String(sel && sel.value || '');
+    const selected = pendingArmies.find((a) => String(a.army_id) === armyId);
+    selectedWarReachableKeys = selected ? computeWarReachableKeysForArmy(selected) : [];
+    if (!map) return;
+    if (selectedWarReachableKeys.length) map.setHoverHighlights(selectedWarReachableKeys, [120, 230, 255, 78]);
+    else map.clearHover();
   }
   function createArmyMarker(x, y, colorHex, emblemSrc, label, isFeudal){
     if (!armyMarkersLayer) return;
@@ -322,29 +394,10 @@
     pendingArmies = JSON.parse(JSON.stringify(session.entity.player_armies || []));
     for(const a of pendingArmies){ const o=document.createElement('option'); o.value=a.army_id; o.textContent=`${a.army_name} (${a.size}) @PID ${a.location_pid}`; sel.appendChild(o); }
     if (prev && Array.from(sel.options).some((o)=>o.value === prev)) sel.value = prev;
-    sel.onchange = renderArmyUnits;
-    renderArmyUnits();
+    sel.onchange = updateSelectedArmyReachability;
     const current = pendingArmies.reduce((sum,a)=>sum+(Number(a && a.size)||0),0);
     $('musterCap').textContent = `В поле войск: ${current}`;
-  }
-
-  function renderArmyUnits(){
-    const box = $('armyUnits');
-    if (!box) return;
-    const armyId = $('armySelect').value;
-    const army = pendingArmies.find(a => String(a.army_id) === String(armyId));
-    box.innerHTML = '';
-    if (!army || !Array.isArray(army.units) || !army.units.length) { box.textContent = 'Нет отрядов'; return; }
-    army.units.forEach((u, idx)=>{
-      const row = document.createElement('div');
-      row.className = 'armyUnitRow';
-      row.innerHTML = `<input type="checkbox" data-unit-idx="${idx}"><div>${u.unit_name || u.unit_id || 'unit'}</div><div>${Number(u.size)||0}</div>`;
-      box.appendChild(row);
-    });
-  }
-
-  function selectedArmyUnitIndexes(){
-    return Array.from(document.querySelectorAll('#armyUnits input[type="checkbox"]:checked')).map((cb)=>Number(cb.dataset.unitIdx)||0).sort((a,b)=>a-b);
+    updateSelectedArmyReachability();
   }
 
   function normalizeArmyUnits(units){
@@ -358,6 +411,89 @@
       map.get(id).size += size;
     }
     return Array.from(map.values());
+  }
+
+  function sanitizeArmyUnits(units) {
+    const out = [];
+    for (const unit of (Array.isArray(units) ? units : [])) {
+      if (!unit || typeof unit !== 'object') continue;
+      const unitId = String(unit.unit_id || '').trim();
+      const size = Math.max(0, Math.floor(Number(unit.size) || 0));
+      if (!unitId || size <= 0) continue;
+      out.push({
+        source: String(unit.source || ''),
+        unit_id: unitId,
+        unit_name: String(unit.unit_name || unitId),
+        size,
+        base_size: Math.max(1, Number(unit.base_size) || 1),
+      });
+    }
+    return out;
+  }
+
+  function openArmyManageModal() {
+    if (!armyManageModal || !armyManageList) return;
+    const armies = JSON.parse(JSON.stringify(pendingArmies || []));
+    if (!armies.some((a) => a && a.army_kind === 'domain')) armies.unshift({ army_id: 'domain', army_name: 'Доменная армия', army_kind: 'domain', units: [] });
+    pendingArmyManage = { armies };
+    if (armyManageTitle) armyManageTitle.textContent = 'Менеджмент армий';
+    if (armyManageSubtitle) armyManageSubtitle.textContent = `Сущность: ${String(session && session.entity && session.entity.name || 'Игрок')}`;
+    if (armyManageValidation) armyManageValidation.textContent = '';
+    renderArmyManageRows();
+    armyManageModal.classList.add('open');
+    armyManageModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeArmyManageModal() {
+    if (!armyManageModal) return;
+    armyManageModal.classList.remove('open');
+    armyManageModal.setAttribute('aria-hidden', 'true');
+    pendingArmyManage = null;
+  }
+
+  function renderArmyManageRows() {
+    if (!armyManageList || !pendingArmyManage) return;
+    const armies = Array.isArray(pendingArmyManage.armies) ? pendingArmyManage.armies : [];
+    pendingArmyManage.flatRows = [];
+    armyManageList.innerHTML = '';
+    const categories = ['militia', 'sergeants', 'nehts', 'knights', 'other'];
+    for (const category of categories) {
+      const section = document.createElement('div');
+      section.className = 'army-manager-category';
+      section.innerHTML = `<div class="army-manager-category__title">${unitCategoryLabel(category)}</div>`;
+      let hasRows = false;
+      armies.forEach((army, armyIdx) => {
+        const units = Array.isArray(army && army.units) ? army.units : [];
+        for (let unitIdx = 0; unitIdx < units.length; unitIdx++) {
+          const row = units[unitIdx];
+          if (resolveUnitCategory(row) !== category) continue;
+          hasRows = true;
+          const flatIdx = pendingArmyManage.flatRows.length;
+          pendingArmyManage.flatRows.push({ armyIdx, unitIdx });
+          const div = document.createElement('div');
+          div.className = 'army-manager-row';
+          const armyLabel = `${army.army_kind === 'domain' ? 'Домен' : 'Феод'}: ${army.army_name}`;
+          div.innerHTML = `<input type="checkbox" data-idx="${flatIdx}" /><div>${armyLabel}</div><div>${row.unit_name || row.unit_id || 'unit'}</div><div>${Number(row.size) || 0}</div>`;
+          section.appendChild(div);
+        }
+      });
+      if (!hasRows) {
+        const empty = document.createElement('div');
+        empty.className = 'small';
+        empty.textContent = 'Нет отрядов';
+        section.appendChild(empty);
+      }
+      armyManageList.appendChild(section);
+    }
+  }
+
+  function armyManageSelectedEntries() {
+    if (!armyManageList || !pendingArmyManage) return [];
+    const flat = Array.isArray(pendingArmyManage.flatRows) ? pendingArmyManage.flatRows : [];
+    return Array.from(armyManageList.querySelectorAll('input[type="checkbox"]:checked'))
+      .map((cb) => flat[Number(cb.dataset.idx) || 0] || null)
+      .filter(Boolean)
+      .sort((a, b) => (a.armyIdx - b.armyIdx) || (a.unitIdx - b.unitIdx));
   }
 
   function renderProvinceSelect(){
@@ -472,6 +608,7 @@
       }
     }
     renderArmyMarkers();
+    updateSelectedArmyReachability();
   }
 
   function rebuildMinorHouseMap(){
@@ -617,7 +754,8 @@
           const p = meta ? provinces.find(x=>Number(x.pid)===Number(meta.pid)) : null;
           if (p) {
             showProvinceInfo(p);
-            map.setHoverHighlight(key, [255,255,255,55]);
+            if (selectedWarReachableKeys.length) map.setHoverHighlights(selectedWarReachableKeys, [120, 230, 255, 78]);
+            else map.setHoverHighlight(key, [255,255,255,55]);
           } else {
             map.clearHover();
           }
@@ -626,6 +764,7 @@
           const meta = map.getProvinceMeta(key || 0);
           const p = meta ? provinces.find(x=>Number(x.pid)===Number(meta.pid)) : null;
           if (!p) return;
+          if (selectedWarReachableKeys.includes(Number(key) >>> 0)) $('movePid').value = String(p.pid || '');
           selectedPid = Number(p.pid || 0);
           showProvinceInfo(p);
           if (p.is_owned) {
@@ -768,48 +907,90 @@
     setStatus('Армия распущена.'); await load();
   };
 
-  $('mergeBtn').onclick = ()=>{
-    const army = pendingArmies.find(a => String(a.army_id) === String($('armySelect').value));
-    if (!army) return;
-    const indexes = selectedArmyUnitIndexes();
-    if (indexes.length < 2) return setStatus('Выбери минимум два отряда для слияния.', true);
-    const sourceId = String((army.units[indexes[0]] && army.units[indexes[0]].unit_id) || '');
-    if (!sourceId || indexes.some((idx)=>String((army.units[idx] && army.units[idx].unit_id) || '') !== sourceId)) return setStatus('Сливать можно только одинаковые типы отрядов.', true);
-    let sum = 0;
-    indexes.forEach((idx)=>{ sum += Number(army.units[idx] && army.units[idx].size) || 0; });
-    army.units[indexes[0]].size = sum;
-    for (let i = indexes.length - 1; i >= 1; i--) army.units.splice(indexes[i], 1);
-    army.units = normalizeArmyUnits(army.units);
-    army.size = army.units.reduce((s,u)=>s+(Number(u.size)||0),0);
-    renderArmyUnits();
-    setStatus('Отряды слиты локально. Нажми «Сохранить структуру армий».');
-  };
+  const armyManageBtn = $('armyManageBtn');
+  if (armyManageBtn) armyManageBtn.onclick = () => openArmyManageModal();
+  if (armyManageClose) armyManageClose.addEventListener('click', closeArmyManageModal);
+  if (armyManageModal) armyManageModal.addEventListener('click', (evt) => { if (evt.target === armyManageModal) closeArmyManageModal(); });
 
-  $('splitBtn').onclick = ()=>{
-    const army = pendingArmies.find(a => String(a.army_id) === String($('armySelect').value));
-    if (!army) return;
-    const indexes = selectedArmyUnitIndexes();
-    if (indexes.length !== 1) return setStatus('Для разделения выбери ровно один отряд.', true);
-    const idx = indexes[0];
-    const split = Math.max(1, Math.floor(Number($('splitSize').value) || 0));
-    const row = army.units[idx];
-    const size = Number(row && row.size) || 0;
-    if (!row || split >= size) return setStatus('Размер отделения должен быть меньше исходного отряда.', true);
+  if (armyMergeBtn) armyMergeBtn.addEventListener('click', () => {
+    if (!pendingArmyManage) return;
+    const entries = armyManageSelectedEntries();
+    if (entries.length < 2) { if (armyManageValidation) armyManageValidation.textContent = 'Выберите минимум 2 отряда для слияния.'; return; }
+    const armies = pendingArmyManage.armies;
+    const target = entries[0];
+    const targetArmy = armies[target.armyIdx];
+    const targetUnit = targetArmy && targetArmy.units && targetArmy.units[target.unitIdx];
+    if (!targetArmy || !targetUnit) return;
+
+    const uniqueArmyIdx = Array.from(new Set(entries.map((e) => e.armyIdx)));
+    const sameArmyKind = uniqueArmyIdx.every((idx) => armies[idx] && armies[idx].army_kind === targetArmy.army_kind);
+    if (!sameArmyKind) { if (armyManageValidation) armyManageValidation.textContent = 'Сливать армии можно только одного типа (домен/феод).'; return; }
+
+    if (uniqueArmyIdx.length > 1) {
+      for (const idx of uniqueArmyIdx) {
+        if (idx === target.armyIdx) continue;
+        const src = armies[idx];
+        if (!src || !Array.isArray(src.units)) continue;
+        targetArmy.units.push(...src.units.map((u) => Object.assign({}, u)));
+        src.units = [];
+      }
+      for (let i = armies.length - 1; i >= 0; i--) {
+        const a = armies[i];
+        if (!a || !Array.isArray(a.units)) continue;
+        if (a.army_kind === 'domain') continue;
+        if (a.units.length === 0) armies.splice(i, 1);
+      }
+      targetArmy.units = normalizeArmyUnits(targetArmy.units);
+      if (armyManageValidation) armyManageValidation.textContent = '';
+      renderArmyManageRows();
+      return;
+    }
+
+    let sum = Number(targetUnit.size) || 0;
+    const toRemove = [];
+    for (let i = 1; i < entries.length; i++) {
+      const e = entries[i];
+      const u = targetArmy && targetArmy.units && targetArmy.units[e.unitIdx];
+      if (!u) continue;
+      if (String(u.unit_id || '') !== String(targetUnit.unit_id || '')) {
+        if (armyManageValidation) armyManageValidation.textContent = 'Внутри армии можно слить только одинаковые отряды.';
+        return;
+      }
+      sum += Number(u.size) || 0;
+      toRemove.push(e.unitIdx);
+    }
+    targetUnit.size = sum;
+    toRemove.sort((a,b)=>b-a);
+    for (const unitIdx of toRemove) targetArmy.units.splice(unitIdx, 1);
+    if (armyManageValidation) armyManageValidation.textContent = '';
+    renderArmyManageRows();
+  });
+
+  if (armySplitBtn) armySplitBtn.addEventListener('click', () => {
+    if (!pendingArmyManage) return;
+    const entries = armyManageSelectedEntries();
+    if (entries.length !== 1) { if (armyManageValidation) armyManageValidation.textContent = 'Выберите ровно один отряд для разделения.'; return; }
+    const split = Math.max(1, Math.floor(Number(armySplitSize && armySplitSize.value) || 0));
+    const e = entries[0];
+    const army = pendingArmyManage.armies[e.armyIdx];
+    const row = army && Array.isArray(army.units) ? army.units[e.unitIdx] : null;
+    const size = Math.floor(Number(row && row.size) || 0);
+    if (!row || split >= size) { if (armyManageValidation) armyManageValidation.textContent = 'Размер отделения должен быть меньше исходного отряда.'; return; }
     row.size = size - split;
-    army.units.splice(idx + 1, 0, Object.assign({}, row, { size: split }));
-    army.size = army.units.reduce((s,u)=>s+(Number(u.size)||0),0);
-    renderArmyUnits();
-    setStatus('Отряд разделён локально. Нажми «Сохранить структуру армий».');
-  };
+    army.units.splice(e.unitIdx + 1, 0, Object.assign({}, row, { size: split }));
+    if (armyManageValidation) armyManageValidation.textContent = '';
+    renderArmyManageRows();
+  });
 
-  $('normalizeBtn').onclick = ()=>{
-    const army = pendingArmies.find(a => String(a.army_id) === String($('armySelect').value));
-    if (!army) return;
-    army.units = normalizeArmyUnits(army.units);
-    army.size = army.units.reduce((s,u)=>s+(Number(u.size)||0),0);
-    renderArmyUnits();
-    setStatus('Армия нормализована локально. Нажми «Сохранить структуру армий».');
-  };
+  if (armyNormalizeBtn) armyNormalizeBtn.addEventListener('click', () => {
+    if (!pendingArmyManage || !Array.isArray(pendingArmyManage.armies)) return;
+    for (const army of pendingArmyManage.armies) {
+      if (!army || !Array.isArray(army.units)) continue;
+      army.units = normalizeArmyUnits(army.units);
+    }
+    if (armyManageValidation) armyManageValidation.textContent = '';
+    renderArmyManageRows();
+  });
 
 
   const addArmyBtn = $('addFeudalArmyBtn');
@@ -819,8 +1000,7 @@
     session.entity.player_armies = pendingArmies;
     renderArmies();
     $('armySelect').value = pendingArmies[pendingArmies.length - 1].army_id;
-    renderArmyUnits();
-    setStatus('Добавлена новая феодальная армия локально. Нажми «Сохранить структуру армий».');
+    setStatus('Добавлена новая феодальная армия локально. Нажми «Менеджмент армий» для редактирования и сохранения.');
   };
 
   const removeArmyBtn = $('removeArmyBtn');
@@ -832,14 +1012,26 @@
     pendingArmies.splice(idx, 1);
     session.entity.player_armies = pendingArmies;
     renderArmies();
-    setStatus('Армия удалена локально. Нажми «Сохранить структуру армий».');
+    setStatus('Армия удалена локально. Нажми «Менеджмент армий» для сохранения структуры.');
   };
 
-  $('saveArmyManage').onclick = async ()=>{
-    await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'save_armies',armies:pendingArmies})});
+  if (armyManageSave) armyManageSave.addEventListener('click', async () => {
+    if (!pendingArmyManage || !Array.isArray(pendingArmyManage.armies)) return;
+    const prepared = pendingArmyManage.armies
+      .map((a, idx) => ({
+        army_id: String(a && a.army_id || `army_${idx + 1}`),
+        army_name: String(a && a.army_name || `Армия ${idx + 1}`),
+        army_kind: String(a && a.army_kind || 'vassal'),
+        muster_pid: Number(a && a.muster_pid) || Number(session && session.entity && session.entity.capital_pid) || 0,
+        location_pid: Number(a && a.location_pid) || Number(a && a.muster_pid) || Number(session && session.entity && session.entity.capital_pid) || 0,
+        units: sanitizeArmyUnits(a && a.units || []),
+      }))
+      .filter((a) => a.army_kind === 'domain' || a.units.length > 0);
+    await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'save_armies',armies:prepared})});
+    closeArmyManageModal();
     setStatus('Структура армий сохранена.');
     await load();
-  };
+  });
 
   load().catch(e=>setStatus(e.message,true));
 })();
