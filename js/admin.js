@@ -347,8 +347,11 @@
 
   function entityRowMatchesScope(row, scope) {
     if (!row || !scope) return false;
-    const rowType = String(row.entity_type || '').trim();
-    const rowId = String(row.entity_id || '').trim();
+    const rowEntityType = String(row.entity_type || '').trim();
+    const rowIdRaw = String(row.entity_id || '').trim();
+    const rowTypeFromId = rowIdRaw.includes(':') ? rowIdRaw.split(':', 1)[0] : '';
+    const rowType = rowEntityType || rowTypeFromId;
+    const rowId = rowIdRaw;
     const scopeType = String(scope.entity_type || '').trim();
     const scopeId = String(scope.entity_id || '').trim();
     const scopeName = String(scope.entity_name || '').trim();
@@ -403,8 +406,9 @@
     const items = rows.slice().sort((a, b) => Number(b && b.closing_balance || 0) - Number(a && a.closing_balance || 0));
     turnEntityTreasuryList.textContent = items
       .map((row) => {
-        const type = String(row && row.entity_type || '').trim();
+        const typeRaw = String(row && row.entity_type || '').trim();
         const eid = String(row && row.entity_id || '').trim();
+        const type = typeRaw || (eid.includes(':') ? eid.split(':', 1)[0] : '');
         const name = String(row && row.entity_name || eid || '—').trim();
         const closing = fmtMoneyCompact(row && row.closing_balance);
         const incomeTax = fmtMoneyCompact(row && row.income_tax);
