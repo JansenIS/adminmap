@@ -970,7 +970,11 @@
   }
   function keyForPid(pid) { const p = Number(pid); return keyByPid.get(p) || 0; }
   function getProvData(key) { const pid = pidByKey.get(key >>> 0) || 0; return pid ? (state.provinces[String(pid)] || null) : null; }
-  function currentMode() { return viewModeSelect.value || "provinces"; }
+  function currentMode() {
+    const mode = viewModeSelect.value || "provinces";
+    if (isPlayerAdminMode() && mode === "province_properties") return "provinces";
+    return mode;
+  }
 
   function getPlayerAdminScope() {
     const scope = window.PLAYER_ADMIN_SCOPE;
@@ -1140,6 +1144,19 @@
     return state.war_armies;
   }
 
+
+  function canonicalArmyUid(army) {
+    return String((army && (army.army_uid || army.war_army_id)) || "").trim();
+  }
+
+  function getCanonicalArmies() {
+    const mod = window.AdminMapArmyState;
+    if (mod && typeof mod.ensureRegistry === "function") {
+      return mod.ensureRegistry(state, { turnYear: currentWarTurnYear });
+    }
+    return ensureWarArmiesState();
+  }
+
   function computeWarReachableKeys(army) {
     if (!army || !mapInstanceRef) return [];
     if (army.moved_this_turn) return [];
@@ -1165,7 +1182,7 @@
 
   function updateWarArmyPanel() {
     if (!warArmySelect) return;
-    const armies = ensureWarArmiesState();
+    const armies = getCanonicalArmies();
     warArmySelect.innerHTML = "";
     const empty = document.createElement("option");
     empty.value = "";
@@ -1174,18 +1191,18 @@
 
     for (const row of armies) {
       const opt = document.createElement("option");
-      opt.value = String(row.war_army_id || "");
+      opt.value = String(canonicalArmyUid(row));
       const pid = Number(row.current_pid) >>> 0;
       const movedBadge = row.moved_this_turn ? " • ход уже сделан" : "";
       opt.textContent = `${row.realm_name} • ${row.army_name} • PID ${pid}${movedBadge}`;
       warArmySelect.appendChild(opt);
     }
 
-    const stillExists = armies.some((a) => String(a.war_army_id) === String(selectedWarArmyId));
+    const stillExists = armies.some((a) => canonicalArmyUid(a) === String(selectedWarArmyId));
     if (!stillExists) selectedWarArmyId = "";
     warArmySelect.value = selectedWarArmyId;
 
-    const selected = armies.find((a) => String(a.war_army_id) === String(selectedWarArmyId)) || null;
+    const selected = armies.find((a) => canonicalArmyUid(a) === String(selectedWarArmyId)) || null;
     const avgSize = computeAverageProvinceSizePx();
     const rangePx = avgSize * 8;
     if (warMoveRadius) warMoveRadius.textContent = rangePx > 0 ? `${Math.round(rangePx)} px (8 × ${avgSize.toFixed(1)} px)` : "—";
@@ -1207,8 +1224,8 @@
   }
 
   function moveSelectedWarArmyToKey(targetKey) {
-    const armies = ensureWarArmiesState();
-    const selected = armies.find((a) => String(a.war_army_id) === String(selectedWarArmyId));
+    const armies = getCanonicalArmies();
+    const selected = armies.find((a) => canonicalArmyUid(a) === String(selectedWarArmyId));
     if (!selected) return false;
     if (selected.moved_this_turn) return false;
     const k = Number(targetKey) >>> 0;
@@ -1748,7 +1765,7 @@
 
   function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
   function applyFillFromUI(map) { if (!selectedKey || !colorInput || !alphaInput) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
-  function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
+  function exportStateToTextarea() { getCanonicalArmies(); const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
   function normalizeStateForBackendSave(rawState) {
     const stateForSave = JSON.parse(JSON.stringify(rawState || {}));
@@ -3228,7 +3245,7 @@
     if (!armyMarkersLayer || !state || !mapInstanceRef) return;
 
     if (currentMode() === "war") {
-      const armies = ensureWarArmiesState();
+      const armies = getCanonicalArmies();
       for (const army of armies) {
         const realm = realmBucketByType(army.realm_type || "")[army.realm_id] || {};
         const info = getRealmArmyMarkerInfo(army.realm_type, army.realm_id, realm);
@@ -3242,43 +3259,22 @@
       return;
     }
 
-    const allTypes = ["kingdoms", "great_houses", "minor_houses", "free_cities", "special_territories"];
-    for (const type of allTypes) {
-      const bucket = realmBucketByType(type);
-      for (const [id, realm] of Object.entries(bucket || {})) {
-        if (!realm || (!realm.arrierban_active && !realmHasAnyArmies(realm))) continue;
-        const info = getRealmArmyMarkerInfo(type, id, realm);
-        if (!info) continue;
-        const x = Number(info.x) || 0;
-        const y = Number(info.y) || 0;
-        const hasDomain = Array.isArray(realm.arrierban_units) && realm.arrierban_units.length > 0;
-        const feudalArmies = Array.isArray(realm.arrierban_vassal_armies) ? realm.arrierban_vassal_armies : [];
-        const hasFeudalLegacy = !feudalArmies.length && Array.isArray(realm.arrierban_vassal_units) && realm.arrierban_vassal_units.length > 0;
-        const unassignedFeudal = feudalArmies.filter((a) => {
-          if (!a || !Array.isArray(a.units) || !a.units.length) return false;
-          const kind = String(a.army_kind || "");
-          return kind === "unassigned" || String(a.army_id || "").startsWith("unassigned:");
-        });
-        const vassalFeudal = feudalArmies.filter((a) => {
-          if (!a || !Array.isArray(a.units) || !a.units.length) return false;
-          return !unassignedFeudal.includes(a);
-        });
-
-        const hasRealmCapitalFeudal = hasFeudalLegacy || unassignedFeudal.length > 0;
-        if (hasDomain) createArmyMarker(hasRealmCapitalFeudal ? x - 14 : x, y, info.colorHex, info.emblemSrc, "Доменная армия", false);
-        if (hasRealmCapitalFeudal) {
-          const unassignedLabel = unassignedFeudal.length > 0 ? `Феодальная нераспределённая армия (${unassignedFeudal.length})` : "Феодальная армия";
-          createArmyMarker(hasDomain ? x + 14 : x, y, info.colorHex, info.emblemSrc, unassignedLabel, true);
-        }
-
-        for (let idx = 0; idx < vassalFeudal.length; idx++) {
-          const army = vassalFeudal[idx];
-          const point = getArmyMarkerPointByPid(Number(army.muster_pid) >>> 0) || info;
-          const dx = vassalFeudal.length > 1 ? ((idx % 3) - 1) * 12 : 0;
-          const dy = vassalFeudal.length > 1 ? (Math.floor(idx / 3) * 12) : 0;
-          createArmyMarker(point.x + dx, point.y + dy, info.colorHex, info.emblemSrc, `Феодальная армия: ${String(army.army_name || army.army_id || "вассал")}`, true);
-        }
-      }
+    const armies = getCanonicalArmies();
+    const stackByPid = new Map();
+    for (const army of armies) {
+      const realm = realmBucketByType(army.realm_type || "")[army.realm_id] || {};
+      const info = getRealmArmyMarkerInfo(army.realm_type, army.realm_id, realm);
+      const point = getArmyMarkerPointByPid(Number(army.current_pid) >>> 0) || info;
+      if (!point) continue;
+      const pid = Number(army.current_pid) >>> 0;
+      const stackIdx = stackByPid.get(pid) || 0;
+      stackByPid.set(pid, stackIdx + 1);
+      const dx = stackIdx ? (((stackIdx % 3) - 1) * 12) : 0;
+      const dy = stackIdx ? (Math.floor(stackIdx / 3) * 12) : 0;
+      const colorHex = String((info && info.colorHex) || realm.color || "#3f6aa2");
+      const emblemSrc = String((info && info.emblemSrc) || "");
+      const isFeudal = String(army.army_kind || "") !== "domain";
+      createArmyMarker(point.x + dx, point.y + dy, colorHex, emblemSrc, `${army.realm_name}: ${army.army_name}`, isFeudal);
     }
   }
 

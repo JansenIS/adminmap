@@ -87,6 +87,7 @@ function api_normalize_loaded_state(array $state): array {
     $state['special_territories'][$specialId] = $state['free_cities'][$specialId];
   }
 
+  api_sync_army_registry($state, null, false);
   return $state;
 }
 
@@ -1270,7 +1271,153 @@ function api_run_next_job(array $state): array {
   return ['ok' => true, 'processed' => true, 'job' => $job];
 }
 
+
+function api_realm_default_army_pid(array $state, string $type, string $id, array $realm): int {
+  $fieldByType = [
+    'kingdoms' => 'kingdom_id',
+    'great_houses' => 'great_house_id',
+    'minor_houses' => 'minor_house_id',
+    'free_cities' => 'free_city_id',
+    'special_territories' => 'special_territory_id',
+  ];
+  $field = (string)($fieldByType[$type] ?? '');
+  $capitalPid = (int)($realm['capital_pid'] ?? 0);
+  if ($capitalPid <= 0 && is_array($realm['province_pids'] ?? null) && count($realm['province_pids']) > 0) {
+    $capitalPid = (int)($realm['province_pids'][0] ?? 0);
+  }
+  if ($capitalPid <= 0 && $field !== '') {
+    foreach (($state['provinces'] ?? []) as $pd) {
+      if (!is_array($pd)) continue;
+      if (trim((string)($pd[$field] ?? '')) !== trim($id)) continue;
+      $capitalPid = (int)($pd['pid'] ?? 0);
+      if ($capitalPid > 0) break;
+    }
+  }
+  return max(0, $capitalPid);
+}
+
+function api_army_sanitize_units(array $list): array {
+  $out = [];
+  foreach ($list as $row) {
+    if (!is_array($row)) continue;
+    $size = max(0, (int)floor((float)($row['size'] ?? 0)));
+    if ($size <= 0) continue;
+    $out[] = [
+      'unit_id' => trim((string)($row['unit_id'] ?? '')),
+      'source' => trim((string)($row['source'] ?? '')),
+      'size' => $size,
+    ];
+  }
+  return $out;
+}
+
+function api_sync_army_registry(array &$state, ?int $turnYear = null, bool $resetMoves = false): void {
+  $types = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
+  $prevByUid = [];
+  if (is_array($state['army_registry'] ?? null)) {
+    foreach ((array)$state['army_registry'] as $row) {
+      if (!is_array($row)) continue;
+      $uid = trim((string)($row['army_uid'] ?? ($row['war_army_id'] ?? '')));
+      if ($uid === '') continue;
+      $prevByUid[$uid] = $row;
+    }
+  }
+
+  $out = [];
+  foreach ($types as $type) {
+    $bucket = (array)($state[$type] ?? []);
+    foreach ($bucket as $id => $realm) {
+      if (!is_array($realm)) continue;
+      $isActive = !empty($realm['arrierban_active']);
+      $realmName = (string)($realm['name'] ?? (string)$id);
+      $defaultPid = api_realm_default_army_pid($state, $type, (string)$id, $realm);
+
+      $domainUnits = api_army_sanitize_units((array)($realm['arrierban_units'] ?? []));
+      if ($domainUnits !== []) {
+        $uid = $type . ':' . (string)$id . ':domain';
+        $prev = (array)($prevByUid[$uid] ?? []);
+        $prevTurn = (int)($prev['moved_turn_year'] ?? -1);
+        $out[] = [
+          'army_uid' => $uid,
+          'realm_type' => $type,
+          'realm_id' => (string)$id,
+          'realm_name' => $realmName,
+          'army_kind' => 'domain',
+          'army_id' => 'domain',
+          'army_name' => 'Доменная армия',
+          'callup_state' => $isActive ? 'active' : 'dismissed',
+          'muster_pid' => $defaultPid,
+          'current_pid' => max(0, (int)($prev['current_pid'] ?? $defaultPid)),
+          'moved_this_turn' => $resetMoves ? false : (($turnYear !== null && $prevTurn === $turnYear) ? !empty($prev['moved_this_turn']) : false),
+          'moved_turn_year' => $resetMoves ? null : (($turnYear !== null && $prevTurn === $turnYear) ? $prevTurn : null),
+          'units' => $domainUnits,
+          'strength_total' => array_sum(array_map(static fn($u) => (int)($u['size'] ?? 0), $domainUnits)),
+        ];
+      }
+
+      $feudalArmies = (array)($realm['arrierban_vassal_armies'] ?? []);
+      if ($feudalArmies !== []) {
+        foreach ($feudalArmies as $idx => $army) {
+          if (!is_array($army)) continue;
+          $units = api_army_sanitize_units((array)($army['units'] ?? []));
+          if ($units === []) continue;
+          $armyId = trim((string)($army['army_id'] ?? ('feudal_' . ((int)$idx + 1))));
+          if ($armyId === '') $armyId = 'feudal_' . ((int)$idx + 1);
+          $uid = $type . ':' . (string)$id . ':' . $armyId;
+          $prev = (array)($prevByUid[$uid] ?? []);
+          $prevTurn = (int)($prev['moved_turn_year'] ?? -1);
+          $musterPid = max(0, (int)($army['muster_pid'] ?? $defaultPid));
+          $out[] = [
+            'army_uid' => $uid,
+            'realm_type' => $type,
+            'realm_id' => (string)$id,
+            'realm_name' => $realmName,
+            'army_kind' => trim((string)($army['army_kind'] ?? 'vassal')),
+            'army_id' => $armyId,
+            'army_name' => trim((string)($army['army_name'] ?? $armyId)),
+            'callup_state' => $isActive ? 'active' : 'dismissed',
+            'muster_pid' => $musterPid,
+            'current_pid' => max(0, (int)($prev['current_pid'] ?? ($musterPid > 0 ? $musterPid : $defaultPid))),
+            'moved_this_turn' => $resetMoves ? false : (($turnYear !== null && $prevTurn === $turnYear) ? !empty($prev['moved_this_turn']) : false),
+            'moved_turn_year' => $resetMoves ? null : (($turnYear !== null && $prevTurn === $turnYear) ? $prevTurn : null),
+            'units' => $units,
+            'strength_total' => array_sum(array_map(static fn($u) => (int)($u['size'] ?? 0), $units)),
+          ];
+        }
+      } else {
+        $legacyUnits = api_army_sanitize_units((array)($realm['arrierban_vassal_units'] ?? []));
+        if ($legacyUnits !== []) {
+          $uid = $type . ':' . (string)$id . ':feudal_legacy';
+          $prev = (array)($prevByUid[$uid] ?? []);
+          $prevTurn = (int)($prev['moved_turn_year'] ?? -1);
+          $out[] = [
+            'army_uid' => $uid,
+            'realm_type' => $type,
+            'realm_id' => (string)$id,
+            'realm_name' => $realmName,
+            'army_kind' => 'vassal',
+            'army_id' => 'feudal_legacy',
+            'army_name' => 'Феодальная армия',
+            'callup_state' => $isActive ? 'active' : 'dismissed',
+            'muster_pid' => $defaultPid,
+            'current_pid' => max(0, (int)($prev['current_pid'] ?? $defaultPid)),
+            'moved_this_turn' => $resetMoves ? false : (($turnYear !== null && $prevTurn === $turnYear) ? !empty($prev['moved_this_turn']) : false),
+            'moved_turn_year' => $resetMoves ? null : (($turnYear !== null && $prevTurn === $turnYear) ? $prevTurn : null),
+            'units' => $legacyUnits,
+            'strength_total' => array_sum(array_map(static fn($u) => (int)($u['size'] ?? 0), $legacyUnits)),
+          ];
+        }
+      }
+    }
+  }
+
+  $state['army_registry'] = array_values(array_filter($out, static fn($row) => (int)($row['current_pid'] ?? 0) > 0));
+}
+
 function api_atomic_write_json(string $path, array $payload): bool {
+  if (realpath($path) === realpath(api_state_path())) {
+    api_sync_army_registry($payload, null, false);
+  }
   $tmp = $path . '.tmp';
   $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
   if ($raw === false) return false;

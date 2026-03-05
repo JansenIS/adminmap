@@ -957,6 +957,9 @@ function turn_api_compute_treasury(
     return $shares;
   };
 
+  api_sync_army_registry($state, $year, false);
+  $armyRegistry = (array)($state['army_registry'] ?? []);
+
   $provinceByPid = [];
   foreach (($state['provinces'] ?? []) as $prov) {
     if (!is_array($prov)) continue;
@@ -1242,33 +1245,58 @@ function turn_api_compute_treasury(
   }
 
 
-  foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'] as $bucketType) {
-    $bucket = (array)($state[$bucketType] ?? []);
-    foreach ($bucket as $entityKey => $realm) {
-      if (!is_array($realm)) continue;
-      if (empty($realm['arrierban_active'])) continue;
-      $summonerKey = trim((string)$entityKey);
-      if ($summonerKey === '') continue;
-      $shares = $computeArmyUpkeepShares($realm, $bucketType, $summonerKey, $armyUpkeepPerStrength);
-      foreach ($shares as $payerEntityId => $rawAmount) {
-        if (!isset($entityRows[$payerEntityId])) continue;
-        $upkeep = round((float)$rawAmount, 2);
-        if ($upkeep <= 0.0) continue;
-        $entityRows[$payerEntityId]['army_upkeep_out'] = round(((float)$entityRows[$payerEntityId]['army_upkeep_out']) + $upkeep, 2);
-        $ledgerSeq++;
-        $ledger[] = [
-          'turn_year' => $year,
-          'entry_id' => 'L-' . $year . '-UPK-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
-          'type' => 'entity_army_upkeep',
-          'from' => 'entity:' . $payerEntityId,
-          'to' => 'sink:army_maintenance',
-          'amount' => $upkeep,
-          'debit_account' => 'expense:army_maintenance',
-          'credit_account' => 'entity:' . $payerEntityId,
-          'reason' => 'arrierban_upkeep',
-        ];
+  foreach ($armyRegistry as $armyRow) {
+    if (!is_array($armyRow)) continue;
+    if (trim((string)($armyRow['callup_state'] ?? 'active')) !== 'active') continue;
+    $bucketType = trim((string)($armyRow['realm_type'] ?? ''));
+    $summonerKey = trim((string)($armyRow['realm_id'] ?? ''));
+    if ($bucketType === '' || $summonerKey === '') continue;
+
+    $summonerEntityId = $bucketType . ':' . $summonerKey;
+    if ($bucketType === 'kingdoms') {
+      $rulingHouseId = (string)($kingdomRulingHouseById[$summonerKey] ?? '');
+      if ($rulingHouseId !== '') $summonerEntityId = 'great_houses:' . $rulingHouseId;
+    }
+
+    $armyKind = trim((string)($armyRow['army_kind'] ?? ''));
+    $armyId = trim((string)($armyRow['army_id'] ?? ''));
+    $vassalEntityId = $resolveVassalEntityId($bucketType, $summonerKey, $armyId);
+
+    foreach ((array)($armyRow['units'] ?? []) as $unit) {
+      if (!is_array($unit)) continue;
+      $size = max(0.0, (float)($unit['size'] ?? 0.0));
+      if ($size <= 0.0) continue;
+      $unitUpkeep = $size * $armyUpkeepPerStrength;
+      if ($armyKind === 'vassal' && $vassalEntityId !== '') {
+        $vassalShare = ($bucketType === 'kingdoms') ? $royalCallupVassalUpkeepShare : 0.5;
+        $summonerShare = max(0.0, 1.0 - $vassalShare);
+        if (isset($entityRows[$summonerEntityId])) $entityRows[$summonerEntityId]['army_upkeep_out'] = round(((float)$entityRows[$summonerEntityId]['army_upkeep_out']) + ($unitUpkeep * $summonerShare), 2);
+        if (isset($entityRows[$vassalEntityId])) {
+          $entityRows[$vassalEntityId]['army_upkeep_out'] = round(((float)$entityRows[$vassalEntityId]['army_upkeep_out']) + ($unitUpkeep * $vassalShare), 2);
+        } else {
+          if (isset($entityRows[$summonerEntityId])) $entityRows[$summonerEntityId]['army_upkeep_out'] = round(((float)$entityRows[$summonerEntityId]['army_upkeep_out']) + ($unitUpkeep * $vassalShare), 2);
+        }
+      } else {
+        if (isset($entityRows[$summonerEntityId])) $entityRows[$summonerEntityId]['army_upkeep_out'] = round(((float)$entityRows[$summonerEntityId]['army_upkeep_out']) + $unitUpkeep, 2);
       }
     }
+  }
+
+  foreach ($entityRows as $payerEntityId => $row) {
+    $upkeep = round((float)($row['army_upkeep_out'] ?? 0.0), 2);
+    if ($upkeep <= 0.0) continue;
+    $ledgerSeq++;
+    $ledger[] = [
+      'turn_year' => $year,
+      'entry_id' => 'L-' . $year . '-UPK-' . str_pad((string)$ledgerSeq, 6, '0', STR_PAD_LEFT),
+      'type' => 'entity_army_upkeep',
+      'from' => 'entity:' . $payerEntityId,
+      'to' => 'sink:army_maintenance',
+      'amount' => $upkeep,
+      'debit_account' => 'expense:army_maintenance',
+      'credit_account' => 'entity:' . $payerEntityId,
+      'reason' => 'arrierban_upkeep',
+    ];
   }
 
   usort($provinceRows, static fn($a, $b) => ((int)$a['province_pid'] <=> (int)$b['province_pid']));
