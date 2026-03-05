@@ -574,6 +574,7 @@
   }
 
   window.AdminMapRefreshTurnPanel = refreshTurnPanel;
+  window.AdminMapExportStateToTextarea = exportStateToTextarea;
 
   async function makeNextTurn() {
     if (!btnMakeTurn) return;

@@ -11,6 +11,7 @@ $out = [
   'schema_version' => $state['schema_version'] ?? null,
   'generated_utc' => $state['generated_utc'] ?? null,
   'terrain_types' => $state['terrain_types'] ?? [],
+  'army_registry' => is_array($state['army_registry'] ?? null) ? $state['army_registry'] : [],
   'profile' => $profile,
 ];
 if ($profile === 'compact') {

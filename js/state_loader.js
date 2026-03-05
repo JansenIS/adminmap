@@ -139,6 +139,7 @@
       generated_utc: boot.generated_utc,
       people: Array.isArray(boot.people) ? boot.people : [],
       terrain_types: Array.isArray(boot.terrain_types) ? boot.terrain_types : [],
+      army_registry: Array.isArray(boot.army_registry) ? boot.army_registry : [],
     });
   }
 
