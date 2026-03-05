@@ -9,6 +9,41 @@
   let scope = null;
   let scopeLoaded = false;
 
+  function lockRealmToScope() {
+    if (!scope) return;
+    const typeEl = document.getElementById('realmType');
+    const realmEl = document.getElementById('realmSelect');
+    if (typeEl) {
+      typeEl.value = String(scope.entity_type || '');
+      typeEl.disabled = true;
+    }
+    if (realmEl) {
+      const targetId = String(scope.entity_id || '');
+      if (targetId) {
+        const has = Array.from(realmEl.options || []).some((opt) => String(opt.value || '') === targetId);
+        if (!has) {
+          const opt = document.createElement('option');
+          opt.value = targetId;
+          opt.textContent = String(scope.entity_name || targetId);
+          realmEl.appendChild(opt);
+        }
+        realmEl.value = targetId;
+      }
+      realmEl.disabled = true;
+    }
+  }
+
+  function tuneTurnTreasuryUiForPlayer() {
+    const provSpan = document.getElementById('turnTreasuryProvSum');
+    const entitySpan = document.getElementById('turnTreasuryEntitySum');
+    if (provSpan) {
+      const row = provSpan.parentElement;
+      const label = row ? row.querySelector('b') : null;
+      if (label) label.textContent = 'Казна игрока:';
+    }
+    if (entitySpan && entitySpan.parentElement) entitySpan.parentElement.style.display = 'none';
+  }
+
   async function loadScope() {
     const res = await fetch(`/api/player-admin/session/?token=${encodeURIComponent(token)}`);
     const json = await res.json();
@@ -31,6 +66,9 @@
     }
     const tokenUiBtn = document.getElementById('playerAdminTokenCreateBtn');
     if (tokenUiBtn && tokenUiBtn.closest('.card')) tokenUiBtn.closest('.card').style.display = 'none';
+
+    tuneTurnTreasuryUiForPlayer();
+    lockRealmToScope();
   }
 
   const nativeFetch = window.fetch.bind(window);
@@ -71,7 +109,14 @@
     return nativeFetch(req, { ...init, headers });
   };
 
-  loadScope().catch((err) => {
+  loadScope().then(() => {
+    tuneTurnTreasuryUiForPlayer();
+    lockRealmToScope();
+    setInterval(() => {
+      lockRealmToScope();
+      tuneTurnTreasuryUiForPlayer();
+    }, 400);
+  }).catch((err) => {
     alert('Недействительный токен: ' + (err && err.message ? err.message : err));
   });
 })();

@@ -33,9 +33,61 @@ function player_admin_allowed_entity_types(): array {
   return ['great_houses','minor_houses','free_cities'];
 }
 
+function player_admin_minor_houses_from_layer(array $state): array {
+  $out = [];
+  foreach (['great_houses', 'special_territories'] as $parentType) {
+    foreach (($state[$parentType] ?? []) as $parentId => $realm) {
+      if (!is_array($realm)) continue;
+      $layer = $realm['minor_house_layer'] ?? null;
+      if (!is_array($layer)) continue;
+      foreach (($layer['vassals'] ?? []) as $idx => $vassal) {
+        if (!is_array($vassal)) continue;
+        $rawId = trim((string)($vassal['id'] ?? ''));
+        if ($rawId === '') continue;
+        $name = trim((string)($vassal['name'] ?? $rawId));
+        if ($name === '') $name = $rawId;
+        $provincePids = [];
+        foreach (($vassal['province_pids'] ?? []) as $pid) {
+          $n = (int)$pid;
+          if ($n > 0) $provincePids[] = $n;
+        }
+
+        if (!isset($out[$rawId])) {
+          $out[$rawId] = [
+            'name' => $name,
+            'province_pids' => $provincePids,
+            '_layer_parent_type' => $parentType,
+            '_layer_parent_id' => (string)$parentId,
+            '_layer_index' => (int)$idx,
+          ];
+          continue;
+        }
+
+        if (($out[$rawId]['name'] ?? '') === '' && $name !== '') {
+          $out[$rawId]['name'] = $name;
+        }
+        $existing = is_array($out[$rawId]['province_pids'] ?? null) ? $out[$rawId]['province_pids'] : [];
+        $out[$rawId]['province_pids'] = array_values(array_unique(array_merge($existing, $provincePids)));
+      }
+    }
+  }
+  return $out;
+}
+
+function player_admin_resolve_entity_ref(array $state, string $type, string $id): ?array {
+  if (!in_array($type, player_admin_allowed_entity_types(), true)) return null;
+  $bucket = $state[$type] ?? null;
+  if (is_array($bucket) && is_array($bucket[$id] ?? null)) return $bucket[$id];
+
+  if ($type === 'minor_houses') {
+    $derived = player_admin_minor_houses_from_layer($state);
+    if (is_array($derived[$id] ?? null)) return $derived[$id];
+  }
+  return null;
+}
+
 function player_admin_validate_entity_ref(array $state, string $type, string $id): bool {
-  if (!in_array($type, player_admin_allowed_entity_types(), true)) return false;
-  return is_array($state[$type] ?? null) && is_array(($state[$type][$id] ?? null));
+  return is_array(player_admin_resolve_entity_ref($state, $type, $id));
 }
 
 function player_admin_owned_pids(array $state, string $type, string $id): array {
@@ -47,13 +99,26 @@ function player_admin_owned_pids(array $state, string $type, string $id): array 
     'special_territories' => 'special_territory_id',
   ];
   $field = $fieldMap[$type] ?? '';
-  if ($field === '') return [];
   $out = [];
-  foreach (($state['provinces'] ?? []) as $pid => $prov) {
-    if (!is_array($prov)) continue;
-    if ((string)($prov[$field] ?? '') !== $id) continue;
-    $out[] = (int)$pid;
+
+  if ($field !== '') {
+    foreach (($state['provinces'] ?? []) as $pid => $prov) {
+      if (!is_array($prov)) continue;
+      if ((string)($prov[$field] ?? '') !== $id) continue;
+      $out[] = (int)$pid;
+    }
   }
+
+  if ($type === 'minor_houses') {
+    $realm = player_admin_resolve_entity_ref($state, $type, $id);
+    if (is_array($realm)) {
+      foreach (($realm['province_pids'] ?? []) as $pid) {
+        $n = (int)$pid;
+        if ($n > 0) $out[] = $n;
+      }
+    }
+  }
+  $out = array_values(array_unique($out));
   sort($out);
   return $out;
 }
@@ -77,7 +142,7 @@ function player_admin_resolve_session(array $state, string $token): ?array {
   $type = (string)($row['entity_type'] ?? '');
   $id = (string)($row['entity_id'] ?? '');
   if (!player_admin_validate_entity_ref($state, $type, $id)) return null;
-  $realm = $state[$type][$id] ?? [];
+  $realm = player_admin_resolve_entity_ref($state, $type, $id) ?? [];
   $pids = player_admin_owned_pids($state, $type, $id);
   return [
     'entity_type' => $type,

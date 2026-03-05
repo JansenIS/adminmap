@@ -29,8 +29,30 @@
     const state = window.state || {};
     const key = maps[type];
     const map = state && state[key];
-    if (!map || typeof map !== 'object') return [];
-    return Object.entries(map).map(([id, v]) => ({ id, name: String((v && v.name) || id) }));
+    if (map && typeof map === 'object' && Object.keys(map).length) {
+      return Object.entries(map).map(([id, v]) => ({ id, name: String((v && v.name) || id) }));
+    }
+    if (type !== 'minor_houses') return [];
+
+    const out = new Map();
+    const collect = (bucket) => {
+      if (!bucket || typeof bucket !== 'object') return;
+      for (const realm of Object.values(bucket)) {
+        if (!realm || typeof realm !== 'object') continue;
+        const layer = realm.minor_house_layer;
+        if (!layer || typeof layer !== 'object' || !Array.isArray(layer.vassals)) continue;
+        for (const v of layer.vassals) {
+          if (!v || typeof v !== 'object') continue;
+          const id = String(v.id || '').trim();
+          if (!id || out.has(id)) continue;
+          const name = String(v.name || id).trim() || id;
+          out.set(id, { id, name });
+        }
+      }
+    };
+    collect(state.great_houses);
+    collect(state.special_territories);
+    return Array.from(out.values());
   }
 
   async function refill() {
