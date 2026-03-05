@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/state_api.php';
+require_once dirname(__DIR__, 2) . '/lib/player_admin_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'PATCH') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['PATCH']], 405, api_state_mtime());
@@ -19,6 +20,16 @@ $pid = (int)$valid['pid'];
 $changes = $valid['changes'];
 
 $state = api_load_state();
+$token = player_admin_token_from_request();
+if ($token !== '') {
+  $session = player_admin_resolve_session($state, $token);
+  if (!$session) api_json_response(['error' => 'invalid_or_expired_token'], 403, api_state_mtime());
+  $owned = array_flip(array_map('intval', (array)($session['owned_pids'] ?? [])));
+  if (!isset($owned[$pid])) {
+    api_json_response(['error' => 'forbidden_pid'], 403, api_state_mtime());
+  }
+}
+
 $ifMatch = api_check_if_match($state, $payload);
 if (!$ifMatch['ok']) {
   $status = (($ifMatch['error'] ?? '') === 'if_match_required') ? 428 : 412;
