@@ -74,12 +74,39 @@ function player_admin_minor_houses_from_layer(array $state): array {
   return $out;
 }
 
+
+function player_admin_resolve_minor_house_vassal_ref(array $state, string $id): ?array {
+  $raw = trim($id);
+  if ($raw === '' || strpos($raw, 'vassal:') !== 0) return null;
+  $parts = explode(':', $raw);
+  if (count($parts) < 4) return null;
+  $parentType = ($parts[1] ?? '') === 'special_territories' ? 'special_territories' : 'great_houses';
+  $parentId = trim((string)($parts[2] ?? ''));
+  $vassalId = trim(implode(':', array_slice($parts, 3)));
+  if ($parentId === '' || $vassalId === '') return null;
+
+  $parentRealm = $state[$parentType][$parentId] ?? null;
+  if (!is_array($parentRealm)) return null;
+  $layer = $parentRealm['minor_house_layer'] ?? null;
+  if (!is_array($layer)) return null;
+  $vassals = $layer['vassals'] ?? null;
+  if (!is_array($vassals)) return null;
+  foreach ($vassals as $vassal) {
+    if (!is_array($vassal)) continue;
+    if (trim((string)($vassal['id'] ?? '')) !== $vassalId) continue;
+    return $vassal;
+  }
+  return null;
+}
+
 function player_admin_resolve_entity_ref(array $state, string $type, string $id): ?array {
   if (!in_array($type, player_admin_allowed_entity_types(), true)) return null;
   $bucket = $state[$type] ?? null;
   if (is_array($bucket) && is_array($bucket[$id] ?? null)) return $bucket[$id];
 
   if ($type === 'minor_houses') {
+    $vassalRef = player_admin_resolve_minor_house_vassal_ref($state, $id);
+    if (is_array($vassalRef)) return $vassalRef;
     $derived = player_admin_minor_houses_from_layer($state);
     if (is_array($derived[$id] ?? null)) return $derived[$id];
   }
