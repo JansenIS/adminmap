@@ -533,6 +533,20 @@
 
     drawParentEntities("great_houses");
     drawParentEntities("special_territories");
+
+    for (const [id, realm] of Object.entries(state.minor_houses || {})) {
+      if (!realm || typeof realm !== "object") continue;
+      const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
+      const pids = Array.isArray(realm.province_pids) ? realm.province_pids : [];
+      for (const pid of pids) {
+        const key = keyForPid(map, pid);
+        if (!key) continue;
+        const isCapital = (Number(realm.capital_pid) >>> 0) === (Number(pid) >>> 0);
+        if (drawFills) map.setFill(key, [r, g, b, isCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
+      }
+      const capKey = keyForPid(map, realm.capital_pid || 0);
+      if (capKey && drawFills) map.setFill(capKey, [r, g, b, MINOR_ALPHA.vassal_capital]);
+    }
   }
 
 
@@ -572,6 +586,16 @@
   function getMinorHouseInfo(pd) {
     if (!state || !pd) return { name: "—", emblemSvg: "" };
     const pid = Number(pd.pid) >>> 0;
+
+    const directMinorHouseId = String(pd.minor_house_id || "").trim();
+    if (directMinorHouseId) {
+      const direct = (state.minor_houses || {})[directMinorHouseId];
+      if (direct && typeof direct === "object") {
+        const capPid = Number(direct.capital_pid) >>> 0;
+        const cap = capPid ? getStateProvinceByPid(capPid) : null;
+        return { name: String(direct.name || directMinorHouseId), emblemSvg: (cap && cap.emblem_svg) || String(direct.emblem_svg || "") };
+      }
+    }
 
     const gh = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
     const ghLayer = gh && gh.minor_house_layer;

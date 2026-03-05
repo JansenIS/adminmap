@@ -57,6 +57,7 @@
   const realmEmblemScaleVal = el("realmEmblemScaleVal");
   const realmWarlikeCoeffInput = el("realmWarlikeCoeff");
   const btnSaveRealm = el("saveRealm");
+  const btnDeleteRealm = el("deleteRealm");
   const btnAddSelectedToRealm = el("addSelectedToRealm");
   const btnRemoveSelectedFromRealm = el("removeSelectedFromRealm");
   const btnNewRealm = el("newRealm");
@@ -2036,6 +2037,20 @@
 
     drawParentEntities("great_houses");
     drawParentEntities("special_territories");
+
+    for (const [id, realm] of Object.entries(state.minor_houses || {})) {
+      if (!realm || typeof realm !== "object") continue;
+      const [r, g, b] = MapUtils.hexToRgb(realm.color || "#ff3b30");
+      const pids = Array.isArray(realm.province_pids) ? realm.province_pids : [];
+      for (const pid of pids) {
+        const key = keyForPid(pid);
+        if (!key) continue;
+        const isCapital = (Number(realm.capital_pid) >>> 0) === (Number(pid) >>> 0);
+        map.setFill(key, [r, g, b, isCapital ? MINOR_ALPHA.vassal_capital : MINOR_ALPHA.vassal]);
+      }
+      const capKey = keyForPid(realm.capital_pid || 0);
+      if (capKey) map.setFill(capKey, [r, g, b, MINOR_ALPHA.vassal_capital]);
+    }
   }
 
 
@@ -2132,13 +2147,20 @@
   function buildRealmEntries(type) {
     if (type === "minor_houses") {
       const out = [];
+      const seen = new Set();
+      const pushMinorHouse = (id, row) => {
+        const rid = String(id || "").trim();
+        if (!rid || seen.has(rid)) return;
+        seen.add(rid);
+        out.push([rid, row]);
+      };
       const pushLayer = (parentType, parentId, parentRealm, layer) => {
         for (const v of layer.vassals) {
           if (!v || typeof v !== "object") continue;
           const vid = String(v.id || "").trim();
           if (!vid) continue;
           const id = `vassal:${parentType}:${parentId}:${vid}`;
-          out.push([id, {
+          pushMinorHouse(id, {
             id,
             name: String(v.name || vid),
             ruler: String(v.ruler || ""),
@@ -2150,7 +2172,7 @@
             emblem_scale: 1,
             warlike_coeff: clampWarlikeCoeff((parentRealm && parentRealm.warlike_coeff) || 30),
             __vassal_ref: { parent_type: parentType, parent_id: parentId, vassal_id: vid }
-          }]);
+          });
         }
       };
       for (const [ghId, ghRealm] of Object.entries(state.great_houses || {})) {
@@ -2162,6 +2184,10 @@
         const layer = stRealm && stRealm.minor_house_layer && typeof stRealm.minor_house_layer === "object" ? stRealm.minor_house_layer : null;
         if (!layer || !Array.isArray(layer.vassals)) continue;
         pushLayer("special_territories", stId, stRealm, layer);
+      }
+      for (const [id, realm] of Object.entries(state.minor_houses || {})) {
+        if (!realm || typeof realm !== "object") continue;
+        pushMinorHouse(id, Object.assign({ id, name: id, ruler: "", color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 }, realm));
       }
       return out;
     }
@@ -2287,6 +2313,48 @@
     const bucket = realmBucketByType(type);
     if (!bucket[id]) bucket[id] = { name: id, ruler: "", ruling_house_id: "", vassal_house_ids: [], color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 };
     return bucket[id];
+  }
+
+  function deleteRealmEntity(type, id) {
+    const realmId = String(id || "").trim();
+    if (!realmId) return false;
+
+    if (type === "minor_houses") {
+      const ref = resolveVassalRealmRef(realmId);
+      if (ref) {
+        const layer = ref.parentRealm && ref.parentRealm.minor_house_layer && typeof ref.parentRealm.minor_house_layer === "object" ? ref.parentRealm.minor_house_layer : null;
+        if (layer && Array.isArray(layer.vassals)) {
+          layer.vassals = layer.vassals.filter((v) => String(v && v.id || "") !== ref.vassalId);
+        }
+        for (const pd of Object.values(state.provinces || {})) {
+          if (!pd || typeof pd !== "object") continue;
+          if (String(pd.minor_house_id || "") === ref.vassalId) pd.minor_house_id = "";
+        }
+      }
+      if (state.minor_houses && typeof state.minor_houses === "object") delete state.minor_houses[realmId];
+      return true;
+    }
+
+    const bucket = realmBucketByType(type);
+    if (bucket && Object.prototype.hasOwnProperty.call(bucket, realmId)) delete bucket[realmId];
+
+    const field = MODE_TO_FIELD[type] || "";
+    if (field) {
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd || typeof pd !== "object") continue;
+        if (String(pd[field] || "") === realmId) pd[field] = "";
+      }
+    }
+
+    if (type === "great_houses") {
+      for (const kingdom of Object.values(state.kingdoms || {})) {
+        if (!kingdom || typeof kingdom !== "object") continue;
+        if (String(kingdom.ruling_house_id || "") === realmId) kingdom.ruling_house_id = "";
+        if (Array.isArray(kingdom.vassal_house_ids)) kingdom.vassal_house_ids = kingdom.vassal_house_ids.filter((v) => String(v || "") !== realmId);
+      }
+    }
+
+    return true;
   }
 
   function getRealmRuntime(type, id, opts) {
@@ -3532,6 +3600,21 @@
         catch (err) { alert("PATCH сохранение сущности не удалось: " + (err && err.message ? err.message : err)); }
       }
     });
+    if (btnDeleteRealm) btnDeleteRealm.addEventListener("click", () => {
+      const type = realmTypeSelect.value;
+      const id = String(realmSelect.value || "").trim();
+      if (!id) return;
+      const title = String((realmNameInput && realmNameInput.value) || id).trim() || id;
+      const confirmed = window.confirm(`Удалить сущность «${title}» (${type}:${id})? Это уберёт привязку у провинций.`);
+      if (!confirmed) return;
+      deleteRealmEntity(type, id);
+      rebuildRealmSelect();
+      rebuildMinorHouseControls();
+      applyLayerState(map);
+      setSelection(selectedKey, map.getProvinceMeta(selectedKey));
+      exportStateToTextarea();
+    });
+
     if (btnAddSelectedToRealm) btnAddSelectedToRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       if (type === "minor_houses") {
