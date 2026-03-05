@@ -62,6 +62,10 @@ foreach (($state['provinces'] ?? []) as $pid => $pd) {
     'special_territory_id' => (string)($pd['special_territory_id'] ?? ''),
     'fill_rgba' => is_array($pd['fill_rgba'] ?? null) ? array_values($pd['fill_rgba']) : [90, 90, 90, 180],
     'emblem_svg' => $resolveEmblem($pd, 'province', (string)$pidNum),
+    'emblem_box' => (is_array($pd['emblem_box'] ?? null) && count($pd['emblem_box']) === 2) ? [
+      (float)($pd['emblem_box'][0] ?? 2000),
+      (float)($pd['emblem_box'][1] ?? 2400),
+    ] : null,
     'wiki_description' => (string)($pd['wiki_description'] ?? ''),
     'province_card_image' => (string)($pd['province_card_image'] ?? ''),
     'treasury' => (float)($pd['treasury'] ?? 0),
@@ -86,7 +90,13 @@ foreach (['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_te
     $bucket[(string)$id] = [
       'name' => (string)($r['name'] ?? ''),
       'color' => (string)($r['color'] ?? ''),
+      'capital_pid' => (int)($r['capital_pid'] ?? $r['capital_key'] ?? $r['capital'] ?? 0),
+      'emblem_scale' => max(0.2, min(3.0, (float)($r['emblem_scale'] ?? 1))),
       'emblem_svg' => $resolveEmblem($r, $ownerType, (string)$id),
+      'emblem_box' => (is_array($r['emblem_box'] ?? null) && count($r['emblem_box']) === 2) ? [
+        (float)($r['emblem_box'][0] ?? 2000),
+        (float)($r['emblem_box'][1] ?? 2400),
+      ] : null,
       'minor_house_layer' => ($type === 'great_houses' && is_array($r['minor_house_layer'] ?? null)) ? $r['minor_house_layer'] : null,
       'ruling_house_id' => ($type === 'kingdoms') ? (string)($r['ruling_house_id'] ?? '') : '',
     ];
@@ -107,6 +117,30 @@ $entityOwnerType = $entityOwnerTypeMap[$entityType] ?? rtrim($entityType, 's');
 $entity = $state[$entityType][$entityId] ?? null;
 if (is_array($entity) && $entityOwnerType !== '') {
   $session['entity']['emblem_svg'] = $resolveEmblem($entity, $entityOwnerType, $entityId);
+  $session['entity']['emblem_box'] = (is_array($entity['emblem_box'] ?? null) && count($entity['emblem_box']) === 2)
+    ? [(float)($entity['emblem_box'][0] ?? 2000), (float)($entity['emblem_box'][1] ?? 2400)]
+    : null;
+  $session['entity']['emblem_scale'] = max(0.2, min(3.0, (float)($entity['emblem_scale'] ?? 1)));
+}
+
+
+$warArmies = [];
+foreach (($state['war_armies'] ?? []) as $row) {
+  if (!is_array($row)) continue;
+  $wid = trim((string)($row['war_army_id'] ?? ''));
+  if ($wid === '') continue;
+  $warArmies[] = [
+    'war_army_id' => $wid,
+    'realm_type' => (string)($row['realm_type'] ?? ''),
+    'realm_id' => (string)($row['realm_id'] ?? ''),
+    'realm_name' => (string)($row['realm_name'] ?? ''),
+    'army_kind' => (string)($row['army_kind'] ?? ''),
+    'army_id' => (string)($row['army_id'] ?? ''),
+    'army_name' => (string)($row['army_name'] ?? ''),
+    'current_pid' => (int)($row['current_pid'] ?? 0),
+    'moved_this_turn' => (bool)($row['moved_this_turn'] ?? false),
+    'moved_turn_year' => (int)($row['moved_turn_year'] ?? 0),
+  ];
 }
 
 api_json_response([
@@ -114,4 +148,5 @@ api_json_response([
   'session' => $session,
   'provinces' => $provinces,
   'realms' => $realms,
+  'war_armies' => array_values($warArmies),
 ], 200, api_state_mtime());
