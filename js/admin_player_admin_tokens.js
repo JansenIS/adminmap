@@ -61,9 +61,6 @@
     let list = [];
     try {
       list = await fetchEntitiesByType(type);
-      if (!list.length && type === 'minor_houses') {
-        list = entitiesByType(type);
-      }
     } catch (err) {
       list = entitiesByType(type);
     }
