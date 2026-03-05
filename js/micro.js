@@ -574,10 +574,10 @@
     for (const pid of effectiveProvinceHexes.keys()) {
       const pd = realmByProvince.get(pid);
       if (!pd) continue;
-      if (selectedKind === "great_house" && String(pd.great_house_id || "") === selectedId) selectedProvincePids.add(pid);
-      if (selectedKind === "free_city" && String(pd.free_city_id || "") === selectedId) selectedProvincePids.add(pid);
-      if (selectedKind === "special_territory" && String(pd.special_territory_id || "") === selectedId) selectedProvincePids.add(pid);
-      if (selectedKind === "kingdom" && String(pd.kingdom_id || "") === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "great_house" && pd.great_house_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "free_city" && pd.free_city_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "special_territory" && pd.special_territory_id === selectedId) selectedProvincePids.add(pid);
+      if (selectedKind === "kingdom" && pd.kingdom_id === selectedId) selectedProvincePids.add(pid);
     }
 
     if (!selectedProvincePids.size) {
