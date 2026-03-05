@@ -158,6 +158,12 @@
     if (entitySpan && entitySpan.parentElement) entitySpan.parentElement.style.display = 'none';
   }
 
+  function refreshTurnPanelForScope() {
+    const run = window.AdminMapRefreshTurnPanel;
+    if (typeof run !== 'function') return;
+    run().catch(() => {});
+  }
+
   async function loadScope() {
     const res = await fetch(`/api/player-admin/session/?token=${encodeURIComponent(token)}`);
     const json = await res.json();
@@ -183,6 +189,7 @@
 
     tuneTurnTreasuryUiForPlayer();
     lockRealmToScope();
+    refreshTurnPanelForScope();
   }
 
   const nativeFetch = window.fetch.bind(window);
@@ -230,6 +237,7 @@
     setupSaveTurnButton();
     tuneTurnTreasuryUiForPlayer();
     lockRealmToScope();
+    refreshTurnPanelForScope();
     setInterval(() => {
       lockRealmToScope();
       tuneTurnTreasuryUiForPlayer();
