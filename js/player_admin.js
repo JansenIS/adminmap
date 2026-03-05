@@ -8,6 +8,120 @@
 
   let scope = null;
   let scopeLoaded = false;
+  let allowMigrationApplyRequest = false;
+
+  function normalizeStateForBackendSave(rawState) {
+    const stateForSave = JSON.parse(JSON.stringify(rawState || {}));
+    if (Array.isArray(stateForSave.people)) {
+      const out = [];
+      const seen = new Set();
+      for (const person of stateForSave.people) {
+        const name = (typeof person === 'string') ? person.trim() : String((person && person.name) || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+      }
+      stateForSave.people = out;
+    }
+    if (stateForSave.provinces && typeof stateForSave.provinces === 'object') {
+      for (const pd of Object.values(stateForSave.provinces)) {
+        if (!pd || typeof pd !== 'object') continue;
+        if (typeof pd.province_card_image === 'string' && pd.province_card_image.startsWith('data:')) pd.province_card_image = '';
+        if (typeof pd.province_card_base_image === 'string' && pd.province_card_base_image.startsWith('data:')) pd.province_card_base_image = '';
+      }
+    }
+    return stateForSave;
+  }
+
+  async function saveStateAsBackendVariantFromPlayer(serializedState) {
+    const parsedState = normalizeStateForBackendSave(JSON.parse(serializedState));
+    const versionRes = await fetch('/api/map/version/', { cache: 'no-store' });
+    if (!versionRes.ok) throw new Error('Не удалось получить версию карты: HTTP ' + versionRes.status);
+    const versionPayload = await versionRes.json();
+    const ifMatch = String(versionPayload && versionPayload.map_version || '').trim();
+    if (!ifMatch) throw new Error('Пустая версия карты (map_version)');
+
+    const payload = {
+      state: parsedState,
+      include_legacy_svg: false,
+      replace_map_state: true,
+    };
+
+    let saveRes;
+    allowMigrationApplyRequest = true;
+    try {
+      if (typeof CompressionStream === 'function') {
+        try {
+          const json = JSON.stringify(payload);
+          const compressedStream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+          const compressedBuffer = await new Response(compressedStream).arrayBuffer();
+          saveRes = await fetch('/api/migration/apply/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json;charset=utf-8',
+              'Content-Encoding': 'gzip',
+              'If-Match': ifMatch,
+            },
+            body: compressedBuffer,
+          });
+        } catch (_err) {
+          saveRes = null;
+        }
+      }
+
+      if (!saveRes) {
+        saveRes = await fetch('/api/migration/apply/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json;charset=utf-8',
+            'If-Match': ifMatch,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+    } finally {
+      allowMigrationApplyRequest = false;
+    }
+
+    if (!saveRes.ok) {
+      const errText = await saveRes.text();
+      throw new Error('HTTP ' + saveRes.status + (errText ? (' — ' + errText.slice(0, 300)) : ''));
+    }
+    return saveRes.json();
+  }
+
+  function setTurnActionStatus(message, isError) {
+    const statusEl = document.getElementById('turnActionStatus');
+    if (!statusEl) return;
+    statusEl.textContent = String(message || '—');
+    statusEl.style.color = isError ? '#ff9f9f' : '';
+  }
+
+  function setupSaveTurnButton() {
+    const btn = document.getElementById('btnSaveTurnToBackend');
+    const stateTA = document.getElementById('state');
+    if (!btn || !stateTA) return;
+    btn.addEventListener('click', async () => {
+      const btnExport = document.getElementById('btnExport');
+      try {
+        btn.disabled = true;
+        setTurnActionStatus('Сохраняю ход в backend…', false);
+        if (btnExport && typeof btnExport.click === 'function') btnExport.click();
+        const serialized = String(stateTA.value || '').trim();
+        if (!serialized) throw new Error('Пустое состояние карты');
+        const result = await saveStateAsBackendVariantFromPlayer(serialized);
+        const stats = result && result.stats ? result.stats : null;
+        const summary = stats ? (` assets: ${stats.assets || 0}, refs: ${stats.refs || 0}, provinces: ${stats.provinces || 0}`) : '';
+        setTurnActionStatus('Ход сохранён в backend-варианте.' + summary, false);
+      } catch (err) {
+        setTurnActionStatus('Не удалось сохранить ход: ' + (err && err.message ? err.message : err), true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
 
   function lockRealmToScope() {
     if (!scope) return;
@@ -78,7 +192,10 @@
     const headers = new Headers(req.headers || {});
     headers.set('X-Player-Admin-Token', token);
 
-    if (url.pathname === '/api/migration/apply/' || url.pathname === '/api/changes/apply/') {
+    if (url.pathname === '/api/changes/apply/') {
+      throw new Error('Операция недоступна в player_admin');
+    }
+    if (url.pathname === '/api/migration/apply/' && !allowMigrationApplyRequest) {
       throw new Error('Операция недоступна в player_admin');
     }
 
@@ -110,6 +227,7 @@
   };
 
   loadScope().then(() => {
+    setupSaveTurnButton();
     tuneTurnTreasuryUiForPlayer();
     lockRealmToScope();
     setInterval(() => {
