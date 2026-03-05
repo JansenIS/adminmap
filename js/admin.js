@@ -149,6 +149,18 @@
   const personModalSeniors = el("personModalSeniors");
   const personModalVassals = el("personModalVassals");
   const personModalBio = el("personModalBio");
+  const provinceModal = el("provinceModal");
+  const provinceModalClose = el("provinceModalClose");
+  const modalProvinceMapImage = el("modalProvinceMapImage");
+  const modalKingdomHerald = el("modalKingdomHerald");
+  const modalKingdomName = el("modalKingdomName");
+  const modalGreatHouseHerald = el("modalGreatHouseHerald");
+  const modalGreatHouseName = el("modalGreatHouseName");
+  const modalMinorHouseHerald = el("modalMinorHouseHerald");
+  const modalMinorHouseName = el("modalMinorHouseName");
+  const modalProvinceHerald = el("modalProvinceHerald");
+  const modalProvinceTitle = el("modalProvinceTitle");
+  const modalProvinceDescription = el("modalProvinceDescription");
   const manualEditModal = el("manualEditModal");
   const manualEditTitle = el("manualEditTitle");
   const manualEditSubtitle = el("manualEditSubtitle");
@@ -639,6 +651,114 @@
     personModal.setAttribute('aria-hidden', 'true');
   }
 
+  function getStateProvinceByPid(pid) {
+    const id = Number(pid) >>> 0;
+    return id ? ((state && state.provinces && state.provinces[String(id)]) || null) : null;
+  }
+
+  function setModalHerald(imgEl, src, altText) {
+    if (!imgEl) return;
+    const resolved = String(src || "").trim();
+    if (resolved) {
+      imgEl.src = resolved;
+      imgEl.style.visibility = "visible";
+    } else {
+      imgEl.removeAttribute("src");
+      imgEl.style.visibility = "hidden";
+    }
+    imgEl.alt = altText || "Геральдика";
+  }
+
+  function getMinorHouseInfo(pd) {
+    if (!pd || !pd.minor_house_id) return { name: "—", emblemSvg: "" };
+    const id = String(pd.minor_house_id || "");
+    const direct = state && state.minor_houses && state.minor_houses[id];
+    if (direct) return { name: String(direct.name || id), emblemSvg: String(direct.emblem_svg || "") };
+    const ref = resolveVassalRealmRef(id);
+    if (ref && ref.vassal) return { name: String(ref.vassal.name || id), emblemSvg: String(ref.vassal.emblem_svg || "") };
+    return { name: "—", emblemSvg: "" };
+  }
+
+  async function buildProvinceMaskedImage(map, key) {
+    const k = key >>> 0;
+    if (!k) return "";
+    const mask = map && map.clipMaskByKey && map.clipMaskByKey.get(k);
+    if (!mask) return "";
+    const meta = map.getProvinceMeta(k);
+    if (!meta || !Array.isArray(meta.bbox)) return "";
+    const [x0, y0, x1, y1] = meta.bbox;
+    const bw = Math.max(1, x1 - x0);
+    const bh = Math.max(1, y1 - y0);
+    const canvas = document.createElement("canvas");
+    canvas.width = bw;
+    canvas.height = bh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !map.baseImg) return "";
+    ctx.drawImage(map.baseImg, x0, y0, bw, bh, 0, 0, bw, bh);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(mask, x0, y0, bw, bh, 0, 0, bw, bh);
+    ctx.globalCompositeOperation = "source-over";
+    return canvas.toDataURL("image/png");
+  }
+
+  async function openProvinceModal(map, key, meta) {
+    if (!provinceModal || !state || !key) return;
+    const m = meta || map.getProvinceMeta(key);
+    const pd = m ? getStateProvinceByPid(m.pid) : null;
+    if (!pd) return;
+
+    if (modalProvinceTitle) modalProvinceTitle.textContent = (pd.name || m.name || "Провинция").toUpperCase();
+    const wikiDescription = String(pd.wiki_description || "");
+    const hasWikiDescription = wikiDescription.trim() !== "";
+    if (modalProvinceDescription) {
+      const wiki = window.AdminMapWikiMarkup;
+      if (wiki && typeof wiki.toHtml === "function") {
+        modalProvinceDescription.innerHTML = hasWikiDescription ? wiki.toHtml(wikiDescription) : "<p>Описание провинции пока не заполнено.</p>";
+      } else {
+        modalProvinceDescription.textContent = hasWikiDescription ? wikiDescription : "Описание провинции пока не заполнено.";
+      }
+    }
+
+    const kingdom = pd.kingdom_id ? (state.kingdoms || {})[pd.kingdom_id] : null;
+    const greatHouse = pd.great_house_id ? (state.great_houses || {})[pd.great_house_id] : null;
+    const minorHouse = getMinorHouseInfo(pd);
+
+    if (modalKingdomName) modalKingdomName.textContent = kingdom && kingdom.name ? kingdom.name : "—";
+    if (modalGreatHouseName) modalGreatHouseName.textContent = greatHouse && greatHouse.name ? greatHouse.name : "—";
+    if (modalMinorHouseName) modalMinorHouseName.textContent = minorHouse.name || "—";
+
+    setModalHerald(modalProvinceHerald, emblemSourceToDataUri(pd.emblem_svg), "Герб провинции");
+    setModalHerald(modalKingdomHerald, emblemSourceToDataUri(kingdom && kingdom.emblem_svg), "Герб королевства");
+    setModalHerald(modalGreatHouseHerald, emblemSourceToDataUri(greatHouse && greatHouse.emblem_svg), "Герб большого дома");
+    setModalHerald(modalMinorHouseHerald, emblemSourceToDataUri(minorHouse.emblemSvg), "Герб малого дома");
+
+    const savedCardImage = String(pd.province_card_image || "").trim();
+    if (modalProvinceMapImage) {
+      if (savedCardImage) {
+        modalProvinceMapImage.src = MapUtils.resolveStaticAssetUrl(savedCardImage);
+        modalProvinceMapImage.style.visibility = "visible";
+      } else {
+        const maskedDataUri = await buildProvinceMaskedImage(map, key);
+        if (maskedDataUri) {
+          modalProvinceMapImage.src = maskedDataUri;
+          modalProvinceMapImage.style.visibility = "visible";
+        } else {
+          modalProvinceMapImage.removeAttribute("src");
+          modalProvinceMapImage.style.visibility = "hidden";
+        }
+      }
+    }
+
+    provinceModal.classList.add("open");
+    provinceModal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeProvinceModal() {
+    if (!provinceModal) return;
+    provinceModal.classList.remove("open");
+    provinceModal.setAttribute("aria-hidden", "true");
+  }
+
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
   function ensurePerson(name) { const s = String(name || "").trim(); if (!s) return ""; const key = s.toLowerCase(); const has = state.people.some(p => p.toLowerCase() === key); if (!has) { state.people.push(s); state.people = normalizePeopleList(state.people); rebuildPeopleControls(); } if (!isPlainObject(state.people_profiles)) state.people_profiles = {}; if (!isPlainObject(state.people_profiles[s])) state.people_profiles[s] = { photo_url: "", bio: "" }; return s; }
   function rebuildPidKeyMaps(map) {
@@ -651,6 +771,38 @@
   function keyForPid(pid) { const p = Number(pid); return keyByPid.get(p) || 0; }
   function getProvData(key) { const pid = pidByKey.get(key >>> 0) || 0; return pid ? (state.provinces[String(pid)] || null) : null; }
   function currentMode() { return viewModeSelect.value || "provinces"; }
+
+  function getPlayerAdminScope() {
+    const scope = window.PLAYER_ADMIN_SCOPE;
+    return scope && typeof scope === "object" ? scope : null;
+  }
+
+  function isPlayerAdminMode() {
+    return !!getPlayerAdminScope();
+  }
+
+  function playerOwnsPid(pid) {
+    const scope = getPlayerAdminScope();
+    if (!scope) return false;
+    const owned = Array.isArray(scope.owned_pids) ? scope.owned_pids : [];
+    const target = Number(pid) >>> 0;
+    return owned.some((v) => (Number(v) >>> 0) === target);
+  }
+
+  function playerAdminEntityColor() {
+    const scope = getPlayerAdminScope();
+    if (!scope) return "#ff3b30";
+    const type = String(scope.entity_type || "");
+    const id = String(scope.entity_id || "");
+    if (type === "minor_houses") {
+      const ref = resolveVassalRealmRef(id);
+      if (ref && ref.vassal && ref.vassal.color) return String(ref.vassal.color);
+    }
+    const bucket = state && state[type] && typeof state[type] === "object" ? state[type] : null;
+    const entity = bucket && bucket[id] && typeof bucket[id] === "object" ? bucket[id] : null;
+    return String((entity && entity.color) || "#ff3b30");
+  }
+
   function isWarAdminPage() {
     const params = new URLSearchParams(window.location.search || "");
     return params.get("war_admin") === "1";
@@ -2540,6 +2692,19 @@
       }
     }
 
+    if (isPlayerAdminMode() && mode !== "war") {
+      const ownedColor = playerAdminEntityColor();
+      const [or, og, ob] = MapUtils.hexToRgb(ownedColor || "#ff3b30");
+      for (const pd of Object.values(state.provinces || {})) {
+        if (!pd) continue;
+        const pid = Number(pd.pid) >>> 0;
+        if (!playerOwnsPid(pid)) continue;
+        const key = keyForPid(pid);
+        if (!key) continue;
+        map.setFill(key, [or, og, ob, 255]);
+      }
+    }
+
     map.repaintAllEmblems().catch(() => {});
     renderArmyMarkers();
   }
@@ -3046,7 +3211,9 @@
     }
     if (personModalClose) personModalClose.addEventListener("click", closePersonModal);
     if (personModal) personModal.addEventListener("click", (evt) => { if (evt.target === personModal) closePersonModal(); });
-    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeArrierbanModal(); closeArmyManageModal(); } });
+    if (provinceModalClose) provinceModalClose.addEventListener("click", closeProvinceModal);
+    if (provinceModal) provinceModal.addEventListener("click", (evt) => { if (evt.target === provinceModal) closeProvinceModal(); });
+    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeProvinceModal(); closeArrierbanModal(); closeArmyManageModal(); } });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
@@ -3705,9 +3872,15 @@
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",
       onHover: ({ key, meta, evt }) => { if (!key) { tooltip.style.display = "none"; return; } const pid = meta && meta.pid != null ? Number(meta.pid) : (pidByKey.get(key >>> 0) || 0); const pd = state.provinces[String(pid)] || {}; const label = (pd.name || (meta && meta.name) || ("Провинция " + (meta ? meta.pid : ""))); setTooltip(evt, label + " (ID " + (pd.pid || (meta && meta.pid) || "?") + ")"); if (currentMode() === "minor_houses") { const hoverKeys = getMinorHouseHoverKeys(pid); if (hoverKeys.length) map.setHoverHighlights(hoverKeys, [255, 255, 255, 60]); } else if (currentMode() === "war" && selectedWarReachableKeys.length) { map.setHoverHighlights(selectedWarReachableKeys, [120, 230, 255, 78]); } },
       onClick: ({ key, meta, evt }) => {
-        if (currentMode() === "war" && selectedWarArmyId) {
-          const moved = moveSelectedWarArmyToKey(key);
-          if (moved) { setSelection(key, meta); return; }
+        if (currentMode() === "war") {
+          if (selectedWarArmyId) {
+            const moved = moveSelectedWarArmyToKey(key);
+            if (moved) { setSelection(key, meta); return; }
+          }
+          selectedKeys.clear();
+          selectedKeys.add(key);
+          setSelection(key, meta);
+          return;
         }
         if (currentMode() === "province_properties") {
           if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
@@ -3722,6 +3895,13 @@
         }
         selectedKeys.clear(); selectedKeys.add(key);
         setSelection(key, meta);
+        if (isPlayerAdminMode()) {
+          const pid = meta && meta.pid != null ? Number(meta.pid) >>> 0 : (pidByKey.get(key >>> 0) || 0);
+          if (!playerOwnsPid(pid)) {
+            openProvinceModal(map, key, meta).catch((e) => console.warn(e));
+            return;
+          }
+        }
         openManualEditModal(map, key, meta);
       },
       onReady: () => applyLayerState(map)
