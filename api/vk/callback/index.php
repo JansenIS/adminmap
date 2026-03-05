@@ -4,6 +4,39 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/lib/vk_bot_api.php';
 
+function vk_bot_extract_image_url(array $message): string {
+  $attachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
+  foreach ($attachments as $a) {
+    if (!is_array($a)) continue;
+    if (($a['type'] ?? '') === 'photo' && is_array($a['photo'] ?? null)) {
+      $sizes = is_array($a['photo']['sizes'] ?? null) ? $a['photo']['sizes'] : [];
+      $bestUrl = '';
+      $bestArea = -1;
+      foreach ($sizes as $size) {
+        if (!is_array($size)) continue;
+        $url = trim((string)($size['url'] ?? ''));
+        if ($url === '') continue;
+        $w = (int)($size['width'] ?? 0);
+        $h = (int)($size['height'] ?? 0);
+        $area = $w * $h;
+        if ($area > $bestArea) {
+          $bestArea = $area;
+          $bestUrl = $url;
+        }
+      }
+      if ($bestUrl !== '') return $bestUrl;
+    }
+    if (($a['type'] ?? '') === 'doc' && is_array($a['doc'] ?? null)) {
+      $ext = mb_strtolower(trim((string)($a['doc']['ext'] ?? '')));
+      if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+        $url = trim((string)($a['doc']['url'] ?? ''));
+        if ($url !== '') return $url;
+      }
+    }
+  }
+  return '';
+}
+
 $raw = (string)file_get_contents('php://input');
 $payload = json_decode($raw, true);
 if (!is_array($payload)) { http_response_code(200); echo 'ok'; exit; }
@@ -24,18 +57,50 @@ if ($cmd === '') $cmd = vk_bot_payload_cmd($object);
 
 $sessions = vk_bot_load_sessions();
 $apps = vk_bot_load_applications();
+$charApps = vk_bot_load_character_applications();
 $state = api_load_state();
 $session = vk_bot_user_session($sessions, $userId);
 $stage = (string)($session['stage'] ?? 'start');
 $data = is_array($session['data'] ?? null) ? $session['data'] : [];
 
 $approvedApp = null;
+$hasApprovedStateApp = false;
 foreach ($apps as $app) {
   if (!is_array($app)) continue;
   if ((int)($app['vk_user_id'] ?? 0) !== $userId) continue;
   if (($app['status'] ?? '') !== 'approved') continue;
+  $hasApprovedStateApp = true;
   $approvedApp = $app;
 }
+$approvedCharacterApp = null;
+$pendingCharacterApp = null;
+foreach ($charApps as $charApp) {
+  if (!is_array($charApp)) continue;
+  if ((int)($charApp['vk_user_id'] ?? 0) !== $userId) continue;
+  if (($charApp['status'] ?? '') === 'approved') $approvedCharacterApp = $charApp;
+  if (($charApp['status'] ?? '') === 'pending') $pendingCharacterApp = $charApp;
+}
+
+$sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array $approvedCharacterApp, ?array $pendingCharacterApp): void {
+  $btns = [];
+  if (!$hasApprovedStateApp) {
+    $btns[] = vk_bot_btn('Регистрация нового государства', 'register_new', 'primary');
+    $btns[] = vk_bot_btn('Сесть за существующее (скоро)', 'existing_disabled', 'secondary');
+  } else {
+    $btns[] = vk_bot_btn('Войти в панель игрока', 'login_panel', 'positive');
+    if (is_array($approvedCharacterApp)) {
+      $btns[] = vk_bot_btn('Генеалогия рода', 'family_tree_login', 'primary');
+    } else {
+      $btns[] = vk_bot_btn('Анкета персонажа', 'character_form_new', 'primary');
+    }
+  }
+
+  $msg = 'Добро пожаловать. Выберите действие:';
+  if (is_array($pendingCharacterApp) && !is_array($approvedCharacterApp)) {
+    $msg .= "\nАнкета персонажа уже отправлена и ожидает модерации.";
+  }
+  vk_bot_send_message($userId, $msg, vk_bot_keyboard($btns));
+};
 
 $sendTerritorySelection = static function (int $userId, array &$sessions, array $data, array $territories): void {
   $numberMap = [];
@@ -58,10 +123,7 @@ $sendTerritorySelection = static function (int $userId, array &$sessions, array 
 };
 
 if ($cmd === 'start' || $text === '/start' || $text === 'Начать') {
-  $btns = [vk_bot_btn('Регистрация нового государства', 'register_new', 'primary')];
-  if (is_array($approvedApp)) $btns[] = vk_bot_btn('Войти в панель игрока', 'login_panel', 'positive');
-  else $btns[] = vk_bot_btn('Сесть за существующее (скоро)', 'existing_disabled', 'secondary');
-  vk_bot_send_message($userId, 'Добро пожаловать. Выберите действие:', vk_bot_keyboard($btns));
+  $sendMainMenu($userId, $hasApprovedStateApp, $approvedCharacterApp, $pendingCharacterApp);
   vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
   vk_bot_save_sessions($sessions);
   echo 'ok'; exit;
@@ -83,7 +145,38 @@ if ($cmd === 'login_panel' && is_array($approvedApp)) {
   echo 'ok'; exit;
 }
 
+if ($cmd === 'family_tree_login' && is_array($approvedCharacterApp)) {
+  $path = trim((string)($approvedCharacterApp['genealogy_admin_path'] ?? ''));
+  if ($path === '') {
+    vk_bot_send_message($userId, 'Ссылка генеалогии пока не создана. Обратитесь к администратору.');
+    echo 'ok'; exit;
+  }
+  $url = $cfg['public_base_url'] !== '' ? ($cfg['public_base_url'] . $path) : $path;
+  vk_bot_send_message($userId, 'Вход в генеалогию рода: ' . $url);
+  echo 'ok'; exit;
+}
+
+if ($cmd === 'character_form_new') {
+  if (!is_array($approvedApp)) {
+    vk_bot_send_message($userId, 'Сначала получите одобрение заявки на государство.');
+    echo 'ok'; exit;
+  }
+  if (is_array($approvedCharacterApp)) {
+    vk_bot_send_message($userId, 'Анкета персонажа уже одобрена. Используйте кнопку «Генеалогия рода».');
+    echo 'ok'; exit;
+  }
+  $session = ['stage' => 'character_birth_year', 'data' => ['character_form' => ['relatives' => []]]];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Анкета персонажа: 1/6 Укажите год рождения правителя (числом).');
+  echo 'ok'; exit;
+}
+
 if ($cmd === 'register_new') {
+  if ($hasApprovedStateApp) {
+    vk_bot_send_message($userId, 'У вас уже есть одобренная заявка на государство. Регистрация нового государства недоступна.');
+    echo 'ok'; exit;
+  }
   $session = ['stage' => 'choose_state_type', 'data' => []];
   vk_bot_set_user_session($sessions, $userId, $session);
   vk_bot_save_sessions($sessions);
@@ -104,6 +197,158 @@ if ($cmd === 'type_minor_house' || $cmd === 'type_free_city') {
   $territories = vk_bot_selectable_territories($state);
   $data['territories'] = $territories;
   $sendTerritorySelection($userId, $sessions, $data, $territories);
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_birth_year') {
+  $birthYear = preg_match('/^-?\d{1,4}$/', $text) ? (int)$text : null;
+  if ($birthYear === null) {
+    vk_bot_send_message($userId, 'Укажите корректный год рождения числом (например, 284).');
+    echo 'ok'; exit;
+  }
+  $data['character_form']['birth_year'] = $birthYear;
+  $session = ['stage' => 'character_rel_status', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, '2/6 Родственники: укажите статус первого родственника (брат/сестра, родитель, ребенок, супруг).');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_rel_status') {
+  $normalized = mb_strtolower($text);
+  $map = [
+    'брат' => 'sibling', 'сестра' => 'sibling', 'брат/сестра' => 'sibling',
+    'родитель' => 'parent', 'родители' => 'parent',
+    'ребенок' => 'child', 'ребёнок' => 'child', 'дети' => 'child',
+    'супруг' => 'spouse', 'супруга' => 'spouse',
+  ];
+  $relType = $map[$normalized] ?? '';
+  if ($relType === '') {
+    vk_bot_send_message($userId, 'Некорректный статус. Допустимо: брат/сестра, родитель, ребенок, супруг.');
+    echo 'ok'; exit;
+  }
+  $data['character_form']['current_relative'] = ['status' => $relType];
+  $session = ['stage' => 'character_rel_name', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Введите имя родственника.');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_rel_name') {
+  if ($text === '') { echo 'ok'; exit; }
+  $data['character_form']['current_relative']['name'] = $text;
+  $session = ['stage' => 'character_rel_birth_year', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Введите год рождения родственника.');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_rel_birth_year') {
+  $birthYear = preg_match('/^-?\d{1,4}$/', $text) ? (int)$text : null;
+  if ($birthYear === null) {
+    vk_bot_send_message($userId, 'Некорректный год. Введите число.');
+    echo 'ok'; exit;
+  }
+  $data['character_form']['current_relative']['birth_year'] = $birthYear;
+  $session = ['stage' => 'character_rel_photo', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Отправьте квадратное фото родственника (опционально) или напишите «пропустить».');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_rel_photo') {
+  $photo = '';
+  if (mb_strtolower($text) !== 'пропустить' && $text !== '') $photo = $text;
+  if ($photo === '') $photo = vk_bot_extract_image_url($message);
+  $currentRel = is_array($data['character_form']['current_relative'] ?? null) ? $data['character_form']['current_relative'] : [];
+  $currentRel['photo_url'] = $photo;
+  $data['character_form']['relatives'][] = $currentRel;
+  unset($data['character_form']['current_relative']);
+  $session = ['stage' => 'character_rel_more', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Родственник добавлен. Напишите «ещё», чтобы добавить родственника, или «готово», чтобы продолжить.');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_rel_more') {
+  $t = mb_strtolower($text);
+  if ($t === 'ещё' || $t === 'еще') {
+    $session = ['stage' => 'character_rel_status', 'data' => $data];
+    vk_bot_set_user_session($sessions, $userId, $session);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Укажите статус следующего родственника.');
+    echo 'ok'; exit;
+  }
+  if ($t !== 'готово') {
+    vk_bot_send_message($userId, 'Напишите «ещё» или «готово».');
+    echo 'ok'; exit;
+  }
+  $session = ['stage' => 'character_personality', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, '3/6 Характер (чем подробнее, тем лучше):');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_personality') {
+  if ($text === '') { echo 'ok'; exit; }
+  $data['character_form']['personality'] = $text;
+  $session = ['stage' => 'character_biography', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, '4/6 Биография (чем подробнее, тем лучше):');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_biography') {
+  if ($text === '') { echo 'ok'; exit; }
+  $data['character_form']['biography'] = $text;
+  $session = ['stage' => 'character_skills', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, '5/6 Навыки:');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_skills') {
+  if ($text === '') { echo 'ok'; exit; }
+  $data['character_form']['skills'] = $text;
+  $session = ['stage' => 'character_photo', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, '6/6 Фото правителя (квадратное): отправьте изображение или ссылку.');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_photo') {
+  $photo = $text !== '' ? $text : '';
+  if ($photo === '') $photo = vk_bot_extract_image_url($message);
+  if ($photo === '') {
+    vk_bot_send_message($userId, 'Не удалось получить фото. Отправьте изображение или ссылку.');
+    echo 'ok'; exit;
+  }
+  $data['character_form']['photo_url'] = $photo;
+
+  $charAppId = 'char_app_' . date('Ymd_His') . '_' . $userId . '_' . random_int(100, 999);
+  $charApps[] = [
+    'id' => $charAppId,
+    'created_at' => time(),
+    'status' => 'pending',
+    'vk_user_id' => $userId,
+    'state_application_id' => (string)($approvedApp['id'] ?? ''),
+    'approved_entity_type' => (string)($approvedApp['approved_entity_type'] ?? ''),
+    'approved_entity_id' => (string)($approvedApp['approved_entity_id'] ?? ''),
+    'form' => $data['character_form'],
+  ];
+  vk_bot_save_character_applications($charApps);
+
+  vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Анкета персонажа отправлена и ожидает одобрения в админке.');
   echo 'ok'; exit;
 }
 

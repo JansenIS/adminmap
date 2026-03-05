@@ -57,6 +57,30 @@
     });
   }
 
+  async function loadCharacterApps(){
+    const body = byId('charAppsBody');
+    if (!body) return;
+    const res=await fetch('/api/vk/character_applications/'); const j=await res.json();
+    const rows=Array.isArray(j.items)?j.items:[];
+    body.innerHTML='';
+    rows.forEach((a)=>{
+      const tr=document.createElement('tr');
+      const f=a.form||{};
+      const relatives = Array.isArray(f.relatives)?f.relatives:[];
+      const relText = relatives.slice(0,4).map((r)=>`${r.status||''}: ${r.name||''} (${r.birth_year||'?'})`).join('<br>') || '—';
+      const details=`Сущность: ${a.approved_entity_type||''}:${a.approved_entity_id||''}<br>Год рожд.: ${f.birth_year||''}<br>Характер: ${(f.personality||'').slice(0,90)}<br>Биография: ${(f.biography||'').slice(0,90)}<br>Навыки: ${(f.skills||'').slice(0,90)}<br>Родственники:<br>${relText}`;
+      tr.innerHTML=`<td>${a.id||''}</td><td>${a.status||''}</td><td>${a.vk_user_id||''}</td><td>${details}</td><td></td>`;
+      const td=tr.lastElementChild;
+      const approve=document.createElement('button'); approve.textContent='Одобрить';
+      approve.onclick=async()=>{await fetch('/api/vk/character_applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'approve'})});loadCharacterApps();};
+      const reject=document.createElement('button'); reject.textContent='Отклонить'; reject.style.marginLeft='6px';
+      reject.onclick=async()=>{await fetch('/api/vk/character_applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'reject'})});loadCharacterApps();};
+      td.appendChild(approve); td.appendChild(reject);
+      body.appendChild(tr);
+    });
+  }
+
   await loadCfg();
   await loadApps();
+  await loadCharacterApps();
 })();

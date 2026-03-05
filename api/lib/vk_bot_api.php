@@ -8,6 +8,7 @@ require_once __DIR__ . '/player_admin_api.php';
 function vk_bot_config_path(): string { return api_repo_root() . '/data/vk_bot_config.json'; }
 function vk_bot_sessions_path(): string { return api_repo_root() . '/data/vk_bot_sessions.json'; }
 function vk_bot_applications_path(): string { return api_repo_root() . '/data/vk_bot_applications.json'; }
+function vk_bot_character_applications_path(): string { return api_repo_root() . '/data/vk_bot_character_applications.json'; }
 
 function vk_bot_files_mtime(array $paths): int {
   $mt = 0;
@@ -24,6 +25,7 @@ function vk_bot_data_mtime(): int {
     vk_bot_config_path(),
     vk_bot_sessions_path(),
     vk_bot_applications_path(),
+    vk_bot_character_applications_path(),
   ]);
 }
 
@@ -64,6 +66,8 @@ function vk_bot_load_sessions(): array { return vk_bot_load_json_file(vk_bot_ses
 function vk_bot_save_sessions(array $rows): bool { return api_atomic_write_json(vk_bot_sessions_path(), $rows); }
 function vk_bot_load_applications(): array { return vk_bot_load_json_file(vk_bot_applications_path(), []); }
 function vk_bot_save_applications(array $rows): bool { return api_atomic_write_json(vk_bot_applications_path(), $rows); }
+function vk_bot_load_character_applications(): array { return vk_bot_load_json_file(vk_bot_character_applications_path(), []); }
+function vk_bot_save_character_applications(array $rows): bool { return api_atomic_write_json(vk_bot_character_applications_path(), $rows); }
 
 function vk_bot_log_error(string $message): void {
   @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . ' ' . $message . "\n", FILE_APPEND);
@@ -141,6 +145,108 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
   if (is_array($decoded) && isset($decoded['error'])) {
     @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . " api_error: " . json_encode($decoded['error'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
   }
+}
+
+
+function vk_bot_save_square_photo_blob(string $raw, string $personName = ''): ?string {
+  if ($raw === '') return null;
+  $slug = preg_replace('/[^a-z0-9_\-]+/i', '_', trim($personName));
+  $slug = trim((string)$slug, '_');
+  if ($slug === '') $slug = 'person';
+  $hash = substr(sha1($personName . '|' . microtime(true) . '|' . random_int(1, PHP_INT_MAX)), 0, 10);
+
+  $dir = api_repo_root() . '/people';
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true)) return null;
+  if (!is_dir($dir)) return null;
+
+  if (!function_exists('imagecreatefromstring')) {
+    if (class_exists('Imagick')) {
+      try {
+        $img = new Imagick();
+        $img->readImageBlob($raw);
+        $w = $img->getImageWidth();
+        $h = $img->getImageHeight();
+        if ($w <= 1 || $h <= 1) return null;
+        $side = min($w, $h);
+        $x = (int)floor(($w - $side) / 2);
+        $y = (int)floor(($h - $side) / 2);
+        $targetSide = 512;
+        $img->cropImage($side, $side, $x, $y);
+        $img->setImagePage(0, 0, 0, 0);
+        $img->resizeImage($targetSide, $targetSide, Imagick::FILTER_LANCZOS, 1);
+        $img->setImageFormat('jpeg');
+        $img->setImageCompressionQuality(88);
+        $fileName = $slug . '_' . $hash . '.jpg';
+        $path = $dir . '/' . $fileName;
+        if (!$img->writeImage($path)) return null;
+        $img->clear();
+        $img->destroy();
+        return 'people/' . $fileName;
+      } catch (Throwable $e) {
+        return null;
+      }
+    }
+
+    $mime = '';
+    if (function_exists('finfo_open')) {
+      $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+      if ($finfo) {
+        $detected = @finfo_buffer($finfo, $raw);
+        if (is_string($detected)) $mime = strtolower(trim($detected));
+        @finfo_close($finfo);
+      }
+    }
+    $extMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+    if (!isset($extMap[$mime])) return null;
+    $fileName = $slug . '_' . $hash . '.' . $extMap[$mime];
+    if (@file_put_contents($dir . '/' . $fileName, $raw) === false) return null;
+    return 'people/' . $fileName;
+  }
+
+  $src = @imagecreatefromstring($raw);
+  if (!$src) return null;
+  $w = imagesx($src);
+  $h = imagesy($src);
+  if ($w <= 1 || $h <= 1) { imagedestroy($src); return null; }
+
+  $side = min($w, $h);
+  $x = (int)floor(($w - $side) / 2);
+  $y = (int)floor(($h - $side) / 2);
+  $targetSide = 512;
+  $dst = imagecreatetruecolor($targetSide, $targetSide);
+  if (!$dst) { imagedestroy($src); return null; }
+  if (!imagecopyresampled($dst, $src, 0, 0, $x, $y, $targetSide, $targetSide, $side, $side)) {
+    imagedestroy($src); imagedestroy($dst); return null;
+  }
+
+  $fileName = $slug . '_' . $hash . '.jpg';
+  $path = $dir . '/' . $fileName;
+  if (!imagejpeg($dst, $path, 88)) { imagedestroy($src); imagedestroy($dst); return null; }
+  imagedestroy($src);
+  imagedestroy($dst);
+  return 'people/' . $fileName;
+}
+
+function vk_bot_store_remote_photo(string $url, string $personName = ''): ?string {
+  $url = trim($url);
+  if ($url === '') return null;
+  if (!preg_match('#^https?://#i', $url)) return null;
+
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+  curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+  curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+  curl_setopt($ch, CURLOPT_USERAGENT, 'adminmap-vk-bot/1.0');
+  $raw = curl_exec($ch);
+  $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $err = curl_error($ch);
+  curl_close($ch);
+  if (!is_string($raw) || $raw === '' || $code >= 400 || $err !== '') return null;
+  if (strlen($raw) > 12 * 1024 * 1024) return null;
+
+  return vk_bot_save_square_photo_blob($raw, $personName);
 }
 
 function vk_bot_payload_cmd(array $object): string {
@@ -395,6 +501,49 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   imagedestroy($mask);
   imagedestroy($baseMap);
   return '/data/vk_bot/territory_images/' . $name;
+}
+
+
+function vk_bot_genealogy_admin_tokens_path(): string { return api_repo_root() . '/data/genealogy_admin_tokens.json'; }
+
+function vk_bot_load_genealogy_admin_tokens(): array {
+  $rows = vk_bot_load_json_file(vk_bot_genealogy_admin_tokens_path(), []);
+  return is_array($rows) ? $rows : [];
+}
+
+function vk_bot_save_genealogy_admin_tokens(array $rows): bool {
+  return api_atomic_write_json(vk_bot_genealogy_admin_tokens_path(), $rows);
+}
+
+function vk_bot_create_genealogy_admin_token(string $clan, string $entityType, string $entityId, ?string $previousToken = null): ?array {
+  $tokens = vk_bot_load_genealogy_admin_tokens();
+  if ($previousToken !== null && $previousToken !== '') unset($tokens[$previousToken]);
+  $token = player_admin_generate_token();
+  $now = time();
+  $tokens[$token] = [
+    'clan' => trim($clan),
+    'entity_type' => trim($entityType),
+    'entity_id' => trim($entityId),
+    'created_at' => $now,
+    'expires_at' => $now + player_admin_token_ttl_seconds(),
+  ];
+  if (!vk_bot_save_genealogy_admin_tokens($tokens)) return null;
+  return ['token' => $token, 'path' => '/genealogy_admin.html?token=' . rawurlencode($token)];
+}
+
+function vk_bot_resolve_genealogy_admin_token(string $token): ?array {
+  $token = trim($token);
+  if ($token === '') return null;
+  $tokens = vk_bot_load_genealogy_admin_tokens();
+  $row = $tokens[$token] ?? null;
+  if (!is_array($row)) return null;
+  $exp = (int)($row['expires_at'] ?? 0);
+  if ($exp > 0 && $exp < time()) {
+    unset($tokens[$token]);
+    vk_bot_save_genealogy_admin_tokens($tokens);
+    return null;
+  }
+  return $row;
 }
 
 function vk_bot_create_player_admin_token(string $entityType, string $entityId, ?string $previousToken = null): ?array {
