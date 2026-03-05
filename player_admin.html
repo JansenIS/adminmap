@@ -172,7 +172,6 @@
           <label>Режим</label>
           <select id="viewMode">
             <option value="provinces">Физическая карта</option>
-            <option value="province_properties">Свойства провинций</option>
             <option value="war">Война</option>
             <option value="kingdoms">Королевства</option>
             <option value="great_houses">Большие Дома</option>
@@ -181,22 +180,6 @@
             <option value="special_territories">Особые Территории</option>
           </select>
         </div>
-      </div>
-
-      <div class="card" id="provincePropsCard" style="display:none;">
-        <div class="muted">Массовое редактирование местности (режим «Свойства провинций»)</div>
-        <div class="grid" style="margin-top:10px; grid-template-columns: 130px 1fr;">
-          <label>Выбрано</label>
-          <div id="provincePropsCount" class="small">0</div>
-
-          <label>Тип местности</label>
-          <select id="provincePropsTerrain"></select>
-        </div>
-        <div class="btnrow">
-          <button id="provincePropsApply" type="button">Применить к выбранным</button>
-          <button id="provincePropsClear" type="button">Снять выбор</button>
-        </div>
-        <div class="small" style="margin-top:8px;">Подсветка автоматически делит провинции по типам местности на 12 цветов.</div>
       </div>
 
       <div class="card" id="warMoveCard">
@@ -496,6 +479,7 @@
   <script src="js/state_loader.js"></script>
   <script src="js/app_core.js"></script>
   <script src="js/admin_war_shared.js"></script>
+  <script src="js/army_state.js"></script>
   <script src="js/player_admin.js"></script>
   <script src="js/admin.js"></script>
 </body>

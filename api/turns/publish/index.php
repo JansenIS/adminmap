@@ -121,6 +121,12 @@ if (!turn_api_save_turn($turn)) {
   turn_api_response(['error' => 'write_failed'], 500);
 }
 
+$mapState = api_load_state();
+api_sync_army_registry($mapState, $year, true);
+if (!api_atomic_write_json(api_state_path(), $mapState)) {
+  turn_api_response(['error' => 'state_write_failed'], 500);
+}
+
 $saved = turn_api_load_turn($year) ?? $turn;
 turn_api_response([
   'turn' => [
