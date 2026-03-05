@@ -321,10 +321,6 @@ if ($action === 'muster') {
   $realm['arrierban_active'] = true;
 
   $flat = $composeArmies($realm);
-  $cap = (int)($session['entity']['muster_cap'] ?? 1000);
-  $total = 0;
-  foreach ($flat as $a) $total += (int)($a['size'] ?? 0);
-  if ($total > $cap) api_json_response(['error' => 'muster_cap_exceeded', 'cap' => $cap, 'current' => $total], 400, api_state_mtime());
 
   $syncRealmWarArmies();
 } elseif ($action === 'move' || $action === 'disband' || $action === 'save_armies') {
