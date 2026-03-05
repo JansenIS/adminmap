@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Генеалогия рода</title>
+  <style>
+    body{margin:0;background:#0b0f14;color:#e7eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    #msg{padding:24px}
+    iframe{display:none;width:100vw;height:100vh;border:0}
+  </style>
+</head>
+<body>
+  <div id="msg">Проверка токена…</div>
+  <iframe id="app" src="/genealogy_simulator/admin.html"></iframe>
+  <script>
+    (async()=>{
+      const params = new URLSearchParams(location.search);
+      const token = String(params.get('token') || '').trim();
+      const msg = document.getElementById('msg');
+      const app = document.getElementById('app');
+      if (!token) { msg.textContent = 'Токен не указан.'; return; }
+      try {
+        const res = await fetch('/api/genealogy-admin/token/?token=' + encodeURIComponent(token), { cache: 'no-store' });
+        const j = await res.json();
+        if (!res.ok || !j || !j.ok) {
+          msg.textContent = 'Недействительный или просроченный токен.';
+          return;
+        }
+        msg.style.display = 'none';
+        app.style.display = 'block';
+      } catch (_) {
+        msg.textContent = 'Не удалось проверить токен.';
+      }
+    })();
+  </script>
+</body>
+</html>
