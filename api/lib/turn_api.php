@@ -825,7 +825,6 @@ function turn_api_compute_treasury(
       'turn_year' => $year,
       'entity_id' => $entityId,
       'entity_name' => (string)($row['entity_name'] ?? ''),
-      'entity_type' => (string)($row['entity_type'] ?? ''),
       'opening_balance' => $opening,
       'income_tax' => 0.0,
       'subsidies_out' => 0.0,
@@ -847,7 +846,6 @@ function turn_api_compute_treasury(
         'turn_year' => $year,
         'entity_id' => $entityId,
         'entity_name' => $entityName,
-        'entity_type' => $entityType,
         'opening_balance' => 0.0,
         'income_tax' => 0.0,
         'subsidies_out' => 0.0,
@@ -856,9 +854,6 @@ function turn_api_compute_treasury(
         'transfers_out' => 0.0,
         'closing_balance' => 0.0,
       ];
-    }
-    if ((string)($rows[$entityId]['entity_type'] ?? '') === '' && $entityType !== '') {
-      $rows[$entityId]['entity_type'] = $entityType;
     }
     $meta[$entityId] = ['entity_name' => $entityName, 'entity_type' => $entityType];
   };
