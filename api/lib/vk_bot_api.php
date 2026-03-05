@@ -108,7 +108,7 @@ function vk_bot_btn_item(string $label, string $cmd, string $color = 'primary'):
 }
 
 function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): array {
-  return [[vk_bot_btn_item($label, $cmd, $color)]];
+  return [vk_bot_btn_item($label, $cmd, $color)];
 }
 
 function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson = null): void {
