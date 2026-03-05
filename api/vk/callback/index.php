@@ -15,10 +15,11 @@ if ($cfg['secret'] !== '' && trim((string)($payload['secret'] ?? '')) !== $cfg['
 
 if (($payload['type'] ?? '') !== 'message_new') { echo 'ok'; exit; }
 $object = is_array($payload['object'] ?? null) ? $payload['object'] : [];
-$userId = (int)($object['from_id'] ?? 0);
+$message = is_array($object['message'] ?? null) ? $object['message'] : $object;
+$userId = (int)($message['from_id'] ?? 0);
 if ($userId <= 0) { echo 'ok'; exit; }
-$text = trim((string)($object['text'] ?? ''));
-$cmd = vk_bot_payload_cmd($object);
+$text = trim((string)($message['text'] ?? ''));
+$cmd = vk_bot_payload_cmd($message);
 
 $sessions = vk_bot_load_sessions();
 $apps = vk_bot_load_applications();
@@ -170,8 +171,8 @@ if (isset($formOrder[$stage])) {
 
 if ($stage === 'form_coa_svg') {
   $coa = $text;
-  if (trim($coa) === '' && is_array($object['attachments'] ?? null)) {
-    foreach ($object['attachments'] as $a) {
+  if (trim($coa) === '' && is_array($message['attachments'] ?? null)) {
+    foreach ($message['attachments'] as $a) {
       if (!is_array($a) || ($a['type'] ?? '') !== 'doc') continue;
       $doc = $a['doc'] ?? null;
       if (!is_array($doc)) continue;
