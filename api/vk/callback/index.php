@@ -163,8 +163,9 @@ if ($stage === 'choose_territory') {
       $msg .= "\nКарта с нумерацией создана, но ссылка недоступна: не настроен public_base_url.";
     }
   } else {
-    vk_bot_log_error('render_map_warning: image_not_generated type=' . $territoryType . ' id=' . $territoryId);
-    $msg .= "\nНе удалось сгенерировать карту с нумерацией — обратитесь к администратору.";
+    $renderReason = vk_bot_get_last_render_error() ?? 'unknown';
+    vk_bot_log_error('render_map_warning: image_not_generated reason=' . $renderReason . ' type=' . $territoryType . ' id=' . $territoryId);
+    $msg .= "\nНе удалось сгенерировать карту с нумерацией (" . $renderReason . ") — обратитесь к администратору.";
   }
   vk_bot_send_message($userId, $msg);
   echo 'ok'; exit;
