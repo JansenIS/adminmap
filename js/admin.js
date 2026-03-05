@@ -351,47 +351,20 @@
     const rowId = String(row.entity_id || '').trim();
     const scopeType = String(scope.entity_type || '').trim();
     const scopeId = String(scope.entity_id || '').trim();
-    const scopeName = String(scope.entity_name || '').trim();
     if (!rowType || !scopeType || !scopeId) return false;
     if (rowType !== scopeType) return false;
 
-    const normalizeText = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU');
     const normalizeId = (type, id) => {
       const raw = String(id || '').trim();
       if (!raw) return '';
       const prefix = `${type}:`;
-      const withoutPrefix = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
-      return normalizeText(withoutPrefix);
+      if (raw.startsWith(prefix)) return raw.slice(prefix.length);
+      return raw;
     };
 
     const rowNorm = normalizeId(scopeType, rowId);
     const scopeNorm = normalizeId(scopeType, scopeId);
-    if (rowNorm !== '' && rowNorm === scopeNorm) return true;
-
-    const rowNameNorm = normalizeText(row.entity_name || '');
-    const scopeNameNorm = normalizeText(scopeName);
-    if (scopeNameNorm && rowNameNorm && rowNameNorm === scopeNameNorm) return true;
-
-    const canonicalScopeIds = new Set();
-    if (scopeNorm) canonicalScopeIds.add(scopeNorm);
-
-    const bucket = state && state[scopeType] && typeof state[scopeType] === 'object' ? state[scopeType] : null;
-    if (bucket) {
-      if (bucket[scopeId] && typeof bucket[scopeId] === 'object') {
-        const declared = normalizeId(scopeType, bucket[scopeId].id);
-        if (declared) canonicalScopeIds.add(declared);
-      }
-      for (const [key, realm] of Object.entries(bucket)) {
-        if (!realm || typeof realm !== 'object') continue;
-        const keyNorm = normalizeId(scopeType, key);
-        const declaredNorm = normalizeId(scopeType, realm.id);
-        if ((scopeNorm && declaredNorm === scopeNorm) || (scopeNameNorm && normalizeText(realm.name) === scopeNameNorm)) {
-          if (keyNorm) canonicalScopeIds.add(keyNorm);
-          if (declaredNorm) canonicalScopeIds.add(declaredNorm);
-        }
-      }
-    }
-    return rowNorm !== '' && canonicalScopeIds.has(rowNorm);
+    return rowNorm !== '' && rowNorm === scopeNorm;
   }
 
   function renderTurnEntityTreasury(rows) {
