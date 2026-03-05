@@ -20,6 +20,7 @@ $userId = (int)($message['from_id'] ?? 0);
 if ($userId <= 0) { echo 'ok'; exit; }
 $text = trim((string)($message['text'] ?? ''));
 $cmd = vk_bot_payload_cmd($message);
+if ($cmd === '') $cmd = vk_bot_payload_cmd($object);
 
 $sessions = vk_bot_load_sessions();
 $apps = vk_bot_load_applications();
@@ -35,6 +36,26 @@ foreach ($apps as $app) {
   if (($app['status'] ?? '') !== 'approved') continue;
   $approvedApp = $app;
 }
+
+$sendTerritorySelection = static function (int $userId, array &$sessions, array $data, array $territories): void {
+  $numberMap = [];
+  $territoryLines = [];
+  foreach (array_values($territories) as $i => $t) {
+    $num = (string)($i + 1);
+    $numberMap[$num] = ['type' => (string)$t['type'], 'id' => (string)$t['id']];
+    $territoryLines[] = $num . '. ' . $t['name'] . ' (' . $t['type'] . ':' . $t['id'] . ')';
+  }
+  $data['territory_number_map'] = $numberMap;
+  $session = ['stage' => 'choose_territory', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+
+  $msg = "Выберите территорию (Королевства и Особые территории).\n"
+    . "Отправьте номер из списка или ID вручную в формате type:id.\n\n"
+    . "Список:\n"
+    . implode("\n", $territoryLines);
+  vk_bot_send_message($userId, $msg);
+};
 
 if ($cmd === 'start' || $text === '/start' || $text === 'Начать') {
   $btns = [vk_bot_btn('Регистрация нового государства', 'register_new', 'primary')];
@@ -82,20 +103,20 @@ if ($cmd === 'type_minor_house' || $cmd === 'type_free_city') {
   $data['state_type'] = $cmd === 'type_minor_house' ? 'minor_house' : 'free_city';
   $territories = vk_bot_selectable_territories($state);
   $data['territories'] = $territories;
-  $session = ['stage' => 'choose_territory', 'data' => $data];
-  vk_bot_set_user_session($sessions, $userId, $session);
-  vk_bot_save_sessions($sessions);
-
-  $buttons = [];
-  foreach (array_slice($territories, 0, 40) as $t) {
-    $buttons[] = vk_bot_btn($t['name'], 'territory:' . $t['type'] . ':' . $t['id'], 'secondary');
-  }
-  $territoryLines = [];
-  foreach ($territories as $t) {
-    $territoryLines[] = '- ' . $t['name'] . ' (' . $t['type'] . ':' . $t['id'] . ')';
-  }
-  vk_bot_send_message($userId, "Выберите территорию (Королевства и Особые территории).\nЕсли нужной нет в кнопках, напишите её ID вручную в формате type:id.\n\nСписок:\n" . implode("\n", $territoryLines), vk_bot_keyboard($buttons));
+  $sendTerritorySelection($userId, $sessions, $data, $territories);
   echo 'ok'; exit;
+}
+
+if ($stage === 'choose_state_type') {
+  if ($text === 'Малый Дом') $cmd = 'type_minor_house';
+  if ($text === 'Вольный Город') $cmd = 'type_free_city';
+  if ($cmd === 'type_minor_house' || $cmd === 'type_free_city') {
+    $data['state_type'] = $cmd === 'type_minor_house' ? 'minor_house' : 'free_city';
+    $territories = vk_bot_selectable_territories($state);
+    $data['territories'] = $territories;
+    $sendTerritorySelection($userId, $sessions, $data, $territories);
+    echo 'ok'; exit;
+  }
 }
 
 if ($stage === 'choose_territory') {
@@ -104,6 +125,13 @@ if ($stage === 'choose_territory') {
     $parts = explode(':', $cmd, 3);
     $territoryType = (string)($parts[1] ?? '');
     $territoryId = (string)($parts[2] ?? '');
+  } elseif (preg_match('/^(\d{1,3})$/', $text, $m)) {
+    $pick = (string)$m[1];
+    $sel = $data['territory_number_map'][$pick] ?? null;
+    if (is_array($sel)) {
+      $territoryType = trim((string)($sel['type'] ?? ''));
+      $territoryId = trim((string)($sel['id'] ?? ''));
+    }
   } elseif (preg_match('/^(kingdoms|special_territories):(.+)$/u', $text, $m)) {
     $territoryType = $m[1]; $territoryId = trim($m[2]);
   }
