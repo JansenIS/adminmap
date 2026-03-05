@@ -58,6 +58,10 @@
     .editor-modal__body { padding:16px; }
     .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
     .editor-modal textarea { min-height:120px; }
+    .wiki-editor-modal__preview { margin-top:10px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; display:flex; align-items:center; justify-content:center; min-height:220px; }
+    .wiki-editor-modal__preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
+    .wiki-editor-modal__preview-empty { color:#a6b4c5; font-size:12px; }
+    .wiki-editor-modal__status { margin-top:10px; font-size:12px; color:#a6b4c5; }
     .province-modal { position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
     .province-modal.open { display:flex; }
     .province-modal__window { width:min(840px, 96vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
@@ -376,6 +380,38 @@
           <div><b>Вассалы:</b> <span id="personModalVassals">—</span></div>
         </div>
         <p id="personModalBio" class="person-modal__bio">Биография будет добавлена позже.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="playerWikiEditorModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__window">
+      <div class="editor-modal__head">
+        <div>
+          <div id="playerWikiEditorTitle" style="font-weight:700;">Wiki-редактор провинции</div>
+          <div id="playerWikiEditorSubtitle" class="small">—</div>
+        </div>
+        <button id="playerWikiEditorClose" type="button">Закрыть</button>
+      </div>
+      <div class="editor-modal__body">
+        <label for="playerWikiEditorDescription" style="display:block;">Описание</label>
+        <textarea id="playerWikiEditorDescription" placeholder="Описание провинции"></textarea>
+
+        <div style="margin-top:12px;">
+          <label for="playerWikiEditorAssetFile">Фон карточки провинции</label>
+          <input id="playerWikiEditorAssetFile" type="file" accept="image/*" style="margin-top:6px;" />
+          <div class="small" style="margin-top:6px;">Изменения применяются только к текущей провинции. Переходов по другим страницам здесь нет.</div>
+        </div>
+
+        <div class="wiki-editor-modal__preview">
+          <img id="playerWikiEditorAssetPreview" alt="Фон карточки провинции" style="display:none;" />
+          <div id="playerWikiEditorAssetEmpty" class="wiki-editor-modal__preview-empty">Изображение не выбрано</div>
+        </div>
+
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="playerWikiEditorSave" type="button">Сохранить</button>
+        </div>
+        <div id="playerWikiEditorStatus" class="wiki-editor-modal__status">—</div>
       </div>
     </div>
   </div>

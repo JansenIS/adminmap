@@ -185,6 +185,16 @@
   const manualCapitalPid = el("manualCapitalPid");
   const manualProvincePids = el("manualProvincePids");
   const manualExtraJson = el("manualExtraJson");
+  const playerWikiEditorModal = el("playerWikiEditorModal");
+  const playerWikiEditorTitle = el("playerWikiEditorTitle");
+  const playerWikiEditorSubtitle = el("playerWikiEditorSubtitle");
+  const playerWikiEditorClose = el("playerWikiEditorClose");
+  const playerWikiEditorDescription = el("playerWikiEditorDescription");
+  const playerWikiEditorAssetFile = el("playerWikiEditorAssetFile");
+  const playerWikiEditorAssetPreview = el("playerWikiEditorAssetPreview");
+  const playerWikiEditorAssetEmpty = el("playerWikiEditorAssetEmpty");
+  const playerWikiEditorSave = el("playerWikiEditorSave");
+  const playerWikiEditorStatus = el("playerWikiEditorStatus");
 
   if (alphaInput && alphaVal) alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
@@ -226,6 +236,8 @@
   let battleSimDataLoadPromise = null;
   let pendingArrierbanPlan = null;
   let mapInstanceRef = null;
+  let playerWikiEditorTarget = null;
+  let playerWikiEditorPendingAssetFile = null;
   let pendingArmyManage = null;
   let selectedWarArmyId = "";
   let selectedWarReachableKeys = [];
@@ -757,6 +769,108 @@
     if (!provinceModal) return;
     provinceModal.classList.remove("open");
     provinceModal.setAttribute("aria-hidden", "true");
+  }
+
+  function setPlayerWikiEditorStatus(text, isError = false) {
+    if (!playerWikiEditorStatus) return;
+    playerWikiEditorStatus.textContent = String(text || "—");
+    playerWikiEditorStatus.style.color = isError ? "#ff9aa5" : "#a6b4c5";
+  }
+
+  function setPlayerWikiEditorAssetPreview(url) {
+    if (!playerWikiEditorAssetPreview || !playerWikiEditorAssetEmpty) return;
+    if (url) {
+      playerWikiEditorAssetPreview.src = String(url);
+      playerWikiEditorAssetPreview.style.display = "block";
+      playerWikiEditorAssetEmpty.style.display = "none";
+      return;
+    }
+    playerWikiEditorAssetPreview.removeAttribute("src");
+    playerWikiEditorAssetPreview.style.display = "none";
+    playerWikiEditorAssetEmpty.style.display = "block";
+  }
+
+  function closePlayerWikiEditorModal() {
+    if (!playerWikiEditorModal) return;
+    playerWikiEditorModal.classList.remove("open");
+    playerWikiEditorModal.setAttribute("aria-hidden", "true");
+    playerWikiEditorTarget = null;
+    playerWikiEditorPendingAssetFile = null;
+    if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+    setPlayerWikiEditorStatus("—", false);
+  }
+
+  async function openPlayerWikiEditorModal(map, key, meta) {
+    if (!playerWikiEditorModal || !playerWikiEditorDescription) return;
+    const m = meta || (map && typeof map.getProvinceMeta === "function" ? map.getProvinceMeta(key) : null);
+    const pid = m && m.pid != null ? Number(m.pid) >>> 0 : (pidByKey.get(key >>> 0) || 0);
+    if (!pid) return;
+    const pd = state && state.provinces ? state.provinces[String(pid)] : null;
+    if (!pd) return;
+
+    playerWikiEditorTarget = { pid, key: key >>> 0 };
+    playerWikiEditorPendingAssetFile = null;
+    if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+
+    if (playerWikiEditorTitle) playerWikiEditorTitle.textContent = `Wiki-редактор: ${(pd.name || m.name || `Провинция ${pid}`)}`;
+    if (playerWikiEditorSubtitle) playerWikiEditorSubtitle.textContent = `PID ${pid}`;
+    playerWikiEditorDescription.value = String(pd.wiki_description || "");
+
+    const currentImage = String(pd.province_card_image || "").trim();
+    setPlayerWikiEditorAssetPreview(currentImage ? MapUtils.resolveStaticAssetUrl(currentImage) : "");
+    setPlayerWikiEditorStatus("Готово к редактированию.", false);
+
+    playerWikiEditorModal.classList.add("open");
+    playerWikiEditorModal.setAttribute("aria-hidden", "false");
+  }
+
+  async function savePlayerWikiEditorModal() {
+    if (!playerWikiEditorTarget) return;
+    const pid = Number(playerWikiEditorTarget.pid) >>> 0;
+    if (!pid) return;
+    const pd = state && state.provinces ? state.provinces[String(pid)] : null;
+    if (!pd) throw new Error("Провинция не найдена");
+
+    const saveBtnDisabledPrev = playerWikiEditorSave ? playerWikiEditorSave.disabled : false;
+    if (playerWikiEditorSave) playerWikiEditorSave.disabled = true;
+    setPlayerWikiEditorStatus("Сохраняю…", false);
+
+    try {
+      const ifMatch = await fetchIfMatchVersion();
+      const changes = { description: String(playerWikiEditorDescription && playerWikiEditorDescription.value || "") };
+      if (playerWikiEditorPendingAssetFile) {
+        const imageDataUrl = await fileToDataUrl(playerWikiEditorPendingAssetFile);
+        const uploaded = await fetch(PROVINCE_CARD_UPLOAD_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json;charset=utf-8" },
+          body: JSON.stringify({ pid, image_data_url: imageDataUrl }),
+        });
+        const uploadedBody = await uploaded.json();
+        if (!uploaded.ok || !uploadedBody.path) throw new Error((uploadedBody && uploadedBody.error) || `HTTP ${uploaded.status}`);
+        changes.background_image = String(uploadedBody.path);
+      }
+
+      const res = await fetch("/api/wiki/patch/index.php", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json;charset=utf-8" },
+        body: JSON.stringify({ kind: "province", pid, if_match: ifMatch, changes }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
+
+      pd.wiki_description = changes.description;
+      if (typeof changes.background_image === "string") {
+        pd.province_card_image = changes.background_image;
+        setPlayerWikiEditorAssetPreview(MapUtils.resolveStaticAssetUrl(changes.background_image));
+      }
+      playerWikiEditorPendingAssetFile = null;
+      if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+      setPlayerWikiEditorStatus("Изменения сохранены.", false);
+    } catch (err) {
+      setPlayerWikiEditorStatus("Ошибка сохранения: " + (err && err.message ? err.message : err), true);
+    } finally {
+      if (playerWikiEditorSave) playerWikiEditorSave.disabled = saveBtnDisabledPrev;
+    }
   }
 
   function normalizePeopleList(arr) { const out = []; const seen = new Set(); for (const raw of (arr || [])) { const s = String(raw || "").trim(); if (!s) continue; const key = s.toLowerCase(); if (seen.has(key)) continue; seen.add(key); out.push(s); } return out.sort((a, b) => a.localeCompare(b, "ru")); }
@@ -3213,7 +3327,20 @@
     if (personModal) personModal.addEventListener("click", (evt) => { if (evt.target === personModal) closePersonModal(); });
     if (provinceModalClose) provinceModalClose.addEventListener("click", closeProvinceModal);
     if (provinceModal) provinceModal.addEventListener("click", (evt) => { if (evt.target === provinceModal) closeProvinceModal(); });
-    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeProvinceModal(); closeArrierbanModal(); closeArmyManageModal(); } });
+    if (playerWikiEditorClose) playerWikiEditorClose.addEventListener("click", closePlayerWikiEditorModal);
+    if (playerWikiEditorModal) playerWikiEditorModal.addEventListener("click", (evt) => { if (evt.target === playerWikiEditorModal) closePlayerWikiEditorModal(); });
+    if (playerWikiEditorAssetFile) {
+      playerWikiEditorAssetFile.addEventListener("change", (evt) => {
+        const file = evt && evt.target && evt.target.files && evt.target.files[0] ? evt.target.files[0] : null;
+        playerWikiEditorPendingAssetFile = file;
+        if (file) {
+          setPlayerWikiEditorAssetPreview(URL.createObjectURL(file));
+          setPlayerWikiEditorStatus("Выбрано новое изображение. Нажмите «Сохранить».", false);
+        }
+      });
+    }
+    if (playerWikiEditorSave) playerWikiEditorSave.addEventListener("click", () => { savePlayerWikiEditorModal().catch((e) => console.warn(e)); });
+    window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeProvinceModal(); closePlayerWikiEditorModal(); closeArrierbanModal(); closeArmyManageModal(); } });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
@@ -3901,6 +4028,8 @@
             openProvinceModal(map, key, meta).catch((e) => console.warn(e));
             return;
           }
+          openPlayerWikiEditorModal(map, key, meta).catch((e) => console.warn(e));
+          return;
         }
         openManualEditModal(map, key, meta);
       },
