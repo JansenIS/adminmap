@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/lib/player_api.php';
+require_once dirname(__DIR__, 3) . '/lib/turn_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, api_state_mtime());
@@ -86,7 +87,19 @@ $collectProvinceIdsForArrierban = static function (string $mode, string $id, arr
   if (is_array($realmObj['province_pids'] ?? null)) {
     foreach ($realmObj['province_pids'] as $raw) { $pid = (int)$raw; if ($pid > 0) $pids[$pid] = true; }
   }
-  if ($mode === 'kingdoms') return array_keys($pids);
+
+  if ($mode === 'kingdoms') {
+    $rulingHouseId = trim((string)($realmObj['ruling_house_id'] ?? ''));
+    $rulingHouse = ($rulingHouseId !== '' && is_array($state['great_houses'][$rulingHouseId] ?? null)) ? $state['great_houses'][$rulingHouseId] : null;
+    $layer = is_array($rulingHouse['minor_house_layer'] ?? null) ? $rulingHouse['minor_house_layer'] : null;
+    if ($layer) {
+      foreach ((is_array($layer['domain_pids'] ?? null) ? $layer['domain_pids'] : []) as $raw) {
+        $pid = (int)$raw;
+        if ($pid > 0) $pids[$pid] = true;
+      }
+    }
+    return array_keys($pids);
+  }
 
   if ($mode === 'great_houses') {
     $layer = is_array($realmObj['minor_house_layer'] ?? null) ? $realmObj['minor_house_layer'] : null;
@@ -105,6 +118,19 @@ $collectProvinceIdsForArrierban = static function (string $mode, string $id, arr
   }
 
   if ($mode === 'minor_houses') {
+    foreach (($state['great_houses'] ?? []) as $gh) {
+      if (!is_array($gh)) continue;
+      $layer = is_array($gh['minor_house_layer'] ?? null) ? $gh['minor_house_layer'] : null;
+      if (!$layer || !is_array($layer['vassals'] ?? null)) continue;
+      foreach ($layer['vassals'] as $vassal) {
+        if (!is_array($vassal)) continue;
+        if (trim((string)($vassal['id'] ?? '')) !== $id) continue;
+        foreach ((is_array($vassal['province_pids'] ?? null) ? $vassal['province_pids'] : []) as $raw) {
+          $pid = (int)$raw;
+          if ($pid > 0) $pids[$pid] = true;
+        }
+      }
+    }
     foreach (($state['provinces'] ?? []) as $pd) {
       if (!is_array($pd)) continue;
       $pid = (int)($pd['pid'] ?? 0);
@@ -115,7 +141,9 @@ $collectProvinceIdsForArrierban = static function (string $mode, string $id, arr
   return array_keys($pids);
 };
 
-$calculateArrierbanForRealm = static function (string $mode, string $id, array $realmObj) use ($state, $collectProvinceIdsForArrierban): array {
+$hexCountsByPid = turn_api_hex_counts_by_pid();
+
+$calculateArrierbanForRealm = static function (string $mode, string $id, array $realmObj) use ($state, $collectProvinceIdsForArrierban, $hexCountsByPid): array {
   $warlikeCoeff = max(0, min(100, (int)($realmObj['warlike_coeff'] ?? 30)));
   $loyaltyCoeff = max(0, min(100, (int)($realmObj['loyalty_coeff'] ?? 0)));
   $domainPids = $collectProvinceIdsForArrierban($mode, $id, $realmObj);
@@ -126,6 +154,7 @@ $calculateArrierbanForRealm = static function (string $mode, string $id, array $
     if (!is_array($pd)) continue;
     $domainPopulation += max(0, (int)($pd['population'] ?? 0));
     $hex = (int)($pd['hex_count'] ?? 0);
+    if ($hex <= 0) $hex = max(0, (int)($hexCountsByPid[(string)$pid] ?? 0));
     $domainHexes += ($hex > 0 ? $hex : 1);
   }
 
@@ -308,12 +337,51 @@ $arrierbanRandomVassalArmies = static function (string $mode, array $calc) use (
   return $armies;
 };
 
-$composeArmies = static function (array $realmObj) use ($normalizeUnits): array {
+$realmDefaultArmyPid = static function (string $mode, string $id, array $realmObj) use ($state): int {
+  $fieldByType = [
+    'kingdoms' => 'kingdom_id',
+    'great_houses' => 'great_house_id',
+    'minor_houses' => 'minor_house_id',
+    'free_cities' => 'free_city_id',
+    'special_territories' => 'special_territory_id',
+  ];
+  $field = $fieldByType[$mode] ?? '';
+  $capitalPid = (int)($realmObj['capital_pid'] ?? 0);
+  if ($capitalPid <= 0 && is_array($realmObj['province_pids'] ?? null) && count($realmObj['province_pids'])) {
+    $capitalPid = (int)$realmObj['province_pids'][0];
+  }
+  if ($capitalPid <= 0 && $mode === 'minor_houses') {
+    foreach (($state['great_houses'] ?? []) as $gh) {
+      if (!is_array($gh)) continue;
+      $layer = is_array($gh['minor_house_layer'] ?? null) ? $gh['minor_house_layer'] : null;
+      if (!$layer || !is_array($layer['vassals'] ?? null)) continue;
+      foreach ($layer['vassals'] as $vassal) {
+        if (!is_array($vassal)) continue;
+        if (trim((string)($vassal['id'] ?? '')) !== $id) continue;
+        if (is_array($vassal['province_pids'] ?? null) && count($vassal['province_pids'])) {
+          $capitalPid = (int)$vassal['province_pids'][0];
+          if ($capitalPid > 0) break 2;
+        }
+      }
+    }
+  }
+  if ($capitalPid <= 0 && $field !== '') {
+    foreach (($state['provinces'] ?? []) as $pd) {
+      if (!is_array($pd)) continue;
+      if (trim((string)($pd[$field] ?? '')) !== $id) continue;
+      $capitalPid = (int)($pd['pid'] ?? 0);
+      if ($capitalPid > 0) break;
+    }
+  }
+  return max(0, $capitalPid);
+};
+
+$composeArmies = static function (array $realmObj) use ($normalizeUnits, $entityType, $entityId, $realmDefaultArmyPid): array {
   $result = [];
   $domain = $normalizeUnits(is_array($realmObj['arrierban_units'] ?? null) ? $realmObj['arrierban_units'] : []);
   if (count($domain)) {
     $size = 0; foreach ($domain as $u) $size += (int)$u['size'];
-    $musterPid = (int)($realmObj['capital_pid'] ?? 0);
+    $musterPid = $realmDefaultArmyPid($entityType, $entityId, $realmObj);
     $result[] = ['army_id' => 'domain', 'army_name' => 'Доменная армия', 'army_kind' => 'domain', 'location_pid' => $musterPid, 'muster_pid' => $musterPid, 'units' => $domain, 'size' => $size];
   }
   foreach ((is_array($realmObj['arrierban_vassal_armies'] ?? null) ? $realmObj['arrierban_vassal_armies'] : []) as $idx => $a) {
@@ -417,6 +485,163 @@ $syncRealmWarArmies = static function (?string $movedArmyId = null, ?int $newPid
   return $state['war_armies'];
 };
 
+
+$distributeLevyByPopulation = static function (array $domainPids, int $totalLevy) use (&$state): array {
+  $rows = [];
+  $totalPopulation = 0;
+  foreach ($domainPids as $pid) {
+    $pd =& $state['provinces'][(string)$pid];
+    if (!is_array($pd)) continue;
+    $population = max(0, (int)($pd['population'] ?? 0));
+    $rows[] = ['pid' => (int)$pid, 'population' => $population, 'levy' => 0];
+    $totalPopulation += $population;
+  }
+  if (!count($rows) || $totalLevy <= 0 || $totalPopulation <= 0) return $rows;
+
+  $assigned = 0;
+  foreach ($rows as &$row) {
+    $raw = ($totalLevy * $row['population']) / $totalPopulation;
+    $row['levy'] = min($row['population'], (int)floor($raw));
+    $assigned += $row['levy'];
+  }
+  unset($row);
+
+  $remaining = max(0, $totalLevy - $assigned);
+  if ($remaining > 0) {
+    $sortable = [];
+    foreach ($rows as $idx => $row) {
+      $frac = $row['population'] > 0 ? (($totalLevy * $row['population']) / $totalPopulation) - $row['levy'] : 0.0;
+      $sortable[] = ['idx' => $idx, 'frac' => $frac];
+    }
+    usort($sortable, static fn($a, $b) => $b['frac'] <=> $a['frac']);
+    foreach ($sortable as $item) {
+      if ($remaining <= 0) break;
+      $idx = (int)$item['idx'];
+      $cap = max(0, $rows[$idx]['population'] - $rows[$idx]['levy']);
+      if ($cap <= 0) continue;
+      $add = min($cap, $remaining);
+      $rows[$idx]['levy'] += $add;
+      $remaining -= $add;
+    }
+  }
+
+  return $rows;
+};
+
+$applyArrierbanToProvinces = static function (array $calc, array $domainUnits, array $vassalUnits) use (&$state, $distributeLevyByPopulation): array {
+  $totalLevy = 0;
+  foreach ($domainUnits as $u) $totalLevy += max(0, (int)($u['size'] ?? 0));
+  foreach ($vassalUnits as $u) $totalLevy += max(0, (int)($u['size'] ?? 0));
+
+  $rows = $distributeLevyByPopulation((array)($calc['domainPids'] ?? []), $totalLevy);
+  foreach ($rows as $row) {
+    $pid = (int)($row['pid'] ?? 0);
+    $population = (int)($row['population'] ?? 0);
+    $levy = (int)($row['levy'] ?? 0);
+    if ($pid <= 0 || $population <= 0 || $levy <= 0) continue;
+    $pd =& $state['provinces'][(string)$pid];
+    if (!is_array($pd)) continue;
+    $pd['population'] = max(0, (int)floor($population - $levy));
+    $pd['arrierban_income_penalty'] = max(0, min(1, ($levy / $population) * 10));
+    $pd['arrierban_levy'] = max(0, (int)($pd['arrierban_levy'] ?? 0)) + $levy;
+    $pd['arrierban_raised'] = true;
+  }
+
+  return ['totalLevy' => $totalLevy, 'rows' => $rows];
+};
+
+$getRealmArrierbanProvinceRows = static function () use (&$state, $entityType, $entityId): array {
+  $fieldByType = [
+    'kingdoms' => 'kingdom_id',
+    'great_houses' => 'great_house_id',
+    'minor_houses' => 'minor_house_id',
+    'free_cities' => 'free_city_id',
+    'special_territories' => 'special_territory_id',
+  ];
+  $field = $fieldByType[$entityType] ?? '';
+  if ($field === '') return [];
+  $rows = [];
+  foreach (($state['provinces'] ?? []) as $pd) {
+    if (!is_array($pd)) continue;
+    if (trim((string)($pd[$field] ?? '')) !== $entityId) continue;
+    $levy = max(0, (int)floor((float)($pd['arrierban_levy'] ?? 0)));
+    if ($levy <= 0) continue;
+    $rows[] = ['pid' => (int)($pd['pid'] ?? 0), 'levy' => $levy, 'population' => (int)($pd['population'] ?? 0)];
+  }
+  usort($rows, static fn(array $a, array $b): int => ((int)$a['pid']) <=> ((int)$b['pid']));
+  return $rows;
+};
+
+$distributeEvenLoss = static function (int $totalLoss, array $capacities): array {
+  $losses = array_fill(0, count($capacities), 0);
+  $remaining = max(0, $totalLoss);
+  $active = [];
+  foreach ($capacities as $idx => $cap) {
+    if ((int)$cap > 0) $active[] = (int)$idx;
+  }
+  while ($remaining > 0 && count($active)) {
+    $share = max(1, (int)floor($remaining / count($active)));
+    $next = [];
+    foreach ($active as $idx) {
+      $cap = max(0, (int)$capacities[$idx] - (int)$losses[$idx]);
+      if ($cap <= 0) continue;
+      $add = min($cap, $share, $remaining);
+      if ($add <= 0) continue;
+      $losses[$idx] += $add;
+      $remaining -= $add;
+      if ($losses[$idx] < (int)$capacities[$idx]) $next[] = $idx;
+      if ($remaining <= 0) break;
+    }
+    $active = $next;
+  }
+  return $losses;
+};
+
+$dismissArrierbanWithLosses = static function (int $requestedLosses) use (&$realm, &$state, $getRealmArrierbanProvinceRows, $distributeEvenLoss): array {
+  $rows = $getRealmArrierbanProvinceRows();
+  $mobilizedTotal = 0;
+  foreach ($rows as $row) $mobilizedTotal += max(0, (int)($row['levy'] ?? 0));
+
+  $fieldTotal = 0;
+  foreach ((is_array($realm['arrierban_units'] ?? null) ? $realm['arrierban_units'] : []) as $row) $fieldTotal += max(0, (int)($row['size'] ?? 0));
+  foreach ((is_array($realm['arrierban_vassal_units'] ?? null) ? $realm['arrierban_vassal_units'] : []) as $row) $fieldTotal += max(0, (int)($row['size'] ?? 0));
+  $impliedLosses = max(0, $mobilizedTotal - $fieldTotal);
+  $losses = min($mobilizedTotal, max($impliedLosses, max(0, $requestedLosses)));
+
+  $caps = [];
+  foreach ($rows as $row) $caps[] = max(0, (int)($row['levy'] ?? 0));
+  $lossByProvince = $distributeEvenLoss($losses, $caps);
+
+  $returnedTotal = 0;
+  foreach ($rows as $idx => $row) {
+    $pid = (int)($row['pid'] ?? 0);
+    if ($pid <= 0 || !is_array($state['provinces'][(string)$pid] ?? null)) continue;
+    $levy = max(0, (int)($row['levy'] ?? 0));
+    $returned = max(0, $levy - max(0, (int)($lossByProvince[$idx] ?? 0)));
+    $pd =& $state['provinces'][(string)$pid];
+    $pd['population'] = max(0, (int)floor((float)($pd['population'] ?? 0) + $returned));
+    $pd['arrierban_levy'] = 0;
+    $pd['arrierban_income_penalty'] = 0;
+    $pd['arrierban_raised'] = false;
+    $returnedTotal += $returned;
+  }
+
+  $realm['arrierban_units'] = [];
+  $realm['arrierban_vassal_armies'] = [];
+  $realm['arrierban_vassal_units'] = [];
+  $realm['arrierban_active'] = false;
+  $realm['arrierban_domain_only'] = false;
+
+  return [
+    'mobilizedTotal' => $mobilizedTotal,
+    'fieldTotal' => $fieldTotal,
+    'impliedLosses' => $impliedLosses,
+    'losses' => $losses,
+    'returnedTotal' => $returnedTotal,
+    'provinces' => count($rows),
+  ];
+};
+
 $findArmyIdx = static function (array $list, string $armyId): int {
   foreach ($list as $idx => $a) {
     if (!is_array($a)) continue;
@@ -426,6 +651,9 @@ $findArmyIdx = static function (array $list, string $armyId): int {
 };
 
 if ($action === 'muster_plan' || $action === 'muster') {
+  if ((bool)($realm['arrierban_active'] ?? false)) {
+    api_json_response(['error' => 'arrierban_already_active'], 400, api_state_mtime());
+  }
   $mode = trim((string)($payload['muster_mode'] ?? 'domain'));
   if ($mode === 'royal') {
     if ($entityType !== 'great_houses') api_json_response(['error' => 'muster_mode_not_allowed', 'mode' => $mode], 400, api_state_mtime());
@@ -467,11 +695,14 @@ if ($action === 'muster_plan' || $action === 'muster') {
     foreach ((array)($a['units'] ?? []) as $u) $realm['arrierban_vassal_units'][] = $u;
   }
   $realm['arrierban_active'] = true;
+  $realm['arrierban_domain_only'] = ($mode === 'domain');
+
+  $applied = $applyArrierbanToProvinces($calc, $domainUnits, $realm['arrierban_vassal_units']);
 
   $flat = $composeArmies($realm);
 
   $syncRealmWarArmies();
-} elseif ($action === 'move' || $action === 'disband' || $action === 'save_armies') {
+} elseif ($action === 'move' || $action === 'disband' || $action === 'save_armies' || $action === 'dismiss_arrierban') {
   $flat = $composeArmies($realm);
 
   if ($action === 'move') {
@@ -480,6 +711,19 @@ if ($action === 'muster_plan' || $action === 'muster') {
     if ($armyId === '' || $toPid <= 0) api_json_response(['error' => 'invalid_move_payload'], 400, api_state_mtime());
     $idx = $findArmyIdx($flat, $armyId);
     if ($idx < 0) api_json_response(['error' => 'army_not_found'], 404, api_state_mtime());
+
+    $reachablePidsRaw = $payload['reachable_pids'] ?? null;
+    if (!is_array($reachablePidsRaw) || !count($reachablePidsRaw)) {
+      api_json_response(['error' => 'reachable_pids_required'], 400, api_state_mtime());
+    }
+    $reachablePids = [];
+    foreach ($reachablePidsRaw as $rawPid) {
+      $pid = (int)$rawPid;
+      if ($pid > 0) $reachablePids[$pid] = true;
+    }
+    if (!isset($reachablePids[$toPid])) {
+      api_json_response(['error' => 'move_not_reachable'], 400, api_state_mtime());
+    }
 
     // same turn move lock as war_armies in admin engine
     $turnYear = $getCurrentWarTurnYear();
@@ -503,6 +747,11 @@ if ($action === 'muster_plan' || $action === 'muster') {
     array_splice($flat, $idx, 1);
     $applyArmiesToRealm($flat);
     $syncRealmWarArmies();
+  } elseif ($action === 'dismiss_arrierban') {
+    if (!(bool)($realm['arrierban_active'] ?? false)) api_json_response(['error' => 'arrierban_not_active'], 400, api_state_mtime());
+    $requestedLosses = max(0, (int)($payload['losses'] ?? 0));
+    $dismissed = $dismissArrierbanWithLosses($requestedLosses);
+    $syncRealmWarArmies();
   } else {
     $rows = $payload['armies'] ?? null;
     if (!is_array($rows)) api_json_response(['error' => 'invalid_armies_payload'], 400, api_state_mtime());
@@ -522,4 +771,4 @@ if ($action === 'muster_plan' || $action === 'muster') {
 
 if (!api_save_state($state)) api_json_response(['error' => 'write_failed'], 500, api_state_mtime());
 $armiesOut = player_compose_armies_from_realm($realm);
-api_json_response(['ok' => true, 'armies' => array_values($armiesOut)], 200, api_state_mtime());
+api_json_response(['ok' => true, 'armies' => array_values($armiesOut), 'applied' => $applied ?? null, 'dismissed' => $dismissed ?? null], 200, api_state_mtime());

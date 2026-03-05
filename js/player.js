@@ -12,6 +12,7 @@
   let selectedPid = 0;
   let minorHouseByPid = new Map();
   let pendingArmies = [];
+  let warArmies = [];
   let pendingArrierbanPlan = null;
   let pendingArmyManage = null;
   let selectedWarReachableKeys = [];
@@ -26,6 +27,20 @@
   const arrierbanValidation = $('arrierbanValidation');
   const arrierbanClose = $('arrierbanClose');
   const arrierbanApply = $('arrierbanApply');
+  const arrierbanUi = window.AdminWarArrierban && window.AdminWarArrierban.createArrierbanModalController
+    ? window.AdminWarArrierban.createArrierbanModalController({
+      modal: arrierbanModal,
+      title: arrierbanTitle,
+      subtitle: arrierbanSubtitle,
+      pools: arrierbanPools,
+      remaining: arrierbanRemaining,
+      rows: arrierbanRows,
+      validation: arrierbanValidation,
+      closeBtn: arrierbanClose,
+      getPlan: () => pendingArrierbanPlan,
+      setPlan: (plan) => { pendingArrierbanPlan = plan; },
+    })
+    : null;
   const armyManageModal = $('armyManageModal');
   const armyManageTitle = $('armyManageTitle');
   const armyManageSubtitle = $('armyManageSubtitle');
@@ -165,123 +180,27 @@
     $('infoTerrain').textContent = p ? (p.terrain || '—') : '—';
   }
 
-  function unitCategoryLabel(source) {
-    const map = { militia: 'Ополчение', sergeants: 'Сержанты', nehts: 'Нехты', knights: 'Рыцари' };
-    return map[String(source || '')] || 'Прочее';
-  }
-
-  function resolveUnitCategory(unit) {
-    const source = String(unit && unit.source || '');
-    if (['militia', 'sergeants', 'nehts', 'knights'].includes(source)) return source;
-    const byId = { militia: 'militia', militia_tr: 'militia', shot: 'sergeants', pikes: 'sergeants', assault150: 'sergeants', bikes: 'nehts', dragoons: 'nehts', ulans: 'nehts', foot_nehts: 'nehts', palatines: 'knights', preventors100: 'knights', foot_knights: 'knights', moto_knights: 'knights' };
-    return byId[String(unit && unit.unit_id || '')] || 'other';
-  }
-
-  function formatRemainingPools(plan, allocations) {
-    const pools = (plan && plan.pools) || {};
-    const keys = ['militia', 'sergeants', 'nehts', 'knights'];
-    return keys.map((key) => {
-      const cap = Math.max(0, Math.floor(Number(pools[key]) || 0));
-      const used = Math.max(0, Math.floor(Number(allocations && allocations[key]) || 0));
-      return `${unitCategoryLabel(key)}: ${Math.max(0, cap - used)} из ${cap}`;
-    }).join(', ');
-  }
-
-  function createArrierbanUnitInput(def, value) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'arrierban-row-alloc__entry';
-    wrapper.innerHTML = `<input type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(value) || 0))}" data-unit-id="${def.id}" data-source="${def.source}" data-base-size="${def.base_size}" /><button type="button" class="arrierban-row-alloc__remove" data-action="remove-arrierban-row" title="Удалить отряд">−</button>`;
-    return wrapper;
-  }
-
-  function buildArrierbanDomainRow(def){
-    const row = document.createElement('div');
-    row.className = 'arrierban-grid';
-    const minSize = Math.max(1, Math.ceil((Number(def.base_size) || 1) * 0.1));
-    const wrap = document.createElement('div');
-    wrap.className = 'arrierban-row-alloc';
-    wrap.dataset.unitId = def.id;
-    wrap.dataset.source = def.source;
-    wrap.dataset.baseSize = String(def.base_size);
-    wrap.appendChild(createArrierbanUnitInput(def, 0));
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'arrierban-row-alloc__add';
-    addBtn.dataset.action = 'add-arrierban-row';
-    addBtn.textContent = '+ Добавить отряд';
-    wrap.appendChild(addBtn);
-    row.appendChild(Object.assign(document.createElement('div'), { textContent: def.name || def.id || 'unit' }));
-    row.appendChild(Object.assign(document.createElement('div'), { textContent: unitCategoryLabel(def.source) }));
-    row.appendChild(Object.assign(document.createElement('div'), { textContent: String(Math.max(1, Number(def.base_size)||1)) }));
-    row.appendChild(Object.assign(document.createElement('div'), { textContent: String(minSize) }));
-    row.appendChild(wrap);
-    return row;
-  }
-
-  function updateArrierbanRemaining(){
-    if (!pendingArrierbanPlan || !arrierbanRows || !arrierbanRemaining) return;
-    const allocations = { militia: 0, sergeants: 0, nehts: 0, knights: 0 };
-    const inputs = Array.from(arrierbanRows.querySelectorAll('input[type="number"]'));
-    for (const input of inputs) {
-      const source = String(input.dataset.source || '');
-      if (!(source in allocations)) continue;
-      allocations[source] += Math.max(0, Math.floor(Number(input.value) || 0));
-    }
-    arrierbanRemaining.textContent = `Нераспределено: ${formatRemainingPools(pendingArrierbanPlan, allocations)}.`;
-  }
+  const unitCategoryLabel = (source) => window.AdminWarArrierban ? window.AdminWarArrierban.unitCategoryLabel(source) : 'Прочее';
+  const resolveUnitCategory = (unit) => window.AdminWarArrierban ? window.AdminWarArrierban.resolveUnitCategory(unit) : 'other';
 
   function collectArrierbanAllocations(){
-    if (!pendingArrierbanPlan || !arrierbanRows) return { units: [], error: 'Нет данных призыва.' };
-    const pools = pendingArrierbanPlan.pools || {};
-    const used = { knights:0, nehts:0, sergeants:0, militia:0 };
-    const units = [];
-    for (const input of Array.from(arrierbanRows.querySelectorAll('input[type="number"]'))) {
-      const source = String(input.dataset.source || '');
-      const size = Math.max(0, Math.floor(Number(input.value) || 0));
-      if (!size) continue;
-      if (!(source in used)) continue;
-      used[source] += size;
-      units.push({ source, unit_id: String(input.dataset.unitId || ''), size, base_size: Math.max(1, Math.floor(Number(input.dataset.baseSize) || 1)) });
-    }
-    for (const k of Object.keys(used)) {
-      const cap = Math.max(0, Math.floor(Number(pools[k]) || 0));
-      if (used[k] > cap) return { units: [], error: `Превышен пул ${unitCategoryLabel(k).toLowerCase()}: ${used[k]} > ${cap}.` };
-    }
-    return { units };
+    if (!arrierbanUi) return { units: [], error: 'Скрипт арьербана недоступен.' };
+    const collected = arrierbanUi.collect();
+    if (!collected.ok) return { units: [], error: collected.error || 'Проверьте распределение.' };
+    return { units: collected.units };
   }
 
   function openArrierbanModal(plan, mode){
-    if (!arrierbanModal || !arrierbanRows) return;
-    pendingArrierbanPlan = Object.assign({}, plan || {}, { mode: String(mode || (plan && plan.mode) || 'domain') });
-    if (arrierbanTitle) arrierbanTitle.textContent = 'Арьербан';
-    if (arrierbanSubtitle) arrierbanSubtitle.textContent = mode === 'royal' ? 'Королевский призыв' : (mode === 'vassal' ? 'Вассальный призыв' : 'Доменный призыв');
-    if (arrierbanPools) arrierbanPools.textContent = `Пулы доменного призыва: рыцари ${plan.pools.knights||0}, нехты ${plan.pools.nehts||0}, сержанты ${plan.pools.sergeants||0}, ополчение ${plan.pools.militia||0}.`;
-    if (arrierbanValidation) arrierbanValidation.textContent = '';
-    arrierbanRows.innerHTML = '';
-    const categories = ['militia','sergeants','nehts','knights'];
-    categories.forEach((cat)=>{
-      const header = document.createElement('div');
-      header.className = 'arrierban-category';
-      header.innerHTML = `<div class="arrierban-category__title">${unitCategoryLabel(cat)}</div>`;
-      arrierbanRows.appendChild(header);
-      (plan.domain_unit_defs || []).filter((d)=>String(d.source||'')===cat).forEach((def)=>{
-        const row = buildArrierbanDomainRow(def);
-        const input = row.querySelector('input[type="number"]');
-        const found = (plan.default_units || []).find((u)=>String(u.unit_id||'')===String(def.id||''));
-        if (input && found) input.value = String(Math.max(0, Math.floor(Number(found.size)||0)));
-        arrierbanRows.appendChild(row);
-      });
-    });
-    updateArrierbanRemaining();
-    arrierbanModal.classList.add('open');
-    arrierbanModal.setAttribute('aria-hidden','false');
+    if (!arrierbanUi) return;
+    arrierbanUi.open(Object.assign({}, plan || {}, {
+      mode: String(mode || (plan && plan.mode) || 'domain'),
+      domainOnly: String(mode || '') === 'domain',
+    }));
   }
 
   function closeArrierbanModal(){
-    if (!arrierbanModal) return;
-    arrierbanModal.classList.remove('open');
-    arrierbanModal.setAttribute('aria-hidden','true');
-    pendingArrierbanPlan = null;
+    if (!arrierbanUi) return;
+    arrierbanUi.close();
   }
 
   function clearArmyMarkers(){ if (armyMarkersLayer) armyMarkersLayer.innerHTML = ''; }
@@ -355,9 +274,18 @@
   function createArmyMarker(x, y, colorHex, emblemSrc, label, isFeudal){
     if (!armyMarkersLayer) return;
     const marker = document.createElement('div');
-    marker.className = `army-marker${isFeudal ? ' army-marker--feudal' : ''}`;
-    marker.style.left = `${Math.round(x)}px`;
-    marker.style.top = `${Math.round(y)}px`;
+    marker.className = isFeudal ? 'army-marker army-marker--feudal' : 'army-marker';
+    const mapW = Number(map && map.W) || 0;
+    const mapH = Number(map && map.H) || 0;
+    const px = Number(x) || 0;
+    const py = Number(y) || 0;
+    if (mapW > 0 && mapH > 0) {
+      marker.style.left = `${(px / mapW) * 100}%`;
+      marker.style.top = `${(py / mapH) * 100}%`;
+    } else {
+      marker.style.left = `${Math.round(px)}px`;
+      marker.style.top = `${Math.round(py)}px`;
+    }
     marker.style.background = colorHex || '#3f6aa2';
     marker.title = label || '';
     if (emblemSrc) {
@@ -374,6 +302,26 @@
   function renderArmyMarkers(){
     clearArmyMarkers();
     if (!map || !session || !session.entity) return;
+
+    if (Array.isArray(warArmies) && warArmies.length) {
+      for (const army of warArmies) {
+        if (!army) continue;
+        const type = String(army.realm_type || '');
+        const id = String(army.realm_id || '');
+        const realm = (realms[type] || {})[id] || null;
+        const colorHex = String((realm && realm.color) || '#3f6aa2');
+        const emblemSrc = svgToDataUri((realm && realm.emblem_svg) || '');
+        const pid = Number(army.current_pid) || 0;
+        const point = getArmyMarkerPointByPid(pid);
+        if (!point) continue;
+        const isFeudal = String(army.army_kind || '') !== 'domain';
+        const realmName = String(army.realm_name || (realm && realm.name) || id || 'Сущность');
+        const armyName = String(army.army_name || army.army_id || 'Армия');
+        createArmyMarker(point.x, point.y, colorHex, emblemSrc, `${realmName}: ${armyName}`, isFeudal);
+      }
+      return;
+    }
+
     const colorHex = String(session.entity.color || '#3f6aa2');
     const emblemSrc = svgToDataUri(session.entity.emblem_svg || '');
     pendingArmies.forEach((army, idx)=>{
@@ -531,12 +479,12 @@
         }
         if (!keys.length) continue;
         const [r, g, b] = MapUtils.hexToRgb(realm.color || '#778193');
-        const cap = keyForPid(realm.capital_pid || 0);
+        const cap = keyForPid(realm.capital_pid || realm.capital_key || realm.capital || 0);
         keys.forEach((key) => map.setFill(key, [r, g, b, key === cap ? Math.min(255, opacity + 50) : opacity]));
         const emblemSrc = svgToDataUri(realm.emblem_svg);
         if (emblemSrc) {
           const box = Array.isArray(realm.emblem_box) && realm.emblem_box.length === 2 ? { w: +realm.emblem_box[0], h: +realm.emblem_box[1] } : { w: 2000, h: 2400 };
-          map.setGroupEmblem(`${type}:${id}`, keys, emblemSrc, box, { margin: 0.02, scale: Number(realm.emblem_scale) || 1, opacity: emblemOpacity });
+          map.setGroupEmblem(`${type}:${id}`, keys, emblemSrc, box, { scale: Number(realm.emblem_scale) || 1, opacity: emblemOpacity });
         }
       }
     };
@@ -549,8 +497,8 @@
         if (selectedPid && Number(p.pid) === selectedPid) rgba = boostColor(rgba, 45);
         map.setFill(key, rgba);
         if (p.emblem_svg) {
-          const box = Array.isArray(p.emblem_box) && p.emblem_box.length === 2 ? { w: +p.emblem_box[0], h: +p.emblem_box[1] } : null;
-          map.setEmblem(key, svgToDataUri(p.emblem_svg), box, { margin: 0.12 });
+          const box = Array.isArray(p.emblem_box) && p.emblem_box.length === 2 ? { w: +p.emblem_box[0], h: +p.emblem_box[1] } : { w: 2000, h: 2400 };
+          map.setEmblem(key, svgToDataUri(p.emblem_svg), box);
         }
       }
     } else if (mode === 'minor_houses') {
@@ -630,14 +578,62 @@
   }
 
   function openForeignProvinceModal(p){
-    $('modalProvinceName').textContent = p.name || 'Провинция';
-    $('modalPid').textContent = String(p.pid || '—');
-    $('modalOwner').textContent = p.owner || '—';
-    $('modalSuzerain').textContent = p.suzerain || '—';
-    $('modalSenior').textContent = p.senior || '—';
-    $('modalTerrain').textContent = p.terrain || '—';
-    $('modalDesc').textContent = p.wiki_description || 'Нет описания.';
-    setPreview('modalEmblem', p.emblem_svg || '');
+    const kingdom = (realms.kingdoms || {})[String(p.kingdom_id || '')] || null;
+    const greatHouse = (realms.great_houses || {})[String(p.great_house_id || '')] || null;
+    const minorId = String(minorHouseByPid.get(Number(p.pid) || 0) || p.minor_house_id || '').trim();
+    let minorName = '—';
+    let minorEmblem = '';
+    if (minorId) {
+      for (const gh of Object.values(realms.great_houses || {})) {
+        const layer = gh && gh.minor_house_layer;
+        if (!layer || !Array.isArray(layer.vassals)) continue;
+        const v = layer.vassals.find((row)=>String(row && row.id || '').trim() === minorId);
+        if (v) {
+          minorName = String(v.name || minorId);
+          minorEmblem = String(v.emblem_svg || '');
+          break;
+        }
+      }
+    }
+
+    const setHerald = (id, svg, alt) => {
+      const el = $(id);
+      if (!el) return;
+      const src = svgToDataUri(svg || '');
+      if (src) {
+        el.src = src;
+        el.alt = alt;
+        el.style.visibility = 'visible';
+      } else {
+        el.removeAttribute('src');
+        el.alt = alt;
+        el.style.visibility = 'hidden';
+      }
+    };
+
+    $('modalProvinceTitle').textContent = String(p.name || 'Провинция').toUpperCase();
+    $('modalProvinceDescription').textContent = p.wiki_description || 'Описание провинции пока не заполнено.';
+    $('modalKingdomName').textContent = (kingdom && kingdom.name) || '—';
+    $('modalGreatHouseName').textContent = (greatHouse && greatHouse.name) || '—';
+    $('modalMinorHouseName').textContent = minorName || '—';
+
+    setHerald('modalProvinceHerald', p.emblem_svg || '', 'Герб провинции');
+    setHerald('modalKingdomHerald', kingdom && kingdom.emblem_svg, 'Герб королевства');
+    setHerald('modalGreatHouseHerald', greatHouse && greatHouse.emblem_svg, 'Герб большого дома');
+    setHerald('modalMinorHouseHerald', minorEmblem, 'Герб малого дома');
+
+    const mapImg = $('modalProvinceMapImage');
+    if (mapImg) {
+      const img = String(p.province_card_image || '').trim();
+      if (img) {
+        mapImg.src = img;
+        mapImg.style.visibility = 'visible';
+      } else {
+        mapImg.removeAttribute('src');
+        mapImg.style.visibility = 'hidden';
+      }
+    }
+
     $('foreignProvinceModal').classList.add('open');
     $('foreignProvinceModal').setAttribute('aria-hidden', 'false');
   }
@@ -730,6 +726,7 @@
     session = data.session;
     provinces = data.provinces || [];
     realms = data.realms || {};
+    warArmies = Array.isArray(data.war_armies) ? data.war_armies : [];
     normalizeSessionEmblems();
     rebuildMinorHouseMap();
     $('entityName').textContent = `${session.entity.name} (${session.entity.type})`;
@@ -850,50 +847,28 @@
   $('musterDomainBtn').onclick = async ()=>{ await doMuster('domain'); };
   $('musterVassalBtn').onclick = async ()=>{ await doMuster('vassal'); };
   $('musterRoyalBtn').onclick = async ()=>{ await doMuster('royal'); };
-  if (arrierbanClose) arrierbanClose.addEventListener('click', closeArrierbanModal);
-  if (arrierbanModal) arrierbanModal.addEventListener('click', (evt)=>{ if (evt.target === arrierbanModal) closeArrierbanModal(); });
-  if (arrierbanRows) arrierbanRows.addEventListener('click', (evt)=>{
-    const btn = evt.target && evt.target.closest ? evt.target.closest('button[data-action]') : null;
-    if (!btn) return;
-    const action = btn.dataset.action;
-    const allocWrap = btn.closest('.arrierban-row-alloc');
-    if (!allocWrap) return;
-    if (action === 'add-arrierban-row') {
-      const sample = allocWrap.querySelector('input[type="number"]');
-      if (!sample) return;
-      const entry = document.createElement('div');
-      entry.className = 'arrierban-row-alloc__entry';
-      entry.innerHTML = `<input type="number" min="0" step="1" value="0" data-unit-id="${sample.dataset.unitId || ''}" data-source="${sample.dataset.source || ''}" data-base-size="${sample.dataset.baseSize || '1'}" /><button type="button" class="arrierban-row-alloc__remove" data-action="remove-arrierban-row">−</button>`;
-      allocWrap.insertBefore(entry, btn);
-      updateArrierbanRemaining();
-    }
-    if (action === 'remove-arrierban-row') {
-      const entry = btn.closest('.arrierban-row-alloc__entry');
-      if (!entry) return;
-      const entries = allocWrap.querySelectorAll('.arrierban-row-alloc__entry');
-      if (entries.length <= 1) {
-        const input = entry.querySelector('input[type="number"]');
-        if (input) input.value = '0';
-      } else {
-        entry.remove();
-      }
-      updateArrierbanRemaining();
-    }
-  });
-  if (arrierbanRows) arrierbanRows.addEventListener('input', (evt)=>{ if (evt.target && evt.target.matches && evt.target.matches('input[type="number"]')) updateArrierbanRemaining(); });
+  if (arrierbanUi) arrierbanUi.bindEvents();
   if (arrierbanApply) arrierbanApply.addEventListener('click', async ()=>{
     const mode = pendingArrierbanPlan && pendingArrierbanPlan.mode ? String(pendingArrierbanPlan.mode) : 'domain';
     await applyMuster(mode);
   });
   $('moveBtn').onclick = async ()=>{
     try {
-      await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'move',army_id:$('armySelect').value,to_pid:Number($('movePid').value||0)})});
-      setStatus('Армия перемещена.'); await load();
-    } catch (e) {
-      if (e && e.message === 'pid_not_owned') {
-        setStatus('Нельзя перемещать армию в не принадлежащую вам провинцию.', true);
+      const toPid = Number($('movePid').value||0);
+      const targetKey = keyForPid(toPid);
+      if (!targetKey || !selectedWarReachableKeys.includes(Number(targetKey) >>> 0)) {
+        setStatus('Целевая провинция вне радиуса перемещения выбранной армии.', true);
         return;
       }
+      const reachablePids = Array.from(new Set(selectedWarReachableKeys
+        .map((k)=>{
+          const meta = map && map.getProvinceMeta ? map.getProvinceMeta(k) : null;
+          return Number(meta && meta.pid) || 0;
+        })
+        .filter((pid)=>pid > 0)));
+      await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'move',army_id:$('armySelect').value,to_pid:toPid,reachable_pids:reachablePids})});
+      setStatus('Армия перемещена.'); await load();
+    } catch (e) {
       if (e && e.message === 'army_already_moved_this_turn') {
         setStatus('Эта армия уже двигалась в текущем ходу.', true);
         return;
@@ -903,8 +878,28 @@
     }
   };
   $('disbandBtn').onclick = async ()=>{
-    await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'disband',army_id:$('armySelect').value})});
-    setStatus('Армия распущена.'); await load();
+    try {
+      const mobilized = Math.max(0, (session && session.provinces || []).reduce((sum, p)=>sum + Math.max(0, Number(p && p.arrierban_levy) || 0), 0));
+      const fieldTotal = Math.max(0, (pendingArmies || []).reduce((sum, a)=>sum + Math.max(0, Number(a && a.size) || 0), 0));
+      const impliedLosses = Math.max(0, mobilized - fieldTotal);
+      const raw = window.prompt(`Потери при возвращении войск (0..${mobilized}). Будут распределены равномерно по провинциям.`, String(impliedLosses));
+      if (raw == null) return;
+      const losses = Math.max(0, Math.floor(Number(raw) || 0));
+      const res = await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'dismiss_arrierban',losses})});
+      const info = res && res.dismissed ? res.dismissed : null;
+      if (info) {
+        setStatus(`Армии распущены: провинций ${info.provinces}, возвращено ${info.returnedTotal}, потери ${info.losses}.`);
+      } else {
+        setStatus('Армии распущены.');
+      }
+      await load();
+    } catch (e) {
+      if (e && e.message === 'arrierban_not_active') {
+        setStatus('У сущности нет активных армий для роспуска.', true);
+        return;
+      }
+      setStatus(e && e.message ? e.message : 'Ошибка роспуска армий.', true);
+    }
   };
 
   const armyManageBtn = $('armyManageBtn');
