@@ -156,8 +156,15 @@ if ($stage === 'choose_territory') {
 
   $msg = "Выберите свободную провинцию: отправьте номер от 1 до " . count($free) . ".";
   if (is_string($imgPath) && $imgPath !== '') {
-    $url = $cfg['public_base_url'] !== '' ? ($cfg['public_base_url'] . $imgPath) : $imgPath;
-    $msg .= "\nКарта территории: " . $url;
+    if ($cfg['public_base_url'] !== '') {
+      $msg .= "\nКарта территории: " . $cfg['public_base_url'] . $imgPath;
+    } else {
+      vk_bot_log_error('render_map_warning: public_base_url_empty image_path=' . $imgPath);
+      $msg .= "\nКарта с нумерацией создана, но ссылка недоступна: не настроен public_base_url.";
+    }
+  } else {
+    vk_bot_log_error('render_map_warning: image_not_generated type=' . $territoryType . ' id=' . $territoryId);
+    $msg .= "\nНе удалось сгенерировать карту с нумерацией — обратитесь к администратору.";
   }
   vk_bot_send_message($userId, $msg);
   echo 'ok'; exit;
