@@ -17,6 +17,10 @@
     #mapWrap{position:relative;display:inline-block}
     #baseMap,canvas{position:absolute;left:0;top:0;width:100%;height:100%}
     canvas{pointer-events:none}
+    .army-markers-layer { position:absolute; inset:0; pointer-events:none; z-index:20; }
+    .army-marker { position:absolute; width:34px; height:34px; border-radius:999px; border:2px solid rgba(230,240,255,.95); box-shadow:0 4px 12px rgba(0,0,0,.35); transform:translate(-50%, -50%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,.7); overflow:hidden; }
+    .army-marker--feudal { width:30px; height:30px; }
+    .army-marker__emblem { width:62%; height:62%; object-fit:contain; border-radius:50%; background:rgba(0,0,0,.18); }
     .map{overflow:auto;padding:14px}
     .zoomRow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:8px}
     .zoomRow button{padding:6px 4px;font-size:12px}
@@ -31,6 +35,13 @@
     .armyUnits{margin-top:8px;border:1px solid #2d4c65;border-radius:10px;padding:8px;max-height:220px;overflow:auto}
     .armyUnitRow{display:grid;grid-template-columns:24px 1fr 70px;gap:8px;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #20384e}
     .armyUnitRow:last-child{border-bottom:none}
+    .editor-modal{position:fixed;inset:0;background:rgba(3,8,12,.72);display:none;align-items:center;justify-content:center;padding:20px;z-index:40}
+    .editor-modal.open{display:flex}
+    .editor-modal__card{width:min(920px,98vw);max-height:90vh;overflow:auto;background:#102131;border:1px solid #32506a;border-radius:14px;padding:14px}
+    .arrierban-grid{display:grid;grid-template-columns:1fr 210px;gap:8px;align-items:center;border:1px solid #2b3f56;border-radius:8px;padding:8px;margin-bottom:6px}
+    .arrierban-row-alloc__entry{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+    .arrierban-row-alloc__remove{width:auto;padding:6px 10px}
+    .arrierban-row-alloc__add{width:auto;padding:6px 10px}
   </style>
 </head>
 <body>
@@ -117,6 +128,7 @@
       <div id="mapWrap">
         <img id="baseMap" src="map.png" alt="map" />
         <canvas id="fill"></canvas><canvas id="emblems"></canvas><canvas id="hover"></canvas>
+        <div id="armyMarkers" class="army-markers-layer"></div>
       </div>
     </main>
   </div>
@@ -134,6 +146,24 @@
       <div class="mutedSmall" style="margin-top:8px;">Описание</div>
       <div id="modalDesc" class="muted"></div>
       <div class="preview" style="margin-top:10px;"><img id="modalEmblem" alt="province emblem" /></div>
+    </div>
+  </div>
+  <div id="arrierbanModal" class="editor-modal" aria-hidden="true">
+    <div class="editor-modal__card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div>
+          <div id="arrierbanTitle" style="font-weight:700;">Призыв</div>
+          <div id="arrierbanSubtitle" class="mutedSmall">—</div>
+        </div>
+        <button id="arrierbanClose" type="button" style="width:auto;">Закрыть</button>
+      </div>
+      <div id="arrierbanPools" class="mutedSmall" style="margin-top:8px;">—</div>
+      <div id="arrierbanRemaining" class="mutedSmall" style="margin-top:4px;">—</div>
+      <div id="arrierbanRows" style="margin-top:10px;"></div>
+      <div id="arrierbanValidation" class="mutedSmall" style="color:#ffb4b4;margin-top:8px;"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button id="arrierbanApply" type="button" style="width:auto;">Применить призыв</button>
+      </div>
     </div>
   </div>
   <script src="js/app_core.js"></script>
