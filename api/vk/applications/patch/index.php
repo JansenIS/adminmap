@@ -5,13 +5,13 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/lib/vk_bot_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
-  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, api_state_mtime());
+  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, vk_bot_data_mtime());
 }
 $payload = json_decode((string)file_get_contents('php://input'), true);
-if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, api_state_mtime());
+if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, vk_bot_data_mtime());
 $appId = trim((string)($payload['id'] ?? ''));
 $action = trim((string)($payload['action'] ?? 'update'));
-if ($appId === '') api_json_response(['error' => 'missing_id'], 400, api_state_mtime());
+if ($appId === '') api_json_response(['error' => 'missing_id'], 400, vk_bot_data_mtime());
 
 $apps = vk_bot_load_applications();
 $idx = null;
@@ -20,23 +20,23 @@ foreach ($apps as $i => $row) {
   if ((string)($row['id'] ?? '') !== $appId) continue;
   $idx = $i; break;
 }
-if ($idx === null) api_json_response(['error' => 'not_found'], 404, api_state_mtime());
+if ($idx === null) api_json_response(['error' => 'not_found'], 404, vk_bot_data_mtime());
 $app = $apps[$idx];
 
 if ($action === 'update') {
   $patch = $payload['patch'] ?? null;
-  if (!is_array($patch)) api_json_response(['error' => 'invalid_patch'], 400, api_state_mtime());
+  if (!is_array($patch)) api_json_response(['error' => 'invalid_patch'], 400, vk_bot_data_mtime());
   $app = array_merge($app, $patch);
   $apps[$idx] = $app;
   vk_bot_save_applications($apps);
-  api_json_response(['ok' => true, 'item' => $app], 200, api_state_mtime());
+  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
 }
 
 if ($action === 'approve') {
-  if (($app['status'] ?? '') !== 'pending') api_json_response(['error' => 'status_not_pending'], 400, api_state_mtime());
+  if (($app['status'] ?? '') !== 'pending') api_json_response(['error' => 'status_not_pending'], 400, vk_bot_data_mtime());
   $state = api_load_state();
   $pid = (int)($app['chosen_pid'] ?? 0);
-  if ($pid <= 0 || !is_array($state['provinces'][(string)$pid] ?? null)) api_json_response(['error' => 'province_not_found'], 400, api_state_mtime());
+  if ($pid <= 0 || !is_array($state['provinces'][(string)$pid] ?? null)) api_json_response(['error' => 'province_not_found'], 400, vk_bot_data_mtime());
   $form = is_array($app['form'] ?? null) ? $app['form'] : [];
   $stateName = trim((string)($form['state_name'] ?? 'Новая держава'));
   $capitalName = trim((string)($form['capital_name'] ?? ('Провинция ' . $pid)));
@@ -65,7 +65,7 @@ if ($action === 'approve') {
   if ($entityType === 'minor_houses') {
     $greatHouseId = trim((string)($state['provinces'][(string)$pid]['great_house_id'] ?? ''));
     if ($greatHouseId === '' || !is_array($state['great_houses'][$greatHouseId] ?? null)) {
-      api_json_response(['error' => 'great_house_not_found_for_minor_house', 'pid' => $pid], 400, api_state_mtime());
+      api_json_response(['error' => 'great_house_not_found_for_minor_house', 'pid' => $pid], 400, vk_bot_data_mtime());
     }
     if (!is_array($state['great_houses'][$greatHouseId]['minor_house_layer'] ?? null)) {
       $state['great_houses'][$greatHouseId]['minor_house_layer'] = ['vassals' => []];
@@ -101,7 +101,7 @@ if ($action === 'approve') {
     $prov['minor_house_id'] = $entityId;
     $prov['free_city_id'] = '';
     if (trim((string)($prov['great_house_id'] ?? '')) === '') {
-      api_json_response(['error' => 'minor_house_requires_great_house', 'pid' => $pid], 400, api_state_mtime());
+      api_json_response(['error' => 'minor_house_requires_great_house', 'pid' => $pid], 400, vk_bot_data_mtime());
     }
   } else {
     $prov['free_city_id'] = $entityId;
@@ -119,7 +119,7 @@ if ($action === 'approve') {
     ];
   }
 
-  if (!api_save_state($state)) api_json_response(['error' => 'state_write_failed'], 500, api_state_mtime());
+  if (!api_save_state($state)) api_json_response(['error' => 'state_write_failed'], 500, vk_bot_data_mtime());
 
   $genealogyPath = api_repo_root() . '/data/genealogy_tree.json';
   $genealogy = vk_bot_load_json_file($genealogyPath, ['characters' => [], 'relationships' => [], 'clans' => []]);
@@ -160,7 +160,7 @@ if ($action === 'approve') {
     vk_bot_send_message($userId, 'Ваша заявка одобрена! Вход в панель игрока: ' . $fullLink . "\nКнопка «Войти в панель игрока» в боте теперь активна.");
   }
 
-  api_json_response(['ok' => true, 'item' => $app], 200, api_state_mtime());
+  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
 }
 
 if ($action === 'reject') {
@@ -168,7 +168,7 @@ if ($action === 'reject') {
   $app['rejected_at'] = time();
   $apps[$idx] = $app;
   vk_bot_save_applications($apps);
-  api_json_response(['ok' => true, 'item' => $app], 200, api_state_mtime());
+  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
 }
 
-api_json_response(['error' => 'unknown_action'], 400, api_state_mtime());
+api_json_response(['error' => 'unknown_action'], 400, vk_bot_data_mtime());
