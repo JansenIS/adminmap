@@ -26,6 +26,51 @@ function api_wiki_page_link(string $kind, array $params): string {
   return '/api/wiki/show/index.php?' . http_build_query($query);
 }
 
+function api_wiki_iter_layer_vassals(array $state): array {
+  $rows = [];
+  $push = static function(string $parentType, string $parentId, array $parent, array $vassal) use (&$rows): void {
+    $id = trim((string)($vassal['id'] ?? ''));
+    if ($id === '') return;
+    $rows[] = [
+      'id' => $id,
+      'parent_type' => $parentType,
+      'parent_id' => $parentId,
+      'parent' => $parent,
+      'vassal' => $vassal,
+    ];
+  };
+
+  foreach ((array)($state['great_houses'] ?? []) as $parentId => $parent) {
+    if (!is_array($parent)) continue;
+    $layer = is_array($parent['minor_house_layer'] ?? null) ? $parent['minor_house_layer'] : [];
+    foreach ((array)($layer['vassals'] ?? []) as $vassal) {
+      if (!is_array($vassal)) continue;
+      $push('great_houses', (string)$parentId, $parent, $vassal);
+    }
+  }
+
+  foreach ((array)($state['special_territories'] ?? []) as $parentId => $parent) {
+    if (!is_array($parent)) continue;
+    $layer = is_array($parent['minor_house_layer'] ?? null) ? $parent['minor_house_layer'] : [];
+    foreach ((array)($layer['vassals'] ?? []) as $vassal) {
+      if (!is_array($vassal)) continue;
+      $push('special_territories', (string)$parentId, $parent, $vassal);
+    }
+  }
+
+  return $rows;
+}
+
+function api_wiki_find_layer_vassal(array $state, string $id): ?array {
+  $target = trim($id);
+  if ($target === '') return null;
+  foreach (api_wiki_iter_layer_vassals($state) as $row) {
+    if ((string)($row['id'] ?? '') !== $target) continue;
+    return $row;
+  }
+  return null;
+}
+
 function api_wiki_load_emblem_assets_map(): array {
   static $cache = null;
   if (is_array($cache)) return $cache;
@@ -264,30 +309,21 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
       foreach (($state['provinces'] ?? []) as $pid => $province) {
         if (!is_array($province)) continue;
         $match = trim((string)($province[$provinceFieldByType[$childType]] ?? '')) === (string)$childId;
-        if ($match) {
-          $provinces[] = (int)$pid;
-        }
+        if ($match) $provinces[] = (int)$pid;
       }
 
       $parentMatch = false;
       if ($entityType === 'kingdoms') {
         foreach ($provinces as $pid) {
           $province = ($state['provinces'] ?? [])[(string)$pid] ?? [];
-          if (trim((string)($province['kingdom_id'] ?? '')) === $id) {
-            $parentMatch = true;
-            break;
-          }
+          if (trim((string)($province['kingdom_id'] ?? '')) === $id) { $parentMatch = true; break; }
         }
       } elseif ($entityType === 'great_houses' && $childType === 'minor_houses') {
         foreach ($provinces as $pid) {
           $province = ($state['provinces'] ?? [])[(string)$pid] ?? [];
-          if (trim((string)($province['great_house_id'] ?? '')) === $id) {
-            $parentMatch = true;
-            break;
-          }
+          if (trim((string)($province['great_house_id'] ?? '')) === $id) { $parentMatch = true; break; }
         }
       }
-
       if (!$parentMatch) continue;
 
       $children['entities'][] = [
@@ -295,6 +331,22 @@ function api_wiki_entity_children(array $state, string $entityType, string $id):
         'id' => (string)$childId,
         'name' => trim((string)($child['name'] ?? '')),
         'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link($childType), 'id' => (string)$childId]),
+      ];
+    }
+  }
+
+  if ($entityType === 'great_houses' || $entityType === 'special_territories') {
+    $parent = ($state[$entityType] ?? [])[$id] ?? null;
+    $layer = is_array($parent['minor_house_layer'] ?? null) ? $parent['minor_house_layer'] : [];
+    foreach ((array)($layer['vassals'] ?? []) as $vassal) {
+      if (!is_array($vassal)) continue;
+      $vassalId = trim((string)($vassal['id'] ?? ''));
+      if ($vassalId === '') continue;
+      $children['entities'][] = [
+        'entity_type' => 'vassals',
+        'id' => $vassalId,
+        'name' => trim((string)($vassal['name'] ?? $vassalId)),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'vassals', 'id' => $vassalId]),
       ];
     }
   }
@@ -318,6 +370,11 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
   if (!in_array($entityType, api_wiki_allowed_entity_types(), true)) return null;
   $entityType = api_wiki_canonical_entity_type($entityType);
   $realm = ($state[$entityType] ?? [])[$id] ?? null;
+  $layerVassal = null;
+  if ($entityType === 'minor_houses' && !is_array($realm)) {
+    $layerVassal = api_wiki_find_layer_vassal($state, $id);
+    if (is_array($layerVassal['vassal'] ?? null)) $realm = $layerVassal['vassal'];
+  }
   if (!is_array($realm)) return null;
 
   $ownerTypeByRealmType = [
@@ -339,6 +396,19 @@ function api_wiki_build_entity_page(array $state, string $entityType, string $id
   $children = api_wiki_entity_children($state, $entityType, $id);
 
   $parentEntity = null;
+  if ($entityType === 'minor_houses' && is_array($layerVassal)) {
+    $parentType = (string)($layerVassal['parent_type'] ?? 'great_houses');
+    $parentId = (string)($layerVassal['parent_id'] ?? '');
+    $parent = is_array($layerVassal['parent'] ?? null) ? $layerVassal['parent'] : null;
+    if ($parentId !== '' && is_array($parent)) {
+      $parentEntity = [
+        'entity_type' => $parentType,
+        'id' => $parentId,
+        'name' => trim((string)($parent['name'] ?? $parentId)),
+        'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link($parentType), 'id' => $parentId]),
+      ];
+    }
+  }
   if ($entityType === 'great_houses') {
     foreach (($state['provinces'] ?? []) as $province) {
       if (!is_array($province)) continue;
@@ -446,13 +516,17 @@ function api_wiki_list_pages(array $state): array {
     ];
   }
 
+  $seenEntityPages = [];
   foreach (api_wiki_allowed_entity_types() as $entityType) {
     $canonicalType = api_wiki_canonical_entity_type($entityType);
     if ($canonicalType !== $entityType) continue;
     foreach (($state[$entityType] ?? []) as $id => $realm) {
       if (!is_array($realm)) continue;
+      $pageKey = 'entity:' . $entityType . ':' . $id;
+      if (isset($seenEntityPages[$pageKey])) continue;
+      $seenEntityPages[$pageKey] = true;
       $pages[] = [
-        'page_key' => 'entity:' . $entityType . ':' . $id,
+        'page_key' => $pageKey,
         'kind' => 'entity',
         'entity_type' => api_wiki_entity_type_for_link($entityType),
         'id' => (string)$id,
@@ -460,6 +534,22 @@ function api_wiki_list_pages(array $state): array {
         'wiki_link' => api_wiki_page_link('entity', ['entity_type' => api_wiki_entity_type_for_link($entityType), 'id' => (string)$id]),
       ];
     }
+  }
+  foreach (api_wiki_iter_layer_vassals($state) as $row) {
+    $id = (string)($row['id'] ?? '');
+    $realm = is_array($row['vassal'] ?? null) ? $row['vassal'] : [];
+    if ($id === '') continue;
+    $pageKey = 'entity:minor_houses:' . $id;
+    if (isset($seenEntityPages[$pageKey])) continue;
+    $seenEntityPages[$pageKey] = true;
+    $pages[] = [
+      'page_key' => $pageKey,
+      'kind' => 'entity',
+      'entity_type' => 'vassals',
+      'id' => $id,
+      'title' => trim((string)($realm['name'] ?? $id)),
+      'wiki_link' => api_wiki_page_link('entity', ['entity_type' => 'vassals', 'id' => $id]),
+    ];
   }
 
   $genealogy = api_wiki_load_genealogy_snapshot();
