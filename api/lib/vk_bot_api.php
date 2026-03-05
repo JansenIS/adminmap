@@ -9,6 +9,24 @@ function vk_bot_config_path(): string { return api_repo_root() . '/data/vk_bot_c
 function vk_bot_sessions_path(): string { return api_repo_root() . '/data/vk_bot_sessions.json'; }
 function vk_bot_applications_path(): string { return api_repo_root() . '/data/vk_bot_applications.json'; }
 
+function vk_bot_files_mtime(array $paths): int {
+  $mt = 0;
+  foreach ($paths as $path) {
+    if (!is_string($path) || $path === '') continue;
+    $fm = (int)@filemtime($path);
+    if ($fm > $mt) $mt = $fm;
+  }
+  return $mt > 0 ? $mt : time();
+}
+
+function vk_bot_data_mtime(): int {
+  return vk_bot_files_mtime([
+    vk_bot_config_path(),
+    vk_bot_sessions_path(),
+    vk_bot_applications_path(),
+  ]);
+}
+
 function vk_bot_load_json_file(string $path, array $fallback = []): array {
   if (!is_file($path)) return $fallback;
   $raw = @file_get_contents($path);
