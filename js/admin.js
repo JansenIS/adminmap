@@ -351,6 +351,7 @@
     const rowId = String(row.entity_id || '').trim();
     const scopeType = String(scope.entity_type || '').trim();
     const scopeId = String(scope.entity_id || '').trim();
+    const scopeName = String(scope.entity_name || '').trim();
     if (!rowType || !scopeType || !scopeId) return false;
     if (rowType !== scopeType) return false;
 
@@ -364,7 +365,21 @@
 
     const rowNorm = normalizeId(scopeType, rowId);
     const scopeNorm = normalizeId(scopeType, scopeId);
-    return rowNorm !== '' && rowNorm === scopeNorm;
+    if (rowNorm !== '' && rowNorm === scopeNorm) return true;
+
+    const rowName = String(row.entity_name || '').trim();
+    if (scopeName && rowName && rowName === scopeName) return true;
+
+    const canonicalScopeIds = new Set();
+    canonicalScopeIds.add(scopeNorm);
+    if (state && state[scopeType] && typeof state[scopeType] === 'object') {
+      const scopeRealm = state[scopeType][scopeId];
+      if (scopeRealm && typeof scopeRealm === 'object') {
+        const realmDeclaredId = normalizeId(scopeType, scopeRealm.id);
+        if (realmDeclaredId) canonicalScopeIds.add(realmDeclaredId);
+      }
+    }
+    return rowNorm !== '' && canonicalScopeIds.has(rowNorm);
   }
 
   function renderTurnEntityTreasury(rows) {
