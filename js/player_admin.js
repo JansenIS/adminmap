@@ -104,13 +104,11 @@
     const stateTA = document.getElementById('state');
     if (!btn || !stateTA) return;
     btn.addEventListener('click', async () => {
-      const exportBtn = document.getElementById('export');
-      const exportFn = window.AdminMapExportStateToTextarea;
+      const btnExport = document.getElementById('btnExport');
       try {
         btn.disabled = true;
         setTurnActionStatus('Сохраняю ход в backend…', false);
-        if (typeof exportFn === 'function') exportFn();
-        else if (exportBtn && typeof exportBtn.click === 'function') exportBtn.click();
+        if (btnExport && typeof btnExport.click === 'function') btnExport.click();
         const serialized = String(stateTA.value || '').trim();
         if (!serialized) throw new Error('Пустое состояние карты');
         const result = await saveStateAsBackendVariantFromPlayer(serialized);
