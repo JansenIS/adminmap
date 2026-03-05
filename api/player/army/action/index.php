@@ -159,6 +159,39 @@ $defaultUnitsFromPools = static function (array $pools) use ($arrierbanDomainUni
   return $out;
 };
 
+$collectUnitsFromPayload = static function ($rows, array $pools) use ($arrierbanDomainUnitDefs, $normalizeUnits): array {
+  if (!is_array($rows) || !count($rows)) return [];
+  $defs = [];
+  foreach ($arrierbanDomainUnitDefs() as $def) {
+    if (!is_array($def)) continue;
+    $defs[trim((string)($def['id'] ?? ''))] = $def;
+  }
+  $used = ['militia' => 0, 'sergeants' => 0, 'nehts' => 0, 'knights' => 0];
+  $out = [];
+  foreach ($rows as $row) {
+    if (!is_array($row)) continue;
+    $unitId = trim((string)($row['unit_id'] ?? ''));
+    $def = $defs[$unitId] ?? null;
+    if (!is_array($def)) continue;
+    $source = trim((string)($def['source'] ?? ''));
+    $pool = max(0, (int)($pools[$source] ?? 0));
+    $left = max(0, $pool - (int)($used[$source] ?? 0));
+    if ($left <= 0) continue;
+    $size = max(0, (int)($row['size'] ?? 0));
+    if ($size <= 0) continue;
+    $clamped = min($left, $size);
+    $used[$source] = (int)($used[$source] ?? 0) + $clamped;
+    $out[] = [
+      'source' => $source,
+      'unit_id' => $unitId,
+      'unit_name' => (string)($def['name'] ?? $unitId),
+      'size' => $clamped,
+      'base_size' => max(1, (int)($def['base_size'] ?? 1)),
+    ];
+  }
+  return $normalizeUnits($out);
+};
+
 $composeArmies = static function (array $realmObj) use ($normalizeUnits): array {
   $result = [];
   $domain = $normalizeUnits(is_array($realmObj['arrierban_units'] ?? null) ? $realmObj['arrierban_units'] : []);
@@ -276,7 +309,7 @@ $findArmyIdx = static function (array $list, string $armyId): int {
   return -1;
 };
 
-if ($action === 'muster') {
+if ($action === 'muster_plan' || $action === 'muster') {
   $mode = trim((string)($payload['muster_mode'] ?? 'domain'));
   if ($mode === 'royal') {
     if ($entityType !== 'great_houses') api_json_response(['error' => 'muster_mode_not_allowed', 'mode' => $mode], 400, api_state_mtime());
@@ -293,7 +326,19 @@ if ($action === 'muster') {
     $calc = $calculateArrierbanForRealm($entityType, $entityId, $realm);
   }
 
-  $domainUnits = $defaultUnitsFromPools((array)($calc['pools'] ?? []));
+  if ($action === 'muster_plan') {
+    api_json_response([
+      'ok' => true,
+      'mode' => $mode,
+      'pools' => (array)($calc['pools'] ?? []),
+      'supporting_sources' => array_values((array)($calc['supportingSources'] ?? [])),
+      'domain_unit_defs' => $arrierbanDomainUnitDefs(),
+      'default_units' => $defaultUnitsFromPools((array)($calc['pools'] ?? [])),
+    ], 200, api_state_mtime());
+  }
+
+  $domainUnits = $collectUnitsFromPayload($payload['muster_units'] ?? null, (array)($calc['pools'] ?? []));
+  if (!count($domainUnits)) $domainUnits = $defaultUnitsFromPools((array)($calc['pools'] ?? []));
   if (!count($domainUnits)) api_json_response(['error' => 'muster_empty'], 400, api_state_mtime());
 
   $vassalArmies = [];
