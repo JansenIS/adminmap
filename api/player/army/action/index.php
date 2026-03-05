@@ -307,6 +307,26 @@ $collectUnitsFromPayload = static function (string $mode, $rows, array $pools) u
   return $out;
 };
 
+
+$sanitizeSupportingSources = static function ($rows, int $fallbackPid = 0): array {
+  $out = [];
+  if (!is_array($rows)) return $out;
+  foreach ($rows as $row) {
+    if (!is_array($row)) continue;
+    $id = trim((string)($row['id'] ?? ''));
+    if ($id === '') continue;
+    $musterPid = (int)($row['muster_pid'] ?? 0);
+    if ($musterPid <= 0) $musterPid = max(0, $fallbackPid);
+    $out[] = [
+      'id' => $id,
+      'name' => (string)($row['name'] ?? $id),
+      'kind' => (string)($row['kind'] ?? 'vassal'),
+      'muster_pid' => $musterPid,
+    ];
+  }
+  return $out;
+};
+
 $arrierbanRandomVassalArmies = static function (string $mode, array $calc) use ($unitCatalog, $canSummonPalatinesAndPreventors): array {
   $ids = ['militia', 'militia_tr', 'shot', 'pikes', 'assault150', 'bikes', 'dragoons', 'ulans', 'foot_nehts', 'foot_knights', 'moto_knights'];
   if ($canSummonPalatinesAndPreventors($mode)) {
@@ -330,7 +350,7 @@ $arrierbanRandomVassalArmies = static function (string $mode, array $calc) use (
       'army_id' => (string)($src['id'] ?? ('feudal_' . (count($armies) + 1))),
       'army_name' => (string)($src['name'] ?? ('Феодальная армия ' . (count($armies) + 1))),
       'army_kind' => (string)($src['kind'] ?? 'vassal'),
-      'muster_pid' => (int)($src['muster_pid'] ?? 0),
+      'muster_pid' => max(0, (int)($src['muster_pid'] ?? 0)),
       'units' => $units,
     ];
   }
@@ -686,7 +706,20 @@ if ($action === 'muster_plan' || $action === 'muster') {
   if (!count($domainUnits)) $domainUnits = $defaultUnitsFromPools($ruleMode, (array)($calc['pools'] ?? []));
   if (!count($domainUnits)) api_json_response(['error' => 'muster_empty'], 400, api_state_mtime());
 
-  $vassalArmies = ($mode === 'domain') ? [] : $arrierbanRandomVassalArmies($ruleMode, $calc);
+  $vassalArmies = [];
+  if ($mode !== 'domain') {
+    $realmFallbackPid = $realmDefaultArmyPid($entityType, $entityId, $realm);
+    $forcedSources = $sanitizeSupportingSources($payload['supporting_sources'] ?? null, $realmFallbackPid);
+    if (count($forcedSources)) {
+      $calcForArmies = $calc;
+      $calcForArmies['supportingSources'] = $forcedSources;
+      $vassalArmies = $arrierbanRandomVassalArmies($ruleMode, $calcForArmies);
+    } else {
+      $calcForArmies = $calc;
+      $calcForArmies['supportingSources'] = $sanitizeSupportingSources($calc['supportingSources'] ?? [], $realmFallbackPid);
+      $vassalArmies = $arrierbanRandomVassalArmies($ruleMode, $calcForArmies);
+    }
+  }
 
   $realm['arrierban_units'] = $domainUnits;
   $realm['arrierban_vassal_armies'] = $vassalArmies;
