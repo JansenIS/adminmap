@@ -79,6 +79,7 @@ function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): arra
 function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson = null): void {
   $cfg = vk_bot_load_config();
   if ($cfg['access_token'] === '') return;
+  if (!function_exists('curl_init')) return;
   $params = [
     'user_id' => $userId,
     'random_id' => random_int(1, PHP_INT_MAX),
@@ -89,6 +90,7 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
   if ($keyboardJson !== null && $keyboardJson !== '') $params['keyboard'] = $keyboardJson;
 
   $ch = curl_init('https://api.vk.com/method/messages.send');
+  if ($ch === false) return;
   curl_setopt($ch, CURLOPT_POST, true);
   curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
