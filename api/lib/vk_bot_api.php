@@ -99,9 +99,13 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
 
 function vk_bot_payload_cmd(array $object): string {
   $payloadRaw = $object['payload'] ?? null;
+  if (is_array($payloadRaw)) {
+    return trim((string)($payloadRaw['cmd'] ?? ''));
+  }
   if (!is_string($payloadRaw) || trim($payloadRaw) === '') return '';
   $decoded = json_decode($payloadRaw, true);
-  return is_array($decoded) ? trim((string)($decoded['cmd'] ?? '')) : '';
+  if (!is_array($decoded)) return '';
+  return trim((string)($decoded['cmd'] ?? ''));
 }
 
 function vk_bot_selectable_territories(array $state): array {
