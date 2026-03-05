@@ -363,11 +363,11 @@
       }
     }
     for (const pd of Object.values(obj.provinces || {})) {
-      if (typeof pd.kingdom_id !== "string") pd.kingdom_id = "";
-      if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
-      if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
-      if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
-      if (typeof pd.special_territory_id !== "string") pd.special_territory_id = "";
+      pd.kingdom_id = String(pd.kingdom_id || "").trim();
+      pd.great_house_id = String(pd.great_house_id || "").trim();
+      pd.minor_house_id = String(pd.minor_house_id || "").trim();
+      pd.free_city_id = String(pd.free_city_id || "").trim();
+      pd.special_territory_id = String(pd.special_territory_id || "").trim();
     }
   }
 
@@ -774,13 +774,17 @@
       if (!lr.ok) return false;
       const layer = await lr.json();
       const items = Array.isArray(layer.items) ? layer.items : [];
+      let appliedCount = 0;
       for (const item of items) {
         const key = keyForPid(map, item.pid);
         if (!key) continue;
         if (!Array.isArray(item.rgba) || item.rgba.length !== 4) continue;
         map.setFill(key, item.rgba);
+        appliedCount++;
       }
-      return true;
+      // Fallback to client-side coloring when backend render returns an empty
+      // (or invalid) layer, otherwise the map stays dark without province fills.
+      return appliedCount > 0;
     } catch (_) {
       return false;
     }
@@ -790,7 +794,7 @@
   async function applyState(map) {
     const mode = viewModeSelect.value || "provinces";
     map.clearAllFills(); map.clearAllEmblems();
-    const serverLayerApplied = mode !== "provinces" && await applyServerLayerIfEnabled(map, mode);
+    if (mode !== "provinces") await applyServerLayerIfEnabled(map, mode);
     for (const pd of Object.values(state.provinces)) {
       const key = keyForPid(map, pd.pid);
       if (!key) continue;
@@ -803,13 +807,16 @@
 
     if (mode !== "provinces") {
       if (mode === "minor_houses") {
-        drawMinorHousesLayer(map, !serverLayerApplied);
+        // Always run client-side fill pass as source of truth for realm colors.
+        // Server layer (when present) can still prefill, but must never suppress
+        // visible province fills on the main raster map.
+        drawMinorHousesLayer(map, true);
       } else {
-        drawRealmLayer(map, mode, 150, 0.6, !serverLayerApplied);
-        if (mode === "free_cities") drawSpecialTerritoryEntitiesLayer(map, !serverLayerApplied);
+        drawRealmLayer(map, mode, 150, 0.6, true);
+        if (mode === "free_cities") drawSpecialTerritoryEntitiesLayer(map, true);
         if (REALM_OVERLAY_MODES.has(mode)) {
-          drawRealmLayer(map, "free_cities", 230, 0.75, !serverLayerApplied);
-          drawRealmLayer(map, "special_territories", 230, 0.75, !serverLayerApplied);
+          drawRealmLayer(map, "free_cities", 230, 0.75, true);
+          drawRealmLayer(map, "special_territories", 230, 0.75, true);
         }
       }
     }
