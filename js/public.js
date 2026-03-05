@@ -363,11 +363,11 @@
       }
     }
     for (const pd of Object.values(obj.provinces || {})) {
-      if (typeof pd.kingdom_id !== "string") pd.kingdom_id = "";
-      if (typeof pd.great_house_id !== "string") pd.great_house_id = "";
-      if (typeof pd.minor_house_id !== "string") pd.minor_house_id = "";
-      if (typeof pd.free_city_id !== "string") pd.free_city_id = "";
-      if (typeof pd.special_territory_id !== "string") pd.special_territory_id = "";
+      pd.kingdom_id = String(pd.kingdom_id || "").trim();
+      pd.great_house_id = String(pd.great_house_id || "").trim();
+      pd.minor_house_id = String(pd.minor_house_id || "").trim();
+      pd.free_city_id = String(pd.free_city_id || "").trim();
+      pd.special_territory_id = String(pd.special_territory_id || "").trim();
     }
   }
 
@@ -774,13 +774,17 @@
       if (!lr.ok) return false;
       const layer = await lr.json();
       const items = Array.isArray(layer.items) ? layer.items : [];
+      let appliedCount = 0;
       for (const item of items) {
         const key = keyForPid(map, item.pid);
         if (!key) continue;
         if (!Array.isArray(item.rgba) || item.rgba.length !== 4) continue;
         map.setFill(key, item.rgba);
+        appliedCount++;
       }
-      return true;
+      // Fallback to client-side coloring when backend render returns an empty
+      // (or invalid) layer, otherwise the map stays dark without province fills.
+      return appliedCount > 0;
     } catch (_) {
       return false;
     }
