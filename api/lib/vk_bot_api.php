@@ -211,7 +211,6 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   $root = api_repo_root();
   $meta = vk_bot_load_json_file($root . '/provinces.json', []);
   $mask = @imagecreatefrompng($root . '/provinces_id.png');
-  $baseMap = @imagecreatefrompng($root . '/map.png');
   if (!is_array($meta['provinces'] ?? null)) {
     vk_bot_set_last_render_error('provinces_meta_missing_or_invalid');
     vk_bot_log_error('render_map_error: provinces_meta_missing_or_invalid');
@@ -220,12 +219,6 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   if (!$mask) {
     vk_bot_set_last_render_error('provinces_id_png_unreadable');
     vk_bot_log_error('render_map_error: provinces_id_png_unreadable');
-    return null;
-  }
-  if (!$baseMap) {
-    vk_bot_set_last_render_error('map_png_unreadable');
-    vk_bot_log_error('render_map_error: map_png_unreadable');
-    imagedestroy($mask);
     return null;
   }
 
@@ -271,20 +264,17 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   $cropH = min(imagesy($mask) - $cropY, ($maxY - $minY + 1) + 2 * $pad);
 
   $img = imagecreatetruecolor($cropW, $cropH);
-  imagealphablending($img, true);
-  imagesavealpha($img, true);
-  imagecopy($img, $baseMap, 0, 0, $cropX, $cropY, $cropW, $cropH);
-
-  // Свободные провинции — зелёные, занятые — красные (полупрозрачная заливка поверх map.png).
-  $freeColor = imagecolorallocatealpha($img, 20, 176, 78, 52);
-  $otherColor = imagecolorallocatealpha($img, 196, 34, 34, 52);
+  imagealphablending($img, false); imagesavealpha($img, true);
+  $bg = imagecolorallocatealpha($img, 8, 12, 20, 0);
+  imagefilledrectangle($img, 0, 0, $cropW, $cropH, $bg);
+  // Свободные провинции — тёмно-зелёные, занятые — тёмно-красные.
+  $freeColor = imagecolorallocatealpha($img, 18, 92, 38, 0);
+  $otherColor = imagecolorallocatealpha($img, 123, 28, 28, 0);
   $textColor = imagecolorallocate($img, 255, 255, 255);
 
   $freeMap = [];
   foreach (array_values($freeProvinces) as $idx => $row) $freeMap[(int)$row['pid']] = $idx + 1;
 
-  $allPidSet = [];
-  foreach ($allPids as $pid) $allPidSet[(int)$pid] = true;
   $pidByKey = array_flip($keyByPid);
   for ($y = 0; $y < $cropH; $y++) {
     for ($x = 0; $x < $cropW; $x++) {
@@ -293,7 +283,7 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
       $key = ($r << 16) | ($g << 8) | $b;
       $pid = (int)($pidByKey[$key] ?? 0);
       if ($pid <= 0) continue;
-      if (!isset($allPidSet[$pid])) continue;
+      if (!in_array($pid, $allPids, true)) continue;
       imagesetpixel($img, $x, $y, isset($freeMap[$pid]) ? $freeColor : $otherColor);
     }
   }
@@ -318,12 +308,10 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     vk_bot_log_error('render_map_error: imagepng_failed path=' . $full);
     imagedestroy($img);
     imagedestroy($mask);
-    imagedestroy($baseMap);
     return null;
   }
   imagedestroy($img);
   imagedestroy($mask);
-  imagedestroy($baseMap);
   return '/data/vk_bot/territory_images/' . $name;
 }
 
