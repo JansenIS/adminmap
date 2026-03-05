@@ -30,7 +30,7 @@ function player_admin_generate_token(): string {
 }
 
 function player_admin_allowed_entity_types(): array {
-  return ['kingdoms','great_houses','minor_houses','free_cities','special_territories'];
+  return ['great_houses','minor_houses','free_cities'];
 }
 
 function player_admin_validate_entity_ref(array $state, string $type, string $id): bool {
