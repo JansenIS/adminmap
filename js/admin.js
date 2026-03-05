@@ -994,6 +994,14 @@
     return owned.some((v) => (Number(v) >>> 0) === target);
   }
 
+  function playerOwnsArmy(army) {
+    const scope = getPlayerAdminScope();
+    if (!scope) return true;
+    if (!army || typeof army !== "object") return false;
+    return String(army.realm_type || "") === String(scope.entity_type || "")
+      && String(army.realm_id || "") === String(scope.entity_id || "");
+  }
+
   function playerAdminEntityColor() {
     const scope = getPlayerAdminScope();
     if (!scope) return "#ff3b30";
@@ -1183,7 +1191,7 @@
 
   function updateWarArmyPanel() {
     if (!warArmySelect) return;
-    const armies = getCanonicalArmies();
+    const armies = getCanonicalArmies().filter((army) => playerOwnsArmy(army));
     warArmySelect.innerHTML = "";
     const empty = document.createElement("option");
     empty.value = "";
@@ -1225,7 +1233,7 @@
   }
 
   function moveSelectedWarArmyToKey(targetKey) {
-    const armies = getCanonicalArmies();
+    const armies = getCanonicalArmies().filter((army) => playerOwnsArmy(army));
     const selected = armies.find((a) => canonicalArmyUid(a) === String(selectedWarArmyId));
     if (!selected) return false;
     if (selected.moved_this_turn) return false;
