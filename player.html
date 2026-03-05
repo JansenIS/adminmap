@@ -14,7 +14,9 @@
     textarea{min-height:78px} button{cursor:pointer;font-weight:700}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .kv{font-size:12px;line-height:1.55}.kv b{display:inline-block;min-width:100px;color:#9db4cb}
-    #mapWrap{position:relative;display:inline-block} #baseMap,canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+    #mapWrap{position:relative;display:inline-block}
+    #baseMap,canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+    canvas{pointer-events:none}
     .map{overflow:auto;padding:14px}
     .zoomRow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:8px}
     .zoomRow button{padding:6px 4px;font-size:12px}
@@ -101,6 +103,7 @@
         <div class="row"><button id="musterDomainBtn">Созвать домен</button><button id="musterVassalBtn">Созвать вассалов (Арьербан)</button></div>
         <button id="musterRoyalBtn" style="display:none;">Королевский Призыв</button>
         <select id="armySelect"></select>
+        <div class="row"><button id="addFeudalArmyBtn">Добавить феодальную армию</button><button id="removeArmyBtn">Удалить выбранную армию</button></div>
         <div class="row"><input id="movePid" placeholder="PID перемещения" /><button id="moveBtn">Переместить</button></div>
         <div class="armyUnits" id="armyUnits"></div>
         <div class="row"><input id="splitSize" placeholder="Размер отделения" /><button id="splitBtn">Разделить</button></div>
