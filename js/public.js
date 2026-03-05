@@ -774,13 +774,17 @@
       if (!lr.ok) return false;
       const layer = await lr.json();
       const items = Array.isArray(layer.items) ? layer.items : [];
+      let appliedCount = 0;
       for (const item of items) {
         const key = keyForPid(map, item.pid);
         if (!key) continue;
         if (!Array.isArray(item.rgba) || item.rgba.length !== 4) continue;
         map.setFill(key, item.rgba);
+        appliedCount++;
       }
-      return true;
+      // Fallback to client-side coloring when backend render returns an empty
+      // (or invalid) layer, otherwise the map stays dark without province fills.
+      return appliedCount > 0;
     } catch (_) {
       return false;
     }
