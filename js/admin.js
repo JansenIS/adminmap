@@ -97,12 +97,6 @@
   const realmUploadEmblemBtn = el("realmUploadEmblemBtn");
   const realmRemoveEmblemBtn = el("realmRemoveEmblemBtn");
   const realmEmblemFile = el("realmEmblemFile");
-  const splitSelectAllBtn = el("splitSelectAll");
-  const splitSelectNoneBtn = el("splitSelectNone");
-  const splitDryRunBtn = el("splitDryRun");
-  const splitApplyBtn = el("splitApply");
-  const splitFreeCitiesList = el("splitFreeCitiesList");
-  const splitStatus = el("splitStatus");
 
   const minorParentTypeSelect = el("minorParentType");
   const minorParentLabel = el("minorParentLabel");
@@ -194,7 +188,6 @@
   const PROVINCE_CARD_UPLOAD_ENDPOINT = "/api/provinces/card/upload/";
   const REALM_PATCH_ENDPOINT = "/api/realms/patch/";
   const CHANGES_APPLY_ENDPOINT = "/api/changes/apply/";
-  const SPLIT_FREE_CITIES_ENDPOINT = "/api/migration/split-free-cities/";
   const APP_FLAGS = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === "function") ? window.AdminMapStateLoader.getFlags() : (window.ADMINMAP_FLAGS || {});
   updateFlagsStatusText(APP_FLAGS);
 
@@ -1886,106 +1879,6 @@
 
 
 
-  function setSplitStatus(text) {
-    if (!splitStatus) return;
-    splitStatus.textContent = String(text || '—');
-  }
-
-  function splitSelectedIdsFromUi() {
-    if (!splitFreeCitiesList) return [];
-    return Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]:checked'))
-      .map((el) => String(el.getAttribute('data-realm-id') || '').trim())
-      .filter(Boolean);
-  }
-
-  function freeCityProvinceCount(id) {
-    const target = String(id || '').trim();
-    if (!target) return 0;
-    let count = 0;
-    for (const pd of Object.values(state.provinces || {})) {
-      if (!pd || typeof pd !== 'object') continue;
-      if (String(pd.free_city_id || '').trim() === target) count++;
-    }
-    return count;
-  }
-
-  function rebuildSplitFreeCitiesList() {
-    if (!splitFreeCitiesList) return;
-    const entries = Object.entries(state && state.free_cities ? state.free_cities : {})
-      .map(([id, realm]) => ({ id: String(id || ''), name: String((realm && realm.name) || id || ''), count: freeCityProvinceCount(id) }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-
-    splitFreeCitiesList.innerHTML = '';
-    if (!entries.length) {
-      splitFreeCitiesList.textContent = 'Вольных городов не найдено.';
-      return;
-    }
-
-    for (const item of entries) {
-      const row = document.createElement('label');
-      row.style.display = 'flex';
-      row.style.gap = '8px';
-      row.style.alignItems = 'center';
-      row.style.padding = '3px 0';
-
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.setAttribute('data-realm-id', item.id);
-
-      const text = document.createElement('span');
-      text.textContent = `${item.name} (${item.id}) · провинций: ${item.count}`;
-
-      row.appendChild(cb);
-      row.appendChild(text);
-      splitFreeCitiesList.appendChild(row);
-    }
-  }
-
-  async function runSplitFreeCitiesMigration({ dryRun = true, map = null } = {}) {
-    const ids = splitSelectedIdsFromUi();
-    if (!ids.length) {
-      setSplitStatus('Сначала отметьте хотя бы одну сущность.');
-      return;
-    }
-
-    try {
-      const payload = { ids, dry_run: !!dryRun };
-      if (!dryRun) payload.if_match = await fetchIfMatchVersion();
-      const res = await fetch(SPLIT_FREE_CITIES_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data && data.error) ? String(data.error) : ('HTTP ' + res.status));
-
-      const moved = Number(data.moved_total || 0);
-      const missing = Number(data.missing_total || 0);
-      const relinked = Number(data.relinked_provinces || 0);
-      setSplitStatus(`Готово. moved=${moved}, missing=${missing}, relinked_provinces=${relinked}`);
-
-      if (!dryRun) {
-        const loader = window.AdminMapStateLoader;
-        if (loader && typeof loader.loadStateBackendOnly === 'function') {
-          const loaded = await loader.loadStateBackendOnly();
-          state = loaded.state;
-          ensureFeudalSchema(state);
-          syncPeopleFromRealmRulers();
-          rebuildPeopleControls();
-          rebuildTerrainSelect();
-          rebuildRealmSelect();
-          rebuildMinorHouseControls();
-          if (map) applyLayerState(map);
-          exportStateToTextarea();
-          refreshCurrentSelectionUI();
-          rebuildSplitFreeCitiesList();
-        }
-      }
-    } catch (err) {
-      setSplitStatus('Ошибка: ' + (err && err.message ? err.message : err));
-    }
-  }
-
   function ensureRealm(type, id) {
     const bucket = realmBucketByType(type);
     if (!bucket[id]) bucket[id] = { name: id, ruler: "", ruling_house_id: "", vassal_house_ids: [], color: "#ff3b30", capital_pid: 0, province_pids: [], emblem_svg: "", emblem_box: null, emblem_scale: 1, warlike_coeff: 30 };
@@ -3156,21 +3049,6 @@
     window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeArrierbanModal(); closeArmyManageModal(); } });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
     realmSelect.addEventListener("change", loadRealmFields);
-    if (splitSelectAllBtn) splitSelectAllBtn.addEventListener('click', () => {
-      if (!splitFreeCitiesList) return;
-      for (const cb of Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]'))) cb.checked = true;
-      setSplitStatus('Выбраны все сущности из списка.');
-    });
-    if (splitSelectNoneBtn) splitSelectNoneBtn.addEventListener('click', () => {
-      if (!splitFreeCitiesList) return;
-      for (const cb of Array.from(splitFreeCitiesList.querySelectorAll('input[type="checkbox"][data-realm-id]'))) cb.checked = false;
-      setSplitStatus('Выбор очищен.');
-    });
-    if (splitDryRunBtn) splitDryRunBtn.addEventListener('click', () => { runSplitFreeCitiesMigration({ dryRun: true, map }).catch(() => {}); });
-    if (splitApplyBtn) splitApplyBtn.addEventListener('click', () => {
-      if (!confirm('Перенести выбранные сущности из "Вольных городов" в "Особые территории"?')) return;
-      runSplitFreeCitiesMigration({ dryRun: false, map }).catch(() => {});
-    });
     if (minorVassalSelect) minorVassalSelect.addEventListener("change", loadMinorVassalFields);
     if (minorParentTypeSelect) minorParentTypeSelect.addEventListener("change", rebuildMinorHouseControls);
     rebuildMinorHouseControls();
@@ -3822,7 +3700,6 @@
     const genealogyCharacters = await loadGenealogyCharacters();
     mergeGenealogyPeopleIntoState(genealogyCharacters);
     rebuildPeopleControls(); syncPeopleFromRealmRulers(); rebuildTerrainSelect(); rebuildRealmSelect();
-    rebuildSplitFreeCitiesList();
 
     const map = new RasterProvinceMap({
       baseImgId: "baseMap", fillCanvasId: "fill", emblemCanvasId: "emblems", hoverCanvasId: "hover", provincesMetaUrl: "provinces.json", maskUrl: "provinces_id.png",
