@@ -16,6 +16,7 @@
   let pendingArrierbanPlan = null;
   let pendingArmyManage = null;
   let selectedWarReachableKeys = [];
+  const REALM_TYPES = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
   const keyByPid = new Map();
   const pidByKey = new Map();
 
@@ -122,6 +123,96 @@
       throw err;
     }
     return d;
+  }
+
+  async function loadPublicProvinces(){
+    const chunkSize = 250;
+    let offset = 0;
+    let total = null;
+    const out = [];
+    while (total == null || offset < total) {
+      const page = await jfetch(`/api/provinces/?offset=${offset}&limit=${chunkSize}&profile=full`);
+      const items = Array.isArray(page && page.items) ? page.items : [];
+      total = Number(page && page.total) || 0;
+      out.push(...items);
+      offset += items.length;
+      if (!items.length) break;
+    }
+    return out;
+  }
+
+  async function loadPublicRealms(){
+    const out = {};
+    for (const type of REALM_TYPES) {
+      const page = await jfetch(`/api/realms/?type=${encodeURIComponent(type)}&profile=full`);
+      const bucket = {};
+      for (const item of (page && page.items) || []) {
+        if (!item || typeof item !== 'object') continue;
+        const id = String(item.id || '').trim();
+        if (!id) continue;
+        const copy = Object.assign({}, item);
+        delete copy.id;
+        bucket[id] = copy;
+      }
+      out[type] = bucket;
+    }
+    return out;
+  }
+
+  function buildWarArmiesFromPublicRows(realmsState, warRows){
+    const existing = new Map();
+    for (const row of (Array.isArray(warRows) ? warRows : [])) {
+      if (!row || typeof row !== 'object') continue;
+      const id = String(row.war_army_id || '').trim();
+      if (!id) continue;
+      existing.set(id, row);
+    }
+    const out = [];
+    for (const type of REALM_TYPES) {
+      const bucket = realmsState && realmsState[type] ? realmsState[type] : {};
+      for (const [id, realm] of Object.entries(bucket)) {
+        if (!realm || typeof realm !== 'object') continue;
+        const realmName = String(realm.name || id);
+        const defaultPid = Number(realm.capital_pid || 0) || 0;
+        const domainUnits = Array.isArray(realm.arrierban_units) ? realm.arrierban_units : [];
+        if (domainUnits.some((u) => u && (Number(u.size) || 0) > 0)) {
+          const warArmyId = `${type}:${id}:domain`;
+          const prev = existing.get(warArmyId) || {};
+          out.push({
+            war_army_id: warArmyId,
+            realm_type: type,
+            realm_id: id,
+            realm_name: realmName,
+            army_kind: 'domain',
+            army_id: 'domain',
+            army_name: 'Доменная армия',
+            current_pid: Number(prev.current_pid || defaultPid) || 0,
+            moved_this_turn: !!prev.moved_this_turn,
+            moved_turn_year: Number(prev.moved_turn_year || 0) || 0,
+          });
+        }
+        const feudalArmies = Array.isArray(realm.arrierban_vassal_armies) ? realm.arrierban_vassal_armies : [];
+        feudalArmies.forEach((army, idx) => {
+          if (!army || !Array.isArray(army.units) || !army.units.some((u) => u && (Number(u.size) || 0) > 0)) return;
+          const armyId = String(army.army_id || `feudal_${idx + 1}`);
+          const warArmyId = `${type}:${id}:${armyId}`;
+          const prev = existing.get(warArmyId) || {};
+          out.push({
+            war_army_id: warArmyId,
+            realm_type: type,
+            realm_id: id,
+            realm_name: realmName,
+            army_kind: String(army.army_kind || 'vassal'),
+            army_id: armyId,
+            army_name: String(army.army_name || armyId),
+            current_pid: Number(prev.current_pid || army.muster_pid || defaultPid) || 0,
+            moved_this_turn: !!prev.moved_this_turn,
+            moved_turn_year: Number(prev.moved_turn_year || 0) || 0,
+          });
+        });
+      }
+    }
+    return out.filter((row) => Number(row.current_pid) > 0);
   }
   function toRgbaFromHex(hex, a){
     const m = /^#?([0-9a-f]{6})$/i.exec(String(hex||''));
@@ -736,11 +827,19 @@
 
   async function load(){
     if(!token){ setStatus('Токен не найден в ссылке.', true); return; }
-    const data = await jfetch(`/api/player/session/?token=${encodeURIComponent(token)}`);
+    const [data, publicProvinces, publicRealms] = await Promise.all([
+      jfetch(`/api/player/session/?token=${encodeURIComponent(token)}`),
+      loadPublicProvinces(),
+      loadPublicRealms(),
+    ]);
     session = data.session;
-    provinces = data.provinces || [];
-    realms = data.realms || {};
-    warArmies = Array.isArray(data.war_armies) ? data.war_armies : [];
+    const owned = new Set(Array.isArray(session && session.owned_pids) ? session.owned_pids.map((v)=>Number(v)||0) : []);
+    provinces = (Array.isArray(publicProvinces) ? publicProvinces : []).map((p) => {
+      const pid = Number(p && p.pid) || 0;
+      return Object.assign({}, p, { is_owned: owned.has(pid) });
+    });
+    realms = publicRealms || {};
+    warArmies = buildWarArmiesFromPublicRows(realms, data.war_armies || []);
     normalizeSessionEmblems();
     rebuildMinorHouseMap();
     if (map) rebuildPidKeyMaps();
