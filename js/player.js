@@ -16,6 +16,8 @@
   let pendingArrierbanPlan = null;
   let pendingArmyManage = null;
   let selectedWarReachableKeys = [];
+  const keyByPid = new Map();
+  const pidByKey = new Map();
 
   const armyMarkersLayer = $('armyMarkers');
   const arrierbanModal = $('arrierbanModal');
@@ -138,13 +140,22 @@
     ];
   }
 
+  function rebuildPidKeyMaps(){
+    keyByPid.clear();
+    pidByKey.clear();
+    if (!map || !map.provincesByKey) return;
+    for (const [key, meta] of map.provincesByKey.entries()) {
+      const pid = meta && meta.pid != null ? Number(meta.pid) : 0;
+      if (pid > 0) {
+        keyByPid.set(pid, key >>> 0);
+        pidByKey.set(key >>> 0, pid);
+      }
+    }
+  }
+
   function keyForPid(pid){
     const target = Number(pid) || 0;
-    if (!map || !target) return 0;
-    for (const [key, meta] of map.provincesByKey.entries()) {
-      if (Number(meta && meta.pid) === target) return key;
-    }
-    return 0;
+    return target > 0 ? (keyByPid.get(target) || 0) : 0;
   }
 
   function buildVassalPalette(baseHex) {
@@ -228,20 +239,23 @@
 
   function computeAverageProvinceSizePx() {
     if (!map || !map.provincesByKey || !map.provincesByKey.size) return 0;
-    let acc = 0;
+    let sum = 0;
     let cnt = 0;
     for (const meta of map.provincesByKey.values()) {
-      if (!meta) continue;
-      const size = Math.max(Number(meta.w || 0), Number(meta.h || 0));
-      if (!(size > 0)) continue;
-      acc += size;
+      if (!meta || Number(meta.pid) === 95) continue;
+      const area = Number(meta.area_px || 0);
+      if (!(area > 0)) continue;
+      const radius = Math.sqrt(area / Math.PI);
+      if (!Number.isFinite(radius) || radius <= 0) continue;
+      sum += radius;
       cnt += 1;
     }
-    return cnt ? (acc / cnt) : 0;
+    return cnt ? (sum / cnt) : 0;
   }
 
   function computeWarReachableKeysForArmy(army) {
     if (!army || !map) return [];
+    if (army.moved_this_turn) return [];
     const center = getProvinceCenterByPid(Number(army.location_pid) || Number(army.muster_pid) || 0);
     if (!center) return [];
     const avgSize = computeAverageProvinceSizePx();
@@ -340,7 +354,7 @@
     const prev = sel.value;
     sel.innerHTML='';
     pendingArmies = JSON.parse(JSON.stringify(session.entity.player_armies || []));
-    for(const a of pendingArmies){ const o=document.createElement('option'); o.value=a.army_id; o.textContent=`${a.army_name} (${a.size}) @PID ${a.location_pid}`; sel.appendChild(o); }
+    for(const a of pendingArmies){ const o=document.createElement('option'); o.value=a.army_id; const movedBadge = a && a.moved_this_turn ? ' • ход уже сделан' : ''; o.textContent=`${a.army_name} (${a.size}) @PID ${a.location_pid}${movedBadge}`; sel.appendChild(o); }
     if (prev && Array.from(sel.options).some((o)=>o.value === prev)) sel.value = prev;
     sel.onchange = updateSelectedArmyReachability;
     const current = pendingArmies.reduce((sum,a)=>sum+(Number(a && a.size)||0),0);
@@ -729,6 +743,7 @@
     warArmies = Array.isArray(data.war_armies) ? data.war_armies : [];
     normalizeSessionEmblems();
     rebuildMinorHouseMap();
+    if (map) rebuildPidKeyMaps();
     $('entityName').textContent = `${session.entity.name} (${session.entity.type})`;
     $('treasury').textContent = session.entity.treasury_total;
     $('population').textContent = session.entity.population_total;
@@ -777,6 +792,7 @@
         }
       });
       await map.init();
+      rebuildPidKeyMaps();
       initZoomControls();
     }
     paintMap();
@@ -834,7 +850,17 @@
     try {
       const collected = collectArrierbanAllocations();
       if (collected.error) { if (arrierbanValidation) arrierbanValidation.textContent = collected.error; return; }
-      await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,action:'muster',muster_mode:mode,army_name:$('musterName').value,muster_units:collected.units})});
+      const musterPayload = {
+        token,
+        action:'muster',
+        muster_mode:mode,
+        army_name:$('musterName').value,
+        muster_units:collected.units,
+        supporting_sources: Array.isArray(pendingArrierbanPlan && pendingArrierbanPlan.supporting_sources)
+          ? pendingArrierbanPlan.supporting_sources
+          : [],
+      };
+      await jfetch('/api/player/army/action/', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(musterPayload)});
       closeArrierbanModal();
       const labels = { domain:'Созвано доменное войско.', vassal:'Созваны вассалы (арьербан).', royal:'Объявлен королевский призыв.' };
       setStatus(labels[mode] || 'Созыв завершён.');

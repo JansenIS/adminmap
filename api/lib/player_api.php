@@ -194,6 +194,26 @@ function player_resolve_session(array $state, string $token): ?array {
   $pop = player_population_stats($state, $pids);
   $realm = $state[$entityType][$entityId];
   $armies = player_compose_armies_from_realm($realm);
+  $warByArmyId = [];
+  foreach ((array)($state['war_armies'] ?? []) as $row) {
+    if (!is_array($row)) continue;
+    if ((string)($row['realm_type'] ?? '') !== $entityType) continue;
+    if ((string)($row['realm_id'] ?? '') !== $entityId) continue;
+    $aid = trim((string)($row['army_id'] ?? ''));
+    if ($aid === '') continue;
+    $warByArmyId[$aid] = $row;
+  }
+  foreach ($armies as &$army) {
+    if (!is_array($army)) continue;
+    $aid = trim((string)($army['army_id'] ?? ''));
+    if ($aid === '' || !isset($warByArmyId[$aid])) continue;
+    $war = $warByArmyId[$aid];
+    $currentPid = (int)($war['current_pid'] ?? 0);
+    if ($currentPid > 0) $army['location_pid'] = $currentPid;
+    $army['moved_this_turn'] = (bool)($war['moved_this_turn'] ?? false);
+    $army['moved_turn_year'] = (int)($war['moved_turn_year'] ?? 0);
+  }
+  unset($army);
 
   return [
     'token_meta' => [
