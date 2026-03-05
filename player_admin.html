@@ -216,27 +216,6 @@
       </div>
       <div class="card">
         <div class="grid">
-          <label>Цвет</label>
-          <div style="display:flex; gap:10px; align-items:center;">
-            <input id="color" type="color" value="#ff3b30" />
-            <span class="muted">заливка</span>
-          </div>
-
-          <label>Прозрачность</label>
-          <div style="display:flex; gap:10px; align-items:center;">
-            <input id="alpha" type="range" min="0" max="255" value="140" />
-            <span id="alphaVal" class="muted" style="width:44px; text-align:right;">140</span>
-          </div>
-        </div>
-
-        <div class="btnrow">
-          <button id="applyFill" type="button">Применить заливку</button>
-          <button id="clearFill" type="button">Снять заливку</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="grid">
           <label>Название</label>
           <input id="provName" type="text" placeholder="Название провинции" />
 
@@ -306,10 +285,6 @@
           <input id="realmName" type="text" placeholder="Название" />
           <label>Правитель</label>
           <input id="realmRuler" type="text" list="peopleList" placeholder="Имя правителя (добавит в список)" />
-          <label>Правящий БД</label>
-          <select id="realmRulingHouse"></select>
-          <label>Вассальные БД (список)</label>
-          <select id="realmVassalHouses" multiple size="6"></select>
           <label>Цвет</label>
           <input id="realmColor" type="color" value="#ff3b30" />
           <label>Столица KEY</label>
@@ -319,14 +294,8 @@
             <input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" />
             <span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span>
           </div>
-          <label>Коэффициент воинственности (1..100)</label>
-          <input id="realmWarlikeCoeff" type="number" min="1" max="100" step="1" value="30" />
         </div>
         <div class="btnrow">
-          <button id="newRealm" type="button">Новая сущность</button>
-          <button id="saveRealm" type="button">Сохранить сущность</button>
-          <button id="addSelectedToRealm" type="button">Добавить выделенные провинции</button>
-          <button id="removeSelectedFromRealm" type="button">Убрать выделенные провинции</button>
           <button id="realmUploadEmblemBtn" type="button">Загрузить герб сущности</button>
           <button id="realmRemoveEmblemBtn" type="button">Удалить герб сущности</button>
           <button id="realmArrierbanBtn" type="button">Арьербан (созыв войск)</button>
@@ -351,61 +320,8 @@
         <div id="splitFreeCitiesList" class="small" style="margin-top:10px; max-height:180px; overflow:auto; border:1px solid #2b3f56; border-radius:8px; padding:8px;">Список будет загружен…</div>
         <div id="splitStatus" class="small" style="margin-top:8px; white-space:pre-wrap;">—</div>
       </div>
+      <textarea id="state" spellcheck="false" style="display:none;"></textarea>
 
-      <div class="card">
-        <div class="muted">Слой «Малые Дома / Вольные Города» для Больших Домов и Особых Территорий</div>
-        <div class="grid" style="margin-top:10px;">
-          <label>Тип родителя</label>
-          <select id="minorParentType">
-            <option value="great_houses">Большие Дома</option>
-            <option value="special_territories">Особые Территории</option>
-          </select>
-          <label id="minorParentLabel">Большой Дом</label>
-          <select id="minorGreatHouseSelect"></select>
-          <label id="minorEntityLabel">Сущность</label>
-          <select id="minorVassalSelect"></select>
-          <label id="minorEntityNameLabel">Имя сущности</label>
-          <input id="minorVassalName" type="text" placeholder="Новая сущность" />
-          <label id="minorEntityRulerLabel">Правитель сущности</label>
-          <input id="minorVassalRuler" type="text" list="peopleList" placeholder="Имя правителя сущности" />
-        </div>
-        <div class="btnrow">
-          <button id="minorSetCapital" type="button">Столица = выбранная провинция</button>
-          <button id="minorAddDomain" type="button">Домен + выделенные</button>
-          <button id="minorRemoveDomain" type="button">Домен - выделенные</button>
-          <button id="minorCreateVassal" type="button">Создать сущность</button>
-          <button id="minorSetVassalCapital" type="button">Столица сущности = выбранная</button>
-          <button id="minorAddVassalProvinces" type="button">Сущность + выделенные</button>
-          <button id="minorRemoveVassalProvinces" type="button">Сущность - выделенные</button>
-        </div>
-        <div class="small" style="margin-top:8px;">Цвета сущностей рассчитываются автоматически (10 оттенков цвета родителя). Для Особых Территорий назначенные, но не включённые в сущности провинции заливаются цветом территории с высокой прозрачностью.</div>
-        <div id="minorPalette" class="palette"></div>
-      </div>
-      <div class="card">
-        <div class="muted">Выгрузка PNG по слоям (без гербов, прозрачный фон, 100% непрозрачность)</div>
-        <div class="btnrow">
-          <button id="exportProvincesPng" type="button">PNG: Провинции</button>
-          <button id="exportKingdomsPng" type="button">PNG: Королевства</button>
-          <button id="exportGreatHousesPng" type="button">PNG: Большие Дома</button>
-          <button id="exportMinorHousesPng" type="button">PNG: Малые Дома</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="muted">Экспорт/импорт JSON</div>
-        <div class="btnrow">
-          <button id="export" type="button">Экспорт в поле</button>
-          <button id="download" type="button">Скачать backend snapshot JSON</button>
-          <button id="exportMigrated" type="button">Скачать migrated bundle</button>
-          <button id="import" type="button">Импорт из файла</button>
-          <button id="saveImportedBackend" type="button">Импорт → сохранить как backend-variant</button>
-          <button id="saveServer" type="button">Сохранить на сервер (опц.)</button>
-        </div>
-        <input id="importFile" type="file" accept="application/json" style="display:none;" />
-        <div style="margin-top:10px;">
-          <textarea id="state" spellcheck="false"></textarea>
-        </div>
-      </div>
     </aside>
 
     <main class="maparea" id="mapArea">

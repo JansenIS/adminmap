@@ -180,7 +180,7 @@
   const manualProvincePids = el("manualProvincePids");
   const manualExtraJson = el("manualExtraJson");
 
-  alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
+  if (alphaInput && alphaVal) alphaInput.addEventListener("input", () => alphaVal.textContent = alphaInput.value);
   realmEmblemScaleInput.addEventListener("input", () => realmEmblemScaleVal.textContent = realmEmblemScaleInput.value);
   if (realmWarlikeCoeffInput) {
     realmWarlikeCoeffInput.addEventListener("change", () => {
@@ -315,6 +315,22 @@
     const n = Number(value || 0);
     if (!Number.isFinite(n)) return '0';
     return Math.round(n).toLocaleString('ru-RU');
+  }
+
+  function playerAdminScope() {
+    const scope = window.PLAYER_ADMIN_SCOPE;
+    return scope && typeof scope === 'object' ? scope : null;
+  }
+
+  function entityRowMatchesScope(row, scope) {
+    if (!row || !scope) return false;
+    const rowType = String(row.entity_type || '').trim();
+    const rowId = String(row.entity_id || '').trim();
+    const scopeType = String(scope.entity_type || '').trim();
+    const scopeId = String(scope.entity_id || '').trim();
+    if (!rowType || !scopeType || !scopeId) return false;
+    if (rowType !== scopeType) return false;
+    return rowId === scopeId || rowId === `${scopeType}:${scopeId}`;
   }
 
   function renderTurnEntityTreasury(rows) {
@@ -473,9 +489,19 @@
       applyTurnEconomyToProvinceState(economyRows, provinceRows);
       if (selectedKey) setSelection(selectedKey);
       exportStateToTextarea();
-      turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
-      turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
-      renderTurnEntityTreasury(entityRows);
+
+      const scope = playerAdminScope();
+      if (scope && scope.entity_type && scope.entity_id) {
+        const ownRows = entityRows.filter((row) => entityRowMatchesScope(row, scope));
+        const ownSum = ownRows.reduce((acc, row) => acc + Number(row && row.closing_balance || 0), 0);
+        turnTreasuryProvSum.textContent = `${fmtMoneyCompact(ownSum)}`;
+        turnTreasuryEntitySum.textContent = '—';
+        renderTurnEntityTreasury(ownRows);
+      } else {
+        turnTreasuryProvSum.textContent = `${fmtMoneyCompact(provSum)} (${provinceRows.length} пров.)`;
+        turnTreasuryEntitySum.textContent = `${fmtMoneyCompact(entitySum)} (${entityRows.length} сущ.)`;
+        renderTurnEntityTreasury(entityRows);
+      }
       turnActionStatus.textContent = `Показан published ход ${year}.`;
     } catch (err) {
       turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
@@ -1184,7 +1210,7 @@
     renderPersonNode(suzerainText, derived.suzerain || "");
     renderPersonNode(seniorText, derived.senior || "");
     terrainSelect.value = pd.terrain || "";
-    if (pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
+    if (colorInput && alphaInput && alphaVal && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
     updateProvincePropertiesPanel();
@@ -1350,7 +1376,7 @@
   }
 
   function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
-  function applyFillFromUI(map) { if (!selectedKey) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
+  function applyFillFromUI(map) { if (!selectedKey || !colorInput || !alphaInput) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
   function normalizeStateForBackendSave(rawState) {
@@ -1764,12 +1790,34 @@
   }
 
   function rebuildRealmSelect() {
-    const type = realmTypeSelect.value;
+    const scope = playerAdminScope();
+    const fixedType = String(scope && scope.entity_type || '').trim();
+    const fixedId = String(scope && scope.entity_id || '').trim();
+    let type = realmTypeSelect.value;
+    if (fixedType) {
+      type = fixedType;
+      realmTypeSelect.value = fixedType;
+      realmTypeSelect.disabled = true;
+    }
+
     const cur = realmSelect.value;
     realmSelect.innerHTML = "";
     const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "—"; realmSelect.appendChild(o0);
-    for (const [id, realm] of buildRealmEntries(type)) { const o = document.createElement("option"); o.value = id; o.textContent = realm.name || id; realmSelect.appendChild(o); }
-    realmSelect.value = cur;
+
+    let entries = buildRealmEntries(type);
+    if (fixedType && fixedId && type === fixedType) {
+      entries = entries.filter(([id]) => String(id) === fixedId);
+      if (!entries.length) entries = [[fixedId, { name: String(scope.entity_name || fixedId) }]];
+    }
+    for (const [id, realm] of entries) { const o = document.createElement("option"); o.value = id; o.textContent = realm.name || id; realmSelect.appendChild(o); }
+
+    if (fixedType && fixedId && type === fixedType) {
+      realmSelect.value = fixedId;
+      realmSelect.disabled = true;
+    } else {
+      realmSelect.value = cur;
+      realmSelect.disabled = false;
+    }
     rebuildRulingHouseSelect();
     rebuildVassalHousesSelect();
     loadRealmFields();
@@ -3043,8 +3091,8 @@
       window.open('turn_admin.html', '_blank', 'noopener');
     });
 
-    btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
-    btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
+    if (btnApplyFill) btnApplyFill.addEventListener("click", () => applyFillFromUI(map));
+    if (btnClearFill) btnClearFill.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (pd) pd.fill_rgba = null; if (currentMode() === "provinces") map.clearFill(selectedKey); });
     btnSaveProv.addEventListener("click", async () => { saveProvinceFieldsFromUI(); exportStateToTextarea(); if (APP_FLAGS && APP_FLAGS.USE_PARTIAL_SAVE) { try { await persistSelectedProvincePatch(); } catch (err) { alert("PATCH сохранение провинции не удалось: " + (err && err.message ? err.message : err)); } } });
 
     viewModeSelect.addEventListener("change", () => {
@@ -3127,7 +3175,7 @@
     if (minorParentTypeSelect) minorParentTypeSelect.addEventListener("change", rebuildMinorHouseControls);
     rebuildMinorHouseControls();
     if (minorGreatHouseSelect) minorGreatHouseSelect.addEventListener("change", rebuildMinorHouseControls);
-    btnNewRealm.addEventListener("click", () => {
+    if (btnNewRealm) btnNewRealm.addEventListener("click", () => {
       if (realmTypeSelect.value === "minor_houses") {
         alert("Для «Малых Домов» используйте блок «Слой Малые Дома» ниже: там создаются вассалы.");
         return;
@@ -3137,7 +3185,7 @@
       ensureRealm(realmTypeSelect.value, id.trim());
       rebuildRealmSelect(); rebuildMinorHouseControls(); realmSelect.value = id.trim(); loadRealmFields(); exportStateToTextarea();
     });
-    btnSaveRealm.addEventListener("click", async () => {
+    if (btnSaveRealm) btnSaveRealm.addEventListener("click", async () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       if (type === "minor_houses") {
         const ref = resolveVassalRealmRef(id);
@@ -3174,7 +3222,7 @@
         catch (err) { alert("PATCH сохранение сущности не удалось: " + (err && err.message ? err.message : err)); }
       }
     });
-    btnAddSelectedToRealm.addEventListener("click", () => {
+    if (btnAddSelectedToRealm) btnAddSelectedToRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       if (type === "minor_houses") {
         const ref = resolveVassalRealmRef(id);
@@ -3202,7 +3250,7 @@
       realm.province_pids = keys.map(k => pidByKey.get(k) || 0).filter(Boolean);
       applyLayerState(map); exportStateToTextarea();
     });
-    btnRemoveSelectedFromRealm.addEventListener("click", () => {
+    if (btnRemoveSelectedFromRealm) btnRemoveSelectedFromRealm.addEventListener("click", () => {
       const type = realmTypeSelect.value; const id = realmSelect.value; if (!id) return;
       if (type === "minor_houses") {
         const ref = resolveVassalRealmRef(id);
@@ -3598,8 +3646,8 @@
       applyLayerState(map); exportStateToTextarea();
     });
 
-    btnExport.addEventListener("click", exportStateToTextarea);
-    btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "backend_state_snapshot.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
+    if (btnExport) btnExport.addEventListener("click", exportStateToTextarea);
+    if (btnDownload) btnDownload.addEventListener("click", () => { exportStateToTextarea(); const blob = new Blob([stateTA.value], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "backend_state_snapshot.json"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); });
     if (btnExportMigrated) btnExportMigrated.addEventListener("click", async () => {
       try {
         exportStateToTextarea();
@@ -3619,9 +3667,9 @@
     if (btnExportKingdomsPng) btnExportKingdomsPng.addEventListener("click", () => exportLayerPng(map, "kingdoms", "layer_kingdoms.png"));
     if (btnExportGreatHousesPng) btnExportGreatHousesPng.addEventListener("click", () => exportLayerPng(map, "great_houses", "layer_great_houses.png"));
     if (btnExportMinorHousesPng) btnExportMinorHousesPng.addEventListener("click", () => exportLayerPng(map, "minor_houses", "layer_minor_houses.png"));
-    btnImport.addEventListener("click", () => importFile.click());
-    importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); syncPeopleFromRealmRulers(); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
-    btnSaveServer.addEventListener("click", async () => {
+    if (btnImport && importFile) btnImport.addEventListener("click", () => importFile.click());
+    if (importFile) importFile.addEventListener("change", async () => { const file = importFile.files && importFile.files[0]; if (!file) return; const txt = await file.text(); const obj = JSON.parse(txt); if (!obj.provinces) return alert("Нет provinces"); ensureFeudalSchema(obj); state = Object.assign(state, obj); syncPeopleFromRealmRulers(); rebuildMinorHouseControls(); applyLayerState(map); exportStateToTextarea(); importFile.value = ""; });
+    if (btnSaveServer) btnSaveServer.addEventListener("click", async () => {
       alert("Legacy full-save отключен. Используйте PATCH/changes apply и кнопку 'Сохранить imported JSON как backend-вариант'.");
     });
     if (btnSaveImportedBackend) btnSaveImportedBackend.addEventListener("click", async () => {
