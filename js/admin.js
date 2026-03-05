@@ -193,6 +193,10 @@
   const playerWikiEditorAssetFile = el("playerWikiEditorAssetFile");
   const playerWikiEditorAssetPreview = el("playerWikiEditorAssetPreview");
   const playerWikiEditorAssetEmpty = el("playerWikiEditorAssetEmpty");
+  const playerWikiEditorEmblemFile = el("playerWikiEditorEmblemFile");
+  const playerWikiEditorEmblemPreview = el("playerWikiEditorEmblemPreview");
+  const playerWikiEditorEmblemEmpty = el("playerWikiEditorEmblemEmpty");
+  const playerWikiEditorEmblemClear = el("playerWikiEditorEmblemClear");
   const playerWikiEditorSave = el("playerWikiEditorSave");
   const playerWikiEditorStatus = el("playerWikiEditorStatus");
 
@@ -238,6 +242,8 @@
   let mapInstanceRef = null;
   let playerWikiEditorTarget = null;
   let playerWikiEditorPendingAssetFile = null;
+  let playerWikiEditorPendingEmblemSvg = null;
+  let playerWikiEditorClearEmblem = false;
   let pendingArmyManage = null;
   let selectedWarArmyId = "";
   let selectedWarReachableKeys = [];
@@ -347,7 +353,18 @@
     const scopeId = String(scope.entity_id || '').trim();
     if (!rowType || !scopeType || !scopeId) return false;
     if (rowType !== scopeType) return false;
-    return rowId === scopeId || rowId === `${scopeType}:${scopeId}`;
+
+    const normalizeId = (type, id) => {
+      const raw = String(id || '').trim();
+      if (!raw) return '';
+      const prefix = `${type}:`;
+      if (raw.startsWith(prefix)) return raw.slice(prefix.length);
+      return raw;
+    };
+
+    const rowNorm = normalizeId(scopeType, rowId);
+    const scopeNorm = normalizeId(scopeType, scopeId);
+    return rowNorm !== '' && rowNorm === scopeNorm;
   }
 
   function renderTurnEntityTreasury(rows) {
@@ -524,6 +541,8 @@
       turnActionStatus.textContent = `Не удалось загрузить данные хода: ${err && err.message ? err.message : err}`;
     }
   }
+
+  window.AdminMapRefreshTurnPanel = refreshTurnPanel;
 
   async function makeNextTurn() {
     if (!btnMakeTurn) return;
@@ -790,13 +809,30 @@
     playerWikiEditorAssetEmpty.style.display = "block";
   }
 
+  function setPlayerWikiEditorEmblemPreview(svgText) {
+    if (!playerWikiEditorEmblemPreview || !playerWikiEditorEmblemEmpty) return;
+    const src = emblemSourceToDataUri(String(svgText || ""));
+    if (src) {
+      playerWikiEditorEmblemPreview.src = src;
+      playerWikiEditorEmblemPreview.style.display = "block";
+      playerWikiEditorEmblemEmpty.style.display = "none";
+      return;
+    }
+    playerWikiEditorEmblemPreview.removeAttribute("src");
+    playerWikiEditorEmblemPreview.style.display = "none";
+    playerWikiEditorEmblemEmpty.style.display = "block";
+  }
+
   function closePlayerWikiEditorModal() {
     if (!playerWikiEditorModal) return;
     playerWikiEditorModal.classList.remove("open");
     playerWikiEditorModal.setAttribute("aria-hidden", "true");
     playerWikiEditorTarget = null;
     playerWikiEditorPendingAssetFile = null;
+    playerWikiEditorPendingEmblemSvg = null;
+    playerWikiEditorClearEmblem = false;
     if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+    if (playerWikiEditorEmblemFile) playerWikiEditorEmblemFile.value = "";
     setPlayerWikiEditorStatus("—", false);
   }
 
@@ -810,7 +846,10 @@
 
     playerWikiEditorTarget = { pid, key: key >>> 0 };
     playerWikiEditorPendingAssetFile = null;
+    playerWikiEditorPendingEmblemSvg = null;
+    playerWikiEditorClearEmblem = false;
     if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+    if (playerWikiEditorEmblemFile) playerWikiEditorEmblemFile.value = "";
 
     if (playerWikiEditorTitle) playerWikiEditorTitle.textContent = `Wiki-редактор: ${(pd.name || m.name || `Провинция ${pid}`)}`;
     if (playerWikiEditorSubtitle) playerWikiEditorSubtitle.textContent = `PID ${pid}`;
@@ -818,6 +857,7 @@
 
     const currentImage = String(pd.province_card_image || "").trim();
     setPlayerWikiEditorAssetPreview(currentImage ? MapUtils.resolveStaticAssetUrl(currentImage) : "");
+    setPlayerWikiEditorEmblemPreview(String(pd.emblem_svg || ""));
     setPlayerWikiEditorStatus("Готово к редактированию.", false);
 
     playerWikiEditorModal.classList.add("open");
@@ -849,6 +889,11 @@
         if (!uploaded.ok || !uploadedBody.path) throw new Error((uploadedBody && uploadedBody.error) || `HTTP ${uploaded.status}`);
         changes.background_image = String(uploadedBody.path);
       }
+      if (playerWikiEditorPendingEmblemSvg !== null) {
+        changes.emblem_svg = playerWikiEditorPendingEmblemSvg;
+      } else if (playerWikiEditorClearEmblem) {
+        changes.emblem_svg = "";
+      }
 
       const res = await fetch("/api/wiki/patch/index.php", {
         method: "PATCH",
@@ -859,12 +904,22 @@
       if (!res.ok || !body.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
 
       pd.wiki_description = changes.description;
+      if (Object.prototype.hasOwnProperty.call(changes, "emblem_svg")) {
+        pd.emblem_svg = String(changes.emblem_svg || "");
+        pd.emblem_box = extractSvgBox(pd.emblem_svg);
+        setPlayerWikiEditorEmblemPreview(pd.emblem_svg);
+        if (mapInstanceRef) applyLayerState(mapInstanceRef);
+      }
       if (typeof changes.background_image === "string") {
         pd.province_card_image = changes.background_image;
         setPlayerWikiEditorAssetPreview(MapUtils.resolveStaticAssetUrl(changes.background_image));
       }
+      exportStateToTextarea();
       playerWikiEditorPendingAssetFile = null;
+      playerWikiEditorPendingEmblemSvg = null;
+      playerWikiEditorClearEmblem = false;
       if (playerWikiEditorAssetFile) playerWikiEditorAssetFile.value = "";
+      if (playerWikiEditorEmblemFile) playerWikiEditorEmblemFile.value = "";
       setPlayerWikiEditorStatus("Изменения сохранены.", false);
     } catch (err) {
       setPlayerWikiEditorStatus("Ошибка сохранения: " + (err && err.message ? err.message : err), true);
@@ -1256,8 +1311,34 @@
     }
   }
 
-  function setEmblemPreview(pd) { const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : ""); if (src) { emblemPreviewImg.src = src; emblemPreviewImg.style.display = "block"; emblemPreviewEmpty.style.display = "none"; } else { emblemPreviewImg.removeAttribute("src"); emblemPreviewImg.style.display = "none"; emblemPreviewEmpty.style.display = "block"; } }
-  function setProvinceCardPreview(pd) { const pid = pd ? (Number(pd.pid) >>> 0) : 0; const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : ""; const src = String((pd && pd.province_card_image) || baseSrc || "").trim(); if (src) { provinceCardPreviewImg.src = MapUtils.resolveStaticAssetUrl(src); provinceCardPreviewImg.style.display = "block"; provinceCardPreviewEmpty.style.display = "none"; } else { provinceCardPreviewImg.removeAttribute("src"); provinceCardPreviewImg.style.display = "none"; provinceCardPreviewEmpty.style.display = "block"; } }
+  function setEmblemPreview(pd) {
+    if (!emblemPreviewImg || !emblemPreviewEmpty) return;
+    const src = emblemSourceToDataUri(pd && pd.emblem_svg ? String(pd.emblem_svg) : "");
+    if (src) {
+      emblemPreviewImg.src = src;
+      emblemPreviewImg.style.display = "block";
+      emblemPreviewEmpty.style.display = "none";
+    } else {
+      emblemPreviewImg.removeAttribute("src");
+      emblemPreviewImg.style.display = "none";
+      emblemPreviewEmpty.style.display = "block";
+    }
+  }
+  function setProvinceCardPreview(pd) {
+    if (!provinceCardPreviewImg || !provinceCardPreviewEmpty) return;
+    const pid = pd ? (Number(pd.pid) >>> 0) : 0;
+    const baseSrc = pid ? (provinceCardBaseByPid.get(pid) || "") : "";
+    const src = String((pd && pd.province_card_image) || baseSrc || "").trim();
+    if (src) {
+      provinceCardPreviewImg.src = MapUtils.resolveStaticAssetUrl(src);
+      provinceCardPreviewImg.style.display = "block";
+      provinceCardPreviewEmpty.style.display = "none";
+    } else {
+      provinceCardPreviewImg.removeAttribute("src");
+      provinceCardPreviewImg.style.display = "none";
+      provinceCardPreviewEmpty.style.display = "block";
+    }
+  }
   function getProvinceOwnerColor(pd) {
     if (pd && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length >= 3) return [pd.fill_rgba[0] | 0, pd.fill_rgba[1] | 0, pd.fill_rgba[2] | 0];
     if (pd && pd.kingdom_id) {
@@ -3339,6 +3420,27 @@
         }
       });
     }
+    if (playerWikiEditorEmblemFile) {
+      playerWikiEditorEmblemFile.addEventListener("change", async (evt) => {
+        const file = evt && evt.target && evt.target.files && evt.target.files[0] ? evt.target.files[0] : null;
+        if (!file) return;
+        const text = String(await file.text() || "").replace(/^﻿/, "");
+        const safeSvg = sanitizeSvgText(text);
+        playerWikiEditorPendingEmblemSvg = safeSvg;
+        playerWikiEditorClearEmblem = false;
+        setPlayerWikiEditorEmblemPreview(safeSvg);
+        setPlayerWikiEditorStatus("Выбран новый герб. Нажмите «Сохранить».", false);
+      });
+    }
+    if (playerWikiEditorEmblemClear) {
+      playerWikiEditorEmblemClear.addEventListener("click", () => {
+        playerWikiEditorPendingEmblemSvg = null;
+        playerWikiEditorClearEmblem = true;
+        if (playerWikiEditorEmblemFile) playerWikiEditorEmblemFile.value = "";
+        setPlayerWikiEditorEmblemPreview("");
+        setPlayerWikiEditorStatus("Герб будет удалён после сохранения.", false);
+      });
+    }
     if (playerWikiEditorSave) playerWikiEditorSave.addEventListener("click", () => { savePlayerWikiEditorModal().catch((e) => console.warn(e)); });
     window.addEventListener("keydown", (evt) => { if (evt.key === "Escape") { closePersonModal(); closeProvinceModal(); closePlayerWikiEditorModal(); closeArrierbanModal(); closeArmyManageModal(); } });
     realmTypeSelect.addEventListener("change", rebuildRealmSelect);
@@ -3856,9 +3958,9 @@
       }
     });
 
-    uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
-    emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const safeSvg = sanitizeSvgText(text); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = safeSvg; pd.emblem_box = extractSvgBox(safeSvg); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
-    removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
+    if (uploadEmblemBtn && emblemFile) uploadEmblemBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); emblemFile.click(); });
+    if (emblemFile) emblemFile.addEventListener("change", async () => { const file = emblemFile.files && emblemFile.files[0]; emblemFile.value = ""; if (!file || !selectedKey) return; const text = String(await file.text() || "").replace(/^﻿/, ""); const safeSvg = sanitizeSvgText(text); const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = safeSvg; pd.emblem_box = extractSvgBox(safeSvg); setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
+    if (removeEmblemBtn) removeEmblemBtn.addEventListener("click", () => { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.emblem_svg = ""; pd.emblem_box = null; setEmblemPreview(pd); applyLayerState(map); exportStateToTextarea(); });
 
     if (uploadProvinceImageBtn) uploadProvinceImageBtn.addEventListener("click", () => { if (!selectedKey) return alert("Сначала выбери провинцию."); provinceImageFile.click(); });
     if (provinceImageFile) provinceImageFile.addEventListener("change", async () => {
