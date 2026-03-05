@@ -20,6 +20,7 @@ $userId = (int)($message['from_id'] ?? 0);
 if ($userId <= 0) { echo 'ok'; exit; }
 $text = trim((string)($message['text'] ?? ''));
 $cmd = vk_bot_payload_cmd($message);
+if ($cmd === '') $cmd = vk_bot_payload_cmd($object);
 
 $sessions = vk_bot_load_sessions();
 $apps = vk_bot_load_applications();
@@ -87,15 +88,47 @@ if ($cmd === 'type_minor_house' || $cmd === 'type_free_city') {
   vk_bot_save_sessions($sessions);
 
   $buttons = [];
-  foreach (array_slice($territories, 0, 40) as $t) {
-    $buttons[] = vk_bot_btn($t['name'], 'territory:' . $t['type'] . ':' . $t['id'], 'secondary');
+  foreach (array_slice($territories, 0, 40) as $i => $t) {
+    $row = intdiv((int)$i, 4);
+    if ($row >= 10) break;
+    if (!isset($buttons[$row])) $buttons[$row] = [];
+    $buttons[$row][] = vk_bot_btn_item($t['name'], 'territory:' . $t['type'] . ':' . $t['id'], 'secondary');
   }
+  $buttons = array_values($buttons);
   $territoryLines = [];
   foreach ($territories as $t) {
     $territoryLines[] = '- ' . $t['name'] . ' (' . $t['type'] . ':' . $t['id'] . ')';
   }
   vk_bot_send_message($userId, "Выберите территорию (Королевства и Особые территории).\nЕсли нужной нет в кнопках, напишите её ID вручную в формате type:id.\n\nСписок:\n" . implode("\n", $territoryLines), vk_bot_keyboard($buttons));
   echo 'ok'; exit;
+}
+
+if ($stage === 'choose_state_type') {
+  if ($text === 'Малый Дом') $cmd = 'type_minor_house';
+  if ($text === 'Вольный Город') $cmd = 'type_free_city';
+  if ($cmd === 'type_minor_house' || $cmd === 'type_free_city') {
+    $data['state_type'] = $cmd === 'type_minor_house' ? 'minor_house' : 'free_city';
+    $territories = vk_bot_selectable_territories($state);
+    $data['territories'] = $territories;
+    $session = ['stage' => 'choose_territory', 'data' => $data];
+    vk_bot_set_user_session($sessions, $userId, $session);
+    vk_bot_save_sessions($sessions);
+
+    $buttons = [];
+    foreach (array_slice($territories, 0, 40) as $i => $t) {
+      $row = intdiv((int)$i, 4);
+      if ($row >= 10) break;
+      if (!isset($buttons[$row])) $buttons[$row] = [];
+      $buttons[$row][] = vk_bot_btn_item($t['name'], 'territory:' . $t['type'] . ':' . $t['id'], 'secondary');
+    }
+    $buttons = array_values($buttons);
+    $territoryLines = [];
+    foreach ($territories as $t) {
+      $territoryLines[] = '- ' . $t['name'] . ' (' . $t['type'] . ':' . $t['id'] . ')';
+    }
+    vk_bot_send_message($userId, "Выберите территорию (Королевства и Особые территории).\nЕсли нужной нет в кнопках, напишите её ID вручную в формате type:id.\n\nСписок:\n" . implode("\n", $territoryLines), vk_bot_keyboard($buttons));
+    echo 'ok'; exit;
+  }
 }
 
 if ($stage === 'choose_territory') {

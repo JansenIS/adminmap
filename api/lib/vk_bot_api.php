@@ -65,15 +65,19 @@ function vk_bot_keyboard(array $buttons): string {
   return json_encode(['one_time' => false, 'buttons' => $buttons], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{"buttons":[]}';
 }
 
-function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): array {
-  return [[
+function vk_bot_btn_item(string $label, string $cmd, string $color = 'primary'): array {
+  return [
     'action' => [
       'type' => 'text',
       'label' => $label,
       'payload' => json_encode(['cmd' => $cmd], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ],
     'color' => $color,
-  ]];
+  ];
+}
+
+function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): array {
+  return [[vk_bot_btn_item($label, $cmd, $color)]];
 }
 
 function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson = null): void {
@@ -93,8 +97,19 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
   curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-  curl_exec($ch);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
   curl_close($ch);
+
+  if ($resp === false || $err !== '') {
+    @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . " send_error: " . $err . "\n", FILE_APPEND);
+    return;
+  }
+
+  $decoded = json_decode((string)$resp, true);
+  if (is_array($decoded) && isset($decoded['error'])) {
+    @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . " api_error: " . json_encode($decoded['error'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
+  }
 }
 
 function vk_bot_payload_cmd(array $object): string {
