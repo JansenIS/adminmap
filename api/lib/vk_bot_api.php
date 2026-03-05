@@ -150,18 +150,51 @@ function vk_bot_selectable_territories(array $state): array {
   return $rows;
 }
 
+function vk_bot_minor_house_layer_occupied_pid_map(array $state): array {
+  $occupied = [];
+  foreach (($state['great_houses'] ?? []) as $row) {
+    if (!is_array($row)) continue;
+    $layer = $row['minor_house_layer'] ?? null;
+    if (!is_array($layer)) continue;
+    foreach ((array)($layer['domain_pids'] ?? []) as $pid) {
+      $p = (int)$pid;
+      if ($p > 0) $occupied[$p] = true;
+    }
+    foreach ((array)($layer['vassals'] ?? []) as $vassal) {
+      if (!is_array($vassal)) continue;
+      foreach ((array)($vassal['province_pids'] ?? []) as $pid) {
+        $p = (int)$pid;
+        if ($p > 0) $occupied[$p] = true;
+      }
+    }
+  }
+  return $occupied;
+}
+
+function vk_bot_is_free_province(array $prov, string $territoryType, array $occupiedByMinorLayer): bool {
+  $pid = (int)($prov['pid'] ?? 0);
+  if ($pid > 0 && isset($occupiedByMinorLayer[$pid])) return false;
+
+  $hasNestedController = trim((string)($prov['minor_house_id'] ?? '')) !== ''
+    || trim((string)($prov['free_city_id'] ?? '')) !== ''
+    || count((array)($prov['vassals'] ?? [])) > 0
+    || trim((string)($prov['domain_of'] ?? '')) !== '';
+  if ($hasNestedController) return false;
+
+  // Для выбора в королевстве исключаем провинции спецтерриторий.
+  if ($territoryType === 'kingdoms' && trim((string)($prov['special_territory_id'] ?? '')) !== '') return false;
+
+  return true;
+}
+
 function vk_bot_free_provinces_for_territory(array $state, string $type, string $id): array {
   $field = $type === 'special_territories' ? 'special_territory_id' : 'kingdom_id';
+  $occupiedByMinorLayer = vk_bot_minor_house_layer_occupied_pid_map($state);
   $rows = [];
   foreach (($state['provinces'] ?? []) as $pid => $prov) {
     if (!is_array($prov)) continue;
     if ((string)($prov[$field] ?? '') !== $id) continue;
-    $isFree = trim((string)($prov['minor_house_id'] ?? '')) === ''
-      && trim((string)($prov['free_city_id'] ?? '')) === ''
-      && trim((string)($prov['special_territory_id'] ?? '')) === ''
-      && count((array)($prov['vassals'] ?? [])) === 0
-      && trim((string)($prov['domain_of'] ?? '')) === '';
-    if (!$isFree) continue;
+    if (!vk_bot_is_free_province($prov, $type, $occupiedByMinorLayer)) continue;
     $rows[] = ['pid' => (int)$pid, 'name' => trim((string)($prov['name'] ?? ('Провинция ' . $pid)))];
   }
   usort($rows, static fn($a, $b) => ($a['pid'] <=> $b['pid']));
@@ -234,8 +267,9 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   imagealphablending($img, false); imagesavealpha($img, true);
   $bg = imagecolorallocatealpha($img, 8, 12, 20, 0);
   imagefilledrectangle($img, 0, 0, $cropW, $cropH, $bg);
-  $freeColor = imagecolorallocatealpha($img, 255, 215, 0, 0);
-  $otherColor = imagecolorallocatealpha($img, 60, 95, 130, 0);
+  // Свободные провинции — тёмно-зелёные, занятые — тёмно-красные.
+  $freeColor = imagecolorallocatealpha($img, 18, 92, 38, 0);
+  $otherColor = imagecolorallocatealpha($img, 123, 28, 28, 0);
   $textColor = imagecolorallocate($img, 255, 255, 255);
 
   $freeMap = [];
