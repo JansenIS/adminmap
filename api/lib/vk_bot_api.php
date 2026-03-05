@@ -211,7 +211,6 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   $root = api_repo_root();
   $meta = vk_bot_load_json_file($root . '/provinces.json', []);
   $mask = @imagecreatefrompng($root . '/provinces_id.png');
-  $baseMap = @imagecreatefrompng($root . '/map.png');
   if (!is_array($meta['provinces'] ?? null)) {
     vk_bot_set_last_render_error('provinces_meta_missing_or_invalid');
     vk_bot_log_error('render_map_error: provinces_meta_missing_or_invalid');
@@ -222,30 +221,15 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     vk_bot_log_error('render_map_error: provinces_id_png_unreadable');
     return null;
   }
-  if (!$baseMap) {
-    vk_bot_set_last_render_error('map_png_unreadable');
-    vk_bot_log_error('render_map_error: map_png_unreadable');
-    imagedestroy($mask);
-    return null;
-  }
 
-  $pidRemapPayload = vk_bot_load_json_file($root . '/data/hexmap_pid_remap.json', []);
-  $pidRemap = is_array($pidRemapPayload['pid_remap'] ?? null)
-    ? (array)$pidRemapPayload['pid_remap']
-    : (is_array($pidRemapPayload) ? $pidRemapPayload : []);
-
-  $keyByPid = []; $bboxByPid = []; $centroidByPid = []; $sourcePidsByEffectivePid = [];
+  $keyByPid = []; $bboxByPid = []; $centroidByPid = [];
   foreach ($meta['provinces'] as $row) {
     if (!is_array($row)) continue;
-    $sourcePid = (int)($row['pid'] ?? 0); $key = (int)($row['key'] ?? 0);
-    if ($sourcePid <= 0 || $key <= 0) continue;
-    $effectivePid = (int)($pidRemap[(string)$sourcePid] ?? $sourcePid);
-
-    $keyByPid[$sourcePid] = $key;
-    $bboxByPid[$sourcePid] = array_values((array)($row['bbox'] ?? [0,0,0,0]));
-    $centroidByPid[$sourcePid] = array_values((array)($row['centroid'] ?? [0,0]));
-    if (!isset($sourcePidsByEffectivePid[$effectivePid])) $sourcePidsByEffectivePid[$effectivePid] = [];
-    $sourcePidsByEffectivePid[$effectivePid][] = $sourcePid;
+    $pid = (int)($row['pid'] ?? 0); $key = (int)($row['key'] ?? 0);
+    if ($pid <= 0 || $key <= 0) continue;
+    $keyByPid[$pid] = $key;
+    $bboxByPid[$pid] = array_values((array)($row['bbox'] ?? [0,0,0,0]));
+    $centroidByPid[$pid] = array_values((array)($row['centroid'] ?? [0,0]));
   }
 
   $allPids = [];
@@ -261,122 +245,53 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     return null;
   }
 
-  $maskW = imagesx($mask);
-  $maskH = imagesy($mask);
-
-  $freeMap = [];
-  foreach (array_values($freeProvinces) as $idx => $row) $freeMap[(int)$row['pid']] = $idx + 1;
-
-  $maskTrueColor = imageistruecolor($mask);
-  $effectivePidByKey = [];
-  $freeEffectivePids = [];
-  foreach ($freeMap as $effectivePid => $_num) $freeEffectivePids[(int)$effectivePid] = true;
-
-  foreach ($allPids as $effectivePid) {
-    $effectivePid = (int)$effectivePid;
-    $sourcePids = $sourcePidsByEffectivePid[$effectivePid] ?? [$effectivePid];
-    foreach ($sourcePids as $sourcePid) {
-      $key = (int)($keyByPid[(int)$sourcePid] ?? 0);
-      if ($key <= 0) continue;
-      if (!isset($effectivePidByKey[$key])) $effectivePidByKey[$key] = $effectivePid;
-    }
+  $minX = 1_000_000; $minY = 1_000_000; $maxX = 0; $maxY = 0;
+  foreach ($allPids as $pid) {
+    $bbox = $bboxByPid[$pid] ?? null;
+    if (!is_array($bbox) || count($bbox) < 4) continue;
+    $minX = min($minX, (int)$bbox[0]); $minY = min($minY, (int)$bbox[1]);
+    $maxX = max($maxX, (int)$bbox[2]); $maxY = max($maxY, (int)$bbox[3]);
   }
-
-  // 1) Определяем точные границы территории по пикселям provinces_id.png
-  // и одновременно считаем центры свободных провинций по пиксельным моментам.
-  $minX = $maskW; $minY = $maskH; $maxX = -1; $maxY = -1;
-  $freeEffectiveMomentsAbs = [];
-  for ($y = 0; $y < $maskH; $y++) {
-    for ($x = 0; $x < $maskW; $x++) {
-      $idx = imagecolorat($mask, $x, $y);
-      if ($maskTrueColor) {
-        $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255;
-      } else {
-        $rgb = imagecolorsforindex($mask, $idx);
-        $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0);
-      }
-      $key = ($r << 16) | ($g << 8) | $b;
-      $effectivePid = (int)($effectivePidByKey[$key] ?? 0);
-      if ($effectivePid <= 0) continue;
-
-      if ($x < $minX) $minX = $x;
-      if ($y < $minY) $minY = $y;
-      if ($x > $maxX) $maxX = $x;
-      if ($y > $maxY) $maxY = $y;
-
-      if (isset($freeEffectivePids[$effectivePid])) {
-        if (!isset($freeEffectiveMomentsAbs[$effectivePid])) $freeEffectiveMomentsAbs[$effectivePid] = ['sx' => 0.0, 'sy' => 0.0, 'n' => 0];
-        $freeEffectiveMomentsAbs[$effectivePid]['sx'] += $x;
-        $freeEffectiveMomentsAbs[$effectivePid]['sy'] += $y;
-        $freeEffectiveMomentsAbs[$effectivePid]['n'] += 1;
-      }
-    }
-  }
-
-  if ($maxX < $minX || $maxY < $minY) {
-    vk_bot_set_last_render_error('invalid_mask_bounds_for_territory');
-    vk_bot_log_error('render_map_error: invalid_mask_bounds_for_territory type=' . $territoryType . ' id=' . $territoryId);
-    imagedestroy($mask);
-    imagedestroy($baseMap);
+  if ($maxX <= $minX || $maxY <= $minY) {
+    vk_bot_set_last_render_error('invalid_bbox_for_territory');
+    vk_bot_log_error('render_map_error: invalid_bbox_for_territory type=' . $territoryType . ' id=' . $territoryId);
     return null;
   }
 
   $pad = 20;
   $cropX = max(0, $minX - $pad); $cropY = max(0, $minY - $pad);
-  $cropW = min($maskW - $cropX, ($maxX - $minX + 1) + 2 * $pad);
-  $cropH = min($maskH - $cropY, ($maxY - $minY + 1) + 2 * $pad);
+  $cropW = min(imagesx($mask) - $cropX, ($maxX - $minX + 1) + 2 * $pad);
+  $cropH = min(imagesy($mask) - $cropY, ($maxY - $minY + 1) + 2 * $pad);
 
   $img = imagecreatetruecolor($cropW, $cropH);
-  imagealphablending($img, true);
-  imagesavealpha($img, true);
-  imagecopy($img, $baseMap, 0, 0, $cropX, $cropY, $cropW, $cropH);
-
-  // Свободные провинции — зелёные, занятые — красные (полупрозрачная заливка поверх map.png).
-  $freeColor = imagecolorallocatealpha($img, 20, 176, 78, 52);
-  $otherColor = imagecolorallocatealpha($img, 196, 34, 34, 52);
+  imagealphablending($img, false); imagesavealpha($img, true);
+  $bg = imagecolorallocatealpha($img, 8, 12, 20, 0);
+  imagefilledrectangle($img, 0, 0, $cropW, $cropH, $bg);
+  // Свободные провинции — тёмно-зелёные, занятые — тёмно-красные.
+  $freeColor = imagecolorallocatealpha($img, 18, 92, 38, 0);
+  $otherColor = imagecolorallocatealpha($img, 123, 28, 28, 0);
   $textColor = imagecolorallocate($img, 255, 255, 255);
 
-  // 2) Рендерим заливку в пределах кропа по пикселям masks.
+  $freeMap = [];
+  foreach (array_values($freeProvinces) as $idx => $row) $freeMap[(int)$row['pid']] = $idx + 1;
+
+  $pidByKey = array_flip($keyByPid);
   for ($y = 0; $y < $cropH; $y++) {
     for ($x = 0; $x < $cropW; $x++) {
       $idx = imagecolorat($mask, $cropX + $x, $cropY + $y);
-      if ($maskTrueColor) {
-        $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255;
-      } else {
-        $rgb = imagecolorsforindex($mask, $idx);
-        $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0);
-      }
+      $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255;
       $key = ($r << 16) | ($g << 8) | $b;
-      $effectivePid = (int)($effectivePidByKey[$key] ?? 0);
-      if ($effectivePid <= 0) continue;
-      imagesetpixel($img, $x, $y, isset($freeEffectivePids[$effectivePid]) ? $freeColor : $otherColor);
+      $pid = (int)($pidByKey[$key] ?? 0);
+      if ($pid <= 0) continue;
+      if (!in_array($pid, $allPids, true)) continue;
+      imagesetpixel($img, $x, $y, isset($freeMap[$pid]) ? $freeColor : $otherColor);
     }
   }
 
-  // 3) Нумерация свободных провинций — центры по пикселям маски, не по bbox/hex.
-  foreach ($freeMap as $effectivePid => $num) {
-    $effectivePid = (int)$effectivePid;
-    $m = $freeEffectiveMomentsAbs[$effectivePid] ?? null;
-    if (is_array($m) && (int)($m['n'] ?? 0) > 0) {
-      $cx = (int)round(((float)$m['sx']) / ((int)$m['n'])) - $cropX;
-      $cy = (int)round(((float)$m['sy']) / ((int)$m['n'])) - $cropY;
-    } else {
-      // Fallback: mean centroid of source PIDs from provinces.json.
-      $sourcePids = $sourcePidsByEffectivePid[$effectivePid] ?? [$effectivePid];
-      $sumX = 0.0; $sumY = 0.0; $count = 0;
-      foreach ($sourcePids as $sourcePid) {
-        $c = $centroidByPid[(int)$sourcePid] ?? null;
-        if (!is_array($c) || count($c) < 2) continue;
-        $sumX += (float)$c[0]; $sumY += (float)$c[1];
-        $count++;
-      }
-      if ($count > 0) {
-        $cx = (int)round($sumX / $count) - $cropX;
-        $cy = (int)round($sumY / $count) - $cropY;
-      } else {
-        continue;
-      }
-    }
+  foreach ($freeMap as $pid => $num) {
+    $c = $centroidByPid[$pid] ?? [0,0];
+    $cx = (int)round(((float)$c[0]) - $cropX);
+    $cy = (int)round(((float)$c[1]) - $cropY);
     imagestring($img, 5, max(0, $cx - 6), max(0, $cy - 8), (string)$num, $textColor);
   }
 
@@ -393,12 +308,10 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
     vk_bot_log_error('render_map_error: imagepng_failed path=' . $full);
     imagedestroy($img);
     imagedestroy($mask);
-    imagedestroy($baseMap);
     return null;
   }
   imagedestroy($img);
   imagedestroy($mask);
-  imagedestroy($baseMap);
   return '/data/vk_bot/territory_images/' . $name;
 }
 
