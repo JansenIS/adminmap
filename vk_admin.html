@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VK Bot Admin</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0f14;color:#e7eef7;padding:16px}
+    .card{background:#121a24;border:1px solid #223041;border-radius:10px;padding:14px;margin-bottom:14px}
+    input,textarea{width:100%;background:#0f141d;color:#e7eef7;border:1px solid #2b3c52;border-radius:8px;padding:8px;margin:6px 0}
+    button{background:#244c7f;color:#fff;border:0;border-radius:8px;padding:8px 10px;cursor:pointer}
+    table{width:100%;border-collapse:collapse} td,th{border-bottom:1px solid #223041;padding:6px;text-align:left;vertical-align:top}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Подключение VK Callback API</h2>
+    <label><input id="enabled" type="checkbox" /> Включено</label>
+    <input id="group_id" placeholder="Group ID" />
+    <input id="confirmation_token" placeholder="Confirmation token" />
+    <input id="secret" placeholder="Secret" />
+    <input id="access_token" placeholder="Access token" />
+    <input id="api_version" placeholder="API version (5.199)" />
+    <input id="public_base_url" placeholder="Публичный URL сайта (например, https://example.com)" />
+    <button id="saveCfg">Сохранить настройки</button>
+    <div id="cbUrl" style="margin-top:8px;opacity:.85"></div>
+  </div>
+
+  <div class="card">
+    <h2>Заявки регистрации</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Статус</th><th>Игрок</th><th>Данные</th><th>Действия</th></tr></thead>
+      <tbody id="appsBody"></tbody>
+    </table>
+  </div>
+<script src="/js/vk_admin.js"></script>
+</body>
+</html>
