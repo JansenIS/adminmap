@@ -9,6 +9,7 @@ function vk_bot_config_path(): string { return api_repo_root() . '/data/vk_bot_c
 function vk_bot_sessions_path(): string { return api_repo_root() . '/data/vk_bot_sessions.json'; }
 function vk_bot_applications_path(): string { return api_repo_root() . '/data/vk_bot_applications.json'; }
 function vk_bot_character_applications_path(): string { return api_repo_root() . '/data/vk_bot_character_applications.json'; }
+function vk_bot_image_usage_path(): string { return api_repo_root() . '/data/vk_bot_image_usage.json'; }
 
 function vk_bot_files_mtime(array $paths): int {
   $mt = 0;
@@ -26,6 +27,7 @@ function vk_bot_data_mtime(): int {
     vk_bot_sessions_path(),
     vk_bot_applications_path(),
     vk_bot_character_applications_path(),
+    vk_bot_image_usage_path(),
   ]);
 }
 
@@ -47,6 +49,7 @@ function vk_bot_load_config(): array {
     'access_token' => trim((string)($cfg['access_token'] ?? '')),
     'api_version' => trim((string)($cfg['api_version'] ?? '5.199')),
     'public_base_url' => rtrim(trim((string)($cfg['public_base_url'] ?? '')), '/'),
+    'routerai_api_key' => trim((string)($cfg['routerai_api_key'] ?? '')),
   ];
 }
 
@@ -59,6 +62,7 @@ function vk_bot_save_config(array $cfg): bool {
     'access_token' => trim((string)($cfg['access_token'] ?? '')),
     'api_version' => trim((string)($cfg['api_version'] ?? '5.199')),
     'public_base_url' => rtrim(trim((string)($cfg['public_base_url'] ?? '')), '/'),
+    'routerai_api_key' => trim((string)($cfg['routerai_api_key'] ?? '')),
   ]);
 }
 
@@ -68,6 +72,14 @@ function vk_bot_load_applications(): array { return vk_bot_load_json_file(vk_bot
 function vk_bot_save_applications(array $rows): bool { return api_atomic_write_json(vk_bot_applications_path(), $rows); }
 function vk_bot_load_character_applications(): array { return vk_bot_load_json_file(vk_bot_character_applications_path(), []); }
 function vk_bot_save_character_applications(array $rows): bool { return api_atomic_write_json(vk_bot_character_applications_path(), $rows); }
+function vk_bot_load_image_usage(): array { return vk_bot_load_json_file(vk_bot_image_usage_path(), []); }
+function vk_bot_save_image_usage(array $rows): bool { return api_atomic_write_json(vk_bot_image_usage_path(), $rows); }
+
+function vk_bot_image_master_prompt(): string {
+  return 'Масляный портрет в стиле 17 века с элементами постапокалипсиса на заднем плане (респиратор, ржавый лом и т.д.)';
+}
+
+function vk_bot_image_user_limit(): int { return 10; }
 
 function vk_bot_log_error(string $message): void {
   @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . ' ' . $message . "\n", FILE_APPEND);
@@ -115,36 +127,161 @@ function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): arra
   return [vk_bot_btn_item($label, $cmd, $color)];
 }
 
-function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson = null): void {
+function vk_bot_vk_api_call(string $method, array $params): ?array {
+  $cfg = vk_bot_load_config();
+  if ($cfg['access_token'] === '') return null;
+  $params['v'] = $cfg['api_version'] !== '' ? $cfg['api_version'] : '5.199';
+  $params['access_token'] = $cfg['access_token'];
+
+  $ch = curl_init('https://api.vk.com/method/' . $method);
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
+  curl_close($ch);
+  if (!is_string($resp) || $resp === '' || $err !== '') {
+    vk_bot_log_error('vk_api_call_error method=' . $method . ' err=' . $err);
+    return null;
+  }
+  $decoded = json_decode($resp, true);
+  if (!is_array($decoded)) {
+    vk_bot_log_error('vk_api_invalid_json method=' . $method);
+    return null;
+  }
+  if (isset($decoded['error'])) {
+    vk_bot_log_error('vk_api_error method=' . $method . ' details=' . json_encode($decoded['error'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    return null;
+  }
+  return $decoded;
+}
+
+function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson = null, string $attachment = ''): void {
   $cfg = vk_bot_load_config();
   if ($cfg['access_token'] === '') return;
   $params = [
     'user_id' => $userId,
     'random_id' => random_int(1, PHP_INT_MAX),
     'message' => $message,
-    'v' => $cfg['api_version'] !== '' ? $cfg['api_version'] : '5.199',
-    'access_token' => $cfg['access_token'],
   ];
   if ($keyboardJson !== null && $keyboardJson !== '') $params['keyboard'] = $keyboardJson;
+  if ($attachment !== '') $params['attachment'] = $attachment;
+  vk_bot_vk_api_call('messages.send', $params);
+}
 
-  $ch = curl_init('https://api.vk.com/method/messages.send');
+function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $fileName = 'generated.png'): string {
+  if ($raw === '') return '';
+  $serverResp = vk_bot_vk_api_call('photos.getMessagesUploadServer', ['peer_id' => $userId]);
+  $uploadUrl = trim((string)($serverResp['response']['upload_url'] ?? ''));
+  if ($uploadUrl === '') return '';
+
+  $tmpFile = tempnam(sys_get_temp_dir(), 'vkimg_');
+  if (!is_string($tmpFile) || $tmpFile === '') return '';
+  if (@file_put_contents($tmpFile, $raw) === false) { @unlink($tmpFile); return ''; }
+
+  $cfile = curl_file_create($tmpFile, 'image/png', $fileName);
+  $ch = curl_init($uploadUrl);
   curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+  curl_setopt($ch, CURLOPT_POSTFIELDS, ['photo' => $cfile]);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 40);
   $resp = curl_exec($ch);
   $err = curl_error($ch);
   curl_close($ch);
+  @unlink($tmpFile);
 
-  if ($resp === false || $err !== '') {
-    @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . " send_error: " . $err . "\n", FILE_APPEND);
-    return;
+  if (!is_string($resp) || $resp === '' || $err !== '') {
+    vk_bot_log_error('vk_upload_photo_error err=' . $err);
+    return '';
+  }
+  $uploadDecoded = json_decode($resp, true);
+  if (!is_array($uploadDecoded)) return '';
+
+  $saveResp = vk_bot_vk_api_call('photos.saveMessagesPhoto', [
+    'photo' => (string)($uploadDecoded['photo'] ?? ''),
+    'server' => (string)($uploadDecoded['server'] ?? ''),
+    'hash' => (string)($uploadDecoded['hash'] ?? ''),
+  ]);
+  $saved = $saveResp['response'][0] ?? null;
+  if (!is_array($saved)) return '';
+  $ownerId = (int)($saved['owner_id'] ?? 0);
+  $photoId = (int)($saved['id'] ?? 0);
+  if ($ownerId === 0 || $photoId === 0) return '';
+  return 'photo' . $ownerId . '_' . $photoId;
+}
+
+function vk_bot_generate_character_image(string $userPrompt): array {
+  $cfg = vk_bot_load_config();
+  $apiKey = trim((string)($cfg['routerai_api_key'] ?? ''));
+  if ($apiKey === '') return ['ok' => false, 'error' => 'missing_api_key'];
+
+  $payload = [
+    'model' => 'openai/gpt-5-image-mini',
+    'messages' => [
+      ['role' => 'system', 'content' => vk_bot_image_master_prompt()],
+      ['role' => 'user', 'content' => $userPrompt],
+    ],
+    'extra_body' => ['quality' => 'low', 'size' => '1024x1024'],
+  ];
+
+  $ch = curl_init('https://routerai.ru/api/v1/chat/completions');
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $apiKey,
+    'Content-Type: application/json',
+  ]);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 80);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
+  $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if (!is_string($resp) || $resp === '' || $err !== '' || $code >= 400) {
+    vk_bot_log_error('routerai_error code=' . $code . ' err=' . $err . ' body=' . substr((string)$resp, 0, 600));
+    return ['ok' => false, 'error' => 'api_failed'];
+  }
+  $decoded = json_decode($resp, true);
+  if (!is_array($decoded)) return ['ok' => false, 'error' => 'invalid_api_json'];
+
+  $content = $decoded['choices'][0]['message']['content'] ?? null;
+  $imageUrl = '';
+  $b64 = '';
+  if (is_string($content)) {
+    $trimmed = trim($content);
+    if (preg_match('#https?://\S+#u', $trimmed, $m)) $imageUrl = $m[0];
+    if (preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $trimmed)) $b64 = preg_replace('/\s+/', '', $trimmed) ?? '';
+  } elseif (is_array($content)) {
+    foreach ($content as $part) {
+      if (!is_array($part)) continue;
+      $url = trim((string)($part['image_url'] ?? $part['url'] ?? ''));
+      if ($url !== '' && $imageUrl === '') $imageUrl = $url;
+      $ib = trim((string)($part['image_base64'] ?? $part['b64_json'] ?? ''));
+      if ($ib !== '' && $b64 === '') $b64 = $ib;
+    }
+  }
+  if ($b64 !== '') {
+    $raw = base64_decode($b64, true);
+    if (is_string($raw) && $raw !== '') return ['ok' => true, 'raw' => $raw];
+  }
+  if ($imageUrl !== '') {
+    $ch = curl_init($imageUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    $raw = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if (is_string($raw) && $raw !== '' && $code < 400 && $err === '') {
+      return ['ok' => true, 'raw' => $raw];
+    }
+    return ['ok' => false, 'error' => 'image_download_failed'];
   }
 
-  $decoded = json_decode((string)$resp, true);
-  if (is_array($decoded) && isset($decoded['error'])) {
-    @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . " api_error: " . json_encode($decoded['error'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
-  }
+  return ['ok' => false, 'error' => 'image_not_found'];
 }
 
 

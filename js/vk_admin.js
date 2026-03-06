@@ -1,6 +1,6 @@
 (async function(){
   const byId=(id)=>document.getElementById(id);
-  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url'];
+  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','routerai_api_key'];
 
   async function loadCfg(){
     const res=await fetch('/api/vk/config/'); const j=await res.json();
@@ -80,7 +80,43 @@
     });
   }
 
+  async function loadImageUsage(){
+    const body=byId('imageUsageBody');
+    if (!body) return;
+    const res=await fetch('/api/vk/image_usage/');
+    const j=await res.json();
+    const rows=Array.isArray(j.items)?j.items:[];
+    body.innerHTML='';
+    rows.forEach((row)=>{
+      const tr=document.createElement('tr');
+      const uid=String(row.vk_user_id||'');
+      const count=Number(row.count||0);
+      const ts=Number(row.updated_at||0);
+      const updated=ts>0?new Date(ts*1000).toLocaleString():'—';
+      tr.innerHTML=`<td>${uid}</td><td>${count}</td><td>${updated}</td><td></td>`;
+      const td=tr.lastElementChild;
+      const btn=document.createElement('button');
+      btn.textContent='Сбросить';
+      btn.onclick=async()=>{
+        await fetch('/api/vk/image_usage/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_user',vk_user_id:Number(uid)})});
+        await loadImageUsage();
+      };
+      td.appendChild(btn);
+      body.appendChild(tr);
+    });
+  }
+
+  const resetAllBtn=byId('resetAllImageUsage');
+  if (resetAllBtn){
+    resetAllBtn.onclick=async()=>{
+      if (!window.confirm('Сбросить лимиты генерации всем пользователям?')) return;
+      await fetch('/api/vk/image_usage/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_all'})});
+      await loadImageUsage();
+    };
+  }
+
   await loadCfg();
   await loadApps();
   await loadCharacterApps();
+  await loadImageUsage();
 })();
