@@ -98,7 +98,14 @@
     if (!box) return;
     try {
       const res = await fetch('/api/war/battles/list/?token=' + encodeURIComponent(token), { cache: 'no-store' });
-      const json = await res.json();
+      if (res.status === 304) {
+        if (!box.textContent.trim()) {
+          box.textContent = 'Активных боёв с вашим участием нет.';
+        }
+        return;
+      }
+      const raw = await res.text();
+      const json = raw ? JSON.parse(raw) : null;
       if (!res.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
       const rows = Array.isArray(json.battles) ? json.battles.filter((b) => b && b.my_link) : [];
       if (!rows.length) {

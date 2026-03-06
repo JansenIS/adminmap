@@ -35,16 +35,41 @@
     return base;
   }
 
+  function withRetryBust(url, attempt) {
+    if (attempt <= 0) return url;
+    const glue = url.includes("?") ? "&" : "?";
+    return `${url}${glue}_r=${Date.now()}_${attempt}`;
+  }
+
   async function fetchJson(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    const raw = await res.text();
-    try {
-      return JSON.parse(raw);
-    } catch (err) {
-      const preview = String(raw || "").slice(0, 180).replace(/\s+/g, " ");
-      throw new Error(`Invalid JSON from ${url}: ${err && err.message ? err.message : err}. preview=${preview}`);
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const requestUrl = withRetryBust(url, attempt);
+      const res = await fetch(requestUrl, {
+        cache: attempt === 0 ? "no-store" : "reload",
+        headers: { "Accept": "application/json" },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} for ${url}`);
+      }
+
+      const raw = await res.text();
+      if (!raw.trim()) {
+        lastError = new Error(`Empty JSON response from ${url}`);
+        continue;
+      }
+
+      try {
+        return JSON.parse(raw);
+      } catch (err) {
+        const preview = String(raw || "").slice(0, 180).replace(/\s+/g, " ");
+        lastError = new Error(`Invalid JSON from ${url}: ${err && err.message ? err.message : err}. preview=${preview}`);
+      }
     }
+
+    throw lastError || new Error(`Invalid JSON from ${url}`);
   }
 
   async function loadChunkedProvinces() {
