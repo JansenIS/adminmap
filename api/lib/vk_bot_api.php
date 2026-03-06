@@ -211,6 +211,54 @@ function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $file
   return 'photo' . $ownerId . '_' . $photoId;
 }
 
+function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, string &$b64): void {
+  if ($imageUrl !== '' && $b64 !== '') return;
+
+  if (is_string($value)) {
+    $trimmed = trim($value);
+    if ($trimmed === '') return;
+    if ($imageUrl === '' && preg_match('#https?://\S+#u', $trimmed, $m)) $imageUrl = $m[0];
+    if ($imageUrl === '' && preg_match('#!\[[^\]]*\]\((https?://[^)]+)\)#u', $trimmed, $m)) $imageUrl = $m[1];
+    if ($b64 === '' && preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $trimmed)) $b64 = preg_replace('/\s+/', '', $trimmed) ?? '';
+    return;
+  }
+
+  if (!is_array($value)) return;
+
+  $stack = [$value];
+  while (!empty($stack) && ($imageUrl === '' || $b64 === '')) {
+    $current = array_pop($stack);
+    if (!is_array($current)) continue;
+    foreach ($current as $k => $v) {
+      if (is_array($v)) {
+        $stack[] = $v;
+        if (in_array((string)$k, ['image_url', 'url', 'src'], true)) {
+          $nestedUrl = trim((string)($v['url'] ?? $v['href'] ?? ''));
+          if ($nestedUrl !== '' && $imageUrl === '') $imageUrl = $nestedUrl;
+        }
+        continue;
+      }
+      if (!is_string($v)) continue;
+      $key = (string)$k;
+      $str = trim($v);
+      if ($str === '') continue;
+      if ($imageUrl === '' && in_array($key, ['image_url', 'url', 'src', 'href'], true) && preg_match('#^https?://#iu', $str)) {
+        $imageUrl = $str;
+      }
+      if ($b64 === '' && in_array($key, ['image_base64', 'b64_json'], true)) {
+        $b64 = preg_replace('/\s+/', '', $str) ?? '';
+      }
+      if (($imageUrl === '' || $b64 === '') && preg_match('#https?://\S+#u', $str, $m)) {
+        if ($imageUrl === '') $imageUrl = $m[0];
+      }
+      if ($b64 === '' && preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $str)) {
+        $b64 = preg_replace('/\s+/', '', $str) ?? '';
+      }
+      if ($imageUrl !== '' && $b64 !== '') break;
+    }
+  }
+}
+
 function vk_bot_generate_character_image(string $userPrompt): array {
   $cfg = vk_bot_load_config();
   $apiKey = trim((string)($cfg['routerai_api_key'] ?? ''));
@@ -233,7 +281,7 @@ function vk_bot_generate_character_image(string $userPrompt): array {
   ]);
   curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 80);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 180);
   $resp = curl_exec($ch);
   $err = curl_error($ch);
   $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -246,22 +294,10 @@ function vk_bot_generate_character_image(string $userPrompt): array {
   $decoded = json_decode($resp, true);
   if (!is_array($decoded)) return ['ok' => false, 'error' => 'invalid_api_json'];
 
-  $content = $decoded['choices'][0]['message']['content'] ?? null;
   $imageUrl = '';
   $b64 = '';
-  if (is_string($content)) {
-    $trimmed = trim($content);
-    if (preg_match('#https?://\S+#u', $trimmed, $m)) $imageUrl = $m[0];
-    if (preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $trimmed)) $b64 = preg_replace('/\s+/', '', $trimmed) ?? '';
-  } elseif (is_array($content)) {
-    foreach ($content as $part) {
-      if (!is_array($part)) continue;
-      $url = trim((string)($part['image_url'] ?? $part['url'] ?? ''));
-      if ($url !== '' && $imageUrl === '') $imageUrl = $url;
-      $ib = trim((string)($part['image_base64'] ?? $part['b64_json'] ?? ''));
-      if ($ib !== '' && $b64 === '') $b64 = $ib;
-    }
-  }
+  vk_bot_collect_image_candidates_from_value($decoded, $imageUrl, $b64);
+
   if ($b64 !== '') {
     $raw = base64_decode($b64, true);
     if (is_string($raw) && $raw !== '') return ['ok' => true, 'raw' => $raw];
@@ -281,8 +317,10 @@ function vk_bot_generate_character_image(string $userPrompt): array {
     return ['ok' => false, 'error' => 'image_download_failed'];
   }
 
+  vk_bot_log_error('routerai_image_not_found body=' . substr($resp, 0, 1200));
   return ['ok' => false, 'error' => 'image_not_found'];
 }
+
 
 
 function vk_bot_save_square_photo_blob(string $raw, string $personName = ''): ?string {

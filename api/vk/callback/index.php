@@ -222,6 +222,11 @@ if ($stage === 'character_image_prompt') {
     echo 'ok'; exit;
   }
 
+  // Сбрасываем stage до запуска долгой генерации: если VK повторно доставит
+  // то же событие из‑за таймаута, бот не должен снова уходить в цикл генерации.
+  vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+  vk_bot_save_sessions($sessions);
+
   vk_bot_send_message($userId, 'Генерирую портрет, это может занять до минуты…');
   $gen = vk_bot_generate_character_image($text);
   if (!(bool)($gen['ok'] ?? false)) {
