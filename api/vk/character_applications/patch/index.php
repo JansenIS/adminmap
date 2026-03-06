@@ -33,6 +33,43 @@ function vk_character_apps_merge_patch(array $base, array $patch): array
   return $base;
 }
 
+function vk_character_apps_union_id_for_pair(array $relationships, string $leftId, string $rightId): string
+{
+  foreach ($relationships as $row) {
+    if (!is_array($row) || (string)($row['type'] ?? '') !== 'spouses') continue;
+    $sourceId = (string)($row['source_id'] ?? '');
+    $targetId = (string)($row['target_id'] ?? '');
+    if (!(($sourceId === $leftId && $targetId === $rightId) || ($sourceId === $rightId && $targetId === $leftId))) continue;
+    $unionId = trim((string)($row['union_id'] ?? ''));
+    if ($unionId !== '') return $unionId;
+  }
+
+  $pair = [$leftId, $rightId];
+  sort($pair, SORT_STRING);
+  return 'u_' . substr(hash('sha1', implode(':', $pair)), 0, 10);
+}
+
+function vk_character_apps_upsert_parent_child_relationship(array &$relationships, string $parentId, string $childId, ?string $parentsUnionId = null): void
+{
+  $normalizedUnionId = is_string($parentsUnionId) && $parentsUnionId !== '' ? $parentsUnionId : null;
+  foreach ($relationships as $idx => $row) {
+    if (!is_array($row) || (string)($row['type'] ?? '') !== 'parent_child') continue;
+    if ((string)($row['source_id'] ?? '') !== $parentId || (string)($row['target_id'] ?? '') !== $childId) continue;
+    if ($normalizedUnionId !== null && trim((string)($row['parents_union_id'] ?? '')) === '') {
+      $relationships[$idx]['parents_union_id'] = $normalizedUnionId;
+    }
+    return;
+  }
+
+  $relationships[] = [
+    'type' => 'parent_child',
+    'source_id' => $parentId,
+    'target_id' => $childId,
+    'union_id' => null,
+    'parents_union_id' => $normalizedUnionId,
+  ];
+}
+
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method !== 'POST' && $method !== 'PATCH') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST', 'PATCH']], 405, vk_bot_data_mtime());
@@ -91,6 +128,7 @@ if ($action === 'approve') {
   if (is_array($profile) && preg_match('/^Род:\s*(.+)$/um', (string)($profile['bio'] ?? ''), $m)) {
     $clan = trim((string)($m[1] ?? ''));
   }
+  $resolvedClan = $clan !== '' ? $clan : $rulerName;
 
   if (!is_array($state['people_profiles'] ?? null)) $state['people_profiles'] = [];
   if (!is_array($state['people_profiles'][$rulerName] ?? null)) $state['people_profiles'][$rulerName] = ['photo_url' => '', 'bio' => ''];
@@ -124,7 +162,7 @@ if ($action === 'approve') {
       'birth_year' => $birthYear,
       'death_year' => null,
       'photo_url' => is_string($storedRulerPhoto) ? $storedRulerPhoto : $photo,
-      'clan' => $clan,
+      'clan' => $resolvedClan,
       'clan_branch_type' => 'main',
       'is_clan_founder' => false,
       'notes' => '',
@@ -133,8 +171,11 @@ if ($action === 'approve') {
     if ($birthYear !== null) $genealogy['characters'][$rulerIdx]['birth_year'] = $birthYear;
     if (is_string($storedRulerPhoto) && $storedRulerPhoto !== '') $genealogy['characters'][$rulerIdx]['photo_url'] = $storedRulerPhoto;
     elseif ($photo !== '') $genealogy['characters'][$rulerIdx]['photo_url'] = $photo;
-    if ($clan !== '') $genealogy['characters'][$rulerIdx]['clan'] = $clan;
+    if ($resolvedClan !== '') $genealogy['characters'][$rulerIdx]['clan'] = $resolvedClan;
   }
+
+  $parentIds = [];
+  $siblingIds = [];
 
   foreach ($relatives as $rel) {
     if (!is_array($rel)) continue;
@@ -154,7 +195,7 @@ if ($action === 'approve') {
       'birth_year' => $relBirthYear,
       'death_year' => null,
       'photo_url' => is_string($storedRelPhoto) ? $storedRelPhoto : $relPhoto,
-      'clan' => $clan,
+      'clan' => $resolvedClan,
       'clan_branch_type' => 'main',
       'is_clan_founder' => false,
       'notes' => '',
@@ -163,10 +204,12 @@ if ($action === 'approve') {
     $relationship = null;
     if ($status === 'parent') {
       $relationship = ['type' => 'parent_child', 'source_id' => $charId, 'target_id' => $rulerCharId, 'union_id' => null, 'parents_union_id' => null];
+      $parentIds[] = $charId;
     } elseif ($status === 'child') {
       $relationship = ['type' => 'parent_child', 'source_id' => $rulerCharId, 'target_id' => $charId, 'union_id' => null, 'parents_union_id' => null];
     } elseif ($status === 'sibling') {
       $relationship = ['type' => 'siblings', 'source_id' => $rulerCharId, 'target_id' => $charId, 'union_id' => null, 'parents_union_id' => null];
+      $siblingIds[] = $charId;
     } elseif ($status === 'spouse') {
       $relationship = ['type' => 'spouses', 'source_id' => $rulerCharId, 'target_id' => $charId, 'union_id' => null, 'parents_union_id' => null];
     }
@@ -175,9 +218,36 @@ if ($action === 'approve') {
     }
   }
 
+  $parentIds = array_values(array_unique($parentIds));
+  $parentsUnionId = null;
+  if (count($parentIds) >= 2) {
+    $leftParentId = (string)$parentIds[0];
+    $rightParentId = (string)$parentIds[1];
+    $parentsUnionId = vk_character_apps_union_id_for_pair($genealogy['relationships'] ?? [], $leftParentId, $rightParentId);
+    $parentsSpouseRelationship = [
+      'type' => 'spouses',
+      'source_id' => $leftParentId,
+      'target_id' => $rightParentId,
+      'union_id' => $parentsUnionId,
+      'parents_union_id' => null,
+    ];
+    if (!genealogy_relationship_exists($genealogy['relationships'] ?? [], $parentsSpouseRelationship)) {
+      $genealogy['relationships'][] = $parentsSpouseRelationship;
+    }
+
+    vk_character_apps_upsert_parent_child_relationship($genealogy['relationships'], $leftParentId, $rulerCharId, $parentsUnionId);
+    vk_character_apps_upsert_parent_child_relationship($genealogy['relationships'], $rightParentId, $rulerCharId, $parentsUnionId);
+  }
+
+  foreach ($siblingIds as $siblingId) {
+    foreach ($parentIds as $parentId) {
+      vk_character_apps_upsert_parent_child_relationship($genealogy['relationships'], (string)$parentId, (string)$siblingId, $parentsUnionId);
+    }
+  }
+
   if (!genealogy_save($genealogy)) api_json_response(['error' => 'genealogy_write_failed'], 500, vk_bot_data_mtime());
 
-  $tok = vk_bot_create_genealogy_admin_token($clan, $entityType, $entityId, (string)($app['genealogy_admin_token'] ?? ''));
+  $tok = vk_bot_create_genealogy_admin_token($resolvedClan, $entityType, $entityId, (string)($app['genealogy_admin_token'] ?? ''));
   $cfg = vk_bot_load_config();
   $path = is_array($tok) ? (string)$tok['path'] : '';
   $fullLink = ($cfg['public_base_url'] !== '' && $path !== '') ? ($cfg['public_base_url'] . $path) : $path;
