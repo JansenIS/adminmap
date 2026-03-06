@@ -22,8 +22,18 @@
     <input id="access_token" placeholder="Access token" />
     <input id="api_version" placeholder="API version (5.199)" />
     <input id="public_base_url" placeholder="Публичный URL сайта (например, https://example.com)" />
+    <input id="routerai_api_key" placeholder="RouterAI API key (для генерации портретов)" />
     <button id="saveCfg">Сохранить настройки</button>
     <div id="cbUrl" style="margin-top:8px;opacity:.85"></div>
+  </div>
+
+  <div class="card">
+    <h2>Лимиты генерации портретов</h2>
+    <table>
+      <thead><tr><th>VK User ID</th><th>Использовано</th><th>Обновлено</th><th>Действия</th></tr></thead>
+      <tbody id="imageUsageBody"></tbody>
+    </table>
+    <button id="resetAllImageUsage" style="margin-top:8px;">Сбросить лимиты всем</button>
   </div>
 
   <div class="card">

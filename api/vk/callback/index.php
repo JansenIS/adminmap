@@ -63,6 +63,11 @@ $session = vk_bot_user_session($sessions, $userId);
 $stage = (string)($session['stage'] ?? 'start');
 $data = is_array($session['data'] ?? null) ? $session['data'] : [];
 
+
+$usage = vk_bot_load_image_usage();
+$currentUsage = (int)($usage[(string)$userId]['count'] ?? 0);
+$remainingImageGenerations = max(0, vk_bot_image_user_limit() - $currentUsage);
+
 $approvedApp = null;
 $hasApprovedStateApp = false;
 foreach ($apps as $app) {
@@ -94,6 +99,7 @@ $sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array 
       $btns[] = vk_bot_btn('Анкета персонажа', 'character_form_new', 'primary');
     }
   }
+  $btns[] = vk_bot_btn('🎨 Портрет персонажа', 'character_image_start', 'primary');
 
   $msg = 'Добро пожаловать. Выберите действие:';
   if (is_array($pendingCharacterApp) && !is_array($approvedCharacterApp)) {
@@ -189,6 +195,63 @@ if ($cmd === 'register_new') {
 
 if ($cmd === 'existing_disabled') {
   vk_bot_send_message($userId, 'Функция посадки за существующее государство пока не активна.');
+  echo 'ok'; exit;
+}
+
+if ($cmd === 'character_image_start') {
+  if ($remainingImageGenerations <= 0) {
+    vk_bot_send_message($userId, 'Лимит генераций исчерпан (10 из 10). Администратор может сбросить лимит в админке.');
+    echo 'ok'; exit;
+  }
+  $session = ['stage' => 'character_image_prompt', 'data' => $data];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Опишите внешность персонажа в свободной форме.' . "\n" . 'Осталось генераций: ' . $remainingImageGenerations . ' из ' . vk_bot_image_user_limit() . '.');
+  echo 'ok'; exit;
+}
+
+if ($stage === 'character_image_prompt') {
+  if ($text === '') {
+    vk_bot_send_message($userId, 'Опишите внешность персонажа текстом.');
+    echo 'ok'; exit;
+  }
+  if ($remainingImageGenerations <= 0) {
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Лимит генераций исчерпан (10 из 10). Администратор может сбросить лимит в админке.');
+    echo 'ok'; exit;
+  }
+
+  vk_bot_send_message($userId, 'Генерирую портрет, это может занять до минуты…');
+  $gen = vk_bot_generate_character_image($text);
+  if (!(bool)($gen['ok'] ?? false)) {
+    $reason = (string)($gen['error'] ?? 'unknown');
+    vk_bot_log_error('character_image_failed user=' . $userId . ' reason=' . $reason);
+    $hint = $reason === 'missing_api_key'
+      ? 'Не настроен API-ключ RouterAI в админке VK.'
+      : 'Не удалось сгенерировать изображение. Попробуйте позже.';
+    vk_bot_send_message($userId, $hint);
+    echo 'ok'; exit;
+  }
+
+  $rawImage = is_string($gen['raw'] ?? null) ? (string)$gen['raw'] : '';
+  $attachment = vk_bot_upload_message_photo_blob($userId, $rawImage, 'character_portrait.png');
+  if ($attachment === '') {
+    vk_bot_log_error('character_image_upload_failed user=' . $userId);
+    vk_bot_send_message($userId, 'Портрет сгенерирован, но не удалось загрузить его в VK. Попробуйте ещё раз позже.');
+    echo 'ok'; exit;
+  }
+
+  $usage[(string)$userId] = [
+    'count' => $currentUsage + 1,
+    'updated_at' => time(),
+  ];
+  vk_bot_save_image_usage($usage);
+  $left = max(0, vk_bot_image_user_limit() - (int)$usage[(string)$userId]['count']);
+
+  vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Готово! Ваш портрет. Осталось генераций: ' . $left . ' из ' . vk_bot_image_user_limit() . '.', null, $attachment);
   echo 'ok'; exit;
 }
 
