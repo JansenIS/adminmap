@@ -1247,7 +1247,22 @@
     selected.moved_turn_year = Number.isFinite(Number(currentWarTurnYear)) ? Number(currentWarTurnYear) : null;
     updateWarArmyPanel();
     renderArmyMarkers();
+    syncWarBattles({ includeStaticConflicts: false });
     return true;
+  }
+
+
+  async function syncWarBattles(opts) {
+    const payload = { include_static_conflicts: !!(opts && opts.includeStaticConflicts) };
+    try {
+      await fetch('/api/war/battles/sync/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn('war battle sync failed', err);
+    }
   }
 
   function realmBucketByType(type) { if (!state[type] || typeof state[type] !== "object") state[type] = {}; return state[type]; }
@@ -4271,6 +4286,7 @@
     }
     if (warMoveCard) warMoveCard.style.display = (currentMode() === "war") ? "block" : "none";
     updateWarArmyPanel();
+    syncWarBattles({ includeStaticConflicts: true });
     setSelection(0, null);
     exportStateToTextarea();
     await refreshTurnPanel();

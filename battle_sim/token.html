@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Battle session</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body{padding:24px}.wrap2{max-width:920px;margin:0 auto}.cardx{background:#151a22;border:1px solid #2b3648;border-radius:10px;padding:14px;margin-bottom:12px}
+    .small{opacity:.8;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap2">
+    <h2>Боевая сессия по токену</h2>
+    <div id="status" class="cardx">Загрузка…</div>
+    <div id="info" class="cardx" style="display:none"></div>
+    <div id="armies" class="cardx" style="display:none"></div>
+    <div class="cardx">
+      <button id="btnReady" class="btn">Готов</button>
+      <button id="btnUnready" class="btn">Не готов</button>
+      <a id="simLink" class="btn" href="/battle_sim/index.html" target="_blank" rel="noopener">Открыть симулятор</a>
+      <div class="small" style="margin-top:8px;">Сейчас это токен-доступ и стейт битвы. Полный сетевой пошаговый бой поверх симулятора ещё в работе.</div>
+    </div>
+  </div>
+  <script src="js/token_app.js"></script>
+</body>
+</html>
