@@ -1312,13 +1312,81 @@ refreshAll();
     const ownSide = sideForTokenPlayer() || 'blue';
     const enemySide = ownSide === 'blue' ? 'red' : 'blue';
 
+    function autoDeployAngle(side){
+      return side === 'blue' ? Math.PI : 0;
+    }
+
+    function findFreeDeployPose(u, baseX, baseY, angle, band){
+      const mapW = Number(scenario.map.w || 2200);
+      const mapH = Number(scenario.map.h || 1400);
+      const halfW = mapW/2;
+      const halfH = mapH/2;
+      const xMin = -halfW + 70;
+      const xMax = halfW - 70;
+      const yMin = Math.max(-halfH + 60, Number(band.yMin));
+      const yMax = Math.min(halfH - 60, Number(band.yMax));
+
+      const ringStep = 56;
+      const maxRing = 10;
+      const candidates = [{x:baseX, y:baseY}];
+      for(let r=1;r<=maxRing;r++){
+        const d = r * ringStep;
+        candidates.push(
+          {x:baseX + d, y:baseY},
+          {x:baseX - d, y:baseY},
+          {x:baseX, y:baseY + d},
+          {x:baseX, y:baseY - d},
+          {x:baseX + d, y:baseY + d},
+          {x:baseX + d, y:baseY - d},
+          {x:baseX - d, y:baseY + d},
+          {x:baseX - d, y:baseY - d}
+        );
+      }
+
+      for(const c of candidates){
+        const x = U.clamp(c.x, xMin, xMax);
+        const y = U.clamp(c.y, yMin, yMax);
+        const place = E.canPlaceUnitPose ? E.canPlaceUnitPose(u, x, y, angle) : {ok:true};
+        if(place.ok) return {x, y, angle};
+      }
+
+      return {
+        x: U.clamp(baseX, xMin, xMax),
+        y: U.clamp(baseY, yMin, yMax),
+        angle,
+      };
+    }
+
     function spawnArmyRows(rows, side){
+      const allUnits = [];
       for(const army of rows){
         const units = Array.isArray(army && army.units) ? army.units : [];
         for(const [idx, row] of units.entries()){
+          allUnits.push({ army, idx, row });
+        }
+      }
+
+      const total = Math.max(1, allUnits.length);
+      const mapW = Number(scenario.map.w || 2200);
+      const band = deployBandForSide(side);
+      const cols = Math.max(3, Math.ceil(Math.sqrt(total)));
+      const xSpan = Math.max(500, mapW * 0.72);
+      const xStart = -(xSpan/2);
+      const xStep = cols > 1 ? (xSpan/(cols-1)) : 0;
+      const yStep = 120;
+      const forward = side === 'blue' ? 1 : -1;
+      const anchorY = side === 'blue' ? band.yMin + 80 : band.yMax - 80;
+      const angle = autoDeployAngle(side);
+
+      for(const [order, item] of allUnits.entries()){
+        const {army, idx, row} = item;
           const type = String(row && row.unit_id || '').trim();
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
+          const col = order % cols;
+          const depth = Math.floor(order / cols);
+          const targetX = xStart + col * xStep;
+          const targetY = anchorY + forward * depth * yStep;
           const payload = {
             type,
             side,
@@ -1327,11 +1395,15 @@ refreshAll();
             baseSize: Math.max(1, Number(tpl.baseSize) || 1),
             baseXpl: Math.max(0, Number(tpl.baseXpl) || 0),
             name: String(tpl.name || type),
-            x: (side === 'blue' ? -520 : 520) + (Math.random()*220 - 110),
-            y: (side === 'blue' ? -480 : 480) + (Math.random()*200 - 100),
+            x: targetX,
+            y: targetY,
           };
           const u = E.addUnitFromUI(payload);
           if(u){
+            const pose = findFreeDeployPose(u, targetX, targetY, angle, band);
+            u.x = pose.x;
+            u.y = pose.y;
+            u.angle = pose.angle;
             u._battleArmyUid = String(army && army.army_uid || "");
             u._battleUnitIdx = Number(idx);
             clampUnitToDeployBand(u);
