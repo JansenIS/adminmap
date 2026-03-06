@@ -535,6 +535,140 @@ function war_battle_sync(array $state, bool $includeStaticConflicts = false): ar
 }
 
 
+
+function war_battle_clamp(float $v, float $min, float $max): float {
+  if ($v < $min) return $min;
+  if ($v > $max) return $max;
+  return $v;
+}
+
+function war_battle_catalog(): array {
+  static $catalog = null;
+  if ($catalog !== null) return $catalog;
+  $catalog = [
+    'militia' => ['kind'=>'inf','base_size'=>1000,'base_xpl'=>0.5,'move'=>80.0,'melee'=>['power'=>0.020,'cap_pct'=>0.10],'armor'=>0.04,'morale'=>55.0],
+    'militia_tr' => ['kind'=>'inf','base_size'=>1000,'base_xpl'=>1.0,'move'=>85.0,'melee'=>['power'=>0.024,'cap_pct'=>0.12],'armor'=>0.06,'morale'=>62.0],
+    'pikes' => ['kind'=>'pike','base_size'=>500,'base_xpl'=>1.0,'move'=>75.0,'melee'=>['power'=>0.030,'cap_pct'=>0.14],'armor'=>0.08,'morale'=>65.0,'tags'=>['antiCav']],
+    'shot' => ['kind'=>'shot','base_size'=>500,'base_xpl'=>1.0,'move'=>75.0,'ranged'=>['range'=>240.0,'power'=>0.020,'cap_pct'=>0.06,'acc'=>0.55],'melee'=>['power'=>0.014,'cap_pct'=>0.08],'armor'=>0.06,'morale'=>63.0],
+    'engineers' => ['kind'=>'support','base_size'=>10,'base_xpl'=>2.0,'move'=>70.0,'melee'=>['power'=>0.014,'cap_pct'=>0.10],'armor'=>0.10,'morale'=>60.0],
+    'city100' => ['kind'=>'inf','base_size'=>100,'base_xpl'=>0.5,'move'=>90.0,'melee'=>['power'=>0.022,'cap_pct'=>0.12],'armor'=>0.06,'morale'=>60.0],
+    'assault150' => ['kind'=>'inf','base_size'=>150,'base_xpl'=>2.0,'move'=>85.0,'melee'=>['power'=>0.036,'cap_pct'=>0.18],'armor'=>0.12,'morale'=>70.0],
+    'grey250' => ['kind'=>'inf','base_size'=>250,'base_xpl'=>3.0,'move'=>85.0,'melee'=>['power'=>0.040,'cap_pct'=>0.18],'armor'=>0.14,'morale'=>72.0],
+    'houseguard150' => ['kind'=>'elite','base_size'=>150,'base_xpl'=>3.0,'move'=>90.0,'melee'=>['power'=>0.048,'cap_pct'=>0.20],'armor'=>0.18,'morale'=>78.0],
+    'preventors100' => ['kind'=>'elite','base_size'=>100,'base_xpl'=>4.0,'move'=>90.0,'melee'=>['power'=>0.056,'cap_pct'=>0.22],'armor'=>0.22,'morale'=>85.0],
+    'foot_knights' => ['kind'=>'elite','base_size'=>100,'base_xpl'=>2.0,'move'=>85.0,'melee'=>['power'=>0.028,'cap_pct'=>0.11],'armor'=>0.16,'morale'=>74.0],
+    'foot_nehts' => ['kind'=>'inf','base_size'=>100,'base_xpl'=>1.0,'move'=>85.0,'melee'=>['power'=>0.014,'cap_pct'=>0.055],'armor'=>0.10,'morale'=>66.0],
+    'gauss' => ['kind'=>'gun','base_size'=>1,'base_xpl'=>1.0,'move'=>0.0,'ranged'=>['range'=>520.0,'power'=>0.030,'cap_pct'=>0.08,'acc'=>0.66],'melee'=>['power'=>0.004,'cap_pct'=>0.04],'armor'=>0.20,'morale'=>65.0],
+    'bikes' => ['kind'=>'cav','base_size'=>50,'base_xpl'=>1.0,'move'=>220.0,'ranged'=>['range'=>150.0,'power'=>0.012,'cap_pct'=>0.03,'acc'=>0.42],'melee'=>['power'=>0.032,'cap_pct'=>0.14],'armor'=>0.14,'morale'=>70.0],
+    'dragoons' => ['kind'=>'cav','base_size'=>50,'base_xpl'=>1.0,'move'=>210.0,'ranged'=>['range'=>170.0,'power'=>0.018,'cap_pct'=>0.04,'acc'=>0.48],'melee'=>['power'=>0.022,'cap_pct'=>0.10],'armor'=>0.14,'morale'=>70.0],
+    'ulans' => ['kind'=>'cav','base_size'=>50,'base_xpl'=>0.67,'move'=>215.0,'ranged'=>['range'=>160.0,'power'=>0.012,'cap_pct'=>0.027,'acc'=>0.44],'melee'=>['power'=>0.021,'cap_pct'=>0.093],'armor'=>0.12,'morale'=>66.0],
+    'catapult' => ['kind'=>'siege','base_size'=>1,'base_xpl'=>2.0,'move'=>35.0,'ranged'=>['range'=>380.0,'power'=>0.020,'cap_pct'=>0.10,'acc'=>0.48],'melee'=>['power'=>0.004,'cap_pct'=>0.05],'armor'=>0.20,'morale'=>60.0],
+    'gauss_raiders' => ['kind'=>'gun','base_size'=>2,'base_xpl'=>2.0,'move'=>160.0,'ranged'=>['range'=>420.0,'power'=>0.026,'cap_pct'=>0.07,'acc'=>0.62],'melee'=>['power'=>0.020,'cap_pct'=>0.10],'armor'=>0.16,'morale'=>68.0],
+    'trebuchet' => ['kind'=>'siege','base_size'=>1,'base_xpl'=>3.0,'move'=>25.0,'ranged'=>['range'=>560.0,'power'=>0.022,'cap_pct'=>0.12,'acc'=>0.44],'melee'=>['power'=>0.004,'cap_pct'=>0.05],'armor'=>0.22,'morale'=>60.0],
+    'assault_gun' => ['kind'=>'vehicle','base_size'=>1,'base_xpl'=>3.0,'move'=>160.0,'ranged'=>['range'=>360.0,'power'=>0.024,'cap_pct'=>0.10,'acc'=>0.55],'melee'=>['power'=>0.028,'cap_pct'=>0.12],'armor'=>0.28,'morale'=>75.0],
+    'palatines' => ['kind'=>'heavycav','base_size'=>20,'base_xpl'=>3.0,'move'=>170.0,'ranged'=>['range'=>120.0,'power'=>0.010,'cap_pct'=>0.03,'acc'=>0.40],'melee'=>['power'=>0.060,'cap_pct'=>0.22],'armor'=>0.24,'morale'=>82.0],
+    'moto_knights' => ['kind'=>'cav','base_size'=>20,'base_xpl'=>1.0,'move'=>220.0,'ranged'=>['range'=>120.0,'power'=>0.004,'cap_pct'=>0.01,'acc'=>0.38],'melee'=>['power'=>0.020,'cap_pct'=>0.073],'armor'=>0.16,'morale'=>72.0],
+    'big_vehicle' => ['kind'=>'vehicle_big','base_size'=>1,'base_xpl'=>4.0,'move'=>140.0,'ranged'=>['range'=>320.0,'power'=>0.026,'cap_pct'=>0.10,'acc'=>0.52],'melee'=>['power'=>0.040,'cap_pct'=>0.16],'armor'=>0.36,'morale'=>78.0],
+    'wagenburg' => ['kind'=>'wagen','base_size'=>1,'base_xpl'=>7.0,'move'=>25.0,'ranged'=>['range'=>280.0,'power'=>0.035,'cap_pct'=>0.12,'acc'=>0.60],'melee'=>['power'=>0.050,'cap_pct'=>0.16],'armor'=>0.48,'morale'=>90.0,'no_flanks'=>true],
+  ];
+  return $catalog;
+}
+
+function war_battle_token_profiles(): array {
+  return [
+    'inf' => ['size'=>1.35,'spacing'=>3.0], 'pike' => ['size'=>1.35,'spacing'=>3.0], 'shot' => ['size'=>1.35,'spacing'=>3.0],
+    'support' => ['size'=>1.35,'spacing'=>4.0], 'elite' => ['size'=>1.45,'spacing'=>3.0], 'cav' => ['size'=>2.0,'spacing'=>5.0],
+    'heavycav' => ['size'=>2.1,'spacing'=>6.0], 'gun' => ['size'=>3.8,'spacing'=>12.0], 'siege' => ['size'=>4.6,'spacing'=>14.0],
+    'vehicle' => ['size'=>4.8,'spacing'=>14.0], 'vehicle_big' => ['size'=>5.6,'spacing'=>16.0], 'wagen' => ['size'=>6.2,'spacing'=>18.0],
+  ];
+}
+
+function war_battle_catalog_row(string $unitId): array {
+  $cat = war_battle_catalog();
+  return $cat[$unitId] ?? ['kind'=>'inf','base_size'=>100,'base_xpl'=>1.0,'move'=>90.0,'melee'=>['power'=>0.02,'cap_pct'=>0.12],'armor'=>0.08,'morale'=>60.0];
+}
+
+function war_battle_layout_collision_radius(string $formation, int $men, string $kind): float {
+  $profiles = war_battle_token_profiles();
+  $prof = $profiles[$kind] ?? $profiles['inf'];
+  $cell = (float)$prof['spacing'];
+  $maxTokens = max(1, $men);
+  if ($formation === 'line') {
+    $cols = max(2, (int)ceil(sqrt((float)$maxTokens) * 1.6));
+    $rows = (int)ceil($maxTokens / max(1, $cols));
+    return max($cols * $cell, $rows * $cell) * 0.55;
+  }
+  if ($formation === 'sleeve') {
+    $rows = 6;
+    $cols = (int)ceil($maxTokens / $rows);
+    return max($cols * $cell, $rows * $cell) * 0.55;
+  }
+  if ($formation === 'block') {
+    $side = (int)ceil(sqrt((float)$maxTokens));
+    $rows = (int)ceil($maxTokens / max(1, $side));
+    return max($side * $cell, $rows * $cell) * 0.55;
+  }
+  if ($formation === 'wedge') {
+    $rows = (int)ceil(sqrt((float)$maxTokens));
+    $maxCols = max(1, ($rows * 2) - 1);
+    return max($rows * $cell, $maxCols * $cell) * 0.55;
+  }
+  if ($formation === 'chatillon') {
+    $targetArea = $maxTokens * ($cell * $cell);
+    return max(18.0, sqrt($targetArea / M_PI));
+  }
+  return 28.0;
+}
+
+function war_battle_default_stats_for_unit(string $unitId): array {
+  $tpl = war_battle_catalog_row($unitId);
+  return [
+    'kind' => (string)($tpl['kind'] ?? 'inf'),
+    'base_size' => max(1, (int)($tpl['base_size'] ?? 100)),
+    'base_xpl' => max(0.01, (float)($tpl['base_xpl'] ?? 1.0)),
+    'move' => max(0.0, (float)($tpl['move'] ?? 90.0)),
+    'ranged' => is_array($tpl['ranged'] ?? null) ? [
+      'range' => max(1.0, (float)($tpl['ranged']['range'] ?? 1.0)),
+      'power' => max(0.0, (float)($tpl['ranged']['power'] ?? 0.0)),
+      'cap_pct' => max(0.0, (float)($tpl['ranged']['cap_pct'] ?? 0.0)),
+      'acc' => war_battle_clamp((float)($tpl['ranged']['acc'] ?? 0.5), 0.01, 0.99),
+    ] : null,
+    'melee' => [
+      'power' => max(0.0, (float)($tpl['melee']['power'] ?? 0.02)),
+      'cap_pct' => max(0.0, (float)($tpl['melee']['cap_pct'] ?? 0.12)),
+    ],
+    'armor' => war_battle_clamp((float)($tpl['armor'] ?? 0.0), 0.0, 0.9),
+    'morale' => war_battle_clamp((float)($tpl['morale'] ?? 60.0), 1.0, 100.0),
+    'tags' => is_array($tpl['tags'] ?? null) ? array_values($tpl['tags']) : [],
+    'no_flanks' => !empty($tpl['no_flanks']),
+  ];
+}
+
+function war_battle_xpl_per_man(array $u): float {
+  $baseSize = max(1.0, (float)($u['base_size'] ?? 100.0));
+  $baseXpl = max(0.01, (float)($u['base_xpl'] ?? 1.0));
+  return $baseXpl / $baseSize;
+}
+
+function war_battle_formation_no_flanks(array $u): bool {
+  return ((string)($u['formation'] ?? 'line') === 'chatillon') || !empty($u['no_flanks']);
+}
+
+function war_battle_flank_type(array $def, array $atk): string {
+  if (war_battle_formation_no_flanks($def)) return 'front';
+  $a = (float)($def['angle'] ?? 0.0);
+  $fvx = sin($a); $fvy = -cos($a);
+  $vx = (float)($atk['x'] ?? 0.0) - (float)($def['x'] ?? 0.0);
+  $vy = (float)($atk['y'] ?? 0.0) - (float)($def['y'] ?? 0.0);
+  $len = sqrt($vx*$vx + $vy*$vy);
+  if ($len <= 1e-9) return 'front';
+  $dot = war_battle_clamp(($fvx * ($vx/$len)) + ($fvy * ($vy/$len)), -1.0, 1.0);
+  $deg = rad2deg(acos($dot));
+  if ($deg > 130.0) return 'rear';
+  if ($deg > 70.0) return 'flank';
+  return 'front';
+}
+
 function war_battle_side_to_color(string $side): string {
   return $side === 'A' ? 'blue' : 'red';
 }
@@ -544,16 +678,8 @@ function war_battle_color_to_side(string $color): string {
 }
 
 function war_battle_unit_runtime_profile(array $u): array {
-  $src = (string)($u['source'] ?? 'other');
-  $id = (string)($u['unit_id'] ?? '');
-  $moveBySrc = ['militia'=>90.0,'sergeants'=>105.0,'nehts'=>140.0,'knights'=>165.0,'other'=>100.0];
-  $rangeBySrc = ['militia'=>70.0,'sergeants'=>150.0,'nehts'=>120.0,'knights'=>90.0,'other'=>100.0];
-  $move = $moveBySrc[$src] ?? 100.0;
-  $range = $rangeBySrc[$src] ?? 100.0;
-  if (in_array($id, ['shot','gauss','gauss_raiders','dragoons'], true)) $range += 120;
-  if (in_array($id, ['pikes','foot_knights','preventors100'], true)) $move -= 20;
-  if (in_array($id, ['palatines','moto_knights','ulans','bikes'], true)) $move += 45;
-  return ['move' => max(40.0, $move), 'range' => max(30.0, $range), 'melee' => 85.0];
+  $unitId = (string)($u['unit_id'] ?? '');
+  return war_battle_default_stats_for_unit($unitId);
 }
 
 function war_battle_default_realtime_units(array $battle, array $state): array {
@@ -573,33 +699,73 @@ function war_battle_default_realtime_units(array $battle, array $state): array {
         $size = max(0, (int)($u['size'] ?? 0));
         if ($size <= 0) continue;
         $uid = $armyUid . '#' . (string)$idx;
+        $unitId = (string)($u['unit_id'] ?? '');
         $prof = war_battle_unit_runtime_profile($u);
+        $formation = 'line';
+        $collisionR = war_battle_layout_collision_radius($formation, $size, (string)($prof['kind'] ?? 'inf'));
         $units[] = [
           'uid' => $uid,
           'army_uid' => $armyUid,
           'unit_idx' => (int)$idx,
-          'unit_id' => (string)($u['unit_id'] ?? ''),
+          'unit_id' => $unitId,
           'source' => (string)($u['source'] ?? ''),
           'side' => $color,
-          'formation' => 'line',
+          'formation' => $formation,
+          'kind' => (string)($prof['kind'] ?? 'inf'),
           'men' => $size,
-          'baseSize' => max(1, $size),
-          'baseXpl' => 1,
+          'base_size' => max(1, (int)($prof['base_size'] ?? $size)),
+          'base_xpl' => max(0.01, (float)($prof['base_xpl'] ?? 1.0)),
           'x' => $laneBase + (($n % 6) * 38) * (($color === 'blue') ? 1 : -1),
           'y' => $yBase + (int)floor($n / 6) * 42,
           'angle' => ($color === 'blue') ? 0 : 3.141592653589793,
-          'morale' => 60,
+          'morale_base' => (float)($prof['morale'] ?? 60.0),
+          'morale' => (float)($prof['morale'] ?? 60.0),
           'state' => 'ready',
-          'move_range' => $prof['move'],
-          'ranged_range' => $prof['range'],
-          'melee_range' => $prof['melee'],
-          'acted_turn' => -1,
+          'move_range' => (float)($prof['move'] ?? 0.0),
+          'ranged' => is_array($prof['ranged'] ?? null) ? $prof['ranged'] : null,
+          'melee' => is_array($prof['melee'] ?? null) ? $prof['melee'] : ['power'=>0.02,'cap_pct'=>0.12],
+          'armor' => (float)($prof['armor'] ?? 0.0),
+          'tags' => is_array($prof['tags'] ?? null) ? $prof['tags'] : [],
+          'no_flanks' => !empty($prof['no_flanks']),
+          'collision_r' => $collisionR,
+          'fired_turn' => 0,
+          'moved_turn' => 0,
+          'losses' => 0,
+          'start_size_start_battle' => $size,
         ];
         $n++;
       }
     }
   }
   return $units;
+}
+
+
+function war_battle_normalize_realtime_unit(array $u): array {
+  $unitId = (string)($u['unit_id'] ?? '');
+  $stats = war_battle_default_stats_for_unit($unitId);
+  $kind = (string)($u['kind'] ?? $stats['kind']);
+  $formation = (string)($u['formation'] ?? 'line');
+  $men = max(0, (int)($u['men'] ?? 0));
+  $u['kind'] = $kind;
+  $u['base_size'] = max(1, (int)($u['base_size'] ?? $u['baseSize'] ?? $stats['base_size']));
+  $u['base_xpl'] = max(0.01, (float)($u['base_xpl'] ?? $u['baseXpl'] ?? $stats['base_xpl']));
+  $u['move_range'] = max(0.0, (float)($u['move_range'] ?? $stats['move']));
+  $u['melee'] = is_array($u['melee'] ?? null) ? $u['melee'] : $stats['melee'];
+  $u['ranged'] = is_array($u['ranged'] ?? null) ? $u['ranged'] : $stats['ranged'];
+  $u['armor'] = (float)($u['armor'] ?? $stats['armor']);
+  $u['tags'] = is_array($u['tags'] ?? null) ? array_values($u['tags']) : $stats['tags'];
+  $u['no_flanks'] = !empty($u['no_flanks']) || !empty($stats['no_flanks']);
+  $u['morale_base'] = (float)($u['morale_base'] ?? $u['moraleBase'] ?? $stats['morale']);
+  $u['morale'] = (float)($u['morale'] ?? $u['morale_base']);
+  $u['fired_turn'] = (int)($u['fired_turn'] ?? 0);
+  $u['moved_turn'] = (int)($u['moved_turn'] ?? 0);
+  $u['losses'] = max(0, (int)($u['losses'] ?? 0));
+  $u['start_size_start_battle'] = max(1, (int)($u['start_size_start_battle'] ?? $men ?: 1));
+  $u['collision_r'] = (float)($u['collision_r'] ?? war_battle_layout_collision_radius($formation, max(1, $men), $kind));
+  $u['baseSize'] = (int)$u['base_size'];
+  $u['baseXpl'] = (float)$u['base_xpl'];
+  return $u;
 }
 
 function war_battle_ensure_realtime(array &$battle, array $state): void {
@@ -615,6 +781,16 @@ function war_battle_ensure_realtime(array &$battle, array $state): void {
       'updated_at' => time(),
     ];
   }
+  $cur = (array)($rt['state'] ?? []);
+  $curUnits = array_values(array_filter((array)($cur['units'] ?? []), static fn($u) => is_array($u)));
+  foreach ($curUnits as $k => $u) $curUnits[$k] = war_battle_normalize_realtime_unit($u);
+  $cur['units'] = $curUnits;
+  if (!isset($cur['turn'])) $cur['turn'] = 1;
+  if (!isset($cur['phase'])) $cur['phase'] = 'movement';
+  if (!isset($cur['active_side'])) $cur['active_side'] = 'A';
+  if (!isset($cur['rev'])) $cur['rev'] = 1;
+  if (!isset($cur['updated_at'])) $cur['updated_at'] = time();
+  $rt['state'] = $cur;
   if (!is_array($rt['history'] ?? null)) $rt['history'] = [];
   $battle['realtime'] = $rt;
 }
@@ -645,9 +821,94 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $idx = war_battle_units_index_by_uid($units);
   $active = (string)($state['active_side'] ?? 'A');
   $phase = (string)($state['phase'] ?? 'movement');
+  $turn = max(1, (int)($state['turn'] ?? 1));
 
   if ($type === 'advance_phase') {
     if ($side !== $active) return 'not_active_side';
+    if ($phase === 'melee') {
+      $pairs = [];
+      $n = count($units);
+      for ($i = 0; $i < $n; $i++) {
+        for ($j = $i + 1; $j < $n; $j++) {
+          $a = $units[$i];
+          $b = $units[$j];
+          if ((string)($a['side'] ?? '') === (string)($b['side'] ?? '')) continue;
+          if (in_array((string)($a['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
+          if (in_array((string)($b['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
+          $dx = (float)($a['x'] ?? 0.0) - (float)($b['x'] ?? 0.0);
+          $dy = (float)($a['y'] ?? 0.0) - (float)($b['y'] ?? 0.0);
+          $sumR = (float)($a['collision_r'] ?? 28.0) + (float)($b['collision_r'] ?? 28.0);
+          if (($dx*$dx + $dy*$dy) <= (($sumR * 0.28) ** 2)) $pairs[] = [$i, $j];
+        }
+      }
+      foreach ($pairs as [$ia, $ib]) {
+        $a = $units[$ia];
+        $b = $units[$ib];
+        if ((int)($a['men'] ?? 0) <= 0 || (int)($b['men'] ?? 0) <= 0) continue;
+        $fa = war_battle_flank_type($a, $b);
+        $fb = war_battle_flank_type($b, $a);
+
+        $aMul = ($fa === 'rear') ? 1.45 : (($fa === 'flank') ? 1.25 : 1.0);
+        $bMul = ($fb === 'rear') ? 1.45 : (($fb === 'flank') ? 1.25 : 1.0);
+        $aKind = (string)($a['kind'] ?? 'inf');
+        $bKind = (string)($b['kind'] ?? 'inf');
+        if (in_array('antiCav', (array)($a['tags'] ?? []), true) && in_array($bKind, ['cav','heavycav'], true)) $aMul *= 1.25;
+        if (in_array('antiCav', (array)($b['tags'] ?? []), true) && in_array($aKind, ['cav','heavycav'], true)) $bMul *= 1.25;
+
+        $engagedA = max(0, min((int)($a['men'] ?? 0), (int)round((int)($a['men'] ?? 0) * 0.45)));
+        $engagedB = max(0, min((int)($b['men'] ?? 0), (int)round((int)($b['men'] ?? 0) * 0.45)));
+        if ($engagedA <= 0 && $engagedB <= 0) continue;
+
+        $aMor = war_battle_clamp(((float)($a['morale'] ?? 60.0)) / 100.0, 0.4, 1.15);
+        $bMor = war_battle_clamp(((float)($b['morale'] ?? 60.0)) / 100.0, 0.4, 1.15);
+        $aMelee = is_array($a['melee'] ?? null) ? $a['melee'] : ['power'=>0.02,'cap_pct'=>0.12];
+        $bMelee = is_array($b['melee'] ?? null) ? $b['melee'] : ['power'=>0.02,'cap_pct'=>0.12];
+
+        $xplToB = $engagedA * war_battle_xpl_per_man($a) * max(0.0, (float)($aMelee['power'] ?? 0.02)) * (mt_rand(85,125)/100) * $aMul * $aMor;
+        $xplToA = $engagedB * war_battle_xpl_per_man($b) * max(0.0, (float)($bMelee['power'] ?? 0.02)) * (mt_rand(85,125)/100) * $bMul * $bMor;
+        $xplToB *= (1.0 - war_battle_clamp((float)($b['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
+        $xplToA *= (1.0 - war_battle_clamp((float)($a['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
+
+        $lossB = max(0, (int)floor($xplToB / max(1e-9, war_battle_xpl_per_man($b))));
+        $lossA = max(0, (int)floor($xplToA / max(1e-9, war_battle_xpl_per_man($a))));
+        $capB = max(1, (int)floor((int)($b['men'] ?? 0) * max(0.0, (float)($aMelee['cap_pct'] ?? 0.18))));
+        $capA = max(1, (int)floor((int)($a['men'] ?? 0) * max(0.0, (float)($bMelee['cap_pct'] ?? 0.18))));
+        $lossB = min($lossB, $capB, max(0, (int)($b['men'] ?? 0)));
+        $lossA = min($lossA, $capA, max(0, (int)($a['men'] ?? 0)));
+
+        $a['men'] = max(0, (int)($a['men'] ?? 0) - $lossA);
+        $b['men'] = max(0, (int)($b['men'] ?? 0) - $lossB);
+        $a['losses'] = (int)($a['losses'] ?? 0) + $lossA;
+        $b['losses'] = (int)($b['losses'] ?? 0) + $lossB;
+        $aShock = ($fb === 'rear') ? 80.0 : (($fb === 'flank') ? 65.0 : 55.0);
+        $bShock = ($fa === 'rear') ? 80.0 : (($fa === 'flank') ? 65.0 : 55.0);
+        if ($lossA > 0) $a['morale'] = war_battle_clamp((float)($a['morale'] ?? 60.0) - (($lossA / max(1, $lossA + (int)$a['men'])) * $aShock), 0.0, 100.0);
+        if ($lossB > 0) $b['morale'] = war_battle_clamp((float)($b['morale'] ?? 60.0) - (($lossB / max(1, $lossB + (int)$b['men'])) * $bShock), 0.0, 100.0);
+        if ((int)$a['men'] <= 0) $a['state'] = 'destroyed';
+        if ((int)$b['men'] <= 0) $b['state'] = 'destroyed';
+        $a['collision_r'] = war_battle_layout_collision_radius((string)($a['formation'] ?? 'line'), (int)$a['men'], (string)($a['kind'] ?? 'inf'));
+        $b['collision_r'] = war_battle_layout_collision_radius((string)($b['formation'] ?? 'line'), (int)$b['men'], (string)($b['kind'] ?? 'inf'));
+        $units[$ia] = $a;
+        $units[$ib] = $b;
+      }
+    } elseif ($phase === 'morale') {
+      foreach ($units as $k => $u) {
+        if (in_array((string)($u['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
+        $start = max(1, (int)($u['start_size_start_battle'] ?? (int)($u['men'] ?? 1)));
+        $lossPct = ((int)($u['losses'] ?? 0)) / $start;
+        $morale = (float)($u['morale'] ?? 60.0);
+        if ($lossPct > 0.15) $morale -= 1.5;
+        $discipline = war_battle_clamp(((float)($u['morale_base'] ?? 60.0)) / 100.0, 0.01, 1.0);
+        $threshold = war_battle_clamp(28.0 + ($discipline * 10.0), 20.0, 45.0);
+        if ($morale < $threshold) {
+          $chance = war_battle_clamp(($threshold - $morale) * 2.2, 5.0, 65.0);
+          if (mt_rand(1, 100) <= (int)round($chance)) $u['state'] = 'routed';
+        }
+        $u['morale'] = war_battle_clamp($morale, 0.0, 100.0);
+        $units[$k] = $u;
+      }
+    }
+
     $order = ['movement','ranged','melee','morale'];
     $pidx = array_search($phase, $order, true);
     if (!is_int($pidx)) $pidx = 0;
@@ -656,7 +917,14 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
     } else {
       $state['phase'] = 'movement';
       $state['active_side'] = $active === 'A' ? 'B' : 'A';
-      if ($state['active_side'] === 'A') $state['turn'] = (int)($state['turn'] ?? 1) + 1;
+      if ($state['active_side'] === 'A') {
+        $state['turn'] = $turn + 1;
+        foreach ($units as $k => $u) {
+          $u['fired_turn'] = 0;
+          $u['moved_turn'] = 0;
+          $units[$k] = $u;
+        }
+      }
     }
     $state['units'] = $units;
     return null;
@@ -668,9 +936,11 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $u = $units[$i];
   if (war_battle_color_to_side((string)($u['side'] ?? 'blue')) !== $side) return 'unit_not_owned';
   if ($side !== $active) return 'not_active_side';
+  if (in_array((string)($u['state'] ?? 'ready'), ['destroyed','routed'], true)) return 'unit_inactive';
 
   if ($type === 'move') {
     if (!in_array($phase, ['movement','setup'], true)) return 'phase_forbidden';
+    if ((int)($u['moved_turn'] ?? 0) === $turn) return 'already_moved';
     $nx = (float)($action['x'] ?? $u['x'] ?? 0);
     $ny = (float)($action['y'] ?? $u['y'] ?? 0);
     $dx = $nx - (float)($u['x'] ?? 0);
@@ -682,9 +952,25 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       $max = max($max, 99999.0);
     }
     if ($dist > $max + 0.001) return 'move_too_far';
+
+    $newR = war_battle_layout_collision_radius((string)($u['formation'] ?? 'line'), max(1, (int)($u['men'] ?? 1)), (string)($u['kind'] ?? 'inf'));
+    foreach ($units as $j => $other) {
+      if ($j === $i || !is_array($other)) continue;
+      if (in_array((string)($other['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
+      $ox = (float)($other['x'] ?? 0.0); $oy = (float)($other['y'] ?? 0.0);
+      $or = (float)($other['collision_r'] ?? 28.0);
+      $sum = $newR + $or;
+      $ddx = $nx - $ox; $ddy = $ny - $oy;
+      $d2 = $ddx*$ddx + $ddy*$ddy;
+      if ($d2 > (($sum + 10.0) ** 2)) continue;
+      if ((string)($other['side'] ?? '') === (string)($u['side'] ?? '')) return 'ally_contact';
+      if ($d2 < (($sum * 0.7) ** 2)) return 'enemy_overlap';
+    }
+
     $u['x'] = $nx; $u['y'] = $ny;
     $u['angle'] = (float)($action['angle'] ?? $u['angle'] ?? 0);
-    $u['acted_turn'] = (int)($state['turn'] ?? 1);
+    $u['moved_turn'] = $turn;
+    $u['collision_r'] = $newR;
     $units[$i] = $u; $state['units'] = $units;
     return null;
   }
@@ -692,22 +978,65 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   if ($type === 'ranged_attack' || $type === 'melee_attack') {
     $required = ($type === 'ranged_attack') ? 'ranged' : 'melee';
     if ($phase !== $required) return 'phase_forbidden';
+    if ($type === 'ranged_attack' && (int)($u['fired_turn'] ?? 0) === $turn) return 'already_fired';
     $targetUid = trim((string)($action['target_uid'] ?? ''));
     if ($targetUid === '' || !isset($idx[$targetUid])) return 'target_not_found';
     $ti = $idx[$targetUid];
     $t = $units[$ti];
     if ((string)($t['side'] ?? '') === (string)($u['side'] ?? '')) return 'friendly_target';
+    if (in_array((string)($t['state'] ?? 'ready'), ['destroyed','routed'], true)) return 'target_inactive';
     $dx = (float)($u['x'] ?? 0) - (float)($t['x'] ?? 0);
     $dy = (float)($u['y'] ?? 0) - (float)($t['y'] ?? 0);
     $dist = sqrt($dx*$dx + $dy*$dy);
-    $range = ($type === 'ranged_attack') ? (float)($u['ranged_range'] ?? 120.0) : (float)($u['melee_range'] ?? 85.0);
+    $range = 85.0;
+    if ($type === 'ranged_attack') {
+      $ranged = is_array($u['ranged'] ?? null) ? $u['ranged'] : null;
+      if (!$ranged) return 'no_ranged';
+      $range = (float)($ranged['range'] ?? 120.0);
+    } else {
+      $range = ((float)($u['collision_r'] ?? 28.0) + (float)($t['collision_r'] ?? 28.0)) * 0.35;
+    }
     if ($dist > $range + 0.001) return 'target_out_of_range';
-    $atk = max(1, (int)floor(((int)($u['men'] ?? 0)) * (($type === 'ranged_attack') ? 0.09 : 0.14)));
-    $dmg = max(1, (int)floor($atk * (mt_rand(80,120)/100)));
-    $t['men'] = max(0, (int)($t['men'] ?? 0) - $dmg);
-    $t['morale'] = max(0, (float)($t['morale'] ?? 60) - (($type === 'ranged_attack') ? 4.0 : 7.0));
+
+    if ($type === 'ranged_attack') {
+      $ranged = is_array($u['ranged'] ?? null) ? $u['ranged'] : [];
+      $acc = war_battle_clamp((float)($ranged['acc'] ?? 0.5) + (((float)($u['morale'] ?? 60.0)-50.0)/200.0), 0.05, 0.95);
+      $u['fired_turn'] = $turn;
+      if ((mt_rand(1, 1000) / 1000.0) > $acc) {
+        $t['morale'] = war_battle_clamp((float)($t['morale'] ?? 60.0) - 2.0, 0.0, 100.0);
+        $units[$i] = $u; $units[$ti] = $t; $state['units'] = $units;
+        return null;
+      }
+      $shootingModels = max(1, (int)round(max(1, (int)($u['men'] ?? 0)) * 0.35));
+      $xplDmg = ($shootingModels * $acc) * war_battle_xpl_per_man($u) * max(0.0, (float)($ranged['power'] ?? 0.01)) * (mt_rand(80,120)/100);
+      $xplDmg *= (1.0 - war_battle_clamp((float)($t['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
+      $loss = max(0, (int)floor($xplDmg / max(1e-9, war_battle_xpl_per_man($t))));
+      $cap = max(1, (int)floor((int)($t['men'] ?? 0) * max(0.0, (float)($ranged['cap_pct'] ?? 0.08))));
+      $loss = min($loss, $cap, max(0, (int)($t['men'] ?? 0)));
+      $t['men'] = max(0, (int)($t['men'] ?? 0) - $loss);
+      if ($loss > 0) {
+        $lossPct = $loss / max(1, $loss + (int)$t['men']);
+        $shock = 35.0 + (max(0.0, (float)($ranged['cap_pct'] ?? 0.08)) * 220.0);
+        $t['morale'] = war_battle_clamp((float)($t['morale'] ?? 60.0) - ($lossPct * $shock), 0.0, 100.0);
+        $t['losses'] = (int)($t['losses'] ?? 0) + $loss;
+      }
+    } else {
+      $melee = is_array($u['melee'] ?? null) ? $u['melee'] : ['power'=>0.02,'cap_pct'=>0.12];
+      $xplDmg = max(1, (int)($u['men'] ?? 0)) * war_battle_xpl_per_man($u) * max(0.0, (float)($melee['power'] ?? 0.02)) * (mt_rand(85,125)/100);
+      $xplDmg *= (1.0 - war_battle_clamp((float)($t['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
+      $loss = max(0, (int)floor($xplDmg / max(1e-9, war_battle_xpl_per_man($t))));
+      $cap = max(1, (int)floor((int)($t['men'] ?? 0) * max(0.0, (float)($melee['cap_pct'] ?? 0.18))));
+      $loss = min($loss, $cap, max(0, (int)($t['men'] ?? 0)));
+      $t['men'] = max(0, (int)($t['men'] ?? 0) - $loss);
+      if ($loss > 0) {
+        $lossPct = $loss / max(1, $loss + (int)$t['men']);
+        $t['morale'] = war_battle_clamp((float)($t['morale'] ?? 60.0) - ($lossPct * 55.0), 0.0, 100.0);
+        $t['losses'] = (int)($t['losses'] ?? 0) + $loss;
+      }
+    }
+
     if ((int)$t['men'] <= 0) $t['state'] = 'destroyed';
-    $u['acted_turn'] = (int)($state['turn'] ?? 1);
+    $t['collision_r'] = war_battle_layout_collision_radius((string)($t['formation'] ?? 'line'), max(0, (int)$t['men']), (string)($t['kind'] ?? 'inf'));
     $units[$i] = $u; $units[$ti] = $t; $state['units'] = $units;
     return null;
   }
