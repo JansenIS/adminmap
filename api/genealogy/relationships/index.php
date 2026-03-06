@@ -19,6 +19,12 @@ if (!($valid['ok'] ?? false)) {
 
 $data = genealogy_load();
 $rel = $valid['relationship'];
+$access = genealogy_resolve_admin_access();
+if (is_array($access)) {
+  if (!genealogy_character_owned_by_access($data, (string)$rel['source_id'], $access) || !genealogy_character_owned_by_access($data, (string)$rel['target_id'], $access)) {
+    genealogy_forbidden_for_access($access);
+  }
+}
 
 if (($rel['type'] ?? '') === 'spouses' && !is_string($rel['union_id'] ?? null)) {
   $rel['union_id'] = null;

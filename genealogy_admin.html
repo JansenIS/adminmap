@@ -27,6 +27,7 @@
           msg.textContent = 'Недействительный или просроченный токен.';
           return;
         }
+        app.src = '/genealogy_simulator/admin.html?token=' + encodeURIComponent(token);
         msg.style.display = 'none';
         app.style.display = 'block';
       } catch (_) {

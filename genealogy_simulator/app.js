@@ -1,5 +1,7 @@
 const state = {
   mode: 'admin',
+  accessToken: '',
+  accessClan: '',
   allCharacters: [],
   allRelationships: [],
   characters: [],
@@ -60,10 +62,14 @@ const canvasWrap = document.querySelector('.canvas-wrap');
 
 async function api(path, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
+  const headers = new Headers(options.headers || {});
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
+  if (state.accessToken) headers.set('X-Genealogy-Admin-Token', state.accessToken);
+
   const fetchOptions = {
     cache: method === 'GET' ? 'no-store' : 'default',
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers,
   };
   const res = await fetch(path, fetchOptions);
   const body = await res.json().catch(() => ({}));
@@ -1491,6 +1497,16 @@ function syncClanFilter() {
   });
 
   clanFilter.innerHTML = ['<option value="all">Все роды</option>', ...clanOptions, ...branchOptions].join('');
+  if (state.accessClan) {
+    const forced = `clan:${state.accessClan}`;
+    const hasForced = [...clanFilter.options].some((opt) => opt.value === forced);
+    state.selectedClan = hasForced ? forced : 'all';
+    clanFilter.value = state.selectedClan;
+    clanFilter.disabled = hasForced;
+    return;
+  }
+
+  clanFilter.disabled = false;
   const exists = [...clanFilter.options].some((opt) => opt.value === state.selectedClan);
   if (exists) {
     clanFilter.value = state.selectedClan;
@@ -2233,6 +2249,7 @@ async function loadData() {
   const data = await api('/api/genealogy/');
   state.allCharacters = data.characters || [];
   state.allRelationships = dedupeRelationships(data.relationships || []);
+  state.accessClan = String(data?.scope?.clan || state.accessClan || '').trim();
   if (state.selectedId && !state.allCharacters.some((c) => c.id === state.selectedId)) {
     state.selectedId = null;
   }
@@ -2250,6 +2267,30 @@ async function loadMapPeople() {
   } catch (_) {
     state.mapPeople = [];
   }
+}
+
+
+function applyAccessRestrictions() {
+  if (!state.accessClan) return;
+
+  const clanInputs = [
+    document.querySelector('#createCharacterForm input[name="clan"]'),
+    document.getElementById('mapAssignClanName'),
+    document.getElementById('assignClanName'),
+    document.getElementById('editCharacterClan'),
+  ].filter(Boolean);
+
+  clanInputs.forEach((input) => {
+    input.value = state.accessClan;
+    input.readOnly = true;
+  });
+
+  const assignForm = document.getElementById('assignClanForm');
+  if (assignForm) assignForm.style.display = 'none';
+  const mapAssignForm = document.getElementById('mapAssignClanForm');
+  if (mapAssignForm) mapAssignForm.style.display = 'none';
+  const deleteClanBtn = document.getElementById('deleteClanBtn');
+  if (deleteClanBtn) deleteClanBtn.style.display = 'none';
 }
 
 function bindAdmin() {
@@ -2303,6 +2344,7 @@ function bindAdmin() {
     const form = e.target;
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
+    if (state.accessClan) payload.clan = state.accessClan;
     payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
     payload.photo_url = state.pendingCreatePhotoUrl || '';
     ['birth_year', 'death_year'].forEach(k => { if (payload[k] === '') delete payload[k]; });
@@ -2377,6 +2419,7 @@ function bindAdmin() {
     e.preventDefault();
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
+    if (state.accessClan) payload.clan = state.accessClan;
     payload.is_clan_founder = formData.get('is_clan_founder') === 'on';
     payload.photo_url = state.pendingEditPhotoUrl || '';
     ['birth_year', 'death_year'].forEach((k) => {
@@ -2539,6 +2582,8 @@ function bindViewportControls() {
 
 async function init() {
   state.mode = document.body.dataset.mode || 'admin';
+  const params = new URLSearchParams(window.location.search);
+  state.accessToken = String(params.get('token') || '').trim();
   document.getElementById('closeProfile')?.addEventListener('click', () => {
     document.getElementById('profileModal').style.display = 'none';
   });
@@ -2550,6 +2595,7 @@ async function init() {
     await loadData();
     await loadMapPeople();
     bindAdmin();
+    applyAccessRestrictions();
     bindClanFilter();
     bindViewportControls();
     syncClanFilter();

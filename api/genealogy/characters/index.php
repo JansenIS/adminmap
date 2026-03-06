@@ -16,6 +16,10 @@ if (!($valid['ok'] ?? false)) {
 
 $data = genealogy_load();
 $char = $valid['character'];
+$access = genealogy_resolve_admin_access();
+if (is_array($access) && !genealogy_character_in_access_clan($char, $access)) {
+  genealogy_forbidden_for_access($access);
+}
 $char['id'] = genealogy_new_character_id($data['characters']);
 $char['created_at'] = gmdate('c');
 $data['characters'][] = $char;
