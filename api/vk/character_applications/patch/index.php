@@ -5,8 +5,37 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/lib/vk_bot_api.php';
 require_once dirname(__DIR__, 3) . '/lib/genealogy_api.php';
 
-if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
-  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, vk_bot_data_mtime());
+/**
+ * @param array<string,mixed> $base
+ * @param array<string,mixed> $patch
+ * @return array<string,mixed>
+ */
+function vk_character_apps_merge_patch(array $base, array $patch): array
+{
+  foreach ($patch as $key => $value) {
+    if (
+      is_string($key)
+      && isset($base[$key])
+      && is_array($base[$key])
+      && is_array($value)
+      && array_is_list($base[$key]) === false
+      && array_is_list($value) === false
+    ) {
+      /** @var array<string,mixed> $nestedBase */
+      $nestedBase = $base[$key];
+      /** @var array<string,mixed> $nestedPatch */
+      $nestedPatch = $value;
+      $base[$key] = vk_character_apps_merge_patch($nestedBase, $nestedPatch);
+      continue;
+    }
+    $base[$key] = $value;
+  }
+  return $base;
+}
+
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method !== 'POST' && $method !== 'PATCH') {
+  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST', 'PATCH']], 405, vk_bot_data_mtime());
 }
 $payload = json_decode((string)file_get_contents('php://input'), true);
 if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, vk_bot_data_mtime());
@@ -23,14 +52,15 @@ foreach ($apps as $i => $row) {
 }
 if ($idx === null) api_json_response(['error' => 'not_found'], 404, vk_bot_data_mtime());
 $app = $apps[$idx];
+$warnings = [];
 
 if ($action === 'update') {
   $patch = $payload['patch'] ?? null;
   if (!is_array($patch)) api_json_response(['error' => 'invalid_patch'], 400, vk_bot_data_mtime());
-  $app = array_merge($app, $patch);
+  $app = vk_character_apps_merge_patch($app, $patch);
   $apps[$idx] = $app;
   vk_bot_save_character_applications($apps);
-  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
+  api_json_response(['ok' => true, 'item' => $app, 'warnings' => $warnings], 200, vk_bot_data_mtime());
 }
 
 if ($action === 'approve') {
@@ -55,7 +85,7 @@ if ($action === 'approve') {
   $rulerName = trim((string)($entity['ruler'] ?? ''));
   $stateName = trim((string)($entity['name'] ?? $entityId));
   $storedRulerPhoto = $photo !== '' ? vk_bot_store_remote_photo($photo, $rulerName !== '' ? $rulerName : 'ruler') : null;
-  if ($photo !== '' && !is_string($storedRulerPhoto)) api_json_response(['error' => 'ruler_photo_upload_failed'], 400, vk_bot_data_mtime());
+  if ($photo !== '' && !is_string($storedRulerPhoto)) $warnings[] = ['code' => 'ruler_photo_upload_failed'];
   $clan = '';
   $profile = is_array($state['people_profiles'][$rulerName] ?? null) ? $state['people_profiles'][$rulerName] : null;
   if (is_array($profile) && preg_match('/^Род:\s*(.+)$/um', (string)($profile['bio'] ?? ''), $m)) {
@@ -93,7 +123,7 @@ if ($action === 'approve') {
       'title' => $stateName,
       'birth_year' => $birthYear,
       'death_year' => null,
-      'photo_url' => is_string($storedRulerPhoto) ? $storedRulerPhoto : '',
+      'photo_url' => is_string($storedRulerPhoto) ? $storedRulerPhoto : $photo,
       'clan' => $clan,
       'clan_branch_type' => 'main',
       'is_clan_founder' => false,
@@ -102,6 +132,7 @@ if ($action === 'approve') {
   } else {
     if ($birthYear !== null) $genealogy['characters'][$rulerIdx]['birth_year'] = $birthYear;
     if (is_string($storedRulerPhoto) && $storedRulerPhoto !== '') $genealogy['characters'][$rulerIdx]['photo_url'] = $storedRulerPhoto;
+    elseif ($photo !== '') $genealogy['characters'][$rulerIdx]['photo_url'] = $photo;
     if ($clan !== '') $genealogy['characters'][$rulerIdx]['clan'] = $clan;
   }
 
@@ -113,7 +144,7 @@ if ($action === 'approve') {
     $relBirthYear = isset($rel['birth_year']) && $rel['birth_year'] !== '' ? (int)$rel['birth_year'] : null;
     $relPhoto = trim((string)($rel['photo_url'] ?? ''));
     $storedRelPhoto = $relPhoto !== '' ? vk_bot_store_remote_photo($relPhoto, $name) : null;
-    if ($relPhoto !== '' && !is_string($storedRelPhoto)) api_json_response(['error' => 'relative_photo_upload_failed', 'name' => $name], 400, vk_bot_data_mtime());
+    if ($relPhoto !== '' && !is_string($storedRelPhoto)) $warnings[] = ['code' => 'relative_photo_upload_failed', 'name' => $name];
 
     $charId = genealogy_new_character_id($genealogy['characters'] ?? []);
     $genealogy['characters'][] = [
@@ -122,7 +153,7 @@ if ($action === 'approve') {
       'title' => '',
       'birth_year' => $relBirthYear,
       'death_year' => null,
-      'photo_url' => is_string($storedRelPhoto) ? $storedRelPhoto : '',
+      'photo_url' => is_string($storedRelPhoto) ? $storedRelPhoto : $relPhoto,
       'clan' => $clan,
       'clan_branch_type' => 'main',
       'is_clan_founder' => false,
@@ -163,7 +194,7 @@ if ($action === 'approve') {
     vk_bot_send_message($userId, 'Анкета персонажа одобрена! Вход в генеалогию рода: ' . $fullLink . "\nКнопка «Генеалогия рода» в боте теперь активна.");
   }
 
-  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
+  api_json_response(['ok' => true, 'item' => $app, 'warnings' => $warnings], 200, vk_bot_data_mtime());
 }
 
 if ($action === 'reject') {
@@ -171,7 +202,7 @@ if ($action === 'reject') {
   $app['rejected_at'] = time();
   $apps[$idx] = $app;
   vk_bot_save_character_applications($apps);
-  api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
+  api_json_response(['ok' => true, 'item' => $app, 'warnings' => $warnings], 200, vk_bot_data_mtime());
 }
 
 api_json_response(['error' => 'unknown_action'], 400, vk_bot_data_mtime());
