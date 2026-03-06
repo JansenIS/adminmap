@@ -1153,6 +1153,56 @@ function api_jobs_path(): string {
   return api_repo_root() . '/data/jobs.json';
 }
 
+function api_lock_file_open(string $path) {
+  $dir = dirname($path);
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return null;
+  $fh = @fopen($path, 'c+');
+  if (!is_resource($fh)) return null;
+  if (!@flock($fh, LOCK_EX)) {
+    @fclose($fh);
+    return null;
+  }
+  return $fh;
+}
+
+function api_lock_file_close($fh): void {
+  if (!is_resource($fh)) return;
+  @flock($fh, LOCK_UN);
+  @fclose($fh);
+}
+
+function api_jobs_lock_path(): string {
+  return api_repo_root() . '/data/.jobs.lock';
+}
+
+function api_state_write_lock_path(): string {
+  return api_repo_root() . '/data/.state-write.lock';
+}
+
+function api_with_state_write_lock(callable $callback): array {
+  $fh = api_lock_file_open(api_state_write_lock_path());
+  if (!is_resource($fh)) return ['ok' => false, 'error' => 'state_write_lock_failed'];
+  try {
+    $result = $callback();
+    if (!is_array($result)) return ['ok' => true, 'value' => $result];
+    return $result;
+  } finally {
+    api_lock_file_close($fh);
+  }
+}
+
+function api_jobs_with_lock(callable $callback): array {
+  $fh = api_lock_file_open(api_jobs_lock_path());
+  if (!is_resource($fh)) return ['ok' => false, 'error' => 'lock_failed'];
+  try {
+    $result = $callback();
+    if (!is_array($result)) return ['ok' => true, 'value' => $result];
+    return $result;
+  } finally {
+    api_lock_file_close($fh);
+  }
+}
+
 function api_load_jobs(): array {
   $path = api_jobs_path();
   if (!is_file($path)) return ['jobs' => []];
@@ -1168,24 +1218,26 @@ function api_save_jobs(array $jobsPayload): bool {
 }
 
 function api_create_job(string $type, array $payload): array {
-  $jobsPayload = api_load_jobs();
-  $jobs = $jobsPayload['jobs'] ?? [];
-  $id = 'job_' . substr(hash('sha256', $type . '|' . microtime(true) . '|' . random_int(1, PHP_INT_MAX)), 0, 16);
-  $job = [
-    'id' => $id,
-    'type' => $type,
-    'status' => 'queued',
-    'payload' => $payload,
-    'attempts' => 0,
-    'max_attempts' => (int)($payload['max_attempts'] ?? 1),
-    'progress' => ['current' => 0, 'total' => 0, 'percent' => 0],
-    'created_at' => gmdate('c'),
-    'updated_at' => gmdate('c'),
-  ];
-  $jobs[] = $job;
-  $jobsPayload['jobs'] = $jobs;
-  if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
-  return ['ok' => true, 'job' => $job];
+  return api_jobs_with_lock(static function () use ($type, $payload): array {
+    $jobsPayload = api_load_jobs();
+    $jobs = $jobsPayload['jobs'] ?? [];
+    $id = 'job_' . substr(hash('sha256', $type . '|' . microtime(true) . '|' . random_int(1, PHP_INT_MAX)), 0, 16);
+    $job = [
+      'id' => $id,
+      'type' => $type,
+      'status' => 'queued',
+      'payload' => $payload,
+      'attempts' => 0,
+      'max_attempts' => (int)($payload['max_attempts'] ?? 1),
+      'progress' => ['current' => 0, 'total' => 0, 'percent' => 0],
+      'created_at' => gmdate('c'),
+      'updated_at' => gmdate('c'),
+    ];
+    $jobs[] = $job;
+    $jobsPayload['jobs'] = $jobs;
+    if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+    return ['ok' => true, 'job' => $job];
+  });
 }
 
 function api_find_job(string $id): ?array {
@@ -1207,72 +1259,80 @@ function api_write_render_cache(array $state, string $mode): bool {
 }
 
 function api_update_job(array $job): bool {
-  $jobsPayload = api_load_jobs();
-  $jobs = $jobsPayload['jobs'] ?? [];
-  $updated = false;
-  foreach ($jobs as $idx => $row) {
-    if (!is_array($row)) continue;
-    if ((string)($row['id'] ?? '') !== (string)($job['id'] ?? '')) continue;
-    $jobs[$idx] = $job;
-    $updated = true;
-    break;
-  }
-  if (!$updated) return false;
-  $jobsPayload['jobs'] = $jobs;
-  return api_save_jobs($jobsPayload);
+  $res = api_jobs_with_lock(static function () use ($job): array {
+    $jobsPayload = api_load_jobs();
+    $jobs = $jobsPayload['jobs'] ?? [];
+    $updated = false;
+    foreach ($jobs as $idx => $row) {
+      if (!is_array($row)) continue;
+      if ((string)($row['id'] ?? '') !== (string)($job['id'] ?? '')) continue;
+      $jobs[$idx] = $job;
+      $updated = true;
+      break;
+    }
+    if (!$updated) return ['ok' => false, 'error' => 'not_found'];
+    $jobsPayload['jobs'] = $jobs;
+    if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+    return ['ok' => true];
+  });
+  return !empty($res['ok']);
 }
 
 function api_run_next_job(array $state): array {
-  $jobsPayload = api_load_jobs();
-  $jobs = $jobsPayload['jobs'] ?? [];
-  $targetIdx = -1;
-  $job = null;
-  foreach ($jobs as $idx => $row) {
-    if (!is_array($row)) continue;
-    if ((string)($row['status'] ?? '') !== 'queued') continue;
-    $targetIdx = $idx;
-    $job = $row;
-    break;
-  }
-  if (!is_array($job)) return ['ok' => true, 'processed' => false];
-
-  $job['status'] = 'running';
-  $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
-  $job['progress'] = ['current' => 0, 'total' => 0, 'percent' => 0];
-  $job['updated_at'] = gmdate('c');
-  $jobs[$targetIdx] = $job;
-  $jobsPayload['jobs'] = $jobs;
-  if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
-
-  $type = (string)($job['type'] ?? '');
-  if ($type === 'rebuild_layers') {
-    $mode = (string)($job['payload']['mode'] ?? 'all');
-    $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','minor_houses','free_cities','special_territories'] : [$mode];
-    $allOk = true;
-    $total = count($modes);
-    $done = 0;
-    foreach ($modes as $m) {
-      $okMode = api_write_render_cache($state, $m);
-      $allOk = $allOk && $okMode;
-      $done++;
-      $job['progress'] = ['current' => $done, 'total' => $total, 'percent' => (int)floor(($done / max(1, $total)) * 100)];
+  return api_jobs_with_lock(static function () use ($state): array {
+    $jobsPayload = api_load_jobs();
+    $jobs = $jobsPayload['jobs'] ?? [];
+    $targetIdx = -1;
+    $job = null;
+    foreach ($jobs as $idx => $row) {
+      if (!is_array($row)) continue;
+      if ((string)($row['status'] ?? '') !== 'queued') continue;
+      $targetIdx = $idx;
+      $job = $row;
+      break;
     }
-    if ($allOk) {
-      $job['status'] = 'succeeded';
+    if (!is_array($job)) return ['ok' => true, 'processed' => false];
+
+    $job['status'] = 'running';
+    $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
+    $job['progress'] = ['current' => 0, 'total' => 0, 'percent' => 0];
+    $job['updated_at'] = gmdate('c');
+    $jobs[$targetIdx] = $job;
+    $jobsPayload['jobs'] = $jobs;
+    if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+
+    $type = (string)($job['type'] ?? '');
+    if ($type === 'rebuild_layers') {
+      $mode = (string)($job['payload']['mode'] ?? 'all');
+      $modes = $mode === 'all' ? ['provinces','kingdoms','great_houses','minor_houses','free_cities','special_territories'] : [$mode];
+      $allOk = true;
+      $total = count($modes);
+      $done = 0;
+      foreach ($modes as $m) {
+        $okMode = api_write_render_cache($state, $m);
+        $allOk = $allOk && $okMode;
+        $done++;
+        $job['progress'] = ['current' => $done, 'total' => $total, 'percent' => (int)floor(($done / max(1, $total)) * 100)];
+      }
+      if ($allOk) {
+        $job['status'] = 'succeeded';
+      } else {
+        $maxAttempts = max(1, (int)($job['max_attempts'] ?? 1));
+        $job['status'] = ((int)$job['attempts'] < $maxAttempts) ? 'queued' : 'failed';
+      }
+      $job['result'] = ['modes' => $modes, 'ok' => $allOk];
     } else {
       $maxAttempts = max(1, (int)($job['max_attempts'] ?? 1));
       $job['status'] = ((int)$job['attempts'] < $maxAttempts) ? 'queued' : 'failed';
+      $job['result'] = ['error' => 'unsupported_job_type'];
     }
-    $job['result'] = ['modes' => $modes, 'ok' => $allOk];
-  } else {
-    $maxAttempts = max(1, (int)($job['max_attempts'] ?? 1));
-    $job['status'] = ((int)$job['attempts'] < $maxAttempts) ? 'queued' : 'failed';
-    $job['result'] = ['error' => 'unsupported_job_type'];
-  }
 
-  $job['updated_at'] = gmdate('c');
-  if (!api_update_job($job)) return ['ok' => false, 'error' => 'write_failed'];
-  return ['ok' => true, 'processed' => true, 'job' => $job];
+    $job['updated_at'] = gmdate('c');
+    $jobs[$targetIdx] = $job;
+    $jobsPayload['jobs'] = $jobs;
+    if (!api_save_jobs($jobsPayload)) return ['ok' => false, 'error' => 'write_failed'];
+    return ['ok' => true, 'processed' => true, 'job' => $job];
+  });
 }
 
 
