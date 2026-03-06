@@ -4,6 +4,58 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/state_api.php';
 
+
+function genealogy_normalize_clan(string $value): string {
+  $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+  if ($value === '') return '';
+  return function_exists('mb_strtolower')
+    ? mb_strtolower($value, 'UTF-8')
+    : strtolower($value);
+}
+
+function genealogy_resolve_admin_access(?string $token = null): ?array {
+  require_once __DIR__ . '/vk_bot_api.php';
+
+  $rawToken = $token;
+  if ($rawToken === null) {
+    $rawToken = vk_bot_genealogy_admin_token_from_request();
+  }
+  $rawToken = trim((string)$rawToken);
+  if ($rawToken === '') return null;
+
+  $access = vk_bot_resolve_genealogy_admin_token($rawToken);
+  if (!is_array($access)) return null;
+
+  $clan = trim((string)($access['clan'] ?? ''));
+  if ($clan === '') return null;
+
+  $access['clan'] = $clan;
+  $access['clan_normalized'] = genealogy_normalize_clan($clan);
+  $access['token'] = $rawToken;
+  return $access;
+}
+
+function genealogy_character_in_access_clan(array $character, array $access): bool {
+  $accessClan = (string)($access['clan_normalized'] ?? '');
+  if ($accessClan === '') return false;
+  $charClan = genealogy_normalize_clan((string)($character['clan'] ?? ''));
+  return $charClan !== '' && $charClan === $accessClan;
+}
+
+function genealogy_character_owned_by_access(array $data, string $id, array $access): bool {
+  $idx = genealogy_find_character_index($data['characters'] ?? [], $id);
+  if ($idx < 0) return false;
+  $character = $data['characters'][$idx] ?? null;
+  return is_array($character) && genealogy_character_in_access_clan($character, $access);
+}
+
+function genealogy_forbidden_for_access(array $access): void {
+  api_json_response([
+    'error' => 'forbidden_clan_scope',
+    'clan' => (string)($access['clan'] ?? ''),
+  ], 403, genealogy_mtime());
+}
+
 if (!function_exists('api_read_json_body')) {
   function api_read_json_body(): array {
     $raw = (string)file_get_contents('php://input');

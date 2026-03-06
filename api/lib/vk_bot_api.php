@@ -546,6 +546,12 @@ function vk_bot_resolve_genealogy_admin_token(string $token): ?array {
   return $row;
 }
 
+function vk_bot_genealogy_admin_token_from_request(): string {
+  $headerToken = trim((string)($_SERVER['HTTP_X_GENEALOGY_ADMIN_TOKEN'] ?? ''));
+  if ($headerToken !== '') return $headerToken;
+  return trim((string)($_GET['token'] ?? ''));
+}
+
 function vk_bot_create_player_admin_token(string $entityType, string $entityId, ?string $previousToken = null): ?array {
   $tokens = player_admin_prune_tokens(player_admin_load_tokens());
   if ($previousToken !== null && $previousToken !== '') unset($tokens[$previousToken]);

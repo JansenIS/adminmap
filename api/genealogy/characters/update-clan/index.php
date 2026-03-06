@@ -17,6 +17,7 @@ if ($id === '') {
 }
 
 $data = genealogy_load();
+$access = genealogy_resolve_admin_access();
 $previous = null;
 foreach (($data['characters'] ?? []) as $row) {
   if (!is_array($row)) continue;
@@ -25,9 +26,17 @@ foreach (($data['characters'] ?? []) as $row) {
   break;
 }
 
+if (is_array($access) && (!is_array($previous) || !genealogy_character_in_access_clan($previous, $access))) {
+  genealogy_forbidden_for_access($access);
+}
+
 $character = genealogy_update_character($data, $id, is_array($payload) ? $payload : []);
 if ($character === null) {
   api_json_response(['error' => 'character_not_found_or_invalid_payload'], 400, genealogy_mtime());
+}
+
+if (is_array($access) && !genealogy_character_in_access_clan($character, $access)) {
+  genealogy_forbidden_for_access($access);
 }
 
 if (!genealogy_save($data)) {

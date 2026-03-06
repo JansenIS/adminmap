@@ -15,6 +15,10 @@ if ($id === '') {
 }
 
 $data = genealogy_load();
+$access = genealogy_resolve_admin_access();
+if (is_array($access) && !genealogy_character_owned_by_access($data, $id, $access)) {
+  genealogy_forbidden_for_access($access);
+}
 if (!genealogy_delete_character($data, $id)) {
   api_json_response(['error' => 'character_not_found'], 404, genealogy_mtime());
 }

@@ -15,6 +15,10 @@ if ($clan === '') {
 }
 
 $data = genealogy_load();
+$access = genealogy_resolve_admin_access();
+if (is_array($access) && genealogy_normalize_clan($clan) !== (string)($access['clan_normalized'] ?? '')) {
+  genealogy_forbidden_for_access($access);
+}
 $deletedCount = genealogy_delete_clan($data, $clan);
 if ($deletedCount === 0) {
   api_json_response(['error' => 'clan_not_found'], 404, genealogy_mtime());
