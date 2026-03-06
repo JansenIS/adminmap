@@ -92,6 +92,31 @@
     return saveRes.json();
   }
 
+
+  async function refreshBattleLinks() {
+    const box = document.getElementById('warBattleLinks');
+    if (!box) return;
+    try {
+      const res = await fetch('/api/war/battles/list/?token=' + encodeURIComponent(token), { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+      const rows = Array.isArray(json.battles) ? json.battles.filter((b) => b && b.my_link) : [];
+      if (!rows.length) {
+        box.textContent = 'Активных боёв с вашим участием нет.';
+        return;
+      }
+      box.innerHTML = rows.map((b) => {
+        const pid = Number(b.province_pid || 0);
+        const status = String(b.status || 'setup');
+        const side = String(b.my_side || '?');
+        const url = String(b.my_link || '#');
+        return `<div style="margin-bottom:8px;"><b>${b.battle_id}</b> • PID ${pid} • сторона ${side} • ${status}<br><a href="${url}" target="_blank" rel="noopener">Открыть боевую сессию</a></div>`;
+      }).join('');
+    } catch (err) {
+      box.textContent = 'Не удалось загрузить список боёв: ' + (err && err.message ? err.message : err);
+    }
+  }
+
   function setTurnActionStatus(message, isError) {
     const statusEl = document.getElementById('turnActionStatus');
     if (!statusEl) return;
@@ -192,6 +217,7 @@
     tuneTurnTreasuryUiForPlayer();
     lockRealmToScope();
     refreshTurnPanelForScope();
+    refreshBattleLinks();
   }
 
   const nativeFetch = window.fetch.bind(window);
@@ -240,10 +266,12 @@
     tuneTurnTreasuryUiForPlayer();
     lockRealmToScope();
     refreshTurnPanelForScope();
+    refreshBattleLinks();
     setInterval(() => {
       lockRealmToScope();
       tuneTurnTreasuryUiForPlayer();
     }, 400);
+    setInterval(() => { refreshBattleLinks(); }, 5000);
   }).catch((err) => {
     alert('Недействительный токен: ' + (err && err.message ? err.message : err));
   });

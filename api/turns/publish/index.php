@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/turn_api.php';
+require_once dirname(__DIR__, 2) . '/lib/war_battle_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
   turn_api_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405);
@@ -126,6 +127,9 @@ api_sync_army_registry($mapState, $year, true);
 if (!api_atomic_write_json(api_state_path(), $mapState)) {
   turn_api_response(['error' => 'state_write_failed'], 500);
 }
+
+// Конфликты на конец хода (даже если никто не двигался в этом новом году)
+war_battle_sync($mapState, true);
 
 $saved = turn_api_load_turn($year) ?? $turn;
 turn_api_response([

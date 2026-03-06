@@ -12,6 +12,18 @@
   const R = window.RENDER;
   const {UNIT_CATALOG} = window.DATA;
   const U = window.U;
+  const qs = new URLSearchParams(window.location.search || "");
+  const battleToken = String(qs.get("battle_token") || "").trim();
+
+  const tokenMode = {
+    enabled: battleToken !== "",
+    side: null,
+    ready: false,
+    bothReady: false,
+    sessionStatus: "setup",
+    locked: false,
+    lastRealtimeRev: 0,
+  };
 
   // --- DOM ---
   const $ = (id)=>document.getElementById(id);
@@ -93,12 +105,53 @@
     morale: "мораль",
   };
 
+  function sideForTokenPlayer(){
+    if(!tokenMode.enabled) return null;
+    return tokenMode.side === "A" ? "blue" : (tokenMode.side === "B" ? "red" : null);
+  }
+
+  function isOwnUnit(u){
+    const ownSide = sideForTokenPlayer();
+    if(!ownSide) return true;
+    return !!u && u.side === ownSide;
+  }
+
+  function deployBandForSide(side){
+    const h = Number(scenario.map.h || 1400);
+    const hh = h/2;
+    const third = h/3;
+    if(side === "blue") return { yMin: -hh, yMax: -hh + third };
+    if(side === "red") return { yMin: hh - third, yMax: hh };
+    return { yMin: -hh, yMax: hh };
+  }
+
+  function unitInsideAllowedDeployBand(u){
+    if(!tokenMode.enabled || battle.started) return true;
+    if(!u) return false;
+    const ownSide = sideForTokenPlayer();
+    if(!ownSide) return true;
+    const side = u.side;
+    const band = deployBandForSide(side);
+    return Number(u.y) >= band.yMin && Number(u.y) <= band.yMax;
+  }
+
+  function clampUnitToDeployBand(u){
+    if(!tokenMode.enabled || battle.started || !u) return;
+    const band = deployBandForSide(u.side);
+    u.y = U.clamp(u.y, band.yMin, band.yMax);
+  }
+
 
   // --- UI Mode (Battle / Map editor) ---
   let uiMode = "battle"; // "battle" | "map"
 
   function setUIMode(mode){
-    uiMode = (mode==="map") ? "map" : "battle";
+    if(tokenMode.enabled && mode==="map") {
+      uiMode = "battle";
+      E.log("В token-режиме редактор карты отключен.", "mut");
+    } else {
+      uiMode = (mode==="map") ? "map" : "battle";
+    }
     if(el.tabBattle) el.tabBattle.classList.toggle("active", uiMode==="battle");
     if(el.tabMap) el.tabMap.classList.toggle("active", uiMode==="map");
     if(el.battlePanel) el.battlePanel.style.display = (uiMode==="battle") ? "" : "none";
@@ -420,7 +473,11 @@ function renderRoster(){
     el.baseCount.disabled = lock;
     el.baseXpl.disabled = lock;
     el.name.disabled = lock;
-    el.addUnit.disabled = lock;
+    el.addUnit.disabled = lock || tokenMode.enabled;
+    if(tokenMode.enabled){
+      el.side.disabled = true;
+      if(el.tabMap) el.tabMap.disabled = true;
+    }
   }
 
   function refreshAll(){
@@ -435,6 +492,11 @@ function renderRoster(){
 
   // --- Actions ---
   function addUnit(){
+    if(tokenMode.enabled){
+      E.log("В боевой сессии по токену ручное добавление отрядов отключено.", "mut");
+      refreshAll();
+      return;
+    }
     const tpl = UNIT_CATALOG[el.unitType.value];
     if(!tpl) return;
 
@@ -461,6 +523,16 @@ function renderRoster(){
   }
 
   function startBattle(){
+    if(tokenMode.enabled && !tokenMode.ready){
+      E.log("Сначала нажмите «Готов» в сессии боя.", "warn");
+      refreshAll();
+      return;
+    }
+    if(tokenMode.enabled && !tokenMode.bothReady){
+      E.log("Ожидаем готовность второй стороны.", "warn");
+      refreshAll();
+      return;
+    }
     battle.rp.blue = U.clamp(parseInt(el.rpBlue.value,10)||0, -3, 3);
     battle.rp.red  = U.clamp(parseInt(el.rpRed.value,10)||0, -3, 3);
     E.startBattle();
@@ -614,6 +686,7 @@ const input = {
   function canDragUnit(u){
     if(!u) return false;
     if(u.state==="destroyed" || u.state==="routed") return false;
+    if(tokenMode.enabled && !isOwnUnit(u)) return false;
     if(!battle.started) return true; // deployment
     if(battle.over) return false;
     if(battle.phase!=="movement") return false;
@@ -738,6 +811,11 @@ if(battle.started && battle.phase==="ranged" && picked){
 }
 
     if(picked){
+      if(tokenMode.enabled && !isOwnUnit(picked)){
+        E.log("В сессии по токену можно управлять только своими войсками.", "mut");
+        refreshAll();
+        return;
+      }
       E.selectUnit(picked);
       refreshAll();
 
@@ -840,6 +918,7 @@ if(battle.started && battle.phase==="ranged" && picked){
       }
 
       u.x = tx; u.y = ty;
+      clampUnitToDeployBand(u);
       if(E.canPlaceUnitPose && E.canPlaceUnitPose(u, u.x, u.y, (u.angle||0)).ok){
         input.lastValidUX = u.x; input.lastValidUY = u.y;
       }
@@ -870,6 +949,10 @@ if(battle.started && battle.phase==="ranged" && picked){
 
     if(input.draggingUnit){
       const u = E.getUnit(input.dragUnitId);
+      if(u && tokenMode.enabled && !battle.started && !unitInsideAllowedDeployBand(u)){
+        clampUnitToDeployBand(u);
+        E.log("Расстановка разрешена только на своей трети карты. Центральная полоса запрещена.", "warn");
+      }
       if(u && battle.started && battle.phase==="movement" && u.side===battle.active){
         // consume move if actually moved
         if(input.moved){
@@ -1004,12 +1087,33 @@ if(battle.started && battle.phase==="ranged" && picked){
     return;
   }
 
+  if(tokenMode.enabled){
+    const auid = String(shooter._battleUid || ((shooter._battleArmyUid || '') + '#' + String(Number(shooter._battleUnitIdx)||0)));
+    const tuid = String(target._battleUid || ((target._battleArmyUid || '') + '#' + String(Number(target._battleUnitIdx)||0)));
+    sendBattleActions([{ type:'ranged_attack', uid: auid, target_uid: tuid }])
+      .then(async ()=>{ await loadTokenBattleScenario({ hydrate: true }); refreshAll(); })
+      .catch((e)=>{ E.log('Выстрел отклонён сервером: ' + (e && e.message ? e.message : e), 'mut'); refreshAll(); });
+    return;
+  }
   const res = E.rangedAttack(shooter, target);
   if(!res || !res.ok){
     E.log("Выстрел не выполнен.","mut");
   }
   refreshAll();
 }
+
+
+  async function sendBattleActions(actions){
+    if(!tokenMode.enabled) return null;
+    const rr = await fetch('/api/war/battle/commit/', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: battleToken, base_rev: Number(tokenMode.lastRealtimeRev || 0), actions: Array.isArray(actions)?actions:[] })
+    });
+    const jj = await rr.json();
+    if(!rr.ok || !jj.ok) throw new Error((jj && (jj.reason || jj.error)) || ('HTTP ' + rr.status));
+    if(jj && jj.realtime && jj.realtime.state && Number.isFinite(Number(jj.realtime.state.rev))) tokenMode.lastRealtimeRev = Number(jj.realtime.state.rev);
+    return jj;
+  }
 
 // --- Bind events ---
   function bind(){
@@ -1107,7 +1211,15 @@ if(battle.started && battle.phase==="ranged" && sel && sel.stats.ranged && click
     if(d>r){
       E.log("Цель вне дальности стрельбы.","mut");
     }else{
-      E.rangedAttack(sel, clicked);
+      if(tokenMode.enabled){
+        const auid = String(sel._battleUid || ((sel._battleArmyUid || '') + '#' + String(Number(sel._battleUnitIdx)||0)));
+        const tuid = String(clicked._battleUid || ((clicked._battleArmyUid || '') + '#' + String(Number(clicked._battleUnitIdx)||0)));
+        sendBattleActions([{ type:'ranged_attack', uid: auid, target_uid: tuid }])
+          .then(async ()=>{ await loadTokenBattleScenario({ hydrate: true }); refreshAll(); })
+          .catch((e)=>{ E.log('Выстрел отклонён сервером: ' + (e && e.message ? e.message : e), 'mut'); refreshAll(); });
+      }else{
+        E.rangedAttack(sel, clicked);
+      }
     }
   }
   refreshAll();
@@ -1115,7 +1227,13 @@ if(battle.started && battle.phase==="ranged" && sel && sel.stats.ranged && click
 }
 
 // Default: select
-E.selectUnit(E.getUnit(id));
+const clickedUnit = E.getUnit(id);
+if(tokenMode.enabled && clickedUnit && !isOwnUnit(clickedUnit)){
+  E.log("Выбор вражеских отрядов в token-режиме отключён.", "mut");
+  refreshAll();
+  return;
+}
+E.selectUnit(clickedUnit);
 
 // Alt+клик: центрировать камеру
 if(ev.altKey){
@@ -1129,7 +1247,13 @@ refreshAll();
         if(!it) return;
         const id = it.getAttribute("data-id");
         if(!id) return;
-        E.selectUnit(E.getUnit(id));
+        const uu = E.getUnit(id);
+        if(tokenMode.enabled && uu && !isOwnUnit(uu)){
+          E.log("Выбор вражеских отрядов в token-режиме отключён.", "mut");
+          refreshAll();
+          return;
+        }
+        E.selectUnit(uu);
         const u = E.getSelected();
         if(u){ R.view.ox = u.x; R.view.oy = u.y; }
         refreshAll();
@@ -1164,8 +1288,195 @@ refreshAll();
     requestAnimationFrame(loopUI);
   }
 
-  bind();
-  refreshAll();
-  requestAnimationFrame(loopUI);
+  async function loadTokenBattleScenario(opts){
+    const hydrate = !opts || opts.hydrate !== false;
+    if(!tokenMode.enabled) return;
+    const res = await fetch('/api/war/battle/session/?token=' + encodeURIComponent(battleToken), { cache: 'no-store' });
+    const json = await res.json();
+    if(!res.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+
+    tokenMode.side = String(json.side || '');
+    tokenMode.ready = !!(json && json.battle && json.battle.ready && json.battle.ready[tokenMode.side]);
+    tokenMode.bothReady = !!(json && json.battle && json.battle.ready && json.battle.ready.A && json.battle.ready.B);
+    tokenMode.sessionStatus = String((json && json.battle && json.battle.status) || 'setup');
+    const realtimeState = json && json.battle && json.battle.realtime && json.battle.realtime.state ? json.battle.realtime.state : null;
+    if(realtimeState && Number.isFinite(Number(realtimeState.rev))) tokenMode.lastRealtimeRev = Number(realtimeState.rev);
+
+    const mine = Array.isArray(json.my_armies) ? json.my_armies : [];
+    const enemy = Array.isArray(json.enemy_armies) ? json.enemy_armies : [];
+
+    if(hydrate){
+      E.resetAll();
+    }
+
+    const ownSide = sideForTokenPlayer() || 'blue';
+    const enemySide = ownSide === 'blue' ? 'red' : 'blue';
+
+    function spawnArmyRows(rows, side){
+      for(const army of rows){
+        const units = Array.isArray(army && army.units) ? army.units : [];
+        for(const [idx, row] of units.entries()){
+          const type = String(row && row.unit_id || '').trim();
+          const tpl = UNIT_CATALOG[type];
+          if(!tpl) continue;
+          const payload = {
+            type,
+            side,
+            formation: 'line',
+            men: Math.max(1, Number(row.size) || 1),
+            baseSize: Math.max(1, Number(tpl.baseSize) || 1),
+            baseXpl: Math.max(0, Number(tpl.baseXpl) || 0),
+            name: String(tpl.name || type),
+            x: (side === 'blue' ? -520 : 520) + (Math.random()*220 - 110),
+            y: (side === 'blue' ? -480 : 480) + (Math.random()*200 - 100),
+          };
+          const u = E.addUnitFromUI(payload);
+          if(u){
+            u._battleArmyUid = String(army && army.army_uid || "");
+            u._battleUnitIdx = Number(idx);
+            clampUnitToDeployBand(u);
+          }
+        }
+      }
+    }
+
+    if(hydrate){
+      if(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length){
+        for(const row of realtimeState.units){
+          const type = String(row && row.unit_id || '').trim();
+          const tpl = UNIT_CATALOG[type];
+          if(!tpl) continue;
+          const payload = {
+            type,
+            side: String(row.side || 'blue') === 'red' ? 'red' : 'blue',
+            formation: String(row.formation || 'line'),
+            men: Math.max(0, Number(row.men) || 0),
+            baseSize: Math.max(1, Number(row.baseSize || tpl.baseSize) || 1),
+            baseXpl: Math.max(0, Number(row.baseXpl || tpl.baseXpl) || 0),
+            name: String(tpl.name || type),
+            x: Number(row.x || 0),
+            y: Number(row.y || 0),
+          };
+          const u = E.addUnitFromUI(payload);
+          if(!u) continue;
+          u.angle = Number(row.angle || 0);
+          u.morale = Number(row.morale || 60);
+          u.state = String(row.state || 'ready');
+          u._battleArmyUid = String(row.army_uid || '');
+          u._battleUnitIdx = Number(row.unit_idx || 0);
+          u._battleUid = String(row.uid || '');
+        }
+      }else{
+        spawnArmyRows(mine, ownSide);
+        spawnArmyRows(enemy, enemySide);
+      }
+      E.selectUnit(null);
+    }
+
+    const prevCard = document.getElementById('tokenSessionCard');
+    if(prevCard) prevCard.remove();
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'tokenSessionCard';
+    const sideLabel = ownSide === 'blue' ? 'Синие (сторона A)' : 'Красные (сторона B)';
+    card.innerHTML = `<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">Вы играете за: <b>${sideLabel}</b>. Расстановка только на своей трети карты (центр закрыт). Статус: <b>${tokenMode.sessionStatus}</b>.</div><div class="row" style="margin-top:8px;"><button class="btn" id="tokenReadyBtn">Готов</button><button class="btn" id="tokenPushStateBtn">Отправить ход (lockstep)</button><button class="btn" id="tokenPullStateBtn">Получить состояние</button><button class="btn" id="tokenSessionRefreshBtn">Обновить статус</button><button class="btn" id="tokenFinishBtn">Сохранить итог боя</button><button class="btn" id="tokenReloadBtn">Перезагрузить</button></div></div>`;
+    const panel = document.querySelector('.panel');
+    if(panel && panel.firstChild) panel.insertBefore(card, panel.firstChild);
+    const readyBtn = document.getElementById('tokenReadyBtn');
+    const pushBtn = document.getElementById('tokenPushStateBtn');
+    const pullBtn = document.getElementById('tokenPullStateBtn');
+    const refreshBtn = document.getElementById('tokenSessionRefreshBtn');
+    const finishBtn = document.getElementById('tokenFinishBtn');
+    const reloadBtn = document.getElementById('tokenReloadBtn');
+    if(readyBtn){
+      readyBtn.addEventListener('click', async ()=>{
+        const rr = await fetch('/api/war/battle/ready/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: battleToken, ready: true })});
+        const jj = await rr.json();
+        if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
+        tokenMode.ready = true;
+        E.log('Сторона отмечена как готовая.', 'ok');
+        await loadTokenBattleScenario({ hydrate: false });
+        refreshAll();
+      });
+    }
+    if(pushBtn){
+      pushBtn.addEventListener('click', async ()=>{
+        const own = sideForTokenPlayer() || 'blue';
+        const actions = [];
+        for(const u of scenario.units){
+          if(String(u.side||'') !== own) continue;
+          const uid = String(u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx)||0)));
+          if(!uid) continue;
+          actions.push({ type:'move', uid, x:Number(u.x||0), y:Number(u.y||0), angle:Number(u.angle||0) });
+        }
+        actions.push({ type:'advance_phase' });
+        await sendBattleActions(actions);
+        E.log('Команды отправлены на authoritative lockstep-сервер.', 'ok');
+        await loadTokenBattleScenario({ hydrate: true });
+        refreshAll();
+      });
+    }
+    if(pullBtn){
+      pullBtn.addEventListener('click', async ()=>{
+        await loadTokenBattleScenario({ hydrate: true });
+        refreshAll();
+      });
+    }
+    if(refreshBtn){
+      refreshBtn.addEventListener('click', async ()=>{
+        await loadTokenBattleScenario({ hydrate: false });
+        refreshAll();
+      });
+    }
+    if(finishBtn){
+      finishBtn.addEventListener('click', async ()=>{
+        const remaining = {};
+        for(const u of scenario.units){
+          const armyUid = String(u && u._battleArmyUid || '').trim();
+          const idx = Number(u && u._battleUnitIdx);
+          if(!armyUid || !Number.isFinite(idx) || idx < 0) continue;
+          remaining[armyUid + '#' + String(idx)] = Math.max(0, Math.floor(Number(u.men) || 0));
+        }
+        const rr = await fetch('/api/war/battle/finish/', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ token: battleToken, remaining_units: remaining })
+        });
+        const jj = await rr.json();
+        if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
+        E.log('Итог боя сохранён на карту.', 'ok');
+        await loadTokenBattleScenario({ hydrate: false });
+        refreshAll();
+      });
+    }
+    if(reloadBtn){
+      reloadBtn.addEventListener('click', ()=>window.location.reload());
+    }
+  }
+
+  async function bootstrap(){
+    bind();
+    if(tokenMode.enabled){
+      try {
+        await loadTokenBattleScenario({ hydrate: true });
+      } catch (err) {
+        E.log('Ошибка загрузки токен-сессии: ' + (err && err.message ? err.message : err), 'bad');
+      }
+    }
+    refreshAll();
+    if(tokenMode.enabled){
+      setInterval(async ()=>{
+        try{
+          const prev = Number(tokenMode.lastRealtimeRev||0);
+          await loadTokenBattleScenario({ hydrate: false });
+          const next = Number(tokenMode.lastRealtimeRev||0);
+          if(next > prev) await loadTokenBattleScenario({ hydrate: true });
+        }catch(_e){}
+      }, 2500);
+    }
+    requestAnimationFrame(loopUI);
+  }
+
+  bootstrap();
 
 })();
