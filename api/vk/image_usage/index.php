@@ -18,30 +18,7 @@ if ($method === 'GET') {
     ];
   }
   usort($items, static fn(array $a, array $b): int => $b['updated_at'] <=> $a['updated_at']);
-
-  $generationLogRows = vk_bot_load_image_generations_log();
-  $generationLog = [];
-  foreach ($generationLogRows as $row) {
-    if (!is_array($row)) continue;
-    $generationLog[] = [
-      'ts' => (int)($row['ts'] ?? 0),
-      'vk_user_id' => (int)($row['vk_user_id'] ?? 0),
-      'prompt' => trim((string)($row['prompt'] ?? '')),
-      'ok' => (bool)($row['ok'] ?? false),
-      'error' => trim((string)($row['error'] ?? '')),
-      'http_code' => (int)($row['http_code'] ?? 0),
-      'router_response' => trim((string)($row['router_response'] ?? '')),
-    ];
-  }
-  usort($generationLog, static fn(array $a, array $b): int => $b['ts'] <=> $a['ts']);
-  $generationLog = array_slice($generationLog, 0, 10);
-
-  api_json_response([
-    'ok' => true,
-    'limit' => vk_bot_image_user_limit(),
-    'items' => $items,
-    'generation_log' => $generationLog,
-  ], 200, vk_bot_data_mtime());
+  api_json_response(['ok' => true, 'limit' => vk_bot_image_user_limit(), 'items' => $items], 200, vk_bot_data_mtime());
 }
 
 if ($method !== 'POST') {

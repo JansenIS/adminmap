@@ -80,14 +80,9 @@
     });
   }
 
-  function escapeHtml(v){
-    return String(v ?? '').replace(/[&<>"']/g, (ch)=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch] || ch));
-  }
-
   async function loadImageUsage(){
     const body=byId('imageUsageBody');
     if (!body) return;
-    const logBody=byId('imageGenerationLogBody');
     const res=await fetch('/api/vk/image_usage/');
     const j=await res.json();
     const rows=Array.isArray(j.items)?j.items:[];
@@ -109,24 +104,6 @@
       td.appendChild(btn);
       body.appendChild(tr);
     });
-
-    if (logBody) {
-      const logRows=Array.isArray(j.generation_log)?j.generation_log:[];
-      logBody.innerHTML='';
-      logRows.forEach((row)=>{
-        const tr=document.createElement('tr');
-        const ts=Number(row.ts||0);
-        const at=ts>0?new Date(ts*1000).toLocaleString():'—';
-        const uid=String(row.vk_user_id||'');
-        const ok=!!row.ok;
-        const status=ok?'OK':('Ошибка: '+String(row.error||'unknown'));
-        const httpCode=Number(row.http_code||0);
-        const prompt=escapeHtml(String(row.prompt||''));
-        const routerResponse=escapeHtml(String(row.router_response||''));
-        tr.innerHTML=`<td>${at}</td><td>${uid}</td><td>${escapeHtml(status)}</td><td>${httpCode||'—'}</td><td><pre style="margin:0;white-space:pre-wrap;max-width:280px">${prompt}</pre></td><td><pre style="margin:0;white-space:pre-wrap;max-width:520px">${routerResponse||'—'}</pre></td>`;
-        logBody.appendChild(tr);
-      });
-    }
   }
 
   const resetAllBtn=byId('resetAllImageUsage');
