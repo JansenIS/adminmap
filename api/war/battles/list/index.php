@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 4) . '/lib/war_battle_api.php';
+require_once dirname(__DIR__, 3) . '/lib/war_battle_api.php';
 
 $state = api_load_state();
 api_sync_army_registry($state, null, false);
