@@ -467,6 +467,14 @@ function war_battle_finalize_expired(array $rows, array &$state, ?int $now = nul
   return $rows;
 }
 
+function war_battle_generate_token_or_null(): ?string {
+  try {
+    return player_admin_generate_token();
+  } catch (Throwable $_e) {
+    return null;
+  }
+}
+
 function war_battle_sync(array $state, bool $includeStaticConflicts = false): array {
   $existing = war_battle_load_all();
   $out = is_array($existing) ? $existing : [];
@@ -506,9 +514,12 @@ function war_battle_sync(array $state, bool $includeStaticConflicts = false): ar
     }
     if ($existingId !== null) continue;
 
-    $battleId = 'battle_' . gmdate('Ymd_His') . '_' . substr(player_admin_generate_token(), 0, 8);
-    $tokenA = player_admin_generate_token();
-    $tokenB = player_admin_generate_token();
+    $battleIdToken = war_battle_generate_token_or_null();
+    $tokenA = war_battle_generate_token_or_null();
+    $tokenB = war_battle_generate_token_or_null();
+    if ($battleIdToken === null || $tokenA === null || $tokenB === null) continue;
+
+    $battleId = 'battle_' . gmdate('Ymd_His') . '_' . substr($battleIdToken, 0, 8);
     $out[$battleId] = [
       'battle_id' => $battleId,
       'province_pid' => (int)$pid,
