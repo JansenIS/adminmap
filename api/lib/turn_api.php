@@ -840,15 +840,18 @@ function turn_api_compute_treasury(
     ];
   }
 
-  $ensureEntityRow = static function (array &$rows, array &$meta, string $entityId, string $entityName, string $entityType, int $year): void {
+  $ensureEntityRow = static function (array &$rows, array &$meta, string $entityId, string $entityName, string $entityType, int $year) use ($previousEntityClosingById): void {
     if ($entityId === '') return;
     if (!isset($rows[$entityId])) {
+      $opening = isset($previousEntityClosingById[$entityId]) && is_numeric($previousEntityClosingById[$entityId])
+        ? round((float)$previousEntityClosingById[$entityId], 2)
+        : 0.0;
       $rows[$entityId] = [
         'turn_year' => $year,
         'entity_id' => $entityId,
         'entity_name' => $entityName,
         'entity_type' => $entityType,
-        'opening_balance' => 0.0,
+        'opening_balance' => $opening,
         'income_tax' => 0.0,
         'subsidies_out' => 0.0,
         'army_upkeep_out' => 0.0,
