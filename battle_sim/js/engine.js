@@ -1142,7 +1142,8 @@ function markEngagements(force=false){
       men: payload.men|0,
       x: payload.x ?? (payload.side==="blue" ? -520 : 520),
       y: payload.y ?? (payload.side==="blue" ? 240 : -240),
-      angle: payload.side==="blue" ? 0 : Math.PI,
+      // 0 rad looks to the top of the map (-Y), so blue (top side) should face down to enemy.
+      angle: payload.side==="blue" ? Math.PI : 0,
       state: "ready",
       losses: 0,
       firedTurn: 0,
