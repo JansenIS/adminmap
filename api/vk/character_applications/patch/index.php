@@ -5,8 +5,37 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/lib/vk_bot_api.php';
 require_once dirname(__DIR__, 3) . '/lib/genealogy_api.php';
 
-if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
-  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST']], 405, vk_bot_data_mtime());
+/**
+ * @param array<string,mixed> $base
+ * @param array<string,mixed> $patch
+ * @return array<string,mixed>
+ */
+function vk_character_apps_merge_patch(array $base, array $patch): array
+{
+  foreach ($patch as $key => $value) {
+    if (
+      is_string($key)
+      && isset($base[$key])
+      && is_array($base[$key])
+      && is_array($value)
+      && array_is_list($base[$key]) === false
+      && array_is_list($value) === false
+    ) {
+      /** @var array<string,mixed> $nestedBase */
+      $nestedBase = $base[$key];
+      /** @var array<string,mixed> $nestedPatch */
+      $nestedPatch = $value;
+      $base[$key] = vk_character_apps_merge_patch($nestedBase, $nestedPatch);
+      continue;
+    }
+    $base[$key] = $value;
+  }
+  return $base;
+}
+
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method !== 'POST' && $method !== 'PATCH') {
+  api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST', 'PATCH']], 405, vk_bot_data_mtime());
 }
 $payload = json_decode((string)file_get_contents('php://input'), true);
 if (!is_array($payload)) api_json_response(['error' => 'invalid_json'], 400, vk_bot_data_mtime());
@@ -27,7 +56,7 @@ $app = $apps[$idx];
 if ($action === 'update') {
   $patch = $payload['patch'] ?? null;
   if (!is_array($patch)) api_json_response(['error' => 'invalid_patch'], 400, vk_bot_data_mtime());
-  $app = array_merge($app, $patch);
+  $app = vk_character_apps_merge_patch($app, $patch);
   $apps[$idx] = $app;
   vk_bot_save_character_applications($apps);
   api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
