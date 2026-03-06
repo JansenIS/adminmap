@@ -99,6 +99,10 @@ function api_state_mtime(): int {
   return (int)@filemtime(api_state_path()) ?: time();
 }
 
+function api_file_mtime(string $path): int {
+  return (int)@filemtime($path) ?: time();
+}
+
 function api_collect_people_names_from_state(array $state): array {
   $names = [];
   $addName = static function (string $raw) use (&$names): void {

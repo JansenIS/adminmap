@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 4) . '/lib/war_battle_api.php';
+require_once dirname(__DIR__, 3) . '/lib/war_battle_api.php';
 
 $token = trim((string)($_GET['token'] ?? ''));
 if ($token === '') api_json_response(['ok' => false, 'error' => 'token_required'], 400, api_file_mtime(war_battles_path()));
