@@ -70,6 +70,34 @@ function vk_character_apps_upsert_parent_child_relationship(array &$relationship
   ];
 }
 
+function vk_character_apps_resolve_clan_from_state_app(array $characterApp, string $entityType, string $entityId): string
+{
+  $stateApplicationId = trim((string)($characterApp['state_application_id'] ?? ''));
+  $apps = vk_bot_load_applications();
+
+  if ($stateApplicationId !== '') {
+    foreach ($apps as $row) {
+      if (!is_array($row)) continue;
+      if (trim((string)($row['id'] ?? '')) !== $stateApplicationId) continue;
+      $form = is_array($row['form'] ?? null) ? $row['form'] : [];
+      $house = trim((string)($form['ruler_house'] ?? ''));
+      if ($house !== '') return $house;
+      break;
+    }
+  }
+
+  foreach ($apps as $row) {
+    if (!is_array($row)) continue;
+    if (trim((string)($row['approved_entity_type'] ?? '')) !== $entityType) continue;
+    if (trim((string)($row['approved_entity_id'] ?? '')) !== $entityId) continue;
+    $form = is_array($row['form'] ?? null) ? $row['form'] : [];
+    $house = trim((string)($form['ruler_house'] ?? ''));
+    if ($house !== '') return $house;
+  }
+
+  return '';
+}
+
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method !== 'POST' && $method !== 'PATCH') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['POST', 'PATCH']], 405, vk_bot_data_mtime());
@@ -123,9 +151,9 @@ if ($action === 'approve') {
   $stateName = trim((string)($entity['name'] ?? $entityId));
   $storedRulerPhoto = $photo !== '' ? vk_bot_store_remote_photo($photo, $rulerName !== '' ? $rulerName : 'ruler') : null;
   if ($photo !== '' && !is_string($storedRulerPhoto)) $warnings[] = ['code' => 'ruler_photo_upload_failed'];
-  $clan = '';
+  $clan = vk_character_apps_resolve_clan_from_state_app($app, $entityType, $entityId);
   $profile = is_array($state['people_profiles'][$rulerName] ?? null) ? $state['people_profiles'][$rulerName] : null;
-  if (is_array($profile) && preg_match('/^Род:\s*(.+)$/um', (string)($profile['bio'] ?? ''), $m)) {
+  if ($clan === '' && is_array($profile) && preg_match('/^Род:\s*(.+)$/um', (string)($profile['bio'] ?? ''), $m)) {
     $clan = trim((string)($m[1] ?? ''));
   }
   $resolvedClan = $clan !== '' ? $clan : $rulerName;
