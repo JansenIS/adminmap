@@ -10,6 +10,7 @@ function vk_bot_sessions_path(): string { return api_repo_root() . '/data/vk_bot
 function vk_bot_applications_path(): string { return api_repo_root() . '/data/vk_bot_applications.json'; }
 function vk_bot_character_applications_path(): string { return api_repo_root() . '/data/vk_bot_character_applications.json'; }
 function vk_bot_image_usage_path(): string { return api_repo_root() . '/data/vk_bot_image_usage.json'; }
+function vk_bot_image_generations_log_path(): string { return api_repo_root() . '/data/vk_bot_image_generations_log.json'; }
 
 function vk_bot_files_mtime(array $paths): int {
   $mt = 0;
@@ -28,6 +29,7 @@ function vk_bot_data_mtime(): int {
     vk_bot_applications_path(),
     vk_bot_character_applications_path(),
     vk_bot_image_usage_path(),
+    vk_bot_image_generations_log_path(),
   ]);
 }
 
@@ -74,6 +76,25 @@ function vk_bot_load_character_applications(): array { return vk_bot_load_json_f
 function vk_bot_save_character_applications(array $rows): bool { return api_atomic_write_json(vk_bot_character_applications_path(), $rows); }
 function vk_bot_load_image_usage(): array { return vk_bot_load_json_file(vk_bot_image_usage_path(), []); }
 function vk_bot_save_image_usage(array $rows): bool { return api_atomic_write_json(vk_bot_image_usage_path(), $rows); }
+function vk_bot_load_image_generations_log(): array { return vk_bot_load_json_file(vk_bot_image_generations_log_path(), []); }
+function vk_bot_save_image_generations_log(array $rows): bool { return api_atomic_write_json(vk_bot_image_generations_log_path(), $rows); }
+
+function vk_bot_append_image_generation_log(array $row): void {
+  $rows = vk_bot_load_image_generations_log();
+  $rows[] = [
+    'ts' => time(),
+    'vk_user_id' => (int)($row['vk_user_id'] ?? 0),
+    'prompt' => mb_substr(trim((string)($row['prompt'] ?? '')), 0, 500),
+    'ok' => (bool)($row['ok'] ?? false),
+    'error' => trim((string)($row['error'] ?? '')),
+    'http_code' => (int)($row['http_code'] ?? 0),
+    'router_response' => mb_substr(trim((string)($row['router_response'] ?? '')), 0, 4000),
+  ];
+  if (count($rows) > 200) {
+    $rows = array_slice($rows, -200);
+  }
+  vk_bot_save_image_generations_log($rows);
+}
 
 function vk_bot_image_master_prompt(): string {
   return 'Масляный портрет в стиле 17 века с элементами постапокалипсиса на заднем плане (респиратор, ржавый лом и т.д.)';
@@ -217,7 +238,6 @@ function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, s
   if (is_string($value)) {
     $trimmed = trim($value);
     if ($trimmed === '') return;
-    if ($imageUrl === '' && preg_match('#https?://\S+#u', $trimmed, $m)) $imageUrl = $m[0];
     if ($imageUrl === '' && preg_match('#!\[[^\]]*\]\((https?://[^)]+)\)#u', $trimmed, $m)) $imageUrl = $m[1];
     if ($b64 === '' && preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $trimmed)) $b64 = preg_replace('/\s+/', '', $trimmed) ?? '';
     return;
@@ -232,7 +252,7 @@ function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, s
     foreach ($current as $k => $v) {
       if (is_array($v)) {
         $stack[] = $v;
-        if (in_array((string)$k, ['image_url', 'url', 'src'], true)) {
+        if ((string)$k === 'image_url') {
           $nestedUrl = trim((string)($v['url'] ?? $v['href'] ?? ''));
           if ($nestedUrl !== '' && $imageUrl === '') $imageUrl = $nestedUrl;
         }
@@ -242,14 +262,11 @@ function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, s
       $key = (string)$k;
       $str = trim($v);
       if ($str === '') continue;
-      if ($imageUrl === '' && in_array($key, ['image_url', 'url', 'src', 'href'], true) && preg_match('#^https?://#iu', $str)) {
+      if ($imageUrl === '' && $key === 'image_url' && preg_match('#^https?://#iu', $str)) {
         $imageUrl = $str;
       }
       if ($b64 === '' && in_array($key, ['image_base64', 'b64_json'], true)) {
         $b64 = preg_replace('/\s+/', '', $str) ?? '';
-      }
-      if (($imageUrl === '' || $b64 === '') && preg_match('#https?://\S+#u', $str, $m)) {
-        if ($imageUrl === '') $imageUrl = $m[0];
       }
       if ($b64 === '' && preg_match('/^[A-Za-z0-9+\/\n\r=]{500,}$/', $str)) {
         $b64 = preg_replace('/\s+/', '', $str) ?? '';
@@ -259,10 +276,30 @@ function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, s
   }
 }
 
+function vk_bot_prepare_router_response_for_log(array $decoded, string $raw): string {
+  $copy = $decoded;
+  if (isset($copy['choices']) && is_array($copy['choices'])) {
+    foreach ($copy['choices'] as &$choice) {
+      if (!is_array($choice)) continue;
+      $msg = $choice['message'] ?? null;
+      if (!is_array($msg)) continue;
+      if (isset($msg['reasoning_details'])) unset($msg['reasoning_details']);
+      if (isset($msg['reasoning']) && is_string($msg['reasoning']) && mb_strlen($msg['reasoning']) > 600) {
+        $msg['reasoning'] = mb_substr($msg['reasoning'], 0, 600) . '…';
+      }
+      $choice['message'] = $msg;
+    }
+    unset($choice);
+  }
+  $encoded = json_encode($copy, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  if (is_string($encoded) && $encoded !== '') return mb_substr($encoded, 0, 4000);
+  return mb_substr($raw, 0, 4000);
+}
+
 function vk_bot_generate_character_image(string $userPrompt): array {
   $cfg = vk_bot_load_config();
   $apiKey = trim((string)($cfg['routerai_api_key'] ?? ''));
-  if ($apiKey === '') return ['ok' => false, 'error' => 'missing_api_key'];
+  if ($apiKey === '') return ['ok' => false, 'error' => 'missing_api_key', 'http_code' => 0, 'router_response' => ''];
 
   $payload = [
     'model' => 'openai/gpt-5-image-mini',
@@ -281,18 +318,19 @@ function vk_bot_generate_character_image(string $userPrompt): array {
   ]);
   curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 300);
   $resp = curl_exec($ch);
   $err = curl_error($ch);
-  $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $routerCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
 
-  if (!is_string($resp) || $resp === '' || $err !== '' || $code >= 400) {
-    vk_bot_log_error('routerai_error code=' . $code . ' err=' . $err . ' body=' . substr((string)$resp, 0, 600));
-    return ['ok' => false, 'error' => 'api_failed'];
+  if (!is_string($resp) || $resp === '' || $err !== '' || $routerCode >= 400) {
+    vk_bot_log_error('routerai_error code=' . $routerCode . ' err=' . $err . ' body=' . substr((string)$resp, 0, 600));
+    return ['ok' => false, 'error' => 'api_failed', 'http_code' => $routerCode, 'router_response' => substr((string)$resp, 0, 4000)];
   }
   $decoded = json_decode($resp, true);
-  if (!is_array($decoded)) return ['ok' => false, 'error' => 'invalid_api_json'];
+  if (!is_array($decoded)) return ['ok' => false, 'error' => 'invalid_api_json', 'http_code' => $routerCode, 'router_response' => substr((string)$resp, 0, 4000)];
+  $routerResponseForLog = vk_bot_prepare_router_response_for_log($decoded, (string)$resp);
 
   $imageUrl = '';
   $b64 = '';
@@ -300,7 +338,7 @@ function vk_bot_generate_character_image(string $userPrompt): array {
 
   if ($b64 !== '') {
     $raw = base64_decode($b64, true);
-    if (is_string($raw) && $raw !== '') return ['ok' => true, 'raw' => $raw];
+    if (is_string($raw) && $raw !== '') return ['ok' => true, 'raw' => $raw, 'http_code' => $routerCode, 'router_response' => $routerResponseForLog];
   }
   if ($imageUrl !== '') {
     $ch = curl_init($imageUrl);
@@ -308,17 +346,17 @@ function vk_bot_generate_character_image(string $userPrompt): array {
     curl_setopt($ch, CURLOPT_TIMEOUT, 40);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     $raw = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
+    $downloadCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $downloadErr = curl_error($ch);
     curl_close($ch);
-    if (is_string($raw) && $raw !== '' && $code < 400 && $err === '') {
-      return ['ok' => true, 'raw' => $raw];
+    if (is_string($raw) && $raw !== '' && $downloadCode < 400 && $downloadErr === '') {
+      return ['ok' => true, 'raw' => $raw, 'http_code' => $routerCode, 'router_response' => $routerResponseForLog];
     }
-    return ['ok' => false, 'error' => 'image_download_failed'];
+    return ['ok' => false, 'error' => 'image_download_failed', 'http_code' => $routerCode, 'router_response' => $routerResponseForLog];
   }
 
   vk_bot_log_error('routerai_image_not_found body=' . substr($resp, 0, 1200));
-  return ['ok' => false, 'error' => 'image_not_found'];
+  return ['ok' => false, 'error' => 'image_not_found', 'http_code' => $routerCode, 'router_response' => $routerResponseForLog];
 }
 
 
