@@ -229,15 +229,34 @@ if ($stage === 'character_image_prompt') {
 
   vk_bot_send_message($userId, 'Генерирую портрет, это может занять до минуты…');
   $gen = vk_bot_generate_character_image($text);
+  $routerHttpCode = (int)($gen['http_code'] ?? 0);
+  $routerResponse = (string)($gen['router_response'] ?? '');
   if (!(bool)($gen['ok'] ?? false)) {
     $reason = (string)($gen['error'] ?? 'unknown');
     vk_bot_log_error('character_image_failed user=' . $userId . ' reason=' . $reason);
+    vk_bot_append_image_generation_log([
+      'vk_user_id' => $userId,
+      'prompt' => $text,
+      'ok' => false,
+      'error' => $reason,
+      'http_code' => $routerHttpCode,
+      'router_response' => $routerResponse,
+    ]);
     $hint = $reason === 'missing_api_key'
       ? 'Не настроен API-ключ RouterAI в админке VK.'
       : 'Не удалось сгенерировать изображение. Попробуйте позже.';
     vk_bot_send_message($userId, $hint);
     echo 'ok'; exit;
   }
+
+  vk_bot_append_image_generation_log([
+    'vk_user_id' => $userId,
+    'prompt' => $text,
+    'ok' => true,
+    'error' => '',
+    'http_code' => $routerHttpCode,
+    'router_response' => $routerResponse,
+  ]);
 
   $rawImage = is_string($gen['raw'] ?? null) ? (string)$gen['raw'] : '';
   $attachment = vk_bot_upload_message_photo_blob($userId, $rawImage, 'character_portrait.png');
