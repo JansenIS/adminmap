@@ -158,7 +158,11 @@
   }
 
   function deployBandForSide(side){
-    const h = Number(scenario.map.h || 1400);
+    // В token-режиме authoritative-сервер валидирует setup-полосы
+    // относительно фиксированной высоты 1400 (см. backend validate_setup_band).
+    // Если локальная карта имеет другую высоту, клиент показывал более широкую/узкую
+    // зону и отправлял ходы, которые сервер отклонял (422 setup_band_forbidden).
+    const h = tokenMode.enabled ? 1400 : Number(scenario.map.h || 1400);
     const hh = h/2;
     const third = h/3;
     if(side === "blue") return { yMin: -hh, yMax: -hh + third };
