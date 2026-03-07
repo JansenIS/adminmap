@@ -1180,9 +1180,55 @@ if(battle.started && battle.phase==="ranged" && picked){
         await loadTokenBattleScenario({ hydrate: false });
         continue;
       }
-      throw new Error(reason || ('HTTP ' + rr.status));
+      const err = new Error(reason || ('HTTP ' + rr.status));
+      err.status = rr.status;
+      err.reason = reason || String((jj && jj.error) || '');
+      err.actionIndex = Number.isFinite(Number(jj && jj.action_index)) ? Number(jj.action_index) : null;
+      throw err;
     }
     throw new Error('revision_conflict');
+  }
+
+  async function sendSetupMovesInOrder(setupMoves){
+    const transientReasons = new Set(['ally_contact', 'enemy_overlap']);
+    let pending = Array.isArray(setupMoves) ? setupMoves.slice() : [];
+    let applied = 0;
+    let lastErr = null;
+
+    for(let pass = 0; pass < Math.max(1, pending.length); pass++){
+      if(!pending.length) break;
+      const nextPending = [];
+      let progressed = false;
+
+      for(const mv of pending){
+        try {
+          await sendBattleActions([{ type:'move', uid: mv.uid, x: mv.x, y: mv.y, angle: mv.angle, formation: mv.formation }]);
+          applied += 1;
+          progressed = true;
+          lastErr = null;
+        } catch(err){
+          const reason = String(err && err.reason || err && err.message || '').trim();
+          if(transientReasons.has(reason)){
+            nextPending.push(mv);
+            lastErr = err;
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if(!nextPending.length) break;
+      if(!progressed){
+        if(lastErr) throw lastErr;
+        throw new Error('setup_move_conflict');
+      }
+      pending = nextPending;
+    }
+
+    if(pending.length){
+      throw lastErr || new Error('setup_move_conflict');
+    }
+    return applied;
   }
 
 // --- Bind events ---
@@ -1731,7 +1777,7 @@ refreshAll();
             }
             setupMoves.sort((a,b)=>Number(b._dist||0)-Number(a._dist||0));
             if(setupMoves.length){
-              await sendBattleActions(setupMoves.map((mv)=>({ type:'move', uid: mv.uid, x: mv.x, y: mv.y, angle: mv.angle, formation: mv.formation })));
+              await sendSetupMovesInOrder(setupMoves);
             }
             E.log(setupMoves.length
               ? ('Расстановка сохранена: ' + String(setupMoves.length) + ' перемещений отправлено.')
