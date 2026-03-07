@@ -701,6 +701,66 @@ function war_battle_clamp(float $v, float $min, float $max): float {
   return $v;
 }
 
+function war_battle_realtime_auto_flee_routed_units(array &$units): void {
+  $mapHalfW = 2200.0 / 2.0;
+  $mapHalfH = 1400.0 / 2.0;
+  $xMin = -$mapHalfW;
+  $xMax = $mapHalfW;
+  $yMin = -$mapHalfH;
+  $yMax = $mapHalfH;
+
+  foreach ($units as $k => $u) {
+    if (!is_array($u)) continue;
+    $uState = strtolower(trim((string)($u['state'] ?? 'ready')));
+    if (!in_array($uState, ['routed', 'surrendered'], true)) continue;
+
+    $x = (float)($u['x'] ?? 0.0);
+    $y = (float)($u['y'] ?? 0.0);
+
+    $distLeft = abs($x - $xMin);
+    $distRight = abs($xMax - $x);
+    $distTop = abs($y - $yMin);
+    $distBottom = abs($yMax - $y);
+
+    $edge = 'left';
+    $bestDist = $distLeft;
+    if ($distRight < $bestDist) { $bestDist = $distRight; $edge = 'right'; }
+    if ($distTop < $bestDist) { $bestDist = $distTop; $edge = 'top'; }
+    if ($distBottom < $bestDist) { $bestDist = $distBottom; $edge = 'bottom'; }
+
+    $dx = 0.0;
+    $dy = 0.0;
+    if ($edge === 'left') $dx = $xMin - $x;
+    elseif ($edge === 'right') $dx = $xMax - $x;
+    elseif ($edge === 'top') $dy = $yMin - $y;
+    else $dy = $yMax - $y;
+
+    $len = sqrt(($dx * $dx) + ($dy * $dy));
+    if ($len < 1e-6) {
+      $u['x'] = war_battle_clamp($x, $xMin, $xMax);
+      $u['y'] = war_battle_clamp($y, $yMin, $yMax);
+      $units[$k] = $u;
+      continue;
+    }
+
+    $step = max(0.0, (float)($u['move_range'] ?? 0.0)) * 2.0;
+    if ($step <= 0.0) {
+      $u['x'] = war_battle_clamp($x, $xMin, $xMax);
+      $u['y'] = war_battle_clamp($y, $yMin, $yMax);
+      $units[$k] = $u;
+      continue;
+    }
+
+    $travel = min($step, $len);
+    $nx = $x + (($dx / $len) * $travel);
+    $ny = $y + (($dy / $len) * $travel);
+
+    $u['x'] = war_battle_clamp($nx, $xMin, $xMax);
+    $u['y'] = war_battle_clamp($ny, $yMin, $yMax);
+    $units[$k] = $u;
+  }
+}
+
 function war_battle_catalog(): array {
   static $catalog = null;
   if ($catalog !== null) return $catalog;
@@ -1223,6 +1283,9 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
     if (!is_int($pidx)) $pidx = 0;
     if ($pidx < count($order) - 1) {
       $state['phase'] = $order[$pidx + 1];
+      if ($state['phase'] === 'movement') {
+        war_battle_realtime_auto_flee_routed_units($units);
+      }
     } else {
       $state['phase'] = 'movement';
       $state['active_side'] = $active === 'A' ? 'B' : 'A';
@@ -1234,6 +1297,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
           $units[$k] = $u;
         }
       }
+      war_battle_realtime_auto_flee_routed_units($units);
     }
     $state['submitted'] = ['A' => false, 'B' => false];
     $state['units'] = $units;
@@ -1257,12 +1321,10 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
     $dy = $ny - (float)($u['y'] ?? 0);
     $dist = sqrt($dx*$dx + $dy*$dy);
     $max = (float)($u['move_range'] ?? 100.0);
-    $kind = strtolower((string)($u['kind'] ?? ''));
-    // In the client simulator cavalry movement uses an x2 tactical range multiplier.
-    // Keep server validation in sync to avoid false `move_too_far` on token sessions.
-    if (in_array($kind, ['cav', 'heavycav'], true)) {
-      $max *= 2.0;
-    }
+    // In the client simulator all units use a global x2 tactical move-range multiplier
+    // (`BALANCE_MODS.moveRangeMultiplier`). Keep server validation in sync to avoid
+    // false `move_too_far` rejections for infantry and other unit types in token sessions.
+    $max *= 2.0;
     if ($phase === 'setup') {
       if (!war_battle_validate_setup_band($u, $ny)) return 'setup_band_forbidden';
       $max = max($max, 99999.0);
