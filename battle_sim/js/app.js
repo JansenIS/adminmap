@@ -649,17 +649,28 @@ function renderRoster(){
     await loadTokenBattleScenario({ hydrate: false });
     const own = sideForTokenPlayer() || 'blue';
     const phase = String(tokenMode.realtimePhase || 'setup');
-    const poseChanges = collectOwnPoseChanges(own);
-    if(poseChanges.length){
-      const syncResult = await sendSetupMovesInOrder(poseChanges, { allowEnemyCollision: phase !== 'setup' });
-      const appliedCount = Math.max(0, Number(syncResult && syncResult.applied || 0));
-      const skippedEnemyCollision = Math.max(0, Number(syncResult && syncResult.skippedEnemyCollision || 0));
-      if(skippedEnemyCollision > 0){
-        E.log('Часть перемещений в коллизию с врагом пропущена (' + String(skippedEnemyCollision) + '), завершаем фазу для перехода в ближний бой.', 'warn');
+    const canSyncPose = phase === 'setup' || phase === 'movement';
+    if(canSyncPose){
+      const poseChanges = collectOwnPoseChanges(own);
+      if(poseChanges.length){
+        const syncResult = await sendSetupMovesInOrder(poseChanges, { allowEnemyCollision: phase === 'movement', allowPhaseShift: true });
+        const appliedCount = Math.max(0, Number(syncResult && syncResult.applied || 0));
+        const skippedEnemyCollision = Math.max(0, Number(syncResult && syncResult.skippedEnemyCollision || 0));
+        const interruptedReason = String(syncResult && syncResult.interruptedReason || '');
+        if(skippedEnemyCollision > 0){
+          E.log('Часть перемещений в коллизию с врагом пропущена (' + String(skippedEnemyCollision) + '), завершаем фазу для перехода в ближний бой.', 'warn');
+        }
+        if(syncResult && syncResult.interrupted){
+          if(interruptedReason === 'phase_forbidden' || interruptedReason === 'not_active_side'){
+            E.log('Фаза/очередь уже обновилась на сервере, завершаем отправку хода без досинхронизации позиций.', 'mut');
+          } else {
+            E.log('Часть перемещений не удалось применить из-за коллизий, завершаем ход по текущему серверному состоянию.', 'warn');
+          }
+        }
+        E.log('Позиции синхронизированы: ' + String(appliedCount) + ' перемещений.', 'ok');
+      } else {
+        E.log('Изменений позиций нет.', 'mut');
       }
-      E.log('Позиции синхронизированы: ' + String(appliedCount) + ' перемещений.', 'ok');
-    } else {
-      E.log('Изменений позиций нет.', 'mut');
     }
     await sendBattleActions([{ type:'submit_turn' }]);
     E.log(phase === 'setup'
@@ -1310,7 +1321,9 @@ if(battle.started && battle.phase==="ranged" && picked){
   async function sendSetupMovesInOrder(setupMoves, opts={}){
     const transientReasons = new Set(['ally_contact', 'enemy_overlap']);
     const allowEnemyCollision = !!(opts && opts.allowEnemyCollision);
+    const allowPhaseShift = !!(opts && opts.allowPhaseShift);
     const ignoredEnemyReasons = new Set(['enemy_overlap', 'enemy_contact']);
+    const phaseShiftReasons = new Set(['phase_forbidden', 'not_active_side']);
     let pending = Array.isArray(setupMoves) ? setupMoves.slice() : [];
     let applied = 0;
     let skippedEnemyCollision = 0;
@@ -1329,6 +1342,9 @@ if(battle.started && battle.phase==="ranged" && picked){
           lastErr = null;
         } catch(err){
           const reason = String(err && err.reason || err && err.message || '').trim();
+          if(allowPhaseShift && phaseShiftReasons.has(reason)){
+            return { applied, skippedEnemyCollision, interrupted: true, interruptedReason: reason };
+          }
           if(allowEnemyCollision && ignoredEnemyReasons.has(reason)){
             skippedEnemyCollision += 1;
             continue;
@@ -1344,6 +1360,9 @@ if(battle.started && battle.phase==="ranged" && picked){
 
       if(!nextPending.length) break;
       if(!progressed){
+        if(allowEnemyCollision) {
+          return { applied, skippedEnemyCollision, interrupted: true, interruptedReason: 'move_conflict' };
+        }
         if(lastErr) throw lastErr;
         throw new Error('setup_move_conflict');
       }
@@ -1351,9 +1370,12 @@ if(battle.started && battle.phase==="ranged" && picked){
     }
 
     if(pending.length){
+      if(allowEnemyCollision) {
+        return { applied, skippedEnemyCollision, interrupted: true, interruptedReason: 'move_conflict' };
+      }
       throw lastErr || new Error('setup_move_conflict');
     }
-    return { applied, skippedEnemyCollision };
+    return { applied, skippedEnemyCollision, interrupted: false, interruptedReason: '' };
   }
 
   function collectOwnPoseChanges(ownSide){
