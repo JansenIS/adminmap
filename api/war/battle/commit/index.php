@@ -47,9 +47,16 @@ $battle = (array)($res['battle'] ?? $battle);
 $rows[$battleId] = $battle;
 war_battle_save_all($rows);
 
+if (!empty($res['auto_finished'])) {
+  if (!api_atomic_write_json(api_state_path(), $state)) {
+    api_json_response(['ok' => false, 'error' => 'state_write_failed'], 500, api_file_mtime(war_battles_path()));
+  }
+}
+
 api_json_response([
   'ok' => true,
   'battle_id' => $battleId,
   'side' => $side,
   'realtime' => $battle['realtime'] ?? null,
-], 200, api_file_mtime(war_battles_path()));
+  'auto_finished' => !empty($res['auto_finished']),
+], 200, max(api_state_mtime(), api_file_mtime(war_battles_path())));

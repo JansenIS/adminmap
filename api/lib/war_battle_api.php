@@ -955,6 +955,21 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $phase = (string)($state['phase'] ?? 'movement');
   $turn = max(1, (int)($state['turn'] ?? 1));
 
+  if (in_array($type, ['retreat', 'escape', 'surrender'], true)) {
+    foreach ($units as $k => $u) {
+      if (war_battle_color_to_side((string)($u['side'] ?? 'blue')) !== $side) continue;
+      if (in_array((string)($u['state'] ?? 'ready'), ['destroyed', 'routed'], true)) continue;
+      $men = max(0, (int)($u['men'] ?? 0));
+      if ($men > 0) $u['losses'] = (int)($u['losses'] ?? 0) + $men;
+      $u['men'] = 0;
+      $u['state'] = 'routed';
+      $u['collision_r'] = war_battle_layout_collision_radius((string)($u['formation'] ?? 'line'), 0, (string)($u['kind'] ?? 'inf'));
+      $units[$k] = $u;
+    }
+    $state['units'] = $units;
+    return null;
+  }
+
   if (in_array($type, ['advance_phase', 'submit_turn', 'end_turn'], true)) {
     if (!($phase === 'setup') && $side !== $active) return 'not_active_side';
     if (!is_array($state['submitted'] ?? null)) $state['submitted'] = ['A' => false, 'B' => false];
@@ -1185,7 +1200,58 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   return 'unknown_action_type';
 }
 
-function war_battle_realtime_commit(array &$battle, array $state, string $side, array $payload): array {
+function war_battle_realtime_pick_winner(array $units): ?string {
+  $alive = ['A' => 0, 'B' => 0];
+  foreach ($units as $u) {
+    if (!is_array($u)) continue;
+    $men = max(0, (int)($u['men'] ?? 0));
+    if ($men <= 0) continue;
+    if (in_array((string)($u['state'] ?? 'ready'), ['destroyed', 'routed'], true)) continue;
+    $uSide = war_battle_color_to_side((string)($u['side'] ?? 'blue'));
+    if (!isset($alive[$uSide])) continue;
+    $alive[$uSide] += $men;
+  }
+  if ($alive['A'] > 0 && $alive['B'] <= 0) return 'A';
+  if ($alive['B'] > 0 && $alive['A'] <= 0) return 'B';
+  if ($alive['A'] <= 0 && $alive['B'] <= 0) return 'draw';
+  return null;
+}
+
+function war_battle_realtime_build_remaining_units(array $battle): array {
+  $rt = (array)($battle['realtime'] ?? []);
+  $state = (array)($rt['state'] ?? []);
+  $remaining = [];
+  foreach ((array)($state['units'] ?? []) as $u) {
+    if (!is_array($u)) continue;
+    $armyUid = trim((string)($u['army_uid'] ?? ''));
+    $idx = (int)($u['unit_idx'] ?? -1);
+    if ($armyUid === '' || $idx < 0) continue;
+
+    $men = max(0, (int)($u['men'] ?? 0));
+    $uState = (string)($u['state'] ?? 'ready');
+    if (in_array($uState, ['destroyed', 'routed'], true)) $men = 0;
+
+    $remaining[$armyUid . '#' . (string)$idx] = $men;
+  }
+  ksort($remaining);
+  return $remaining;
+}
+
+function war_battle_try_finalize_realtime(array &$battle, array &$state): bool {
+  if (in_array((string)($battle['status'] ?? ''), ['finished', 'auto_resolved'], true)) return false;
+  $rt = (array)($battle['realtime'] ?? []);
+  $rtState = (array)($rt['state'] ?? []);
+  $winner = war_battle_realtime_pick_winner((array)($rtState['units'] ?? []));
+  if ($winner === null) return false;
+
+  $remainingUnits = war_battle_realtime_build_remaining_units($battle);
+  $battle = war_battle_finalize_manual($battle, $state, $remainingUnits, $winner);
+  if (!is_array($battle['log'] ?? null)) $battle['log'] = [];
+  $battle['log'][] = ['at' => time(), 'event' => 'battle_finished_realtime_auto', 'winner' => $winner];
+  return true;
+}
+
+function war_battle_realtime_commit(array &$battle, array &$state, string $side, array $payload): array {
   war_battle_ensure_realtime($battle, $state);
   $rt = (array)$battle['realtime'];
   $cur = (array)($rt['state'] ?? []);
@@ -1231,7 +1297,9 @@ function war_battle_realtime_commit(array &$battle, array $state, string $side, 
   if (!is_array($battle['log'] ?? null)) $battle['log'] = [];
   $battle['log'][] = ['at' => time(), 'event' => 'realtime_action_commit', 'side' => $side, 'rev' => (int)$tmp['rev'], 'actions' => count($actions)];
 
-  return ['ok' => true, 'battle' => $battle];
+  $autoFinished = war_battle_try_finalize_realtime($battle, $state);
+
+  return ['ok' => true, 'battle' => $battle, 'auto_finished' => $autoFinished];
 }
 
 function war_battle_find_by_token(string $token): ?array {
