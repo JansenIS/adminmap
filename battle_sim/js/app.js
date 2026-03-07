@@ -59,6 +59,7 @@
     lastRealtimeRev: 0,
     emergencyFromArmies: false,
     realtimePhase: 'setup',
+    lastRealtimeUnitPose: new Map(),
   };
 
   // --- DOM ---
@@ -1354,6 +1355,18 @@ refreshAll();
     const realtimeState = json && json.battle && json.battle.realtime && json.battle.realtime.state ? json.battle.realtime.state : null;
     tokenMode.realtimePhase = String(realtimeState && realtimeState.phase || 'setup');
     if(realtimeState && Number.isFinite(Number(realtimeState.rev))) tokenMode.lastRealtimeRev = Number(realtimeState.rev);
+    tokenMode.lastRealtimeUnitPose = new Map();
+    if(realtimeState && Array.isArray(realtimeState.units)){
+      for(const row of realtimeState.units){
+        const uid = String(row && row.uid || '').trim();
+        if(!uid) continue;
+        tokenMode.lastRealtimeUnitPose.set(uid, {
+          x: Number(row && row.x || 0),
+          y: Number(row && row.y || 0),
+          angle: Number(row && row.angle || 0),
+        });
+      }
+    }
 
     const mine = Array.isArray(json.my_armies) ? json.my_armies : [];
     const enemy = Array.isArray(json.enemy_armies) ? json.enemy_armies : [];
@@ -1653,11 +1666,22 @@ refreshAll();
         const phase = String(tokenMode.realtimePhase || 'setup');
         const actions = [];
         if(phase === 'setup'){
+          const poseByUid = tokenMode.lastRealtimeUnitPose instanceof Map ? tokenMode.lastRealtimeUnitPose : new Map();
           for(const u of scenario.units){
             if(String(u.side||'') !== own) continue;
             const uid = String(u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx)||0)));
             if(!uid) continue;
-            actions.push({ type:'move', uid, x:Number(u.x||0), y:Number(u.y||0), angle:Number(u.angle||0) });
+            const nextX = Number(u.x || 0);
+            const nextY = Number(u.y || 0);
+            const nextAngle = Number(u.angle || 0);
+            const prevPose = poseByUid.get(uid);
+            if(prevPose){
+              const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
+              const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
+              const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
+              if(sameX && sameY && sameAngle) continue;
+            }
+            actions.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle });
           }
         }
         actions.push({ type:'advance_phase' });
