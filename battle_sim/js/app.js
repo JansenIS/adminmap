@@ -1158,14 +1158,27 @@ if(battle.started && battle.phase==="ranged" && picked){
 
   async function sendBattleActions(actions){
     if(!tokenMode.enabled) return null;
-    const rr = await fetch('/api/war/battle/commit/', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ token: battleToken, base_rev: Number(tokenMode.lastRealtimeRev || 0), actions: Array.isArray(actions)?actions:[] })
-    });
-    const jj = await parseJsonResponse(rr);
-    if(!rr.ok || !jj.ok) throw new Error((jj && (jj.reason || jj.error)) || ('HTTP ' + rr.status));
-    if(jj && jj.realtime && jj.realtime.state && Number.isFinite(Number(jj.realtime.state.rev))) tokenMode.lastRealtimeRev = Number(jj.realtime.state.rev);
-    return jj;
+    const payloadActions = Array.isArray(actions) ? actions : [];
+    for(let attempt = 0; attempt < 2; attempt++){
+      const rr = await fetch('/api/war/battle/commit/', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ token: battleToken, base_rev: Number(tokenMode.lastRealtimeRev || 0), actions: payloadActions })
+      });
+      const jj = await parseJsonResponse(rr);
+      const reason = String((jj && (jj.reason || jj.error)) || '').trim();
+      const isRevisionConflict = rr.status === 409 || reason === 'revision_conflict';
+      if(rr.ok && jj && jj.ok){
+        if(jj && jj.realtime && jj.realtime.state && Number.isFinite(Number(jj.realtime.state.rev))) tokenMode.lastRealtimeRev = Number(jj.realtime.state.rev);
+        return jj;
+      }
+      if(isRevisionConflict && attempt === 0){
+        E.log('Обнаружен конфликт ревизии, синхронизируем состояние и повторяем отправку…', 'mut');
+        await loadTokenBattleScenario({ hydrate: false });
+        continue;
+      }
+      throw new Error(reason || ('HTTP ' + rr.status));
+    }
+    throw new Error('revision_conflict');
   }
 
 // --- Bind events ---
@@ -1343,6 +1356,7 @@ refreshAll();
 
   async function loadTokenBattleScenario(opts){
     const hydrate = !opts || opts.hydrate !== false;
+    const preserveOwnSetupPose = !!(opts && opts.preserveOwnSetupPose);
     if(!tokenMode.enabled) return;
     const res = await fetch('/api/war/battle/session/?token=' + encodeURIComponent(battleToken), { cache: 'no-store' });
     const json = await parseJsonResponse(res);
@@ -1371,11 +1385,25 @@ refreshAll();
     const mine = Array.isArray(json.my_armies) ? json.my_armies : [];
     const enemy = Array.isArray(json.enemy_armies) ? json.enemy_armies : [];
 
+    const ownSide = sideForTokenPlayer() || 'blue';
+    const preserveOwnPoseByUid = new Map();
+    if(hydrate && preserveOwnSetupPose){
+      for(const u of scenario.units){
+        if(String(u && u.side || '') !== ownSide) continue;
+        const uid = String(u && (u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx) || 0))) || '').trim();
+        if(!uid) continue;
+        preserveOwnPoseByUid.set(uid, {
+          x: Number(u && u.x || 0),
+          y: Number(u && u.y || 0),
+          angle: Number(u && u.angle || 0),
+        });
+      }
+    }
+
     if(hydrate){
       E.resetAll();
     }
 
-    const ownSide = sideForTokenPlayer() || 'blue';
     const enemySide = ownSide === 'blue' ? 'red' : 'blue';
 
     function autoDeployAngle(side){
@@ -1615,6 +1643,14 @@ refreshAll();
           u._battleArmyUid = String(row.army_uid || '');
           u._battleUnitIdx = Number(row.unit_idx || 0);
           u._battleUid = String(row.uid || '');
+          if(preserveOwnSetupPose && String(u.side || '') === ownSide){
+            const savedPose = preserveOwnPoseByUid.get(String(u._battleUid || ''));
+            if(savedPose){
+              u.x = Number(savedPose.x || 0);
+              u.y = Number(savedPose.y || 0);
+              u.angle = Number(savedPose.angle || 0);
+            }
+          }
         }
       }else{
         spawnArmyRows(mine, ownSide);
@@ -1662,40 +1698,47 @@ refreshAll();
     }
     if(pushBtn){
       pushBtn.addEventListener('click', async ()=>{
-        const own = sideForTokenPlayer() || 'blue';
-        const phase = String(tokenMode.realtimePhase || 'setup');
-        const actions = [];
-        if(phase === 'setup'){
-          const poseByUid = tokenMode.lastRealtimeUnitPose instanceof Map ? tokenMode.lastRealtimeUnitPose : new Map();
-          for(const u of scenario.units){
-            if(String(u.side||'') !== own) continue;
-            const uid = String(u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx)||0)));
-            if(!uid) continue;
-            const nextX = Number(u.x || 0);
-            const nextY = Number(u.y || 0);
-            const nextAngle = Number(u.angle || 0);
-            const prevPose = poseByUid.get(uid);
-            if(prevPose){
-              const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
-              const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
-              const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
-              if(sameX && sameY && sameAngle) continue;
+        try {
+          const own = sideForTokenPlayer() || 'blue';
+          const phase = String(tokenMode.realtimePhase || 'setup');
+          const actions = [];
+          if(phase === 'setup'){
+            const poseByUid = tokenMode.lastRealtimeUnitPose instanceof Map ? tokenMode.lastRealtimeUnitPose : new Map();
+            for(const u of scenario.units){
+              if(String(u.side||'') !== own) continue;
+              const uid = String(u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx)||0)));
+              if(!uid) continue;
+              const nextX = Number(u.x || 0);
+              const nextY = Number(u.y || 0);
+              const nextAngle = Number(u.angle || 0);
+              const prevPose = poseByUid.get(uid);
+              if(prevPose){
+                const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
+                const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
+                const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
+                if(sameX && sameY && sameAngle) continue;
+              }
+              actions.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle });
             }
-            actions.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle });
           }
+          actions.push({ type:'advance_phase' });
+          await sendBattleActions(actions);
+          E.log(phase === 'setup'
+            ? 'Расстановка отправлена и фаза продвинута.'
+            : 'Фаза продвинута на authoritative lockstep-сервере.', 'ok');
+          await loadTokenBattleScenario({ hydrate: true });
+          refreshAll();
+        } catch (e) {
+          E.log('Отправка хода отклонена сервером: ' + (e && e.message ? e.message : e), 'bad');
+          await loadTokenBattleScenario({ hydrate: false });
+          refreshAll();
         }
-        actions.push({ type:'advance_phase' });
-        await sendBattleActions(actions);
-        E.log(phase === 'setup'
-          ? 'Расстановка отправлена и фаза продвинута.'
-          : 'Фаза продвинута на authoritative lockstep-сервере.', 'ok');
-        await loadTokenBattleScenario({ hydrate: true });
-        refreshAll();
       });
     }
     if(pullBtn){
       pullBtn.addEventListener('click', async ()=>{
-        await loadTokenBattleScenario({ hydrate: true });
+        const inSetupPhase = String(tokenMode.realtimePhase || 'setup') === 'setup';
+        await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: inSetupPhase });
         refreshAll();
       });
     }
