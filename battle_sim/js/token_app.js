@@ -29,8 +29,14 @@
 
     const my = Array.isArray(json.my_armies) ? json.my_armies : [];
     const enemy = Array.isArray(json.enemy_armies) ? json.enemy_armies : [];
+    function normalizeUnits(units){
+      if(Array.isArray(units)) return units;
+      if(units && typeof units === 'object') return Object.values(units);
+      return [];
+    }
+
     function renderArmy(row){
-      const units = Array.isArray(row.units) ? row.units.map((u) => `${u.unit_id}: ${u.size}`).join(', ') : '—';
+      const units = normalizeUnits(row && row.units).map((u) => `${u && u.unit_id}: ${u && u.size}`).join(', ') || '—';
       return `<li>${row.army_name || row.army_uid} (PID ${Number(row.current_pid || 0)}, сила ${Number(row.strength_total || 0)})<br><span class="small">${units}</span></li>`;
     }
     armiesEl.style.display = '';
@@ -49,8 +55,21 @@
     await load();
   }
 
+
+  async function restartBattle(){
+    const res = await fetch('/api/war/battle/restart/', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ token })
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+    await load();
+  }
+
   document.getElementById('btnReady').addEventListener('click', () => setReady(true).catch((e)=>alert(e.message || e)));
   document.getElementById('btnUnready').addEventListener('click', () => setReady(false).catch((e)=>alert(e.message || e)));
+  document.getElementById('btnRestartBattle').addEventListener('click', () => restartBattle().catch((e)=>alert(e.message || e)));
 
   load().catch((err) => { statusEl.textContent = 'Ошибка: ' + (err.message || err); });
 })();
