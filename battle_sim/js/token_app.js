@@ -49,8 +49,21 @@
     await load();
   }
 
+
+  async function restartBattle(){
+    const res = await fetch('/api/war/battle/restart/', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ token })
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
+    await load();
+  }
+
   document.getElementById('btnReady').addEventListener('click', () => setReady(true).catch((e)=>alert(e.message || e)));
   document.getElementById('btnUnready').addEventListener('click', () => setReady(false).catch((e)=>alert(e.message || e)));
+  document.getElementById('btnRestartBattle').addEventListener('click', () => restartBattle().catch((e)=>alert(e.message || e)));
 
   load().catch((err) => { statusEl.textContent = 'Ошибка: ' + (err.message || err); });
 })();
