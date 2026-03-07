@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Кабинет сущности</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#060b12; color:#edf4ff; }
+    .layout { max-width:1240px; margin:0 auto; padding:18px 14px 30px; }
+    .topbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:#0e1622; border:1px solid #203044; border-radius:16px; padding:10px; position:sticky; top:10px; z-index:10; }
+    select, button, .linkbtn { background:#111c2b; color:#edf4ff; border:1px solid #2c4058; border-radius:10px; padding:9px 10px; font:inherit; }
+    button, .linkbtn { cursor:pointer; font-weight:600; text-decoration:none; }
+    button:hover, .linkbtn:hover { background:#1a2a3d; }
+    .hero { margin-top:14px; background:linear-gradient(140deg, #12253a 0%, #0f1725 60%); border:1px solid #29486a; border-radius:18px; padding:18px; display:grid; grid-template-columns:96px 1fr auto; gap:14px; align-items:center; }
+    .hero__emblem { width:96px; height:96px; border:1px solid #375777; border-radius:14px; background:#0a121d; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .hero__emblem img { width:88%; height:88%; object-fit:contain; }
+    .hero__title { margin:0; font-size:clamp(22px, 2.8vw, 34px); }
+    .muted { color:#a8bdd4; font-size:13px; }
+    .kpis { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }
+    .pill { background:#0b1320; border:1px solid #2a3f57; border-radius:999px; padding:6px 10px; font-size:13px; }
+    .grid { margin-top:14px; display:grid; grid-template-columns:1.2fr 1fr; gap:14px; }
+    .card { background:#0d1521; border:1px solid #223449; border-radius:16px; padding:14px; }
+    .card h2 { margin:0 0 8px; font-size:17px; }
+    .ruler { display:grid; grid-template-columns:76px 1fr; gap:12px; align-items:center; }
+    .ruler img { width:76px; height:76px; border-radius:14px; object-fit:cover; border:1px solid #2f4761; background:#111a26; }
+    .hier { display:flex; flex-direction:column; gap:8px; }
+    .hier__row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .chip { border:1px solid #2d445e; border-radius:10px; padding:6px 9px; font-size:13px; background:#0a111a; }
+    .bars { display:grid; gap:8px; }
+    .bar { display:grid; grid-template-columns:58px 1fr auto; gap:8px; align-items:center; }
+    .bar > i { display:block; height:10px; background:#203246; border-radius:999px; overflow:hidden; }
+    .bar > i > span { display:block; height:100%; background:linear-gradient(90deg, #58a9ff, #9fd0ff); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:left; border-bottom:1px solid #1e2e41; padding:7px 4px; }
+    .links { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .status { margin-top:8px; font-size:12px; color:#a8bdd4; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns:1fr; }
+      .hero { grid-template-columns:72px 1fr; }
+      .hero__emblem { width:72px; height:72px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="topbar">
+      <select id="entityType"></select>
+      <select id="entityId" style="min-width:260px;"></select>
+      <button id="reloadBtn" type="button">Обновить кабинет</button>
+      <a class="linkbtn" id="openPlayerAdmin" href="/player_admin.html">Открыть управление</a>
+    </div>
+
+    <section class="hero">
+      <div class="hero__emblem"><img id="entityEmblem" alt="Герб" /></div>
+      <div>
+        <h1 class="hero__title" id="entityName">Загрузка…</h1>
+        <div class="muted" id="entitySubtitle">Выберите сущность для управления.</div>
+        <div class="kpis" id="kpis"></div>
+      </div>
+      <div class="links">
+        <a class="linkbtn" id="wikiLink" href="#" target="_blank" rel="noopener">Wiki</a>
+        <a class="linkbtn" id="genealogyLink" href="/genealogy_8gen_example.html" target="_blank" rel="noopener">Генеалогия</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Правитель и иерархия</h2>
+        <div class="ruler">
+          <img id="rulerPhoto" alt="Правитель" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='100%25' height='100%25' fill='%23111a26'/%3E%3C/svg%3E" />
+          <div>
+            <div id="rulerName" style="font-weight:700;">—</div>
+            <div id="rulerYears" class="muted">Годы жизни: —</div>
+          </div>
+        </div>
+        <div class="hier" id="hierarchy" style="margin-top:10px;"></div>
+      </article>
+
+      <article class="card">
+        <h2>Казна по годам (доход/расход)</h2>
+        <div class="bars" id="treasuryBars"></div>
+        <div class="status" id="treasuryStatus">Данные treasury загружаются…</div>
+      </article>
+
+      <article class="card">
+        <h2>Армии и созыв</h2>
+        <table>
+          <thead><tr><th>Армия</th><th>Пров.</th><th>Отряды</th><th>Людей</th></tr></thead>
+          <tbody id="armyTable"><tr><td colspan="4" class="muted">Нет данных</td></tr></tbody>
+        </table>
+        <div class="links">
+          <a class="linkbtn" href="/admin.html?viewMode=war" target="_blank" rel="noopener">Созвать/распустить</a>
+          <a class="linkbtn" href="/battle_sim/" target="_blank" rel="noopener">Боевые симуляции</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Статистика по провинциям</h2>
+        <table id="provinceStats"></table>
+      </article>
+    </section>
+  </div>
+
+  <script src="js/feature_flags.js"></script>
+  <script src="js/state_loader.js"></script>
+  <script src="js/entity_cabinet.js"></script>
+</body>
+</html>
