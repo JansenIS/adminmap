@@ -1343,6 +1343,7 @@ refreshAll();
 
   async function loadTokenBattleScenario(opts){
     const hydrate = !opts || opts.hydrate !== false;
+    const preserveOwnSetupPose = !!(opts && opts.preserveOwnSetupPose);
     if(!tokenMode.enabled) return;
     const res = await fetch('/api/war/battle/session/?token=' + encodeURIComponent(battleToken), { cache: 'no-store' });
     const json = await parseJsonResponse(res);
@@ -1371,11 +1372,25 @@ refreshAll();
     const mine = Array.isArray(json.my_armies) ? json.my_armies : [];
     const enemy = Array.isArray(json.enemy_armies) ? json.enemy_armies : [];
 
+    const ownSide = sideForTokenPlayer() || 'blue';
+    const preserveOwnPoseByUid = new Map();
+    if(hydrate && preserveOwnSetupPose){
+      for(const u of scenario.units){
+        if(String(u && u.side || '') !== ownSide) continue;
+        const uid = String(u && (u._battleUid || ((u._battleArmyUid || '') + '#' + String(Number(u._battleUnitIdx) || 0))) || '').trim();
+        if(!uid) continue;
+        preserveOwnPoseByUid.set(uid, {
+          x: Number(u && u.x || 0),
+          y: Number(u && u.y || 0),
+          angle: Number(u && u.angle || 0),
+        });
+      }
+    }
+
     if(hydrate){
       E.resetAll();
     }
 
-    const ownSide = sideForTokenPlayer() || 'blue';
     const enemySide = ownSide === 'blue' ? 'red' : 'blue';
 
     function autoDeployAngle(side){
@@ -1615,6 +1630,14 @@ refreshAll();
           u._battleArmyUid = String(row.army_uid || '');
           u._battleUnitIdx = Number(row.unit_idx || 0);
           u._battleUid = String(row.uid || '');
+          if(preserveOwnSetupPose && String(u.side || '') === ownSide){
+            const savedPose = preserveOwnPoseByUid.get(String(u._battleUid || ''));
+            if(savedPose){
+              u.x = Number(savedPose.x || 0);
+              u.y = Number(savedPose.y || 0);
+              u.angle = Number(savedPose.angle || 0);
+            }
+          }
         }
       }else{
         spawnArmyRows(mine, ownSide);
@@ -1695,7 +1718,8 @@ refreshAll();
     }
     if(pullBtn){
       pullBtn.addEventListener('click', async ()=>{
-        await loadTokenBattleScenario({ hydrate: true });
+        const inSetupPhase = String(tokenMode.realtimePhase || 'setup') === 'setup';
+        await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: inSetupPhase });
         refreshAll();
       });
     }
