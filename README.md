@@ -44,10 +44,6 @@ curl -I http://127.0.0.1:8080/admin.html
 
 ```
 
-## Инструкции по токен-бою
-
-- Пошаговая инструкция (RU): `docs/token-battle-howto-ru.md`
-
 ## Применение production-конфига веб-сервера (gzip/br + canonical API routes)
 
 Ниже команды, чтобы применить конфиги из репозитория (`deploy/`) на сервере.
