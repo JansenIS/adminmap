@@ -1576,7 +1576,10 @@ refreshAll();
     const enemySide = ownSide === 'blue' ? 'red' : 'blue';
 
     function autoDeployAngle(side){
-      return side === 'blue' ? Math.PI : 0;
+      // В token-режиме при автогенерации стороны должны смотреть друг на друга:
+      // blue (верхняя треть) — вниз к центру, red (нижняя треть) — вверх к центру.
+      // Для текущей системы координат это соответствует blue=0, red=PI.
+      return side === 'blue' ? 0 : Math.PI;
     }
 
     function ensureTokenUnitCatalogEntry(type, source){
@@ -1612,8 +1615,9 @@ refreshAll();
       const yMin = Math.max(-halfH + 60, Number(band.yMin));
       const yMax = Math.min(halfH - 60, Number(band.yMax));
 
-      const ringStep = 56;
-      const maxRing = 10;
+      const unitRadius = Math.max(32, Number((u && u.layout && u.layout.collisionR) || 32));
+      const ringStep = Math.max(56, Math.round(unitRadius * 0.95));
+      const maxRing = 18;
       const candidates = [{x:baseX, y:baseY}];
       for(let r=1;r<=maxRing;r++){
         const d = r * ringStep;
@@ -1634,6 +1638,16 @@ refreshAll();
         const y = U.clamp(c.y, yMin, yMax);
         const place = E.canPlaceUnitPose ? E.canPlaceUnitPose(u, x, y, angle) : {ok:true};
         if(place.ok) return {x, y, angle};
+      }
+
+      // Fallback: плотный проход по сетке в пределах полосы расстановки.
+      // Это устраняет наложения, когда спиральные кандидаты не попали в свободную ячейку.
+      const scanStep = Math.max(44, Math.round(unitRadius * 0.7));
+      for(let y = yMin; y <= yMax; y += scanStep){
+        for(let x = xMin; x <= xMax; x += scanStep){
+          const place = E.canPlaceUnitPose ? E.canPlaceUnitPose(u, x, y, angle) : {ok:true};
+          if(place.ok) return {x, y, angle};
+        }
       }
 
       return {
