@@ -1,10 +1,14 @@
 (() => {
   const params = new URLSearchParams(window.location.search || '');
   const token = String(params.get('token') || '').trim();
+  const warAction = String(params.get('action') || '').trim();
   if (!token) {
     alert('Требуется token в URL');
     return;
   }
+
+  const cabinetLink = document.querySelector('a[href="/entity_cabinet.html"]');
+  if (cabinetLink) cabinetLink.href = `/entity_cabinet.html?token=${encodeURIComponent(token)}`;
 
   let scope = null;
   let scopeLoaded = false;
@@ -248,6 +252,29 @@
     run().catch(() => {});
   }
 
+  function triggerWarActionFromQuery() {
+    if (!warAction) return;
+    const clickIf = (id) => {
+      const btn = document.getElementById(id);
+      if (btn && !btn.disabled && btn.offsetParent !== null) { btn.click(); return true; }
+      return false;
+    };
+    const mapping = {
+      muster_domain: 'realmDomainArrierbanBtn',
+      muster_arrierban: 'realmArrierbanBtn',
+      muster_royal: 'realmRoyalArrierbanBtn',
+      dismiss: 'realmArrierbanDismissBtn',
+    };
+    const target = mapping[warAction] || '';
+    if (!target) return;
+    const tries = 24;
+    let left = tries;
+    const timer = setInterval(() => {
+      left -= 1;
+      if (clickIf(target) || left <= 0) clearInterval(timer);
+    }, 250);
+  }
+
   async function loadScope() {
     const res = await fetch(`/api/player-admin/session/?token=${encodeURIComponent(token)}`);
     const json = await res.json();
@@ -330,6 +357,7 @@
     lockRealmToScope();
     refreshTurnPanelForScope();
     refreshBattleLinks();
+    triggerWarActionFromQuery();
     setInterval(() => {
       lockRealmToScope();
       tuneTurnTreasuryUiForPlayer();
