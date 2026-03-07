@@ -1616,21 +1616,19 @@ refreshAll();
       const yMax = Math.min(halfH - 60, Number(band.yMax));
 
       const unitRadius = Math.max(32, Number((u && u.layout && u.layout.collisionR) || 32));
-      const ringStep = Math.max(56, Math.round(unitRadius * 0.95));
-      const maxRing = 18;
+      const ringStep = Math.max(48, Math.round(unitRadius * 0.85));
+      const maxRing = 28;
       const candidates = [{x:baseX, y:baseY}];
       for(let r=1;r<=maxRing;r++){
         const d = r * ringStep;
-        candidates.push(
-          {x:baseX + d, y:baseY},
-          {x:baseX - d, y:baseY},
-          {x:baseX, y:baseY + d},
-          {x:baseX, y:baseY - d},
-          {x:baseX + d, y:baseY + d},
-          {x:baseX + d, y:baseY - d},
-          {x:baseX - d, y:baseY + d},
-          {x:baseX - d, y:baseY - d}
-        );
+        const pointsPerRing = Math.max(10, Math.round((Math.PI * 2 * d) / Math.max(36, unitRadius * 0.55)));
+        for(let i=0;i<pointsPerRing;i++){
+          const a = (i / pointsPerRing) * Math.PI * 2;
+          candidates.push({
+            x: baseX + Math.cos(a) * d,
+            y: baseY + Math.sin(a) * d,
+          });
+        }
       }
 
       for(const c of candidates){
@@ -1641,14 +1639,37 @@ refreshAll();
       }
 
       // Fallback: плотный проход по сетке в пределах полосы расстановки.
-      // Это устраняет наложения, когда спиральные кандидаты не попали в свободную ячейку.
-      const scanStep = Math.max(44, Math.round(unitRadius * 0.7));
+      // Если свободной позиции нет совсем, выбираем наименее конфликтную,
+      // чтобы авторасстановка не сваливала отряды в одну точку.
+      const scanStep = Math.max(34, Math.round(unitRadius * 0.55));
+      let best = null;
+      let bestPenalty = Infinity;
+
+      function overlapPenalty(x, y){
+        let penalty = 0;
+        for(const other of scenario.units){
+          if(!other || other.id === u.id || other.state === 'destroyed') continue;
+          const otherR = Math.max(28, Number((other.layout && other.layout.collisionR) || 28));
+          const minDist = unitRadius + otherR + 8;
+          const d = U.dist(x, y, Number(other.x)||0, Number(other.y)||0);
+          if(d < minDist) penalty += (minDist - d);
+        }
+        return penalty;
+      }
+
       for(let y = yMin; y <= yMax; y += scanStep){
         for(let x = xMin; x <= xMax; x += scanStep){
           const place = E.canPlaceUnitPose ? E.canPlaceUnitPose(u, x, y, angle) : {ok:true};
           if(place.ok) return {x, y, angle};
+          const penalty = overlapPenalty(x, y) + U.dist(x, y, baseX, baseY) * 0.03;
+          if(penalty < bestPenalty){
+            bestPenalty = penalty;
+            best = {x, y, angle};
+          }
         }
       }
+
+      if(best) return best;
 
       return {
         x: U.clamp(baseX, xMin, xMax),
