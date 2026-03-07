@@ -226,6 +226,7 @@ const view = {
     zoom: 1.0,
     minZ: 0.25,
     maxZ: 3.5,
+    dpr: 1,
     _initialized: false,
     _fitZ: 1.0,
     cx: 0, cy: 0,   // screen center
@@ -235,6 +236,7 @@ const view = {
 
   function resize(){
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+    view.dpr = dpr;
     const rect = canvas.getBoundingClientRect();
     canvas.width = Math.floor(rect.width * dpr);
     canvas.height = Math.floor(rect.height * dpr);
@@ -281,11 +283,13 @@ function fitToViewport(){
     // Maps world->screen
     const tx = view.cx - view.ox * view.zoom;
     const ty = view.cy - view.oy * view.zoom;
-    ctx.setTransform(view.zoom, 0, 0, view.zoom, tx, ty);
+    const dpr = view.dpr || 1;
+    ctx.setTransform(view.zoom * dpr, 0, 0, view.zoom * dpr, tx * dpr, ty * dpr);
   }
 
   function resetTransform(){
-    ctx.setTransform(1,0,0,1,0,0);
+    const dpr = view.dpr || 1;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
   }
 
   function clampPan(){
