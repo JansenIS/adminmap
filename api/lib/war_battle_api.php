@@ -817,7 +817,7 @@ function war_battle_xpl_to_size_loss(array $target, float $xplDamage): int {
   $loss = (int)floor($frac);
   $rem = $frac - (float)$loss;
   if ($rem > 0.0 && mt_rand(1, 1000000) <= (int)floor($rem * 1000000.0)) $loss++;
-  return max(0, $loss);
+  return max(1, $loss);
 }
 
 function war_battle_formation_no_flanks(array $u): bool {
@@ -1024,6 +1024,10 @@ function war_battle_recreate_from_scratch(array &$battle, array $state, string $
   $tokens = is_array($battle['tokens'] ?? null) ? $battle['tokens'] : ['A' => '', 'B' => ''];
   $prevRev = (int)($battle['realtime']['state']['rev'] ?? 0);
 
+  $existingLog = array_values(array_filter((array)($battle['log'] ?? []), static fn($row) => is_array($row)));
+  $existingLog[] = ['at' => $now, 'event' => 'battle_recreated_from_scratch', 'side' => $side];
+  $prevHistory = array_values(array_filter((array)($battle['realtime']['history'] ?? []), static fn($row) => is_array($row)));
+
   $battle = [
     'battle_id' => $battleId,
     'province_pid' => $provincePid,
@@ -1033,9 +1037,7 @@ function war_battle_recreate_from_scratch(array &$battle, array $state, string $
     'sides' => $sides,
     'ready' => ['A' => false, 'B' => false],
     'tokens' => $tokens,
-    'log' => [
-      ['at' => $now, 'event' => 'battle_recreated_from_scratch', 'side' => $side],
-    ],
+    'log' => $existingLog,
     'realtime' => [
       'state' => [
         'rev' => max(1, $prevRev + 1),
@@ -1046,7 +1048,7 @@ function war_battle_recreate_from_scratch(array &$battle, array $state, string $
         'units' => war_battle_default_realtime_units(['sides' => $sides], $state),
         'updated_at' => $now,
       ],
-      'history' => [],
+      'history' => $prevHistory,
     ],
   ];
 }
@@ -1059,6 +1061,7 @@ function war_battle_restart(array &$battle, array $state, string $side = ''): vo
   $battle['auto_resolved'] = false;
   unset($battle['auto_resolve_result'], $battle['finished_at'], $battle['winner']);
   $battle['auto_resolve_at'] = $now + 2 * 24 * 60 * 60;
+  $prevHistory = array_values(array_filter((array)($battle['realtime']['history'] ?? []), static fn($row) => is_array($row)));
   $battle['realtime'] = [
     'state' => [
       'rev' => max(1, $prevRev + 1),
@@ -1069,7 +1072,7 @@ function war_battle_restart(array &$battle, array $state, string $side = ''): vo
       'units' => war_battle_default_realtime_units($battle, $state),
       'updated_at' => $now,
     ],
-    'history' => [],
+    'history' => $prevHistory,
   ];
   if (!is_array($battle['log'] ?? null)) $battle['log'] = [];
   $battle['log'][] = ['at' => $now, 'event' => 'battle_restarted', 'side' => $side];
@@ -1254,6 +1257,12 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
     $dy = $ny - (float)($u['y'] ?? 0);
     $dist = sqrt($dx*$dx + $dy*$dy);
     $max = (float)($u['move_range'] ?? 100.0);
+    $kind = strtolower((string)($u['kind'] ?? ''));
+    // In the client simulator cavalry movement uses an x2 tactical range multiplier.
+    // Keep server validation in sync to avoid false `move_too_far` on token sessions.
+    if (in_array($kind, ['cav', 'heavycav'], true)) {
+      $max *= 2.0;
+    }
     if ($phase === 'setup') {
       if (!war_battle_validate_setup_band($u, $ny)) return 'setup_band_forbidden';
       $max = max($max, 99999.0);
@@ -1385,6 +1394,34 @@ function war_battle_realtime_build_remaining_units(array $battle): array {
   return $remaining;
 }
 
+
+function war_battle_realtime_side_men_totals(array $units): array {
+  $totals = ['A' => 0, 'B' => 0];
+  foreach ($units as $u) {
+    if (!is_array($u)) continue;
+    $side = war_battle_color_to_side((string)($u['side'] ?? ''));
+    if (!in_array($side, ['A', 'B'], true)) continue;
+    $totals[$side] += max(0, (int)($u['men'] ?? 0));
+  }
+  return $totals;
+}
+
+function war_battle_realtime_action_outcome(array $beforeUnits, array $afterUnits, array $action): array {
+  $before = war_battle_realtime_side_men_totals($beforeUnits);
+  $after = war_battle_realtime_side_men_totals($afterUnits);
+  return [
+    'type' => (string)($action['type'] ?? ''),
+    'uid' => (string)($action['uid'] ?? ''),
+    'target_uid' => (string)($action['target_uid'] ?? ''),
+    'men_before' => $before,
+    'men_after' => $after,
+    'losses' => [
+      'A' => max(0, (int)$before['A'] - (int)$after['A']),
+      'B' => max(0, (int)$before['B'] - (int)$after['B']),
+    ],
+  ];
+}
+
 function war_battle_try_finalize_realtime(array &$battle, array &$state): bool {
   if (in_array((string)($battle['status'] ?? ''), ['finished', 'auto_resolved'], true)) return false;
   $rt = (array)($battle['realtime'] ?? []);
@@ -1425,25 +1462,49 @@ function war_battle_realtime_commit(array &$battle, array &$state, string $side,
   }
 
   $tmp = $cur;
+  $actionResults = [];
   foreach ($actions as $idx => $action) {
+    $beforeUnits = array_values((array)($tmp['units'] ?? []));
     $err = war_battle_apply_action_to_state($tmp, $side, $action);
     if ($err !== null) {
       return ['error' => 'invalid_action', 'action_index' => $idx, 'reason' => $err, 'battle' => $battle];
     }
+    $afterUnits = array_values((array)($tmp['units'] ?? []));
+    $actionResults[] = war_battle_realtime_action_outcome($beforeUnits, $afterUnits, $action);
   }
 
   $tmp['rev'] = $curRev + 1;
   $tmp['updated_at'] = time();
   $rt['state'] = $tmp;
-  $entry = ['rev' => (int)$tmp['rev'], 'at' => time(), 'side' => $side, 'actions' => $actions];
+  $totBefore = war_battle_realtime_side_men_totals((array)($cur['units'] ?? []));
+  $totAfter = war_battle_realtime_side_men_totals((array)($tmp['units'] ?? []));
+  $lossTotals = [
+    'A' => max(0, (int)$totBefore['A'] - (int)$totAfter['A']),
+    'B' => max(0, (int)$totBefore['B'] - (int)$totAfter['B']),
+  ];
+  $entry = [
+    'rev' => (int)$tmp['rev'],
+    'at' => time(),
+    'side' => $side,
+    'actions' => $actions,
+    'results' => $actionResults,
+    'loss_totals' => $lossTotals,
+  ];
   $hist = array_values(array_filter((array)($rt['history'] ?? []), static fn($h) => is_array($h)));
   $hist[] = $entry;
-  if (count($hist) > 400) $hist = array_slice($hist, -400);
   $rt['history'] = $hist;
   $battle['realtime'] = $rt;
 
   if (!is_array($battle['log'] ?? null)) $battle['log'] = [];
-  $battle['log'][] = ['at' => time(), 'event' => 'realtime_action_commit', 'side' => $side, 'rev' => (int)$tmp['rev'], 'actions' => count($actions)];
+  $battle['log'][] = [
+    'at' => time(),
+    'event' => 'realtime_action_commit',
+    'side' => $side,
+    'rev' => (int)$tmp['rev'],
+    'actions' => count($actions),
+    'loss_totals' => $lossTotals,
+    'results' => $actionResults,
+  ];
 
   $autoFinished = war_battle_try_finalize_realtime($battle, $state);
 
