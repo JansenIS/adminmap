@@ -31,9 +31,23 @@
     armyTable: $("armyTable"),
     provinceStats: $("provinceStats"),
     openPlayerAdmin: $("openPlayerAdmin"),
+    armyMenuBtn: $("armyMenuBtn"),
+    battleMenuBtn: $("battleMenuBtn"),
+    armyMenu: $("armyMenu"),
+    battleMenu: $("battleMenu"),
+    armyMenuClose: $("armyMenuClose"),
+    battleMenuClose: $("battleMenuClose"),
+    musterDomainLink: $("musterDomainLink"),
+    musterArrierbanLink: $("musterArrierbanLink"),
+    musterRoyalLink: $("musterRoyalLink"),
+    dismissArmyLink: $("dismissArmyLink"),
+    battleMenuList: $("battleMenuList"),
+    battleMenuStatus: $("battleMenuStatus"),
   };
 
-  const state = { world: null, types: {}, entities: {}, byName: new Map() };
+  const params = new URLSearchParams(location.search);
+  const accessToken = String(params.get("token") || "").trim();
+  const state = { world: null, types: {}, entities: {}, byName: new Map(), scope: null };
 
   function svgToDataUri(svg) {
     const raw = String(svg || "").trim();
@@ -47,12 +61,53 @@
     return res.json();
   }
 
+  function setMenuOpen(menu, open) {
+    if (!menu) return;
+    menu.classList.toggle("open", !!open);
+    menu.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function buildWarActionLink(type, id, action) {
+    const qs = new URLSearchParams({ token: accessToken, viewMode: "war", entity_type: type, entity_id: id, action: action || "" });
+    return `/player_admin.html?${qs.toString()}`;
+  }
+
+  async function loadBattleMenu() {
+    if (!refs.battleMenuList || !refs.battleMenuStatus) return;
+    refs.battleMenuList.innerHTML = "";
+    refs.battleMenuStatus.textContent = "Загрузка списка битв…";
+    try {
+      const json = await fetchJson(`/api/war/battles/list/?token=${encodeURIComponent(accessToken)}`);
+      const rows = Array.isArray(json?.battles) ? json.battles.filter((b) => b && b.my_link) : [];
+      if (!rows.length) {
+        refs.battleMenuStatus.textContent = "Для вашей сущности сейчас нет активных битв.";
+        return;
+      }
+      refs.battleMenuStatus.textContent = `Найдено боевых сессий: ${rows.length}.`;
+      refs.battleMenuList.innerHTML = rows.map((b) => {
+        const pid = Number(b.province_pid || 0);
+        const status = String(b.status || "setup");
+        const side = String(b.my_side || "?");
+        const url = String(b.my_link || "#");
+        return `<a class='linkbtn' href='${esc(url)}' target='_blank' rel='noopener'>${esc(String(b.battle_id || "battle"))} · PID ${fmt(pid)} · сторона ${esc(side)} · ${esc(status)}</a>`;
+      }).join("");
+    } catch (err) {
+      refs.battleMenuStatus.textContent = `Не удалось загрузить список битв: ${err.message}`;
+    }
+  }
+
   function populateSelectors() {
     refs.entityType.innerHTML = ENTITY_TYPES.map((t) => `<option value="${t.value}">${t.label}</option>`).join("");
-    const params = new URLSearchParams(location.search);
-    const qType = params.get("type") || "great_houses";
+    const qType = state.scope?.entity_type || params.get("type") || "great_houses";
     if (ENTITY_TYPES.some((t) => t.value === qType)) refs.entityType.value = qType;
-    rebuildEntitySelect(params.get("id") || "");
+    rebuildEntitySelect(state.scope?.entity_id || params.get("id") || "");
+    if (state.scope) {
+      refs.entityType.value = state.scope.entity_type || refs.entityType.value;
+      refs.entityType.disabled = true;
+      refs.entityId.value = state.scope.entity_id || refs.entityId.value;
+      refs.entityId.disabled = true;
+      refs.reloadBtn.textContent = "Обновить";
+    }
   }
 
   function rebuildEntitySelect(wantedId) {
@@ -64,6 +119,36 @@
     refs.entityId.innerHTML = entries.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join("");
     if (wantedId && entries.some((r) => r.id === wantedId)) refs.entityId.value = wantedId;
     if (!refs.entityId.value && entries[0]) refs.entityId.value = entries[0].id;
+  }
+
+
+
+  async function loadScopeByToken() {
+    if (!accessToken) throw new Error("Требуется token в URL для доступа к кабинету сущности");
+    const data = await fetchJson(`/api/player-admin/session/?token=${encodeURIComponent(accessToken)}`);
+    if (!data?.session) throw new Error("Недействительный или истёкший token");
+    state.scope = data.session;
+  }
+
+  function normalizeEntityTreasuryRows(turn) {
+    const candidates = [
+      turn?.treasury?.entity_treasury?.rows,
+      turn?.entity_treasury?.rows,
+      turn?.treasury?.entity_treasury,
+      turn?.entity_treasury,
+    ];
+    for (const rows of candidates) {
+      if (Array.isArray(rows)) return rows;
+    }
+    return [];
+  }
+
+  function matchTreasuryRow(rows, type, id) {
+    const typedId = `${type}:${id}`;
+    const normalized = Array.isArray(rows) ? rows : [];
+    return normalized.find((r) => String(r?.entity_id || "") === typedId)
+      || normalized.find((r) => String(r?.entity_id || "") === id && String(r?.entity_type || "") === type)
+      || normalized.find((r) => String(r?.entity_id || "") === id);
   }
 
   function calcProvinceStats(type, id) {
@@ -116,8 +201,8 @@
       const rows = [];
       for (const y of years) {
         const turn = await fetchJson(`/api/turns/show/?year=${y}&include=treasury`);
-        const treRows = turn?.treasury?.entity_treasury?.rows || turn?.entity_treasury?.rows || [];
-        const one = treRows.find((r) => String(r.entity_type || "") === type && String(r.entity_id || "") === id);
+        const treRows = normalizeEntityTreasuryRows(turn);
+        const one = matchTreasuryRow(treRows, type, id);
         if (!one) continue;
         rows.push({ year: y, closing: Number(one.closing_balance || 0), income: Number(one.income_total || 0) });
       }
@@ -175,7 +260,8 @@
     refs.entityEmblem.src = svgToDataUri(realm.emblem_svg);
     refs.rulerName.textContent = ruler;
     refs.rulerYears.textContent = "Годы жизни: —";
-    refs.openPlayerAdmin.href = `/player_admin.html?entity_type=${encodeURIComponent(type)}&entity_id=${encodeURIComponent(id)}`;
+    refs.genealogyLink.href = "/genealogy_simulator/index.html";
+    refs.openPlayerAdmin.href = `/player_admin.html?token=${encodeURIComponent(accessToken)}&entity_type=${encodeURIComponent(type)}&entity_id=${encodeURIComponent(id)}`;
 
     const p = calcProvinceStats(type, id);
     refs.kpis.innerHTML = `<span class='pill'>Провинций: ${fmt(p.ownedCount)}</span><span class='pill'>Население: ${fmt(p.pop)}</span><span class='pill'>Казна провинций: ${fmt(p.tre)}</span>`;
@@ -186,9 +272,11 @@
       const born = profile.birth_year ?? profile.born_year ?? profile.born;
       const died = profile.death_year ?? profile.died_year ?? profile.died;
       refs.rulerYears.textContent = `Годы жизни: ${born ?? "?"} — ${died ?? "…"}`;
-      const photo = String(profile.photo || profile.avatar || "");
+      const photo = String(profile.photo_url || profile.photo || profile.avatar || "");
       if (photo) refs.rulerPhoto.src = /^https?:|^\/api\//.test(photo) ? photo : `/api/genealogy/photo/?url=${encodeURIComponent(photo)}`;
-      if (profile.id) refs.genealogyLink.href = `/genealogy_8gen_example.html?focus=${encodeURIComponent(profile.id)}`;
+      const rulerClan = String(profile.clan || "").trim();
+      if (rulerClan) refs.genealogyLink.href = `/genealogy_simulator/index.html?clan=${encodeURIComponent(rulerClan)}`;
+      else refs.genealogyLink.href = "/genealogy_simulator/index.html";
     }
 
     await Promise.all([renderHierarchy(type, id), renderTreasury(type, id)]);
@@ -198,12 +286,32 @@
   async function bootstrap() {
     refs.reloadBtn.disabled = true;
     try {
+      await loadScopeByToken();
       const loaded = await window.AdminMapStateLoader.loadStateBackendOnly();
       state.world = loaded.state || {};
       populateSelectors();
       await render();
-      refs.entityType.addEventListener("change", () => { rebuildEntitySelect(""); render(); });
-      refs.entityId.addEventListener("change", render);
+      refs.armyMenuBtn?.addEventListener("click", () => {
+        const type = refs.entityType.value;
+        const id = refs.entityId.value;
+        if (refs.musterDomainLink) refs.musterDomainLink.href = buildWarActionLink(type, id, "muster_domain");
+        if (refs.musterArrierbanLink) refs.musterArrierbanLink.href = buildWarActionLink(type, id, "muster_arrierban");
+        if (refs.musterRoyalLink) refs.musterRoyalLink.href = buildWarActionLink(type, id, "muster_royal");
+        if (refs.dismissArmyLink) refs.dismissArmyLink.href = buildWarActionLink(type, id, "dismiss");
+        setMenuOpen(refs.armyMenu, true);
+      });
+      refs.battleMenuBtn?.addEventListener("click", async () => {
+        setMenuOpen(refs.battleMenu, true);
+        await loadBattleMenu();
+      });
+      refs.armyMenuClose?.addEventListener("click", () => setMenuOpen(refs.armyMenu, false));
+      refs.battleMenuClose?.addEventListener("click", () => setMenuOpen(refs.battleMenu, false));
+      refs.armyMenu?.addEventListener("click", (e) => { if (e.target === refs.armyMenu) setMenuOpen(refs.armyMenu, false); });
+      refs.battleMenu?.addEventListener("click", (e) => { if (e.target === refs.battleMenu) setMenuOpen(refs.battleMenu, false); });
+      if (!state.scope) {
+        refs.entityType.addEventListener("change", () => { rebuildEntitySelect(""); render(); });
+        refs.entityId.addEventListener("change", render);
+      }
       refs.reloadBtn.addEventListener("click", render);
     } catch (err) {
       refs.entityName.textContent = "Ошибка загрузки";

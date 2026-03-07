@@ -36,6 +36,14 @@
     th, td { text-align:left; border-bottom:1px solid #1e2e41; padding:7px 4px; }
     .links { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     .status { margin-top:8px; font-size:12px; color:#a8bdd4; }
+    .menu { position:fixed; inset:0; background:rgba(3,7,12,.62); display:none; align-items:center; justify-content:center; z-index:120; }
+    .menu.open { display:flex; }
+    .menu__panel { width:min(560px, 94vw); background:#0d1521; border:1px solid #223449; border-radius:16px; padding:14px; }
+    .menu__head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    .menu__title { margin:0; font-size:16px; }
+    .menu__list { display:grid; gap:8px; }
+    .menu__list button, .menu__list a { width:100%; text-align:left; }
+    .menu__status { margin-top:10px; font-size:12px; color:#a8bdd4; max-height:220px; overflow:auto; }
     @media (max-width: 980px) {
       .grid { grid-template-columns:1fr; }
       .hero { grid-template-columns:72px 1fr; }
@@ -61,7 +69,7 @@
       </div>
       <div class="links">
         <a class="linkbtn" id="wikiLink" href="#" target="_blank" rel="noopener">Wiki</a>
-        <a class="linkbtn" id="genealogyLink" href="/genealogy_8gen_example.html" target="_blank" rel="noopener">Генеалогия</a>
+        <a class="linkbtn" id="genealogyLink" href="/genealogy_simulator/index.html" target="_blank" rel="noopener">Генеалогия</a>
       </div>
     </section>
 
@@ -91,8 +99,8 @@
           <tbody id="armyTable"><tr><td colspan="4" class="muted">Нет данных</td></tr></tbody>
         </table>
         <div class="links">
-          <a class="linkbtn" href="/admin.html?viewMode=war" target="_blank" rel="noopener">Созвать/распустить</a>
-          <a class="linkbtn" href="/battle_sim/" target="_blank" rel="noopener">Боевые симуляции</a>
+          <button class="linkbtn" id="armyMenuBtn" type="button">Созвать/распустить</button>
+          <button class="linkbtn" id="battleMenuBtn" type="button">Боевые симуляции</button>
         </div>
       </article>
 
@@ -101,6 +109,33 @@
         <table id="provinceStats"></table>
       </article>
     </section>
+  </div>
+
+  <div class="menu" id="armyMenu" aria-hidden="true">
+    <div class="menu__panel">
+      <div class="menu__head">
+        <h3 class="menu__title">Созыв и роспуск армий</h3>
+        <button type="button" id="armyMenuClose">✕</button>
+      </div>
+      <div class="menu__list">
+        <a class="linkbtn" id="musterDomainLink" target="_blank" rel="noopener">Созвать доменную армию</a>
+        <a class="linkbtn" id="musterArrierbanLink" target="_blank" rel="noopener">Созвать арьербан</a>
+        <a class="linkbtn" id="musterRoyalLink" target="_blank" rel="noopener">Королевский призыв</a>
+        <a class="linkbtn" id="dismissArmyLink" target="_blank" rel="noopener">Распустить армию</a>
+      </div>
+      <div class="menu__status">Опции открывают war-режим player_admin с тем же порядком действий, что и на карте.</div>
+    </div>
+  </div>
+
+  <div class="menu" id="battleMenu" aria-hidden="true">
+    <div class="menu__panel">
+      <div class="menu__head">
+        <h3 class="menu__title">Активные боевые сессии</h3>
+        <button type="button" id="battleMenuClose">✕</button>
+      </div>
+      <div class="menu__list" id="battleMenuList"></div>
+      <div class="menu__status" id="battleMenuStatus">Загрузка списка битв…</div>
+    </div>
   </div>
 
   <script src="js/feature_flags.js"></script>

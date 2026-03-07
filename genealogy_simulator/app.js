@@ -2584,6 +2584,8 @@ async function init() {
   state.mode = document.body.dataset.mode || 'admin';
   const params = new URLSearchParams(window.location.search);
   state.accessToken = String(params.get('token') || '').trim();
+  const forcedClan = String(params.get('clan') || '').trim();
+  if (forcedClan) state.selectedClan = `clan:${forcedClan}`;
   document.getElementById('closeProfile')?.addEventListener('click', () => {
     document.getElementById('profileModal').style.display = 'none';
   });
