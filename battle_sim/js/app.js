@@ -1380,27 +1380,13 @@ refreshAll();
       };
     }
 
-    function flattenArmyRows(rows){
-      const out = [];
+    function spawnArmyRows(rows, side){
+      const allUnits = [];
       for(const army of rows){
         const units = Array.isArray(army && army.units) ? army.units : [];
         for(const [idx, row] of units.entries()){
-          out.push({
-            uid: String((army && army.army_uid) || '') + '#' + String(idx),
-            army,
-            idx,
-            row,
-          });
+          allUnits.push({ army, idx, row });
         }
-      }
-      return out;
-    }
-
-    function spawnArmyRows(rows, side){
-      const flatRows = flattenArmyRows(rows);
-      const allUnits = [];
-      for(const item of flatRows){
-        allUnits.push({ army: item.army, idx: item.idx, row: item.row, uid: item.uid });
       }
 
       const total = Math.max(1, allUnits.length);
@@ -1416,7 +1402,7 @@ refreshAll();
       const angle = autoDeployAngle(side);
 
       for(const [order, item] of allUnits.entries()){
-        const {army, idx, row, uid} = item;
+        const {army, idx, row} = item;
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1443,7 +1429,6 @@ refreshAll();
             u.angle = pose.angle;
             u._battleArmyUid = String(army && army.army_uid || "");
             u._battleUnitIdx = Number(idx);
-            u._battleUid = String(uid || '');
             clampUnitToDeployBand(u);
           }
         }
@@ -1452,45 +1437,7 @@ refreshAll();
 
     if(hydrate){
       if(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length){
-        const realtimeUnits = Array.isArray(realtimeState.units) ? realtimeState.units.slice() : [];
-        const realtimeUidSet = new Set();
-        for(const row of realtimeUnits){
-          const uid = String(row && row.uid || '').trim();
-          if(uid) realtimeUidSet.add(uid);
-        }
-
-        for(const item of flattenArmyRows(mine)){
-          if(!item.uid || realtimeUidSet.has(item.uid)) continue;
-          const size = Math.max(0, Number(item && item.row && item.row.size) || 0);
-          if(size <= 0) continue;
-          realtimeUnits.push({
-            uid: item.uid,
-            army_uid: String(item.army && item.army.army_uid || ''),
-            unit_idx: Number(item.idx),
-            unit_id: String(item.row && item.row.unit_id || ''),
-            source: String(item.row && item.row.source || ''),
-            side: ownSide,
-            formation: 'line',
-            men: size,
-          });
-        }
-        for(const item of flattenArmyRows(enemy)){
-          if(!item.uid || realtimeUidSet.has(item.uid)) continue;
-          const size = Math.max(0, Number(item && item.row && item.row.size) || 0);
-          if(size <= 0) continue;
-          realtimeUnits.push({
-            uid: item.uid,
-            army_uid: String(item.army && item.army.army_uid || ''),
-            unit_idx: Number(item.idx),
-            unit_id: String(item.row && item.row.unit_id || ''),
-            source: String(item.row && item.row.source || ''),
-            side: enemySide,
-            formation: 'line',
-            men: size,
-          });
-        }
-
-        for(const row of realtimeUnits){
+        for(const row of realtimeState.units){
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1499,8 +1446,8 @@ refreshAll();
             side: String(row.side || 'blue') === 'red' ? 'red' : 'blue',
             formation: String(row.formation || 'line'),
             men: Math.max(0, Number(row.men) || 0),
-            baseSize: Math.max(1, Number(row.baseSize || row.base_size || tpl.baseSize) || 1),
-            baseXpl: Math.max(0, Number(row.baseXpl || row.base_xpl || tpl.baseXpl) || 0),
+            baseSize: Math.max(1, Number(row.baseSize || tpl.baseSize) || 1),
+            baseXpl: Math.max(0, Number(row.baseXpl || tpl.baseXpl) || 0),
             name: String(tpl.name || type),
             x: Number(row.x || 0),
             y: Number(row.y || 0),
