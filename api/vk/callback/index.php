@@ -90,7 +90,7 @@ $sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array 
   $btns = [];
   if (!$hasApprovedStateApp) {
     $btns[] = vk_bot_btn('Регистрация нового государства', 'register_new', 'primary');
-    $btns[] = vk_bot_btn('Сесть за существующее (скоро)', 'existing_disabled', 'secondary');
+    $btns[] = vk_bot_btn('Сесть за существующее государство', 'register_existing', 'secondary');
   } else {
     $btns[] = vk_bot_btn('Войти в панель игрока', 'login_panel', 'positive');
     if (is_array($approvedCharacterApp)) {
@@ -193,8 +193,19 @@ if ($cmd === 'register_new') {
   echo 'ok'; exit;
 }
 
-if ($cmd === 'existing_disabled') {
-  vk_bot_send_message($userId, 'Функция посадки за существующее государство пока не активна.');
+if ($cmd === 'register_existing') {
+  if ($hasApprovedStateApp) {
+    vk_bot_send_message($userId, 'У вас уже есть одобренная заявка на государство. Повторная регистрация недоступна.');
+    echo 'ok'; exit;
+  }
+  $session = ['stage' => 'choose_existing_entity_type', 'data' => []];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Выберите тип существующей сущности:', vk_bot_keyboard([
+    vk_bot_btn('Большой Дом', 'existing_type_great_house', 'primary'),
+    vk_bot_btn('Малый Дом', 'existing_type_minor_house', 'secondary'),
+    vk_bot_btn('Вольный Город', 'existing_type_free_city', 'positive'),
+  ]));
   echo 'ok'; exit;
 }
 
@@ -449,6 +460,78 @@ if ($stage === 'choose_state_type') {
     $sendTerritorySelection($userId, $sessions, $data, $territories);
     echo 'ok'; exit;
   }
+}
+
+
+if ($cmd === 'existing_type_great_house' || $cmd === 'existing_type_minor_house' || $cmd === 'existing_type_free_city') {
+  $entityType = $cmd === 'existing_type_great_house'
+    ? 'great_houses'
+    : ($cmd === 'existing_type_minor_house' ? 'minor_houses' : 'free_cities');
+  $entities = $collectExistingEntitiesByType($state, $entityType);
+  if (empty($entities)) {
+    vk_bot_send_message($userId, 'Сущностей выбранного типа не найдено. Выберите другой тип.');
+    echo 'ok'; exit;
+  }
+  $sendExistingEntitySelection($userId, $sessions, $data, $entities, $entityType);
+  echo 'ok'; exit;
+}
+
+if ($stage === 'choose_existing_entity_type') {
+  if ($text === 'Большой Дом') $cmd = 'existing_type_great_house';
+  if ($text === 'Малый Дом') $cmd = 'existing_type_minor_house';
+  if ($text === 'Вольный Город') $cmd = 'existing_type_free_city';
+  if ($cmd === 'existing_type_great_house' || $cmd === 'existing_type_minor_house' || $cmd === 'existing_type_free_city') {
+    $entityType = $cmd === 'existing_type_great_house'
+      ? 'great_houses'
+      : ($cmd === 'existing_type_minor_house' ? 'minor_houses' : 'free_cities');
+    $entities = $collectExistingEntitiesByType($state, $entityType);
+    if (empty($entities)) {
+      vk_bot_send_message($userId, 'Сущностей выбранного типа не найдено. Выберите другой тип.');
+      echo 'ok'; exit;
+    }
+    $sendExistingEntitySelection($userId, $sessions, $data, $entities, $entityType);
+    echo 'ok'; exit;
+  }
+}
+
+if ($stage === 'choose_existing_entity') {
+  $entityType = trim((string)($data['existing_entity_type'] ?? ''));
+  $entityId = '';
+  if (preg_match('/^(\d{1,4})$/', $text, $m)) {
+    $pick = (string)$m[1];
+    $sel = $data['entity_number_map'][$pick] ?? null;
+    if (is_array($sel) && (string)($sel['entity_type'] ?? '') === $entityType) {
+      $entityId = trim((string)($sel['entity_id'] ?? ''));
+    }
+  } elseif (preg_match('/^(great_houses|minor_houses|free_cities):(.+)$/u', $text, $m)) {
+    if ($m[1] === $entityType) $entityId = trim($m[2]);
+  }
+  if ($entityType === '' || $entityId === '' || !player_admin_validate_entity_ref($state, $entityType, $entityId)) {
+    vk_bot_send_message($userId, 'Некорректный выбор. Отправьте номер из списка или точный ID сущности.');
+    echo 'ok'; exit;
+  }
+
+  $entity = player_admin_resolve_entity_ref($state, $entityType, $entityId);
+  $entityName = trim((string)($entity['name'] ?? $entityId));
+  if ($entityName === '') $entityName = $entityId;
+
+  $appId = 'app_' . date('Ymd_His') . '_' . $userId . '_' . random_int(100, 999);
+  $apps[] = [
+    'id' => $appId,
+    'created_at' => time(),
+    'status' => 'pending',
+    'vk_user_id' => $userId,
+    'registration_mode' => 'existing',
+    'selected_entity_type' => $entityType,
+    'selected_entity_id' => $entityId,
+    'selected_entity_name' => $entityName,
+  ];
+  vk_bot_save_applications($apps);
+
+  vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Заявка на доступ к существующей сущности отправлена в админку и ожидает одобрения.');
+  echo 'ok'; exit;
 }
 
 if ($stage === 'choose_territory') {

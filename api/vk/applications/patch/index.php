@@ -35,6 +35,35 @@ if ($action === 'update') {
 if ($action === 'approve') {
   if (($app['status'] ?? '') !== 'pending') api_json_response(['error' => 'status_not_pending'], 400, vk_bot_data_mtime());
   $state = api_load_state();
+
+  if (($app['registration_mode'] ?? '') === 'existing') {
+    $entityType = trim((string)($app['selected_entity_type'] ?? ''));
+    $entityId = trim((string)($app['selected_entity_id'] ?? ''));
+    if (!player_admin_validate_entity_ref($state, $entityType, $entityId)) {
+      api_json_response(['error' => 'selected_entity_not_found'], 400, vk_bot_data_mtime());
+    }
+    $tok = vk_bot_create_player_admin_token($entityType, $entityId, (string)($app['player_admin_token'] ?? ''));
+    $cfg = vk_bot_load_config();
+    $path = is_array($tok) ? (string)$tok['path'] : '';
+    $fullLink = ($cfg['public_base_url'] !== '' && $path !== '') ? ($cfg['public_base_url'] . $path) : $path;
+
+    $app['status'] = 'approved';
+    $app['approved_at'] = time();
+    $app['approved_entity_type'] = $entityType;
+    $app['approved_entity_id'] = $entityId;
+    $app['player_admin_token'] = is_array($tok) ? (string)$tok['token'] : '';
+    $app['player_admin_path'] = $path;
+    $apps[$idx] = $app;
+    vk_bot_save_applications($apps);
+
+    $userId = (int)($app['vk_user_id'] ?? 0);
+    if ($userId > 0 && $fullLink !== '') {
+      vk_bot_send_message($userId, 'Ваша заявка на существующую сущность одобрена! Вход в панель игрока: ' . $fullLink . "
+Кнопка «Войти в панель игрока» в боте теперь активна.");
+    }
+
+    api_json_response(['ok' => true, 'item' => $app], 200, vk_bot_data_mtime());
+  }
   $pid = (int)($app['chosen_pid'] ?? 0);
   if ($pid <= 0 || !is_array($state['provinces'][(string)$pid] ?? null)) api_json_response(['error' => 'province_not_found'], 400, vk_bot_data_mtime());
   $form = is_array($app['form'] ?? null) ? $app['form'] : [];

@@ -26,7 +26,9 @@
       const coa = (f.coa_svg||'').trim();
       const coaInfo = coa.startsWith('<svg') ? 'inline SVG' : (coa ? `<a href="${coa}" target="_blank" rel="noreferrer">SVG файл</a>` : '—');
       const mapLink = a.territory_image_path ? `<a href="${a.territory_image_path}" target="_blank" rel="noreferrer">Карта выбора</a>` : '—';
-      const details=`Тип: ${a.state_type||''}<br>PID: ${a.chosen_pid||''}<br>Название: ${f.state_name||''}<br>Столица: ${f.capital_name||''}<br>Правитель: ${f.ruler_name||''}<br>Род: ${f.ruler_house||''}<br>Лор: ${(f.lore||'').slice(0,120)}<br>Герб: ${coaInfo}<br>${mapLink}`;
+      const details = (a.registration_mode === 'existing')
+        ? `Режим: existing<br>Сущность: ${a.selected_entity_type||''}:${a.selected_entity_id||''}<br>Имя: ${a.selected_entity_name||'—'}`
+        : `Тип: ${a.state_type||''}<br>PID: ${a.chosen_pid||''}<br>Название: ${f.state_name||''}<br>Столица: ${f.capital_name||''}<br>Правитель: ${f.ruler_name||''}<br>Род: ${f.ruler_house||''}<br>Лор: ${(f.lore||'').slice(0,120)}<br>Герб: ${coaInfo}<br>${mapLink}`;
       tr.innerHTML=`<td>${a.id||''}</td><td>${a.status||''}</td><td>${a.vk_user_id||''}</td><td>${details}</td><td></td>`;
       const td=tr.lastElementChild;
       const edit=document.createElement('button'); edit.textContent='Редактировать'; edit.style.marginRight='6px';
