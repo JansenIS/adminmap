@@ -1448,7 +1448,7 @@ function war_battle_realtime_build_remaining_units(array $battle): array {
 
     $men = max(0, (int)($u['men'] ?? 0));
     $uState = (string)($u['state'] ?? 'ready');
-    if (in_array($uState, ['destroyed', 'routed'], true)) $men = 0;
+    if ($uState === 'destroyed') $men = 0;
 
     $remaining[$armyUid . '#' . (string)$idx] = $men;
   }
