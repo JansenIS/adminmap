@@ -1382,6 +1382,7 @@ refreshAll();
           x: Number(row && row.x || 0),
           y: Number(row && row.y || 0),
           angle: Number(row && row.angle || 0),
+          formation: String(row && row.formation || 'line'),
         });
       }
     }
@@ -1716,19 +1717,21 @@ refreshAll();
               const nextX = Number(u.x || 0);
               const nextY = Number(u.y || 0);
               const nextAngle = Number(u.angle || 0);
+              const nextFormation = String(u.formation || 'line');
               const prevPose = poseByUid.get(uid);
               if(prevPose){
                 const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
                 const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
                 const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
-                if(sameX && sameY && sameAngle) continue;
+                const sameFormation = String(prevPose.formation || 'line') === nextFormation;
+                if(sameX && sameY && sameAngle && sameFormation) continue;
               }
               const dist = prevPose ? Math.hypot(nextX - Number(prevPose.x || 0), nextY - Number(prevPose.y || 0)) : 0;
-              setupMoves.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle, _dist: dist });
+              setupMoves.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle, formation: nextFormation, _dist: dist });
             }
             setupMoves.sort((a,b)=>Number(b._dist||0)-Number(a._dist||0));
-            for(const mv of setupMoves){
-              await sendBattleActions([{ type:'move', uid: mv.uid, x: mv.x, y: mv.y, angle: mv.angle }]);
+            if(setupMoves.length){
+              await sendBattleActions(setupMoves.map((mv)=>({ type:'move', uid: mv.uid, x: mv.x, y: mv.y, angle: mv.angle, formation: mv.formation })));
             }
             E.log(setupMoves.length
               ? ('Расстановка сохранена: ' + String(setupMoves.length) + ' перемещений отправлено.')
