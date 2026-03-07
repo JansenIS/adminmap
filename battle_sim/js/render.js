@@ -684,12 +684,10 @@ function fitToViewport(){
     if(u.state==="routed") ctx.globalAlpha = 0.45;
     if(u.state==="destroyed") ctx.globalAlpha = 0.20;
 
-    // LOD stride by zoom
-    const z = view.zoom;
+    // LOD stride fixed by unit complexity (not by zoom), to keep formation visuals stable.
     const tokens = u.layout.tokens;
     let stride = 1;
-    if(z < 0.55) stride = 4;
-    else if(z < 0.8) stride = 2;
+    if((scenario.map && scenario.map.lod) && tokens.length > 2600) stride = 2;
 
     for(let i=0;i<tokens.length;i+=stride){
       const t = tokens[i];
