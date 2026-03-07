@@ -752,7 +752,11 @@ function drawOverlaysWorld(){
   if(battle.phase==="movement"){
     const focus = sel || hover;
     if(focus){
-      const r = E.getMoveRange(focus);
+      const movePreview = scenario.movePreview;
+      const draggingThisUnit = !!(movePreview && movePreview.unitId===focus.id);
+      const r = draggingThisUnit ? movePreview.r : E.getMoveRange(focus);
+      const cx = draggingThisUnit ? movePreview.x : focus.x;
+      const cy = draggingThisUnit ? movePreview.y : focus.y;
       const col = COLORS[focus.side] || COLORS.blue;
       if(r>0.5){
         const canMove = (focus.side===battle.active && focus.state==="ready" && focus.movedTurn!==battle.turn);
@@ -762,7 +766,7 @@ function drawOverlaysWorld(){
         ctx.strokeStyle = canMove ? col.move : "rgba(255,255,255,0.22)";
         ctx.fillStyle = canMove ? "rgba(90,208,255,0.07)" : "rgba(255,255,255,0.025)";
         ctx.beginPath();
-        ctx.arc(focus.x, focus.y, r, 0, TAU);
+        ctx.arc(cx, cy, r, 0, TAU);
         ctx.fill();
         ctx.stroke();
         ctx.restore();
@@ -797,8 +801,7 @@ function drawOverlaysWorld(){
         for(const u of scenario.units){
           if(u.side===shooter.side) continue;
           if(u.state==="destroyed") continue;
-          const d = window.U.dist(shooter.x, shooter.y, u.x, u.y);
-          if(d<=r) targets.push(u);
+          if(E.canTargetByRangedBoundary(shooter, u)) targets.push(u);
         }
 
         ctx.save();
@@ -814,8 +817,7 @@ function drawOverlaysWorld(){
 
         // Hover target preview (line + stronger highlight)
         if(hover && hover.side!==shooter.side && hover.state!=="destroyed"){
-          const d = window.U.dist(shooter.x, shooter.y, hover.x, hover.y);
-          if(d<=r){
+          if(E.canTargetByRangedBoundary(shooter, hover)){
             ctx.strokeStyle = "rgba(255,210,60,0.9)";
             ctx.lineWidth = 3.5 / view.zoom;
             ctx.beginPath();
