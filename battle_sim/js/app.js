@@ -703,6 +703,7 @@ const input = {
     startWX:0, startWY:0,
     startUX:0, startUY:0,
     lastValidUX:0, lastValidUY:0,
+    hasValidPose:false,
     moveRange:0,
     panStartX:0, panStartY:0,
     panStartOx:0, panStartOy:0,
@@ -861,6 +862,7 @@ if(battle.started && battle.phase==="ranged" && picked){
         input.startWX=w.x; input.startWY=w.y;
         input.startUX=picked.x; input.startUY=picked.y;
         input.lastValidUX=picked.x; input.lastValidUY=picked.y;
+        input.hasValidPose = !!(E.canPlaceUnitPose ? E.canPlaceUnitPose(picked, picked.x, picked.y, (picked.angle||0)).ok : true);
         input.moveRange = battle.started ? E.getMoveRange(picked) : 999999;
       }
     }else{
@@ -941,20 +943,24 @@ if(battle.started && battle.phase==="ranged" && picked){
         const res0 = E.canPlaceUnitPose(u, tx, ty, ang);
         if(!res0.ok){
           // pull back along movement vector to last valid position
-          let ax = input.lastValidUX, ay = input.lastValidUY;
-          let bx = tx, by = ty;
-          for(let it=0; it<9; it++){
-            const mx = (ax+bx)/2, my = (ay+by)/2;
-            const r1 = E.canPlaceUnitPose(u, mx, my, ang);
-            if(r1.ok){ ax=mx; ay=my; } else { bx=mx; by=my; }
+          // (except setup recovery: allow moving from an initially invalid pose)
+          if(input.hasValidPose || battle.started){
+            let ax = input.lastValidUX, ay = input.lastValidUY;
+            let bx = tx, by = ty;
+            for(let it=0; it<9; it++){
+              const mx = (ax+bx)/2, my = (ay+by)/2;
+              const r1 = E.canPlaceUnitPose(u, mx, my, ang);
+              if(r1.ok){ ax=mx; ay=my; } else { bx=mx; by=my; }
+            }
+            tx = ax; ty = ay;
           }
-          tx = ax; ty = ay;
         }
       }
 
       u.x = tx; u.y = ty;
       clampUnitToDeployBand(u);
       if(E.canPlaceUnitPose && E.canPlaceUnitPose(u, u.x, u.y, (u.angle||0)).ok){
+        input.hasValidPose = true;
         input.lastValidUX = u.x; input.lastValidUY = u.y;
       }
 
