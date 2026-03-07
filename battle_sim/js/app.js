@@ -1520,6 +1520,22 @@ refreshAll();
     const realtimeState = json && json.battle && json.battle.realtime && json.battle.realtime.state ? json.battle.realtime.state : null;
     tokenMode.realtimePhase = String(realtimeState && realtimeState.phase || 'setup');
     tokenMode.realtimeActiveSide = String(realtimeState && realtimeState.active_side || 'A');
+
+    // Sync local simulator state with authoritative realtime state from backend.
+    // Without this, UI tags and input guards remain stuck in local "setup"
+    // even when session status is already active.
+    const knownPhase = ['setup','movement','ranged','melee','morale'].includes(tokenMode.realtimePhase)
+      ? tokenMode.realtimePhase
+      : 'setup';
+    battle.phase = knownPhase;
+    battle.turn = Math.max(1, Number(realtimeState && realtimeState.turn || 1) || 1);
+    battle.active = tokenMode.realtimeActiveSide === 'B' ? 'red' : 'blue';
+    battle.started = knownPhase !== 'setup';
+    battle.over = ['finished', 'auto_resolved'].includes(String(tokenMode.sessionStatus || ''));
+    if(battle.over){
+      battle.winner = null;
+    }
+
     if(realtimeState && Number.isFinite(Number(realtimeState.rev))) tokenMode.lastRealtimeRev = Number(realtimeState.rev);
     tokenMode.lastRealtimeUnitPose = new Map();
     if(realtimeState && Array.isArray(realtimeState.units)){
