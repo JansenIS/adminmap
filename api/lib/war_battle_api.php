@@ -661,6 +661,17 @@ function war_battle_xpl_per_man(array $u): float {
   return $baseXpl / $baseSize;
 }
 
+function war_battle_xpl_to_size_loss(array $target, float $xplDamage): int {
+  $ppm = war_battle_xpl_per_man($target);
+  if ($ppm <= 0.0 || $xplDamage <= 0.0) return 0;
+  $frac = $xplDamage / $ppm;
+  if ($frac <= 0.0) return 0;
+  $loss = (int)floor($frac);
+  $rem = $frac - (float)$loss;
+  if ($rem > 0.0 && mt_rand(1, 1000000) <= (int)floor($rem * 1000000.0)) $loss++;
+  return max(0, $loss);
+}
+
 function war_battle_formation_no_flanks(array $u): bool {
   return ((string)($u['formation'] ?? 'line') === 'chatillon') || !empty($u['no_flanks']);
 }
@@ -970,7 +981,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
           $dx = (float)($a['x'] ?? 0.0) - (float)($b['x'] ?? 0.0);
           $dy = (float)($a['y'] ?? 0.0) - (float)($b['y'] ?? 0.0);
           $sumR = (float)($a['collision_r'] ?? 28.0) + (float)($b['collision_r'] ?? 28.0);
-          if (($dx*$dx + $dy*$dy) <= (($sumR * 0.28) ** 2)) $pairs[] = [$i, $j];
+          if (($dx*$dx + $dy*$dy) <= (($sumR * 1.05) ** 2)) $pairs[] = [$i, $j];
         }
       }
       foreach ($pairs as [$ia, $ib]) {
@@ -1001,8 +1012,8 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
         $xplToB *= (1.0 - war_battle_clamp((float)($b['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
         $xplToA *= (1.0 - war_battle_clamp((float)($a['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
 
-        $lossB = max(0, (int)floor($xplToB / max(1e-9, war_battle_xpl_per_man($b))));
-        $lossA = max(0, (int)floor($xplToA / max(1e-9, war_battle_xpl_per_man($a))));
+        $lossB = war_battle_xpl_to_size_loss($b, $xplToB);
+        $lossA = war_battle_xpl_to_size_loss($a, $xplToA);
         $capB = max(1, (int)floor((int)($b['men'] ?? 0) * max(0.0, (float)($aMelee['cap_pct'] ?? 0.18))));
         $capA = max(1, (int)floor((int)($a['men'] ?? 0) * max(0.0, (float)($bMelee['cap_pct'] ?? 0.18))));
         $lossB = min($lossB, $capB, max(0, (int)($b['men'] ?? 0)));
@@ -1146,7 +1157,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       if (!$ranged) return 'no_ranged';
       $range = (float)($ranged['range'] ?? 120.0);
     } else {
-      $range = ((float)($u['collision_r'] ?? 28.0) + (float)($t['collision_r'] ?? 28.0)) * 0.35;
+      $range = ((float)($u['collision_r'] ?? 28.0) + (float)($t['collision_r'] ?? 28.0)) * 1.05;
     }
     if ($dist > $range + 0.001) return 'target_out_of_range';
 
@@ -1162,7 +1173,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       $shootingModels = max(1, (int)round(max(1, (int)($u['men'] ?? 0)) * 0.35));
       $xplDmg = ($shootingModels * $acc) * war_battle_xpl_per_man($u) * max(0.0, (float)($ranged['power'] ?? 0.01)) * (mt_rand(80,120)/100);
       $xplDmg *= (1.0 - war_battle_clamp((float)($t['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
-      $loss = max(0, (int)floor($xplDmg / max(1e-9, war_battle_xpl_per_man($t))));
+      $loss = war_battle_xpl_to_size_loss($t, $xplDmg);
       $cap = max(1, (int)floor((int)($t['men'] ?? 0) * max(0.0, (float)($ranged['cap_pct'] ?? 0.08))));
       $loss = min($loss, $cap, max(0, (int)($t['men'] ?? 0)));
       $t['men'] = max(0, (int)($t['men'] ?? 0) - $loss);
@@ -1176,7 +1187,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       $melee = is_array($u['melee'] ?? null) ? $u['melee'] : ['power'=>0.02,'cap_pct'=>0.12];
       $xplDmg = max(1, (int)($u['men'] ?? 0)) * war_battle_xpl_per_man($u) * max(0.0, (float)($melee['power'] ?? 0.02)) * (mt_rand(85,125)/100);
       $xplDmg *= (1.0 - war_battle_clamp((float)($t['armor'] ?? 0.0) * 0.6, 0.0, 0.9));
-      $loss = max(0, (int)floor($xplDmg / max(1e-9, war_battle_xpl_per_man($t))));
+      $loss = war_battle_xpl_to_size_loss($t, $xplDmg);
       $cap = max(1, (int)floor((int)($t['men'] ?? 0) * max(0.0, (float)($melee['cap_pct'] ?? 0.18))));
       $loss = min($loss, $cap, max(0, (int)($t['men'] ?? 0)));
       $t['men'] = max(0, (int)($t['men'] ?? 0) - $loss);
