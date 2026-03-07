@@ -13,41 +13,7 @@
   const {UNIT_CATALOG} = window.DATA;
   const U = window.U;
   const qs = new URLSearchParams(window.location.search || "");
-  const tokenRequired = String(qs.get('token_required') || '').trim() === '1';
-  const hashRaw = String(window.location.hash || '').replace(/^#/, '');
-  const hashQs = new URLSearchParams(hashRaw);
-  let storedBattleToken = "";
-  try {
-    storedBattleToken = String(localStorage.getItem('battle_sim_token') || sessionStorage.getItem('battle_sim_token') || '').trim();
-  } catch(_e) {
-    storedBattleToken = "";
-  }
-  let refToken = "";
-  try {
-    const ref = String(document.referrer || '').trim();
-    if(ref){
-      const refUrl = new URL(ref, window.location.origin);
-      const refQs = refUrl.searchParams;
-      refToken = String(refQs.get('battle_token') || refQs.get('token') || '').trim();
-    }
-  } catch(_e) {
-    refToken = "";
-  }
-  const battleToken = String(
-    qs.get("battle_token") ||
-    qs.get("token") ||
-    hashQs.get("battle_token") ||
-    hashQs.get("token") ||
-    storedBattleToken ||
-    refToken ||
-    ""
-  ).trim();
-  if(battleToken){
-    try {
-      localStorage.setItem('battle_sim_token', battleToken);
-      sessionStorage.setItem('battle_sim_token', battleToken);
-    } catch(_e) {}
-  }
+  const battleToken = String(qs.get("battle_token") || "").trim();
 
   const tokenMode = {
     enabled: battleToken !== "",
@@ -57,7 +23,6 @@
     sessionStatus: "setup",
     locked: false,
     lastRealtimeRev: 0,
-    emergencyFromArmies: false,
   };
 
   // --- DOM ---
@@ -1415,41 +1380,13 @@ refreshAll();
       };
     }
 
-    function armyUnitsAsList(army){
-      const raw = army && army.units;
-      if(Array.isArray(raw)) return raw.map((row, idx) => ({ idx, row }));
-      if(raw && typeof raw === 'object'){
-        const out = [];
-        for(const [k, row] of Object.entries(raw)){
-          const parsed = Number(k);
-          out.push({ idx: Number.isFinite(parsed) ? parsed : out.length, row });
-        }
-        out.sort((a,b)=>a.idx-b.idx);
-        return out;
-      }
-      return [];
-    }
-
-    function flattenArmyRows(rows){
-      const out = [];
-      for(const army of rows){
-        for(const item of armyUnitsAsList(army)){
-          out.push({
-            uid: String((army && army.army_uid) || '') + '#' + String(item.idx),
-            army,
-            idx: Number(item.idx),
-            row: item.row,
-          });
-        }
-      }
-      return out;
-    }
-
     function spawnArmyRows(rows, side){
-      const flatRows = flattenArmyRows(rows);
       const allUnits = [];
-      for(const item of flatRows){
-        allUnits.push({ army: item.army, idx: item.idx, row: item.row, uid: item.uid });
+      for(const army of rows){
+        const units = Array.isArray(army && army.units) ? army.units : [];
+        for(const [idx, row] of units.entries()){
+          allUnits.push({ army, idx, row });
+        }
       }
 
       const total = Math.max(1, allUnits.length);
@@ -1465,7 +1402,7 @@ refreshAll();
       const angle = autoDeployAngle(side);
 
       for(const [order, item] of allUnits.entries()){
-        const {army, idx, row, uid} = item;
+        const {army, idx, row} = item;
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1492,7 +1429,6 @@ refreshAll();
             u.angle = pose.angle;
             u._battleArmyUid = String(army && army.army_uid || "");
             u._battleUnitIdx = Number(idx);
-            u._battleUid = String(uid || '');
             clampUnitToDeployBand(u);
           }
         }
@@ -1500,69 +1436,8 @@ refreshAll();
     }
 
     if(hydrate){
-      const useRealtime = !!(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length && !tokenMode.emergencyFromArmies);
-      if(useRealtime){
-        const realtimeUnits = Array.isArray(realtimeState.units) ? realtimeState.units.slice() : [];
-        const realtimeUidSet = new Set();
-        const armyDefaults = new Map();
-
-        function registerArmyDefaults(rows, side){
-          for(const item of flattenArmyRows(rows)){
-            const uid = String(item && item.uid || '').trim();
-            if(!uid) continue;
-            const srcRow = item && item.row ? item.row : {};
-            armyDefaults.set(uid, {
-              uid,
-              army_uid: String(item.army && item.army.army_uid || ''),
-              unit_idx: Number(item.idx),
-              unit_id: String(srcRow.unit_id || ''),
-              source: String(srcRow.source || ''),
-              side,
-              men: Math.max(0, Number(srcRow.size) || 0),
-            });
-          }
-        }
-
-        registerArmyDefaults(mine, ownSide);
-        registerArmyDefaults(enemy, enemySide);
-
-        for(const row of realtimeUnits){
-          const uid = String(row && row.uid || '').trim();
-          if(!uid) continue;
-          realtimeUidSet.add(uid);
-
-          const defaults = armyDefaults.get(uid);
-          if(!defaults) continue;
-
-          const curMen = Math.max(0, Number(row.men) || 0);
-          const hasValidMen = curMen > 0;
-          const defaultMen = Math.max(0, Number(defaults.men) || 0);
-          if(!hasValidMen && defaultMen > 0){
-            row.men = defaultMen;
-          }
-          if(!row.unit_id && defaults.unit_id) row.unit_id = defaults.unit_id;
-          if(!row.source && defaults.source) row.source = defaults.source;
-          if(!row.army_uid && defaults.army_uid) row.army_uid = defaults.army_uid;
-          if(!Number.isFinite(Number(row.unit_idx))) row.unit_idx = defaults.unit_idx;
-          if(!row.side && defaults.side) row.side = defaults.side;
-        }
-
-        for(const [uid, defaults] of armyDefaults.entries()){
-          if(realtimeUidSet.has(uid)) continue;
-          if(defaults.men <= 0) continue;
-          realtimeUnits.push({
-            uid: defaults.uid,
-            army_uid: defaults.army_uid,
-            unit_idx: defaults.unit_idx,
-            unit_id: defaults.unit_id,
-            source: defaults.source,
-            side: defaults.side,
-            formation: 'line',
-            men: defaults.men,
-          });
-        }
-
-        for(const row of realtimeUnits){
+      if(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length){
+        for(const row of realtimeState.units){
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1571,8 +1446,8 @@ refreshAll();
             side: String(row.side || 'blue') === 'red' ? 'red' : 'blue',
             formation: String(row.formation || 'line'),
             men: Math.max(0, Number(row.men) || 0),
-            baseSize: Math.max(1, Number(row.baseSize || row.base_size || tpl.baseSize) || 1),
-            baseXpl: Math.max(0, Number(row.baseXpl || row.base_xpl || tpl.baseXpl) || 0),
+            baseSize: Math.max(1, Number(row.baseSize || tpl.baseSize) || 1),
+            baseXpl: Math.max(0, Number(row.baseXpl || tpl.baseXpl) || 0),
             name: String(tpl.name || type),
             x: Number(row.x || 0),
             y: Number(row.y || 0),
@@ -1591,11 +1466,6 @@ refreshAll();
         spawnArmyRows(enemy, enemySide);
       }
       E.selectUnit(null);
-      if(tokenMode.enabled){
-        const ownCount = scenario.units.filter((u)=>String(u && u.side || '')===ownSide).length;
-        const enemyCount = scenario.units.filter((u)=>String(u && u.side || '')===enemySide).length;
-        E.log(`Hydration: my_armies=${mine.length}, enemy_armies=${enemy.length}, spawned=${scenario.units.length} (own=${ownCount}, enemy=${enemyCount}), mode=${tokenMode.emergencyFromArmies ? 'emergency' : 'normal'}`, 'mut');
-      }
     }
 
     const prevCard = document.getElementById('tokenSessionCard');
@@ -1604,20 +1474,14 @@ refreshAll();
     card.className = 'card';
     card.id = 'tokenSessionCard';
     const sideLabel = ownSide === 'blue' ? 'Синие (сторона A)' : 'Красные (сторона B)';
-    card.innerHTML = `<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">Вы играете за: <b>${sideLabel}</b>. Расстановка только на своей трети карты (центр закрыт). Статус: <b>${tokenMode.sessionStatus}</b>.</div><div class="row" style="margin-top:8px;"><button class="btn" id="tokenReadyBtn">Готов</button><button class="btn" id="tokenPushStateBtn">Отправить ход (lockstep)</button><button class="btn" id="tokenPullStateBtn">Получить состояние</button><button class="btn" id="tokenSessionRefreshBtn">Обновить статус</button><button class="btn" id="tokenEmergencyBtn">Аварийный режим: OFF</button><button class="btn" id="tokenRestartBtn">Перезагрузить бой</button><button class="btn" id="tokenRecreateBtn">Полный перезапуск (с нуля)</button><button class="btn" id="tokenFinishBtn">Сохранить итог боя</button><button class="btn" id="tokenReloadBtn">Перезагрузить</button></div></div>`;
+    card.innerHTML = `<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">Вы играете за: <b>${sideLabel}</b>. Расстановка только на своей трети карты (центр закрыт). Статус: <b>${tokenMode.sessionStatus}</b>.</div><div class="row" style="margin-top:8px;"><button class="btn" id="tokenReadyBtn">Готов</button><button class="btn" id="tokenPushStateBtn">Отправить ход (lockstep)</button><button class="btn" id="tokenPullStateBtn">Получить состояние</button><button class="btn" id="tokenSessionRefreshBtn">Обновить статус</button><button class="btn" id="tokenFinishBtn">Сохранить итог боя</button><button class="btn" id="tokenReloadBtn">Перезагрузить</button></div></div>`;
     const panel = document.querySelector('.panel');
-    if(panel){
-      if(panel.firstChild) panel.insertBefore(card, panel.firstChild);
-      else panel.appendChild(card);
-    }
+    if(panel && panel.firstChild) panel.insertBefore(card, panel.firstChild);
     const readyBtn = document.getElementById('tokenReadyBtn');
     const pushBtn = document.getElementById('tokenPushStateBtn');
     const pullBtn = document.getElementById('tokenPullStateBtn');
     const refreshBtn = document.getElementById('tokenSessionRefreshBtn');
-    const emergencyBtn = document.getElementById('tokenEmergencyBtn');
     const finishBtn = document.getElementById('tokenFinishBtn');
-    const restartBtn = document.getElementById('tokenRestartBtn');
-    const recreateBtn = document.getElementById('tokenRecreateBtn');
     const reloadBtn = document.getElementById('tokenReloadBtn');
     if(readyBtn){
       readyBtn.addEventListener('click', async ()=>{
@@ -1659,44 +1523,6 @@ refreshAll();
         refreshAll();
       });
     }
-    if(emergencyBtn){
-      emergencyBtn.textContent = 'Аварийный режим: ' + (tokenMode.emergencyFromArmies ? 'ON' : 'OFF');
-      emergencyBtn.addEventListener('click', async ()=>{
-        tokenMode.emergencyFromArmies = !tokenMode.emergencyFromArmies;
-        emergencyBtn.textContent = 'Аварийный режим: ' + (tokenMode.emergencyFromArmies ? 'ON' : 'OFF');
-        E.log('Аварийный режим ' + (tokenMode.emergencyFromArmies ? 'включён' : 'выключен') + '. Источник данных: ' + (tokenMode.emergencyFromArmies ? 'списки армий' : 'realtime + списки армий'), 'ok');
-        await loadTokenBattleScenario({ hydrate: true });
-        refreshAll();
-      });
-    }
-    if(restartBtn){
-      restartBtn.addEventListener('click', async ()=>{
-        const rr = await fetch('/api/war/battle/restart/', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ token: battleToken })
-        });
-        const jj = await rr.json();
-        if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
-        E.log('Бой перезапущен и состояние обновлено.', 'ok');
-        await loadTokenBattleScenario({ hydrate: true });
-        refreshAll();
-      });
-    }
-    if(recreateBtn){
-      recreateBtn.addEventListener('click', async ()=>{
-        const rr = await fetch('/api/war/battle/recreate/', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ token: battleToken })
-        });
-        const jj = await rr.json();
-        if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
-        E.log('Бой полностью пересоздан с нуля.', 'ok');
-        await loadTokenBattleScenario({ hydrate: true });
-        refreshAll();
-      });
-    }
     if(finishBtn){
       finishBtn.addEventListener('click', async ()=>{
         const remaining = {};
@@ -1723,64 +1549,13 @@ refreshAll();
     }
   }
 
-
-  function lockSimulatorForTokenRequirement(){
-    const ids = ['btnStart','btnNext','btnReset','addUnit','btnHeal','btnKill','btnRemove','btnChangeFormationMove'];
-    for(const id of ids){
-      const n = document.getElementById(id);
-      if(n) n.disabled = true;
-    }
-  }
-
-  function renderTokenHintCard(messageHtml){
-    const prev = document.getElementById('tokenSessionCard');
-    if(prev) prev.remove();
-    const panel = document.querySelector('.panel');
-    if(!panel) return;
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.id = 'tokenSessionCard';
-    card.innerHTML = '<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">' + String(messageHtml || '') + '</div></div>';
-    if(panel.firstChild) panel.insertBefore(card, panel.firstChild);
-    else panel.appendChild(card);
-  }
-
-  function renderNoTokenHint(){
-    renderTokenHintCard('Токен не найден. Откройте battle_sim/token.html?token=... или добавьте в URL index.html параметр <b>?battle_token=...</b>.');
-  }
-
-  function renderTokenLoadingHint(){
-    const tokenHead = battleToken ? (battleToken.slice(0, 6) + '…') : '—';
-    renderTokenHintCard('Токен обнаружен (' + tokenHead + '). Загружаем данные сессии…');
-  }
-
-  function renderTokenLoadErrorHint(err){
-    const msg = err && err.message ? err.message : String(err || 'unknown_error');
-    renderTokenHintCard('Токен обнаружен, но загрузка сессии не удалась: <b>' + msg + '</b><br>Проверьте ответ <code>/api/war/battle/session/?token=...</code> и валидность токена.');
-  }
-
   async function bootstrap(){
     bind();
-    if(!tokenMode.enabled){
-      if(tokenRequired){
-        renderTokenHintCard('Режим токен-сессии обязателен (<code>token_required=1</code>), но токен не распознан. Откройте <code>/battle_sim/token_sim.html?token=...</code>.');
-        E.log('Токен-сессия обязательна, но токен не найден.', 'bad');
-        lockSimulatorForTokenRequirement();
-      } else {
-        renderNoTokenHint();
-      }
-    }
     if(tokenMode.enabled){
-      renderTokenLoadingHint();
       try {
         await loadTokenBattleScenario({ hydrate: true });
       } catch (err) {
         E.log('Ошибка загрузки токен-сессии: ' + (err && err.message ? err.message : err), 'bad');
-        renderTokenLoadErrorHint(err);
-        if(tokenRequired){
-          E.log('Обычный симулятор отключён: token_required=1.', 'bad');
-          lockSimulatorForTokenRequirement();
-        }
       }
     }
     refreshAll();
