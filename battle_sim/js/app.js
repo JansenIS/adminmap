@@ -150,6 +150,11 @@
     return tokenMode.side === "A" ? "blue" : (tokenMode.side === "B" ? "red" : null);
   }
 
+  function defaultAngleForSide(side){
+    // 0 rad = "up" (-Y): red (bottom) should look up, blue (top) should look down.
+    return String(side || '') === 'blue' ? Math.PI : 0;
+  }
+
   function isOwnUnit(u){
     const ownSide = sideForTokenPlayer();
     if(!ownSide) return true;
@@ -646,8 +651,13 @@ function renderRoster(){
     const phase = String(tokenMode.realtimePhase || 'setup');
     const poseChanges = collectOwnPoseChanges(own);
     if(poseChanges.length){
-      await sendSetupMovesInOrder(poseChanges);
-      E.log('Позиции синхронизированы: ' + String(poseChanges.length) + ' перемещений.', 'ok');
+      const syncResult = await sendSetupMovesInOrder(poseChanges, { allowEnemyCollision: phase !== 'setup' });
+      const appliedCount = Math.max(0, Number(syncResult && syncResult.applied || 0));
+      const skippedEnemyCollision = Math.max(0, Number(syncResult && syncResult.skippedEnemyCollision || 0));
+      if(skippedEnemyCollision > 0){
+        E.log('Часть перемещений в коллизию с врагом пропущена (' + String(skippedEnemyCollision) + '), завершаем фазу для перехода в ближний бой.', 'warn');
+      }
+      E.log('Позиции синхронизированы: ' + String(appliedCount) + ' перемещений.', 'ok');
     } else {
       E.log('Изменений позиций нет.', 'mut');
     }
@@ -1297,10 +1307,13 @@ if(battle.started && battle.phase==="ranged" && picked){
     throw new Error('revision_conflict');
   }
 
-  async function sendSetupMovesInOrder(setupMoves){
+  async function sendSetupMovesInOrder(setupMoves, opts={}){
     const transientReasons = new Set(['ally_contact', 'enemy_overlap']);
+    const allowEnemyCollision = !!(opts && opts.allowEnemyCollision);
+    const ignoredEnemyReasons = new Set(['enemy_overlap', 'enemy_contact']);
     let pending = Array.isArray(setupMoves) ? setupMoves.slice() : [];
     let applied = 0;
+    let skippedEnemyCollision = 0;
     let lastErr = null;
 
     for(let pass = 0; pass < Math.max(1, pending.length); pass++){
@@ -1316,6 +1329,10 @@ if(battle.started && battle.phase==="ranged" && picked){
           lastErr = null;
         } catch(err){
           const reason = String(err && err.reason || err && err.message || '').trim();
+          if(allowEnemyCollision && ignoredEnemyReasons.has(reason)){
+            skippedEnemyCollision += 1;
+            continue;
+          }
           if(transientReasons.has(reason)){
             nextPending.push(mv);
             lastErr = err;
@@ -1336,7 +1353,7 @@ if(battle.started && battle.phase==="ranged" && picked){
     if(pending.length){
       throw lastErr || new Error('setup_move_conflict');
     }
-    return applied;
+    return { applied, skippedEnemyCollision };
   }
 
   function collectOwnPoseChanges(ownSide){
@@ -1354,7 +1371,10 @@ if(battle.started && battle.phase==="ranged" && picked){
       if(prevPose){
         const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
         const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
-        const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
+        const prevAngle = Number(prevPose.angle);
+        const sameAngle = !Number.isFinite(prevAngle)
+          ? true
+          : Math.abs(Math.atan2(Math.sin(prevAngle - nextAngle), Math.cos(prevAngle - nextAngle))) <= 0.001;
         const sameFormation = String(prevPose.formation || 'line') === nextFormation;
         if(sameX && sameY && sameAngle && sameFormation) continue;
       }
@@ -1578,7 +1598,10 @@ refreshAll();
         tokenMode.lastRealtimeUnitPose.set(uid, {
           x: Number(row && row.x || 0),
           y: Number(row && row.y || 0),
-          angle: Number(row && row.angle || 0),
+          // Сервер в ряде состояний может не присылать angle.
+          // Храним null (а не подставляем угол), чтобы не генерировать
+          // ложные move-only-повороты при сравнении поз.
+          angle: Number.isFinite(Number(row && row.angle)) ? Number(row && row.angle) : null,
           formation: String(row && row.formation || 'line'),
         });
       }
@@ -1609,10 +1632,8 @@ refreshAll();
     const enemySide = ownSide === 'blue' ? 'red' : 'blue';
 
     function autoDeployAngle(side){
-      // В token-режиме при автогенерации стороны должны смотреть друг на друга:
-      // blue (верхняя треть) — вниз к центру, red (нижняя треть) — вверх к центру.
-      // Для текущей системы координат это соответствует blue=PI, red=0.
-      return side === 'blue' ? Math.PI : 0;
+      // В token-режиме при автогенерации стороны должны смотреть друг на друга.
+      return defaultAngleForSide(side);
     }
 
     function ensureTokenUnitCatalogEntry(type, source){
@@ -1878,7 +1899,9 @@ refreshAll();
           };
           const u = E.addUnitFromUI(payload);
           if(!u) continue;
-          u.angle = Number(row.angle || 0);
+          u.angle = Number.isFinite(Number(row && row.angle))
+            ? Number(row && row.angle)
+            : defaultAngleForSide(u.side);
           u.morale = Number(row.morale || 60);
           u.state = String(row.state || 'ready');
           u._battleArmyUid = String(row.army_uid || '');
