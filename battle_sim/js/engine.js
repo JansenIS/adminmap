@@ -693,6 +693,9 @@ function markEngagements(force=false){
     let loss = xplToSizeLoss(target, xplDmg);
     const cap = Math.max(1, Math.floor(target.men * capPct));
     loss = Math.min(loss, cap);
+    // A successful ranged hit must always inflict at least some damage,
+    // even vs high-XPL ("strong") targets.
+    if(target.men>0 && xplDmg>0) loss = Math.max(1, loss);
 
     const shock = 0.35 + (capPct*2.2); // ranged shock
     applyLoss(target, loss, `огонь ${attacker.name}`, shock);
@@ -722,64 +725,116 @@ function markEngagements(force=false){
 
     log(`⚔ Ближний бой: контактов ${pairs.length}`, "mut");
 
+    // Build outgoing damage buckets: each unit generates ONE common melee damage pool,
+    // then this pool is distributed among all enemies in direct contact.
+    const outgoing = new Map(); // id -> {unit,totalXpl,weights:Map<targetId,weight>, capWeight, shockWeight, front/flank/rear}
+    const incoming = new Map(); // id -> {xpl:number, capNumer:number, shockNumer:number, sources:Array<string>}
+
+    const ensureOutgoing = (u)=>{
+      let st = outgoing.get(u.id);
+      if(!st){
+        st = {
+          unit: u,
+          totalXpl: 0,
+          weights: new Map(),
+          capWeight: 0,
+          shockWeight: 0,
+          front: 0,
+          flank: 0,
+          rear: 0,
+        };
+        outgoing.set(u.id, st);
+      }
+      return st;
+    };
+
+    const flankMul = (f)=>(f==="rear" ? 1.45 : f==="flank" ? 1.25 : 1.0);
+    const shockByFlank = (f)=>(f==="rear" ? 0.80 : f==="flank" ? 0.65 : 0.55);
+
     for(const [ida,idb] of pairs){
       const a=getUnit(ida), b=getUnit(idb);
       if(!a||!b) continue;
-      if(a.state!=="ready" && a.state!=="engaged" && a.state!=="") {}
       if(a.state==="destroyed"||a.state==="routed") continue;
       if(b.state==="destroyed"||b.state==="routed") continue;
 
       const fa = flankType(a,b);
       const fb = flankType(b,a);
-
-      const rpA = window.U.clamp(battle.rp[a.side]||0, -3, 3);
-      const rpB = window.U.clamp(battle.rp[b.side]||0, -3, 3);
-
       const engagedA = countEngagedModels(a, b);
       const engagedB = countEngagedModels(b, a);
       if(engagedA<=0 && engagedB<=0) continue;
 
-      let aMul = 1.0, bMul = 1.0;
-      if(fa==="flank") aMul *= 1.25;
-      if(fa==="rear")  aMul *= 1.45;
-      if(fb==="flank") bMul *= 1.25;
-      if(fb==="rear")  bMul *= 1.45;
+      const rpA = window.U.clamp(battle.rp[a.side]||0, -3, 3);
+      const rpB = window.U.clamp(battle.rp[b.side]||0, -3, 3);
+      const aMor = window.U.clamp(a.morale/100, 0.4, 1.15);
+      const bMor = window.U.clamp(b.morale/100, 0.4, 1.15);
+
+      let aMul = flankMul(fa);
+      let bMul = flankMul(fb);
 
       // pikes vs cav bonus
       if(a.stats.tags && a.stats.tags.includes("antiCav") && (b.kind==="cav"||b.kind==="heavycav")) aMul*=1.25;
       if(b.stats.tags && b.stats.tags.includes("antiCav") && (a.kind==="cav"||a.kind==="heavycav")) bMul*=1.25;
 
-      // morale effect on melee power
-      const aMor = window.U.clamp(a.morale/100, 0.4, 1.15);
-      const bMor = window.U.clamp(b.morale/100, 0.4, 1.15);
-
-      let xplDmgToB = engagedA * xplPerMan(a) * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05);
-      let xplDmgToA = engagedB * xplPerMan(b) * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05);
-
-      xplDmgToB *= (1 - (b.stats.armor||0)*0.6);
-      xplDmgToA *= (1 - (a.stats.armor||0)*0.6);
-
-      let lossB = xplToSizeLoss(b, xplDmgToB);
-      let lossA = xplToSizeLoss(a, xplDmgToA);
-
-      // cap (melee tends to be bloodier)
-      const capB = Math.max(1, Math.floor(b.men * (a.stats.melee.capPct ?? 0.18)));
-      const capA = Math.max(1, Math.floor(a.men * (b.stats.melee.capPct ?? 0.18)));
-      lossB = Math.min(lossB, capB);
-      lossA = Math.min(lossA, capA);
-
-      // extra shock when flanked/rear-hit
-      const shockB = (fa==="rear") ? 0.80 : (fa==="flank") ? 0.65 : 0.55;
-      const shockA = (fb==="rear") ? 0.80 : (fb==="flank") ? 0.65 : 0.55;
-
-      const la = applyLoss(a, lossA, `ближний бой с ${b.name} (${fb})`, shockA);
-      const lb = applyLoss(b, lossB, `ближний бой с ${a.name} (${fa})`, shockB);
-
-      if(la>0 || lb>0){
-        if(fa!=="front" || fb!=="front"){
-          log(`↺ Фланги: ${a.name} атакует ${b.name} (${fa}), ${b.name} атакует ${a.name} (${fb})`, "mut");
-        }
+      if(engagedA>0){
+        const stA = ensureOutgoing(a);
+        const xpl = engagedA * xplPerMan(a) * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05);
+        stA.totalXpl += xpl;
+        stA.weights.set(b.id, (stA.weights.get(b.id)||0) + engagedA);
+        stA.capWeight += engagedA * (a.stats.melee.capPct ?? 0.18);
+        stA.shockWeight += engagedA * shockByFlank(fa);
+        if(fa==="rear") stA.rear += engagedA;
+        else if(fa==="flank") stA.flank += engagedA;
+        else stA.front += engagedA;
       }
+
+      if(engagedB>0){
+        const stB = ensureOutgoing(b);
+        const xpl = engagedB * xplPerMan(b) * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05);
+        stB.totalXpl += xpl;
+        stB.weights.set(a.id, (stB.weights.get(a.id)||0) + engagedB);
+        stB.capWeight += engagedB * (b.stats.melee.capPct ?? 0.18);
+        stB.shockWeight += engagedB * shockByFlank(fb);
+        if(fb==="rear") stB.rear += engagedB;
+        else if(fb==="flank") stB.flank += engagedB;
+        else stB.front += engagedB;
+      }
+    }
+
+    // Distribute each attacker's common damage pool across all contacted defenders.
+    for(const [,src] of outgoing){
+      const totalW = Array.from(src.weights.values()).reduce((s,v)=>s+v,0);
+      if(src.totalXpl<=0 || totalW<=0) continue;
+      const capPctAvg = src.capWeight / Math.max(1, totalW);
+      const shockAvg = src.shockWeight / Math.max(1, totalW);
+      const dominantFlank = src.rear>0 ? "rear" : src.flank>0 ? "flank" : "front";
+
+      for(const [tid,w] of src.weights){
+        const target = getUnit(tid);
+        if(!target || target.state==="destroyed" || target.state==="routed") continue;
+        const part = src.totalXpl * (w / totalW);
+        let inc = incoming.get(tid);
+        if(!inc){
+          inc = {xpl:0, capNumer:0, shockNumer:0, sources:[]};
+          incoming.set(tid, inc);
+        }
+        inc.xpl += part;
+        inc.capNumer += part * capPctAvg;
+        inc.shockNumer += part * shockAvg;
+        inc.sources.push(`${src.unit.name} (${dominantFlank})`);
+      }
+    }
+
+    for(const [tid,inc] of incoming){
+      const target = getUnit(tid);
+      if(!target || target.state==="destroyed" || target.state==="routed") continue;
+      const armorMul = (1 - (target.stats.armor||0)*0.6);
+      const xplAfterArmor = inc.xpl * armorMul;
+      let loss = xplToSizeLoss(target, xplAfterArmor);
+      const capPct = window.U.clamp(inc.capNumer / Math.max(1, inc.xpl), 0.02, 0.95);
+      const cap = Math.max(1, Math.floor(target.men * capPct));
+      loss = Math.min(loss, cap);
+      const shock = window.U.clamp(inc.shockNumer / Math.max(1, inc.xpl), 0.2, 0.9);
+      applyLoss(target, loss, `ближний бой (${Array.from(new Set(inc.sources)).join(", ")})`, shock);
     }
   }
 
