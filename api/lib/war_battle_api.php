@@ -1097,7 +1097,6 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       $d2 = $ddx*$ddx + $ddy*$ddy;
       if ($d2 > (($sum + 10.0) ** 2)) continue;
       if ((string)($other['side'] ?? '') === (string)($u['side'] ?? '')) return 'ally_contact';
-      if ($d2 < (($sum * 0.7) ** 2)) return 'enemy_overlap';
     }
 
     $u['x'] = $nx; $u['y'] = $ny;
@@ -1118,7 +1117,6 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
         $d2 = $ddx*$ddx + $ddy*$ddy;
         if ($d2 > (($sum + 10.0) ** 2)) continue;
         if ((string)($other['side'] ?? '') === (string)($u['side'] ?? '')) return 'ally_contact';
-        if ($d2 < (($sum * 0.7) ** 2)) return 'enemy_overlap';
       }
     }
     if ($phase !== 'setup') $u['moved_turn'] = $turn;
