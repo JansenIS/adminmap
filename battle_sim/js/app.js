@@ -1718,13 +1718,17 @@ refreshAll();
       const total = Math.max(1, allUnits.length);
       const mapW = Number(scenario.map.w || 2200);
       const band = deployBandForSide(side);
-      const cols = Math.max(3, Math.ceil(Math.sqrt(total)));
-      const xSpan = Math.max(500, mapW * 0.72);
-      const xStart = -(xSpan/2);
-      const xStep = cols > 1 ? (xSpan/(cols-1)) : 0;
-      const yStep = 120;
-      const forward = side === 'blue' ? 1 : -1;
-      const anchorY = side === 'blue' ? band.yMin + 80 : band.yMax - 80;
+      const xPadding = 90;
+      const yPadding = 60;
+      const xSpan = Math.max(520, mapW - xPadding * 2);
+      const ySpan = Math.max(220, Number(band.yMax) - Number(band.yMin) - yPadding * 2);
+      const areaAspect = xSpan / Math.max(1, ySpan);
+      const cols = Math.max(3, Math.ceil(Math.sqrt(total * areaAspect)));
+      const rowsCount = Math.max(1, Math.ceil(total / cols));
+      const xStart = -(xSpan / 2);
+      const xStep = cols > 1 ? (xSpan / (cols - 1)) : 0;
+      const yStart = Number(band.yMin) + yPadding;
+      const yStep = rowsCount > 1 ? (ySpan / (rowsCount - 1)) : 0;
       const angle = autoDeployAngle(side);
 
       for(const [order, item] of allUnits.entries()){
@@ -1735,7 +1739,7 @@ refreshAll();
           const col = order % cols;
           const depth = Math.floor(order / cols);
           const targetX = xStart + col * xStep;
-          const targetY = anchorY + forward * depth * yStep;
+          const targetY = yStart + depth * yStep;
           const payload = {
             type,
             side,
