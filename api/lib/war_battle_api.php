@@ -788,6 +788,7 @@ function war_battle_ensure_realtime(array &$battle, array $state): void {
       'turn' => 1,
       'phase' => 'setup',
       'active_side' => 'A',
+      'submitted' => ['A' => false, 'B' => false],
       'units' => war_battle_default_realtime_units($battle, $state),
       'updated_at' => time(),
     ];
@@ -799,6 +800,8 @@ function war_battle_ensure_realtime(array &$battle, array $state): void {
   if (!isset($cur['turn'])) $cur['turn'] = 1;
   if (!isset($cur['phase'])) $cur['phase'] = 'movement';
   if (!isset($cur['active_side'])) $cur['active_side'] = 'A';
+  if (!is_array($cur['submitted'] ?? null)) $cur['submitted'] = ['A' => false, 'B' => false];
+  $cur['submitted'] = ['A' => !empty($cur['submitted']['A']), 'B' => !empty($cur['submitted']['B'])];
   if (!isset($cur['rev'])) $cur['rev'] = 1;
   if (!isset($cur['updated_at'])) $cur['updated_at'] = time();
   $rt['state'] = $cur;
@@ -833,6 +836,7 @@ function war_battle_recreate_from_scratch(array &$battle, array $state, string $
         'turn' => 1,
         'phase' => 'setup',
         'active_side' => 'A',
+        'submitted' => ['A' => false, 'B' => false],
         'units' => war_battle_default_realtime_units(['sides' => $sides], $state),
         'updated_at' => $now,
       ],
@@ -855,6 +859,7 @@ function war_battle_restart(array &$battle, array $state, string $side = ''): vo
       'turn' => 1,
       'phase' => 'setup',
       'active_side' => 'A',
+      'submitted' => ['A' => false, 'B' => false],
       'units' => war_battle_default_realtime_units($battle, $state),
       'updated_at' => $now,
     ],
@@ -892,8 +897,19 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $phase = (string)($state['phase'] ?? 'movement');
   $turn = max(1, (int)($state['turn'] ?? 1));
 
-  if ($type === 'advance_phase') {
+  if (in_array($type, ['advance_phase', 'submit_turn', 'end_turn'], true)) {
     if (!($phase === 'setup') && $side !== $active) return 'not_active_side';
+    if (!is_array($state['submitted'] ?? null)) $state['submitted'] = ['A' => false, 'B' => false];
+    $submitted = (array)$state['submitted'];
+    $submitted['A'] = !empty($submitted['A']);
+    $submitted['B'] = !empty($submitted['B']);
+    $submitted[$side] = true;
+    $state['submitted'] = $submitted;
+
+    if ($phase === 'setup' && !($submitted['A'] && $submitted['B'])) {
+      return null;
+    }
+
     if ($phase === 'melee') {
       $pairs = [];
       $n = count($units);
@@ -995,6 +1011,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
         }
       }
     }
+    $state['submitted'] = ['A' => false, 'B' => false];
     $state['units'] = $units;
     return null;
   }

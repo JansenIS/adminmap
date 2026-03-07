@@ -141,6 +141,20 @@ body{
 .btn:active{ transform: translateY(1px); }
 .btn[disabled]{ opacity:.45; cursor:not-allowed; filter:none; }
 
+body.token-side-inactive #battlePanel .card{
+  opacity:.72;
+}
+body.token-side-inactive #battlePanel .card#tokenSessionCard{
+  opacity:1;
+}
+body.token-side-inactive #battlePanel .roster .it,
+body.token-side-inactive #battlePanel #selCard,
+body.token-side-inactive #battlePanel .btn,
+body.token-side-inactive #battlePanel input,
+body.token-side-inactive #battlePanel select{
+  filter:saturate(.6) brightness(.82);
+}
+
 input,select{
   width:100%;
   appearance:none;

@@ -59,6 +59,7 @@
     lastRealtimeRev: 0,
     emergencyFromArmies: false,
     realtimePhase: 'setup',
+    realtimeActiveSide: 'A',
     lastRealtimeUnitPose: new Map(),
   };
 
@@ -106,6 +107,8 @@
     log: $("log"),
     roster: $("roster"),
     hud: $("hud"),
+    addUnitCard: $("addUnitCard"),
+    rosterCard: $("rosterCard"),
   };
 
   // --- Map editor DOM ---
@@ -151,6 +154,36 @@
     const ownSide = sideForTokenPlayer();
     if(!ownSide) return true;
     return !!u && u.side === ownSide;
+  }
+
+  function tokenPlayerCanActNow(){
+    if(!tokenMode.enabled) return true;
+    const phase = String(tokenMode.realtimePhase || 'setup');
+    if(phase === 'setup') return true;
+    const own = String(tokenMode.side || '');
+    const active = String(tokenMode.realtimeActiveSide || 'A');
+    return own !== '' && own === active;
+  }
+
+  function ensureTokenCanActNow(msg){
+    if(tokenPlayerCanActNow()) return true;
+    if(msg) E.log(msg, 'mut');
+    return false;
+  }
+
+  function syncTokenModePresentation(){
+    const body = document.body;
+    if(!body) return;
+    if(!tokenMode.enabled){
+      body.classList.remove('token-side-inactive');
+      if(el.tabMap) el.tabMap.style.display = '';
+      if(el.addUnitCard) el.addUnitCard.style.display = '';
+      return;
+    }
+    const canAct = tokenPlayerCanActNow();
+    body.classList.toggle('token-side-inactive', !canAct);
+    if(el.tabMap) el.tabMap.style.display = 'none';
+    if(el.addUnitCard) el.addUnitCard.style.display = 'none';
   }
 
   function unitBattleUid(u){
@@ -441,7 +474,11 @@ function renderRoster(){
   const sel = E.getSelected();
   const selId = sel ? sel.id : null;
 
-  const units = scenario.units.slice().sort((a,b)=>{
+  const ownSide = sideForTokenPlayer();
+  const units = scenario.units
+    .filter((u)=>!(tokenMode.enabled && ownSide && String(u && u.side || '') !== ownSide))
+    .slice()
+    .sort((a,b)=>{
     // side first, then routed last, then name
     if(a.side !== b.side) return a.side==="blue" ? -1 : 1;
     const ar = a.routed ? 1 : 0;
@@ -451,7 +488,7 @@ function renderRoster(){
   });
 
   if(units.length===0){
-    el.roster.innerHTML = `<div class="muted" style="color: var(--muted); font-size:12px;">Нет отрядов. Добавь отряд и размести его на поле.</div>`;
+    el.roster.innerHTML = `<div class="muted" style="color: var(--muted); font-size:12px;">${tokenMode.enabled ? 'В списке нет ваших отрядов. Вражеские отряды отображаются только на карте.' : 'Нет отрядов. Добавь отряд и размести его на поле.'}</div>`;
     return;
   }
 
@@ -506,6 +543,7 @@ function renderRoster(){
   }
 
   function syncControlsEnabled(){
+    syncTokenModePresentation();
     const started = battle.started;
     el.btnStart.disabled = started || scenario.units.length===0;
     el.btnNext.disabled = !started || battle.over;
@@ -520,7 +558,21 @@ function renderRoster(){
     el.name.disabled = lock;
     el.addUnit.disabled = lock || tokenMode.enabled;
     if(tokenMode.enabled){
+      const canAct = tokenPlayerCanActNow();
       el.side.disabled = true;
+      el.btnStart.disabled = true;
+      el.btnNext.disabled = true;
+      el.btnReset.disabled = true;
+      el.rpBlue.disabled = true;
+      el.rpRed.disabled = true;
+      el.selFormation.disabled = !canAct;
+      el.selAngle.disabled = !canAct;
+      el.selMoraleEdit.disabled = true;
+      el.btnHeal.disabled = true;
+      el.btnKill.disabled = true;
+      el.btnRemove.disabled = true;
+      const tokenPushBtn = document.getElementById('tokenPushStateBtn');
+      if(tokenPushBtn) tokenPushBtn.disabled = !canAct;
       if(el.tabMap) el.tabMap.disabled = true;
     }
   }
@@ -597,6 +649,7 @@ function renderRoster(){
   }
 
   function setSelectedFormation(){
+    if(tokenMode.enabled && !ensureTokenCanActNow('Сейчас не ваша фаза. Изменение строя недоступно.')) return;
     const u = E.getSelected();
     if(!u) return;
 
@@ -656,6 +709,7 @@ function renderRoster(){
 
 
   function setSelectedAngleDeg(){
+    if(tokenMode.enabled && !ensureTokenCanActNow('Сейчас не ваша фаза. Поворот недоступен.')) return;
     const u = E.getSelected();
     if(!u) return;
     const deg = parseFloat(el.selAngle.value)||0;
@@ -664,6 +718,10 @@ function renderRoster(){
   }
 
   function setSelectedMorale(){
+    if(tokenMode.enabled){
+      E.log('Ручная правка морали в токен-сессии отключена.', 'mut');
+      return;
+    }
     const u = E.getSelected();
     if(!u) return;
     u.morale = U.clamp(parseFloat(el.selMoraleEdit.value)||u.morale, 0, 100);
@@ -671,6 +729,10 @@ function renderRoster(){
   }
 
   function healSelected(){
+    if(tokenMode.enabled){
+      E.log('Служебные действия в токен-сессии отключены.', 'mut');
+      return;
+    }
     const u = E.getSelected();
     if(!u) return;
     u.men = Math.max(1, u.baseSize|0);
@@ -682,6 +744,10 @@ function renderRoster(){
   }
 
   function kill10(){
+    if(tokenMode.enabled){
+      E.log('Служебные действия в токен-сессии отключены.', 'mut');
+      return;
+    }
     const u = E.getSelected();
     if(!u) return;
     const before = u.men|0;
@@ -695,6 +761,10 @@ function renderRoster(){
   }
 
   function removeSelected(){
+    if(tokenMode.enabled){
+      E.log('Служебные действия в токен-сессии отключены.', 'mut');
+      return;
+    }
     const u = E.getSelected();
     if(!u) return;
     E.removeUnit(u);
@@ -733,6 +803,7 @@ const input = {
     if(!u) return false;
     if(u.state==="destroyed" || u.state==="routed") return false;
     if(tokenMode.enabled && !isOwnUnit(u)) return false;
+    if(tokenMode.enabled && !tokenPlayerCanActNow()) return false;
     if(!battle.started) return true; // deployment
     if(battle.over) return false;
     if(battle.phase!=="movement") return false;
@@ -1235,6 +1306,32 @@ if(battle.started && battle.phase==="ranged" && picked){
     return applied;
   }
 
+  function collectOwnPoseChanges(ownSide){
+    const poseByUid = tokenMode.lastRealtimeUnitPose instanceof Map ? tokenMode.lastRealtimeUnitPose : new Map();
+    const poseChanges = [];
+    for(const u of scenario.units){
+      if(String(u.side||'') !== ownSide) continue;
+      const uid = unitBattleUid(u);
+      if(!uid) continue;
+      const nextX = Number(u.x || 0);
+      const nextY = Number(u.y || 0);
+      const nextAngle = Number(u.angle || 0);
+      const nextFormation = String(u.formation || 'line');
+      const prevPose = poseByUid.get(uid);
+      if(prevPose){
+        const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
+        const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
+        const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
+        const sameFormation = String(prevPose.formation || 'line') === nextFormation;
+        if(sameX && sameY && sameAngle && sameFormation) continue;
+      }
+      const dist = prevPose ? Math.hypot(nextX - Number(prevPose.x || 0), nextY - Number(prevPose.y || 0)) : 0;
+      poseChanges.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle, formation: nextFormation, _dist: dist });
+    }
+    poseChanges.sort((a,b)=>Number(b._dist||0)-Number(a._dist||0));
+    return poseChanges;
+  }
+
 // --- Bind events ---
   function bind(){
     populateCatalog();
@@ -1422,6 +1519,7 @@ refreshAll();
     tokenMode.sessionStatus = String((json && json.battle && json.battle.status) || 'setup');
     const realtimeState = json && json.battle && json.battle.realtime && json.battle.realtime.state ? json.battle.realtime.state : null;
     tokenMode.realtimePhase = String(realtimeState && realtimeState.phase || 'setup');
+    tokenMode.realtimeActiveSide = String(realtimeState && realtimeState.active_side || 'A');
     if(realtimeState && Number.isFinite(Number(realtimeState.rev))) tokenMode.lastRealtimeRev = Number(realtimeState.rev);
     tokenMode.lastRealtimeUnitPose = new Map();
     if(realtimeState && Array.isArray(realtimeState.units)){
@@ -1725,7 +1823,9 @@ refreshAll();
     card.className = 'card';
     card.id = 'tokenSessionCard';
     const sideLabel = ownSide === 'blue' ? 'Синие (сторона A)' : 'Красные (сторона B)';
-    card.innerHTML = `<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">Вы играете за: <b>${sideLabel}</b>. Расстановка только на своей трети карты (центр закрыт). Статус: <b>${tokenMode.sessionStatus}</b>.</div><div class="row" style="margin-top:8px;"><button class="btn" id="tokenReadyBtn">Готов</button><button class="btn" id="tokenPushStateBtn">Отправить ход (lockstep)</button><button class="btn" id="tokenPullStateBtn">Получить состояние</button><button class="btn" id="tokenSessionRefreshBtn">Обновить статус</button><button class="btn" id="tokenEmergencyBtn">Аварийный режим: OFF</button><button class="btn" id="tokenRestartBtn">Перезагрузить бой</button><button class="btn" id="tokenRecreateBtn">Полный перезапуск (с нуля)</button><button class="btn" id="tokenFinishBtn">Сохранить итог боя</button><button class="btn" id="tokenReloadBtn">Перезагрузить</button></div></div>`;
+    const activeSideLabel = tokenMode.realtimeActiveSide === 'A' ? 'Синие (A)' : 'Красные (B)';
+    const canActLabel = tokenPlayerCanActNow() ? 'ваша фаза' : 'ожидание фазы противника';
+    card.innerHTML = `<div class="cardTitle">Токен-сессия боя</div><div class="cardBody"><div class="small">Вы играете за: <b>${sideLabel}</b>. Расстановка только на своей трети карты (центр закрыт). Статус: <b>${tokenMode.sessionStatus}</b>. Фаза: <b>${tokenMode.realtimePhase}</b>. Активная сторона: <b>${activeSideLabel}</b> (${canActLabel}).</div><div class="row" style="margin-top:8px;"><button class="btn" id="tokenReadyBtn">Готов</button><button class="btn" id="tokenPushStateBtn">Зафиксировать действия</button><button class="btn" id="tokenPullStateBtn">Получить состояние</button><button class="btn" id="tokenSessionRefreshBtn">Обновить статус</button><button class="btn" id="tokenEmergencyBtn">Аварийный режим: OFF</button><button class="btn" id="tokenRestartBtn">Перезагрузить бой</button><button class="btn" id="tokenRecreateBtn">Полный перезапуск (с нуля)</button><button class="btn" id="tokenFinishBtn">Сохранить итог боя</button><button class="btn" id="tokenReloadBtn">Перезагрузить</button></div></div>`;
     const panel = document.querySelector('.panel');
     if(panel){
       if(panel.firstChild) panel.insertBefore(card, panel.firstChild);
@@ -1754,42 +1854,24 @@ refreshAll();
     if(pushBtn){
       pushBtn.addEventListener('click', async ()=>{
         try {
+          if(!ensureTokenCanActNow('Сейчас не ваша фаза: дождитесь перехода хода.')){
+            refreshAll();
+            return;
+          }
           await loadTokenBattleScenario({ hydrate: false });
           const own = sideForTokenPlayer() || 'blue';
           const phase = String(tokenMode.realtimePhase || 'setup');
-          if(phase === 'setup'){
-            const poseByUid = tokenMode.lastRealtimeUnitPose instanceof Map ? tokenMode.lastRealtimeUnitPose : new Map();
-            const setupMoves = [];
-            for(const u of scenario.units){
-              if(String(u.side||'') !== own) continue;
-              const uid = unitBattleUid(u);
-              if(!uid) continue;
-              const nextX = Number(u.x || 0);
-              const nextY = Number(u.y || 0);
-              const nextAngle = Number(u.angle || 0);
-              const nextFormation = String(u.formation || 'line');
-              const prevPose = poseByUid.get(uid);
-              if(prevPose){
-                const sameX = Math.abs(Number(prevPose.x || 0) - nextX) <= 0.001;
-                const sameY = Math.abs(Number(prevPose.y || 0) - nextY) <= 0.001;
-                const sameAngle = Math.abs(Number(prevPose.angle || 0) - nextAngle) <= 0.001;
-                const sameFormation = String(prevPose.formation || 'line') === nextFormation;
-                if(sameX && sameY && sameAngle && sameFormation) continue;
-              }
-              const dist = prevPose ? Math.hypot(nextX - Number(prevPose.x || 0), nextY - Number(prevPose.y || 0)) : 0;
-              setupMoves.push({ type:'move', uid, x:nextX, y:nextY, angle:nextAngle, formation: nextFormation, _dist: dist });
-            }
-            setupMoves.sort((a,b)=>Number(b._dist||0)-Number(a._dist||0));
-            if(setupMoves.length){
-              await sendSetupMovesInOrder(setupMoves);
-            }
-            E.log(setupMoves.length
-              ? ('Расстановка сохранена: ' + String(setupMoves.length) + ' перемещений отправлено.')
-              : 'Изменений расстановки нет.', 'ok');
+          const poseChanges = collectOwnPoseChanges(own);
+          if(poseChanges.length){
+            await sendSetupMovesInOrder(poseChanges);
+            E.log('Позиции синхронизированы: ' + String(poseChanges.length) + ' перемещений.', 'ok');
           } else {
-            await sendBattleActions([{ type:'advance_phase' }]);
-            E.log('Фаза продвинута на authoritative lockstep-сервере.', 'ok');
+            E.log('Изменений позиций нет.', 'mut');
           }
+          await sendBattleActions([{ type:'submit_turn' }]);
+          E.log(phase === 'setup'
+            ? 'Готовность в расстановке отправлена. Переход в бой произойдёт автоматически после подтверждения обеих сторон.'
+            : 'Действия зафиксированы. Сервер самостоятельно рассчитает следующую фазу и очередность.', 'ok');
           await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: phase === 'setup' });
           refreshAll();
         } catch (e) {
@@ -1943,9 +2025,13 @@ refreshAll();
           const prev = Number(tokenMode.lastRealtimeRev||0);
           await loadTokenBattleScenario({ hydrate: false });
           const next = Number(tokenMode.lastRealtimeRev||0);
-          if(next > prev) await loadTokenBattleScenario({ hydrate: true });
+          if(next > prev){
+            const inSetupPhase = String(tokenMode.realtimePhase || 'setup') === 'setup';
+            await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: inSetupPhase });
+            refreshAll();
+          }
         }catch(_e){}
-      }, 2500);
+      }, 1000);
     }
     requestAnimationFrame(loopUI);
   }
