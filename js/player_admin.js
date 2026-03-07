@@ -9,6 +9,8 @@
   let scope = null;
   let scopeLoaded = false;
   let allowMigrationApplyRequest = false;
+  let allowChangesApplyRequest = false;
+  let baselineStateForTurnSave = null;
 
   function normalizeStateForBackendSave(rawState) {
     const stateForSave = JSON.parse(JSON.stringify(rawState || {}));
@@ -35,61 +37,104 @@
     return stateForSave;
   }
 
+  function isEqualValue(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  function pickObjectDiff(baseObj, nextObj, allowedFields) {
+    const diff = {};
+    for (const field of allowedFields) {
+      const oldVal = baseObj && Object.prototype.hasOwnProperty.call(baseObj, field) ? baseObj[field] : undefined;
+      const newVal = nextObj && Object.prototype.hasOwnProperty.call(nextObj, field) ? nextObj[field] : undefined;
+      if (typeof newVal === 'undefined') continue;
+      if (!isEqualValue(oldVal, newVal)) diff[field] = newVal;
+    }
+    return diff;
+  }
+
+  function buildTurnChanges(baseState, nextState) {
+    const changes = [];
+    const owned = new Set(((scope && scope.owned_pids) || []).map((x) => Number(x)));
+
+    const provinceFields = [
+      'name', 'owner', 'suzerain', 'senior', 'terrain',
+      'vassals', 'fill_rgba', 'emblem_svg', 'emblem_box', 'emblem_asset_id',
+      'kingdom_id', 'great_house_id', 'minor_house_id', 'free_city_id', 'special_territory_id',
+      'province_card_image', 'wiki_description',
+    ];
+    for (const pid of owned) {
+      const key = String(pid);
+      const before = baseState && baseState.provinces ? baseState.provinces[key] : null;
+      const after = nextState && nextState.provinces ? nextState.provinces[key] : null;
+      if (!after || typeof after !== 'object') continue;
+      const diff = pickObjectDiff(before || {}, after, provinceFields);
+      if (Object.keys(diff).length) changes.push({ kind: 'province', pid, changes: diff });
+    }
+
+    if (scope && scope.entity_type && scope.entity_id) {
+      const type = String(scope.entity_type);
+      const id = String(scope.entity_id);
+      const before = baseState && baseState[type] && baseState[type][id] ? baseState[type][id] : null;
+      const after = nextState && nextState[type] && nextState[type][id] ? nextState[type][id] : null;
+      if (after && typeof after === 'object') {
+        const realmFields = ['name', 'ruler', 'ruling_house_id', 'vassal_house_ids', 'color', 'capital_pid', 'emblem_scale', 'warlike_coeff', 'loyalty_coeff', 'emblem_svg', 'emblem_box', 'province_pids', 'wiki_description', 'diplomacy'];
+        const diff = pickObjectDiff(before || {}, after, realmFields);
+        if (Object.keys(diff).length) changes.push({ kind: 'realm', type, id, changes: diff });
+      }
+    }
+
+    const beforeByUid = new Map();
+    for (const row of (baseState && Array.isArray(baseState.army_registry) ? baseState.army_registry : [])) {
+      if (!row || typeof row !== 'object') continue;
+      const uid = String(row.army_uid || '').trim();
+      if (uid) beforeByUid.set(uid, row);
+    }
+    for (const row of (nextState && Array.isArray(nextState.army_registry) ? nextState.army_registry : [])) {
+      if (!row || typeof row !== 'object') continue;
+      if (String(row.realm_type || '') !== String(scope && scope.entity_type || '')) continue;
+      if (String(row.realm_id || '') !== String(scope && scope.entity_id || '')) continue;
+      const uid = String(row.army_uid || '').trim();
+      if (!uid) continue;
+      const prev = beforeByUid.get(uid) || {};
+      const diff = pickObjectDiff(prev, row, ['current_pid', 'moved_this_turn', 'moved_turn_year']);
+      if (Object.keys(diff).length) changes.push({ kind: 'army', army_uid: uid, changes: diff });
+    }
+    return changes;
+  }
+
   async function saveStateAsBackendVariantFromPlayer(serializedState) {
     const parsedState = normalizeStateForBackendSave(JSON.parse(serializedState));
+    const baseState = normalizeStateForBackendSave(JSON.parse(JSON.stringify(baselineStateForTurnSave || {})));
+    const changes = buildTurnChanges(baseState, parsedState);
+    if (!changes.length) return { ok: true, applied: 0, noop: true };
     const versionRes = await fetch('/api/map/version/', { cache: 'no-store' });
     if (!versionRes.ok) throw new Error('Не удалось получить версию карты: HTTP ' + versionRes.status);
     const versionPayload = await versionRes.json();
     const ifMatch = String(versionPayload && versionPayload.map_version || '').trim();
     if (!ifMatch) throw new Error('Пустая версия карты (map_version)');
 
-    const payload = {
-      state: parsedState,
-      include_legacy_svg: false,
-      replace_map_state: true,
-    };
-
     let saveRes;
-    allowMigrationApplyRequest = true;
+    allowChangesApplyRequest = true;
     try {
-      if (typeof CompressionStream === 'function') {
-        try {
-          const json = JSON.stringify(payload);
-          const compressedStream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
-          const compressedBuffer = await new Response(compressedStream).arrayBuffer();
-          saveRes = await fetch('/api/migration/apply/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json;charset=utf-8',
-              'Content-Encoding': 'gzip',
-              'If-Match': ifMatch,
-            },
-            body: compressedBuffer,
-          });
-        } catch (_err) {
-          saveRes = null;
-        }
-      }
-
-      if (!saveRes) {
-        saveRes = await fetch('/api/migration/apply/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json;charset=utf-8',
-            'If-Match': ifMatch,
-          },
-          body: JSON.stringify(payload),
-        });
-      }
+      saveRes = await fetch('/api/changes/apply/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8',
+          'If-Match': ifMatch,
+        },
+        body: JSON.stringify({ changes }),
+      });
     } finally {
-      allowMigrationApplyRequest = false;
+      allowChangesApplyRequest = false;
     }
 
     if (!saveRes.ok) {
       const errText = await saveRes.text();
       throw new Error('HTTP ' + saveRes.status + (errText ? (' — ' + errText.slice(0, 300)) : ''));
     }
-    return saveRes.json();
+    const result = await saveRes.json();
+    baselineStateForTurnSave = parsedState;
+    return result;
   }
 
 
@@ -146,9 +191,14 @@
         const serialized = String(stateTA.value || '').trim();
         if (!serialized) throw new Error('Пустое состояние карты');
         const result = await saveStateAsBackendVariantFromPlayer(serialized);
+        if (result && result.noop) {
+          setTurnActionStatus('Изменений для сохранения нет.', false);
+          return;
+        }
         const stats = result && result.stats ? result.stats : null;
         const summary = stats ? (` assets: ${stats.assets || 0}, refs: ${stats.refs || 0}, provinces: ${stats.provinces || 0}`) : '';
-        setTurnActionStatus('Ход сохранён в backend-варианте.' + summary, false);
+        const applied = Number(result && result.applied || 0);
+        setTurnActionStatus(`Ход сохранён (изменений применено: ${applied}).` + summary, false);
       } catch (err) {
         setTurnActionStatus('Не удалось сохранить ход: ' + (err && err.message ? err.message : err), true);
       } finally {
@@ -207,6 +257,12 @@
     scope = json.session;
     scopeLoaded = true;
     window.PLAYER_ADMIN_SCOPE = scope;
+    try {
+      if (typeof window.AdminMapExportStateToTextarea === 'function') window.AdminMapExportStateToTextarea();
+      const stateTA = document.getElementById('state');
+      const serialized = String(stateTA && stateTA.value || '').trim();
+      if (serialized) baselineStateForTurnSave = normalizeStateForBackendSave(JSON.parse(serialized));
+    } catch (_e) {}
 
     const title = document.querySelector('h1');
     if (title) title.textContent = `Player Admin: ${scope.entity_name || scope.entity_id}`;
@@ -234,7 +290,7 @@
     const headers = new Headers(req.headers || {});
     headers.set('X-Player-Admin-Token', token);
 
-    if (url.pathname === '/api/changes/apply/') {
+    if (url.pathname === '/api/changes/apply/' && !allowChangesApplyRequest) {
       throw new Error('Операция недоступна в player_admin');
     }
     if (url.pathname === '/api/migration/apply/' && !allowMigrationApplyRequest) {
