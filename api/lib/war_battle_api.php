@@ -786,7 +786,7 @@ function war_battle_ensure_realtime(array &$battle, array $state): void {
     $rt['state'] = [
       'rev' => 1,
       'turn' => 1,
-      'phase' => 'movement',
+      'phase' => 'setup',
       'active_side' => 'A',
       'units' => war_battle_default_realtime_units($battle, $state),
       'updated_at' => time(),
@@ -831,7 +831,7 @@ function war_battle_recreate_from_scratch(array &$battle, array $state, string $
       'state' => [
         'rev' => max(1, $prevRev + 1),
         'turn' => 1,
-        'phase' => 'movement',
+        'phase' => 'setup',
         'active_side' => 'A',
         'units' => war_battle_default_realtime_units(['sides' => $sides], $state),
         'updated_at' => $now,
@@ -853,7 +853,7 @@ function war_battle_restart(array &$battle, array $state, string $side = ''): vo
     'state' => [
       'rev' => max(1, $prevRev + 1),
       'turn' => 1,
-      'phase' => 'movement',
+      'phase' => 'setup',
       'active_side' => 'A',
       'units' => war_battle_default_realtime_units($battle, $state),
       'updated_at' => $now,
@@ -893,7 +893,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $turn = max(1, (int)($state['turn'] ?? 1));
 
   if ($type === 'advance_phase') {
-    if ($side !== $active) return 'not_active_side';
+    if (!($phase === 'setup') && $side !== $active) return 'not_active_side';
     if ($phase === 'melee') {
       $pairs = [];
       $n = count($units);
@@ -978,7 +978,7 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       }
     }
 
-    $order = ['movement','ranged','melee','morale'];
+    $order = ['setup','movement','ranged','melee','morale'];
     $pidx = array_search($phase, $order, true);
     if (!is_int($pidx)) $pidx = 0;
     if ($pidx < count($order) - 1) {
@@ -1004,12 +1004,12 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
   $i = $idx[$uid];
   $u = $units[$i];
   if (war_battle_color_to_side((string)($u['side'] ?? 'blue')) !== $side) return 'unit_not_owned';
-  if ($side !== $active) return 'not_active_side';
   if (in_array((string)($u['state'] ?? 'ready'), ['destroyed','routed'], true)) return 'unit_inactive';
 
   if ($type === 'move') {
     if (!in_array($phase, ['movement','setup'], true)) return 'phase_forbidden';
-    if ((int)($u['moved_turn'] ?? 0) === $turn) return 'already_moved';
+    if ($phase !== 'setup' && $side !== $active) return 'not_active_side';
+    if ($phase !== 'setup' && (int)($u['moved_turn'] ?? 0) === $turn) return 'already_moved';
     $nx = (float)($action['x'] ?? $u['x'] ?? 0);
     $ny = (float)($action['y'] ?? $u['y'] ?? 0);
     $dx = $nx - (float)($u['x'] ?? 0);
@@ -1038,11 +1038,13 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
 
     $u['x'] = $nx; $u['y'] = $ny;
     $u['angle'] = (float)($action['angle'] ?? $u['angle'] ?? 0);
-    $u['moved_turn'] = $turn;
+    if ($phase !== 'setup') $u['moved_turn'] = $turn;
     $u['collision_r'] = $newR;
     $units[$i] = $u; $state['units'] = $units;
     return null;
   }
+
+  if ($side !== $active) return 'not_active_side';
 
   if ($type === 'ranged_attack' || $type === 'melee_attack') {
     $required = ($type === 'ranged_attack') ? 'ranged' : 'melee';
