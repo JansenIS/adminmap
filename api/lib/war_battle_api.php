@@ -1098,17 +1098,6 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
     if ($dist > $max + 0.001) return 'move_too_far';
 
     $newR = war_battle_layout_collision_radius((string)($u['formation'] ?? 'line'), max(1, (int)($u['men'] ?? 1)), (string)($u['kind'] ?? 'inf'));
-    foreach ($units as $j => $other) {
-      if ($j === $i || !is_array($other)) continue;
-      if (in_array((string)($other['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
-      $ox = (float)($other['x'] ?? 0.0); $oy = (float)($other['y'] ?? 0.0);
-      $or = (float)($other['collision_r'] ?? 28.0);
-      $sum = $newR + $or;
-      $ddx = $nx - $ox; $ddy = $ny - $oy;
-      $d2 = $ddx*$ddx + $ddy*$ddy;
-      if ($d2 > (($sum + 10.0) ** 2)) continue;
-      if ((string)($other['side'] ?? '') === (string)($u['side'] ?? '')) return 'ally_contact';
-    }
 
     $u['x'] = $nx; $u['y'] = $ny;
     $u['angle'] = (float)($action['angle'] ?? $u['angle'] ?? 0);
@@ -1118,17 +1107,6 @@ function war_battle_apply_action_to_state(array &$state, string $side, array $ac
       if (!in_array($requestedFormation, $allowedFormations, true)) return 'invalid_formation';
       $u['formation'] = $requestedFormation;
       $newR = war_battle_layout_collision_radius((string)$u['formation'], max(1, (int)($u['men'] ?? 1)), (string)($u['kind'] ?? 'inf'));
-      foreach ($units as $j => $other) {
-        if ($j === $i || !is_array($other)) continue;
-        if (in_array((string)($other['state'] ?? 'ready'), ['destroyed','routed'], true)) continue;
-        $ox = (float)($other['x'] ?? 0.0); $oy = (float)($other['y'] ?? 0.0);
-        $or = (float)($other['collision_r'] ?? 28.0);
-        $sum = $newR + $or;
-        $ddx = $nx - $ox; $ddy = $ny - $oy;
-        $d2 = $ddx*$ddx + $ddy*$ddy;
-        if ($d2 > (($sum + 10.0) ** 2)) continue;
-        if ((string)($other['side'] ?? '') === (string)($u['side'] ?? '')) return 'ally_contact';
-      }
     }
     if ($phase !== 'setup') $u['moved_turn'] = $turn;
     $u['collision_r'] = $newR;
