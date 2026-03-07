@@ -209,6 +209,15 @@ function war_battle_alive_hp(array $units): int {
   return $sum;
 }
 
+function war_battle_survivor_hp(array $units): int {
+  $sum = 0;
+  foreach ($units as $u) {
+    if (!is_array($u)) continue;
+    $sum += max(0, (int)($u['hp'] ?? 0));
+  }
+  return $sum;
+}
+
 function war_battle_group_remaining_by_army(array $units): array {
   $out = [];
   foreach ($units as $u) {
@@ -266,13 +275,16 @@ function war_battle_simulate(array $battle, array $state, ?int $seed = null): ar
 
   $endA = war_battle_alive_hp($unitsA);
   $endB = war_battle_alive_hp($unitsB);
-  $winner = $endA === $endB ? 'draw' : (($endA > $endB) ? 'A' : 'B');
+  $survivorsA = war_battle_survivor_hp($unitsA);
+  $survivorsB = war_battle_survivor_hp($unitsB);
+  $winner = $survivorsA === $survivorsB ? 'draw' : (($survivorsA > $survivorsB) ? 'A' : 'B');
 
   return [
     'winner' => $winner,
     'method' => 'battle_sim_v2',
     'rounds_total' => count($rounds),
     'alive' => ['A' => $endA, 'B' => $endB],
+    'survivors' => ['A' => $survivorsA, 'B' => $survivorsB],
     'remaining_by_army' => [
       'A' => war_battle_group_remaining_by_army($unitsA),
       'B' => war_battle_group_remaining_by_army($unitsB),
@@ -357,6 +369,130 @@ function war_battle_apply_result_to_state(array &$state, array $battle, array $s
     api_sync_army_registry($state, null, false);
   }
 
+  if (war_battle_apply_retreat_after_battle($state, $battle, $sim)) {
+    $changed = true;
+  }
+
+  return $changed;
+}
+
+function war_battle_hexmap_data_cached(): ?array {
+  static $cached = null;
+  static $loaded = false;
+  if ($loaded) return $cached;
+  $loaded = true;
+  $path = api_repo_root() . '/hexmap/data.js';
+  if (!is_file($path)) return null;
+  $raw = @file_get_contents($path);
+  if ($raw === false) return null;
+  $prefix = 'window.HEXMAP=';
+  $start = strpos($raw, $prefix);
+  if ($start === false) return null;
+  $json = trim(substr($raw, $start + strlen($prefix)));
+  if (str_ends_with($json, ';')) $json = substr($json, 0, -1);
+  $decoded = json_decode($json, true);
+  if (!is_array($decoded)) return null;
+  $cached = $decoded;
+  return $cached;
+}
+
+function war_battle_neighbor_coords_oddq(int $q, int $r): array {
+  if (($q % 2) !== 0) {
+    return [[$q + 1, $r], [$q + 1, $r + 1], [$q, $r + 1], [$q - 1, $r + 1], [$q - 1, $r], [$q, $r - 1]];
+  }
+  return [[$q + 1, $r - 1], [$q + 1, $r], [$q, $r + 1], [$q - 1, $r], [$q - 1, $r - 1], [$q, $r - 1]];
+}
+
+function war_battle_adjacent_pids_cached(): array {
+  static $adj = null;
+  if (is_array($adj)) return $adj;
+  $adj = [];
+  $hexmap = war_battle_hexmap_data_cached();
+  if (!is_array($hexmap)) return $adj;
+  $hexes = is_array($hexmap['hexes'] ?? null) ? $hexmap['hexes'] : [];
+  $byCoord = [];
+  foreach ($hexes as $hex) {
+    if (!is_array($hex)) continue;
+    $q = (int)($hex['q'] ?? 0);
+    $r = (int)($hex['r'] ?? 0);
+    $p = (int)($hex['p'] ?? 0);
+    if ($p <= 0) continue;
+    $byCoord[$q . ':' . $r] = $p;
+  }
+  foreach ($hexes as $hex) {
+    if (!is_array($hex)) continue;
+    $q = (int)($hex['q'] ?? 0);
+    $r = (int)($hex['r'] ?? 0);
+    $p = (int)($hex['p'] ?? 0);
+    if ($p <= 0) continue;
+    if (!isset($adj[$p])) $adj[$p] = [];
+    foreach (war_battle_neighbor_coords_oddq($q, $r) as [$nq, $nr]) {
+      $np = (int)($byCoord[$nq . ':' . $nr] ?? 0);
+      if ($np <= 0 || $np === $p) continue;
+      $adj[$p][$np] = true;
+    }
+  }
+  foreach ($adj as $pid => $set) {
+    $ids = array_map('intval', array_keys($set));
+    sort($ids);
+    $adj[$pid] = $ids;
+  }
+  return $adj;
+}
+
+function war_battle_pick_retreat_pid(array $state, int $fromPid): int {
+  $adj = war_battle_adjacent_pids_cached();
+  $candidates = array_values(array_filter(array_map('intval', (array)($adj[$fromPid] ?? [])), static fn($pid) => $pid > 0));
+  if ($candidates === []) return 0;
+
+  $occupied = [];
+  foreach ((array)($state['army_registry'] ?? []) as $army) {
+    if (!is_array($army)) continue;
+    if (max(0, (int)($army['strength_total'] ?? 0)) <= 0) continue;
+    $pid = (int)($army['current_pid'] ?? 0);
+    if ($pid > 0) $occupied[$pid] = true;
+  }
+
+  $busyBattlePids = [];
+  foreach (war_battle_load_all() as $battleRow) {
+    if (!is_array($battleRow)) continue;
+    if ((string)($battleRow['status'] ?? '') === 'finished') continue;
+    if (!empty($battleRow['auto_resolved'])) continue;
+    $pid = (int)($battleRow['province_pid'] ?? 0);
+    if ($pid > 0) $busyBattlePids[$pid] = true;
+  }
+
+  foreach ($candidates as $pid) {
+    if (isset($occupied[$pid])) continue;
+    if (isset($busyBattlePids[$pid])) continue;
+    return $pid;
+  }
+  return 0;
+}
+
+function war_battle_apply_retreat_after_battle(array &$state, array $battle, array $sim): bool {
+  $winner = (string)($sim['winner'] ?? 'draw');
+  if (!in_array($winner, ['A', 'B'], true)) return false;
+  $loserSide = $winner === 'A' ? 'B' : 'A';
+  $loserArmies = array_values(array_filter(array_map('strval', (array)($battle['sides'][$loserSide]['army_uids'] ?? [])), static fn($v) => $v !== ''));
+  if ($loserArmies === []) return false;
+  $provincePid = (int)($battle['province_pid'] ?? 0);
+  if ($provincePid <= 0) return false;
+
+  $loserSet = array_fill_keys($loserArmies, true);
+  $changed = false;
+  foreach ($state['army_registry'] as &$army) {
+    if (!is_array($army)) continue;
+    $uid = (string)($army['army_uid'] ?? '');
+    if ($uid === '' || !isset($loserSet[$uid])) continue;
+    if (max(0, (int)($army['strength_total'] ?? 0)) <= 0) continue;
+    if ((int)($army['current_pid'] ?? 0) !== $provincePid) continue;
+    $retreatPid = war_battle_pick_retreat_pid($state, $provincePid);
+    if ($retreatPid <= 0) continue;
+    $army['current_pid'] = $retreatPid;
+    $changed = true;
+  }
+  unset($army);
   return $changed;
 }
 
@@ -388,6 +524,7 @@ function war_battle_build_sim_from_remaining(array $battle, array $remainingUnit
     'method' => 'manual_token_battle_v1',
     'rounds_total' => null,
     'alive' => ['A' => $aliveA, 'B' => $aliveB],
+    'survivors' => ['A' => $aliveA, 'B' => $aliveB],
     'remaining_by_army' => $remainingByArmy,
     'remaining_units' => $remainingUnits,
     'rounds' => [],
@@ -463,6 +600,17 @@ function war_battle_finalize_expired(array $rows, array &$state, ?int $now = nul
       $battleRow['status'] = war_battle_status($battleRow, $ts);
     }
     $rows[$battleId] = $battleRow;
+  }
+  return $rows;
+}
+
+function war_battle_finalize_open(array $rows, array &$state, ?int $now = null): array {
+  $ts = $now ?? time();
+  foreach ($rows as $battleId => $battleRow) {
+    if (!is_array($battleRow)) continue;
+    if ((string)($battleRow['status'] ?? '') === 'finished') continue;
+    if (!empty($battleRow['auto_resolved']) && is_array($battleRow['auto_resolve_result'] ?? null)) continue;
+    $rows[$battleId] = war_battle_auto_resolve_one($battleRow, $state, $ts);
   }
   return $rows;
 }

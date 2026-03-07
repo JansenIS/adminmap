@@ -1007,6 +1007,15 @@ function api_patch_army(array $state, string $armyUid, array $changes): array {
   $schema = api_validate_army_changes_schema($changes, 'changes');
   if (!$schema['ok']) return ['ok' => false, 'error' => $schema['error'], 'field' => $schema['field'] ?? null];
 
+  $targetPidChangeRequested = array_key_exists('current_pid', $changes);
+  $currentPidBefore = (int)($state['army_registry'][$idx]['current_pid'] ?? 0);
+  if ($targetPidChangeRequested) {
+    $nextPid = max(0, (int)$changes['current_pid']);
+    if ($nextPid !== $currentPidBefore && api_army_has_open_battle($uid)) {
+      return ['ok' => false, 'error' => 'army_locked_in_battle', 'army_uid' => $uid];
+    }
+  }
+
   foreach ($changes as $field => $value) {
     if ($field === 'current_pid') {
       $state['army_registry'][$idx]['current_pid'] = max(0, (int)$value);
@@ -1023,6 +1032,30 @@ function api_patch_army(array $state, string $armyUid, array $changes): array {
   }
 
   return ['ok' => true, 'state' => $state];
+}
+
+function api_army_has_open_battle(string $armyUid): bool {
+  $uid = trim($armyUid);
+  if ($uid === '') return false;
+  $path = api_repo_root() . '/data/war_battles.json';
+  if (!is_file($path)) return false;
+  $raw = @file_get_contents($path);
+  if ($raw === false || trim($raw) === '') return false;
+  $rows = json_decode($raw, true);
+  if (!is_array($rows)) return false;
+
+  foreach ($rows as $battleRow) {
+    if (!is_array($battleRow)) continue;
+    if ((string)($battleRow['status'] ?? '') === 'finished') continue;
+    if (!empty($battleRow['auto_resolved'])) continue;
+    foreach (['A', 'B'] as $side) {
+      foreach ((array)($battleRow['sides'][$side]['army_uids'] ?? []) as $battleArmyUid) {
+        if (trim((string)$battleArmyUid) === $uid) return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array {

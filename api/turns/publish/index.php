@@ -129,7 +129,12 @@ if (!api_atomic_write_json(api_state_path(), $mapState)) {
 }
 
 // Конфликты на конец хода (даже если никто не двигался в этом новом году)
-war_battle_sync($mapState, true);
+$battles = war_battle_sync($mapState, true);
+$battles = war_battle_finalize_open($battles, $mapState, time());
+war_battle_save_all($battles);
+if (!api_atomic_write_json(api_state_path(), $mapState)) {
+  turn_api_response(['error' => 'state_write_failed'], 500);
+}
 
 $saved = turn_api_load_turn($year) ?? $turn;
 turn_api_response([
