@@ -561,7 +561,7 @@ function renderRoster(){
       const canAct = tokenPlayerCanActNow();
       el.side.disabled = true;
       el.btnStart.disabled = true;
-      el.btnNext.disabled = true;
+      el.btnNext.disabled = !canAct;
       el.btnReset.disabled = true;
       el.rpBlue.disabled = true;
       el.rpRed.disabled = true;
@@ -636,7 +636,40 @@ function renderRoster(){
     refreshAll();
   }
 
-  function nextPhase(){
+  async function submitTokenTurn(){
+    if(!ensureTokenCanActNow('Сейчас не ваша фаза: дождитесь перехода хода.')){
+      refreshAll();
+      return;
+    }
+    await loadTokenBattleScenario({ hydrate: false });
+    const own = sideForTokenPlayer() || 'blue';
+    const phase = String(tokenMode.realtimePhase || 'setup');
+    const poseChanges = collectOwnPoseChanges(own);
+    if(poseChanges.length){
+      await sendSetupMovesInOrder(poseChanges);
+      E.log('Позиции синхронизированы: ' + String(poseChanges.length) + ' перемещений.', 'ok');
+    } else {
+      E.log('Изменений позиций нет.', 'mut');
+    }
+    await sendBattleActions([{ type:'submit_turn' }]);
+    E.log(phase === 'setup'
+      ? 'Готовность в расстановке отправлена. Переход в бой произойдёт автоматически после подтверждения обеих сторон.'
+      : 'Фаза завершена. Сервер рассчитает следующую фазу и очередность.', 'ok');
+    await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: phase === 'setup' });
+    refreshAll();
+  }
+
+  async function nextPhase(){
+    if(tokenMode.enabled){
+      try{
+        await submitTokenTurn();
+      }catch(e){
+        E.log('Отправка хода отклонена сервером: ' + (e && e.message ? e.message : e), 'bad');
+        await loadTokenBattleScenario({ hydrate: false });
+        refreshAll();
+      }
+      return;
+    }
     battle.rp.blue = U.clamp(parseInt(el.rpBlue.value,10)||0, -3, 3);
     battle.rp.red  = U.clamp(parseInt(el.rpRed.value,10)||0, -3, 3);
     E.nextPhase();
@@ -1578,8 +1611,8 @@ refreshAll();
     function autoDeployAngle(side){
       // В token-режиме при автогенерации стороны должны смотреть друг на друга:
       // blue (верхняя треть) — вниз к центру, red (нижняя треть) — вверх к центру.
-      // Для текущей системы координат это соответствует blue=0, red=PI.
-      return side === 'blue' ? 0 : Math.PI;
+      // Для текущей системы координат это соответствует blue=PI, red=0.
+      return side === 'blue' ? Math.PI : 0;
     }
 
     function ensureTokenUnitCatalogEntry(type, source){
@@ -1909,26 +1942,7 @@ refreshAll();
     if(pushBtn){
       pushBtn.addEventListener('click', async ()=>{
         try {
-          if(!ensureTokenCanActNow('Сейчас не ваша фаза: дождитесь перехода хода.')){
-            refreshAll();
-            return;
-          }
-          await loadTokenBattleScenario({ hydrate: false });
-          const own = sideForTokenPlayer() || 'blue';
-          const phase = String(tokenMode.realtimePhase || 'setup');
-          const poseChanges = collectOwnPoseChanges(own);
-          if(poseChanges.length){
-            await sendSetupMovesInOrder(poseChanges);
-            E.log('Позиции синхронизированы: ' + String(poseChanges.length) + ' перемещений.', 'ok');
-          } else {
-            E.log('Изменений позиций нет.', 'mut');
-          }
-          await sendBattleActions([{ type:'submit_turn' }]);
-          E.log(phase === 'setup'
-            ? 'Готовность в расстановке отправлена. Переход в бой произойдёт автоматически после подтверждения обеих сторон.'
-            : 'Действия зафиксированы. Сервер самостоятельно рассчитает следующую фазу и очередность.', 'ok');
-          await loadTokenBattleScenario({ hydrate: true, preserveOwnSetupPose: phase === 'setup' });
-          refreshAll();
+          await submitTokenTurn();
         } catch (e) {
           E.log('Отправка хода отклонена сервером: ' + (e && e.message ? e.message : e), 'bad');
           await loadTokenBattleScenario({ hydrate: false });

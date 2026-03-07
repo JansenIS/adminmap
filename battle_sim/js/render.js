@@ -268,6 +268,17 @@ function fitToViewport(){
 }
   resize();
 
+  const _viewCull = { minX:0, maxX:0, minY:0, maxY:0 };
+  function refreshViewCullBounds(){
+    const rect = canvas.getBoundingClientRect();
+    const halfW = rect.width / Math.max(1e-6, view.zoom) * 0.5;
+    const halfH = rect.height / Math.max(1e-6, view.zoom) * 0.5;
+    _viewCull.minX = view.ox - halfW;
+    _viewCull.maxX = view.ox + halfW;
+    _viewCull.minY = view.oy - halfH;
+    _viewCull.maxY = view.oy + halfH;
+  }
+
   function worldToScreen(x,y){
     const sx = (x - view.ox) * view.zoom + view.cx;
     const sy = (y - view.oy) * view.zoom + view.cy;
@@ -671,11 +682,22 @@ function fitToViewport(){
     }
   }
 
+  function isUnitVisibleInView(u){
+    if(!u) return false;
+    const r = Math.max(16, Number((u.layout && u.layout.collisionR) || 24));
+    if((u.x + r) < _viewCull.minX) return false;
+    if((u.x - r) > _viewCull.maxX) return false;
+    if((u.y + r) < _viewCull.minY) return false;
+    if((u.y - r) > _viewCull.maxY) return false;
+    return true;
+  }
+
   function drawUnitWorld(u){
     if(!u.layout) return;
 
     // Selected highlight (no contours in normal state)
     const isSel = (u.id===scenario.selectedId);
+    if(!isSel && !isUnitVisibleInView(u)) return;
 
     ctx.save();
     ctx.translate(u.x, u.y);
@@ -688,10 +710,14 @@ function fitToViewport(){
     if(u.state==="routed") ctx.globalAlpha = 0.45;
     if(u.state==="destroyed") ctx.globalAlpha = 0.20;
 
-    // LOD stride fixed by unit complexity (not by zoom), to keep formation visuals stable.
+    // Adaptive LOD: keep formation readable while avoiding long frames with huge armies.
     const tokens = u.layout.tokens;
     let stride = 1;
-    if((scenario.map && scenario.map.lod) && tokens.length > 2600) stride = 2;
+    if(scenario.map && scenario.map.lod){
+      if(tokens.length > 5000 || view.zoom < 0.55) stride = 4;
+      else if(tokens.length > 3400 || view.zoom < 0.75) stride = 3;
+      else if(tokens.length > 2200 || view.zoom < 0.95) stride = 2;
+    }
 
     for(let i=0;i<tokens.length;i+=stride){
       const t = tokens[i];
@@ -857,6 +883,7 @@ function drawOverlaysWorld(){
 
     drawTerrain();
     setWorldTransform();
+    refreshViewCullBounds();
 
     // units
     for(const u of scenario.units){
