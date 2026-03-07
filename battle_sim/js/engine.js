@@ -3,6 +3,11 @@
 
   const {UNIT_CATALOG, TOKEN_PROFILES, TERRAIN_ZONES, TERRAIN_MODS} = window.DATA;
 
+  const BALANCE_MODS = {
+    moveRangeMultiplier: 2,
+    damageMultiplier: 3,
+  };
+
   const scenario = {
     map: { w: 2200, h: 1400, preset: "plains", lod: true, seed: (Math.random()*1e9)|0, noise:null, contours:null, objects:{rivers:[], buildings:[], forts:[]}, _editor:null },
     units: [],
@@ -425,7 +430,19 @@
   function getMoveRange(u){
     const base = u.stats.move;
     const mult = moveMultiplier(u);
-    return base * mult;
+    return base * mult * BALANCE_MODS.moveRangeMultiplier;
+  }
+
+  function distanceToUnitBoundary(ax, ay, target){
+    const centerDist = window.U.dist(ax, ay, target.x, target.y);
+    const targetR = Math.max(0, target?.layout?.collisionR ?? 0);
+    return Math.max(0, centerDist - targetR);
+  }
+
+  function canTargetByRangedBoundary(attacker, target){
+    if(!attacker || !target || !attacker.stats?.ranged) return false;
+    const r = attacker.stats.ranged.range;
+    return distanceToUnitBoundary(attacker.x, attacker.y, target) <= r;
   }
 
   function canActUnit(u){
@@ -622,6 +639,8 @@ function markEngagements(force=false){
 
     ensureLayouts();
     const r = attacker.stats.ranged.range;
+    if(!canTargetByRangedBoundary(attacker, target)) return {ok:false, reason:"out_of_range"};
+
     const attackerPts = getTokenWorldPoints(attacker);
     const targetPts = getTokenWorldPoints(target);
     if(attackerPts.length===0 || targetPts.length===0) return {ok:false, reason:"no_tokens"};
@@ -687,6 +706,7 @@ function markEngagements(force=false){
     let xplDmg = (shootingModels * acc) * xplPerMan(attacker) * attacker.stats.ranged.power * window.U.rand(0.8,1.2);
     xplDmg *= (1 + rp*0.05);
     xplDmg *= (1 - (target.stats.armor||0)*0.6);
+    xplDmg *= BALANCE_MODS.damageMultiplier;
 
     // cap by % of target size
     const capPct = attacker.stats.ranged.capPct ?? 0.08;
@@ -777,7 +797,7 @@ function markEngagements(force=false){
 
       if(engagedA>0){
         const stA = ensureOutgoing(a);
-        const xpl = engagedA * xplPerMan(a) * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05);
+        const xpl = engagedA * xplPerMan(a) * a.stats.melee.power * window.U.rand(0.85,1.25) * aMul * aMor * (1 + rpA*0.05) * BALANCE_MODS.damageMultiplier;
         stA.totalXpl += xpl;
         stA.weights.set(b.id, (stA.weights.get(b.id)||0) + engagedA);
         stA.capWeight += engagedA * (a.stats.melee.capPct ?? 0.18);
@@ -789,7 +809,7 @@ function markEngagements(force=false){
 
       if(engagedB>0){
         const stB = ensureOutgoing(b);
-        const xpl = engagedB * xplPerMan(b) * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05);
+        const xpl = engagedB * xplPerMan(b) * b.stats.melee.power * window.U.rand(0.85,1.25) * bMul * bMor * (1 + rpB*0.05) * BALANCE_MODS.damageMultiplier;
         stB.totalXpl += xpl;
         stB.weights.set(a.id, (stB.weights.get(a.id)||0) + engagedB);
         stB.capWeight += engagedB * (b.stats.melee.capPct ?? 0.18);
@@ -1268,6 +1288,8 @@ function markEngagements(force=false){
 
     terrainTypeAt,
     getMoveRange,
+    distanceToUnitBoundary,
+    canTargetByRangedBoundary,
 
     // map I/O
     serializeMap,

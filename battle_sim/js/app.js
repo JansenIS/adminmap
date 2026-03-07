@@ -846,6 +846,8 @@ const input = {
     lastX:0, lastY:0,
   };
 
+  scenario.movePreview = null;
+
   function clampUnitToMap(u){
     const hw = scenario.map.w/2;
     const hh = scenario.map.h/2;
@@ -966,9 +968,7 @@ if(battle.started && battle.phase==="ranged" && picked){
   const shooter = E.getSelected();
   const canShoot = (shooter && shooter.stats.ranged && shooter.side===battle.active && shooter.state==="ready" && shooter.firedTurn!==battle.turn);
   if(canShoot && picked.side!==shooter.side && picked.state!=="destroyed"){
-    const r = shooter.stats.ranged.range;
-    const d = window.U.dist(shooter.x, shooter.y, picked.x, picked.y);
-    if(d<=r){
+    if(E.canTargetByRangedBoundary(shooter, picked)){
       // keep shooter selected; actual shot happens on click
       refreshAll();
       return;
@@ -999,10 +999,12 @@ if(battle.started && battle.phase==="ranged" && picked){
         input.lastValidUX=picked.x; input.lastValidUY=picked.y;
         input.hasValidPose = !!(E.canPlaceUnitPose ? E.canPlaceUnitPose(picked, picked.x, picked.y, (picked.angle||0)).ok : true);
         input.moveRange = battle.started ? E.getMoveRange(picked) : 999999;
+        scenario.movePreview = { unitId: picked.id, x: picked.x, y: picked.y, r: input.moveRange };
       }
     }else{
       // click empty: deselect
       E.selectUnit(null);
+      scenario.movePreview = null;
       refreshAll();
     }
   }
@@ -1139,6 +1141,7 @@ if(battle.started && battle.phase==="ranged" && picked){
       }
       input.draggingUnit=false;
       input.dragUnitId=null;
+      scenario.movePreview = null;
       refreshAll();
     }
   }
@@ -1255,9 +1258,7 @@ if(battle.started && battle.phase==="ranged" && picked){
   if(target.side===shooter.side) return;
   if(target.state==="destroyed") return;
 
-  const r = shooter.stats.ranged.range;
-  const d = window.U.dist(shooter.x, shooter.y, target.x, target.y);
-  if(d>r){
+  if(!E.canTargetByRangedBoundary(shooter, target)){
     E.log("Цель вне дальности стрельбы.","mut");
     refreshAll();
     return;
@@ -1498,9 +1499,7 @@ if(battle.started && battle.phase==="ranged" && sel && sel.stats.ranged && click
   if(!canShoot){
     E.log("Этот отряд не может стрелять сейчас (не активная сторона / уже стрелял / не готов).","mut");
   }else{
-    const r = sel.stats.ranged.range;
-    const d = window.U.dist(sel.x, sel.y, clicked.x, clicked.y);
-    if(d>r){
+    if(!E.canTargetByRangedBoundary(sel, clicked)){
       E.log("Цель вне дальности стрельбы.","mut");
     }else{
       if(tokenMode.enabled){
@@ -1555,7 +1554,7 @@ refreshAll();
     // Canvas input
     R.canvas.addEventListener("contextmenu", (e)=>e.preventDefault());
     R.canvas.addEventListener("mousedown", onMouseDown);
-    R.canvas.addEventListener("mouseleave", ()=>{ input.lDown=false; input.rDown=false; input.draggingPan=false; input.draggingUnit=false; input.dragUnitId=null; E.scenario.hoverId=null; refreshAll(); });
+    R.canvas.addEventListener("mouseleave", ()=>{ input.lDown=false; input.rDown=false; input.draggingPan=false; input.draggingUnit=false; input.dragUnitId=null; E.scenario.hoverId=null; scenario.movePreview=null; refreshAll(); });
     window.addEventListener("mousemove", onMouseMove, {passive:true});
     window.addEventListener("mouseup", onMouseUp, {passive:true});
     R.canvas.addEventListener("wheel", onWheel, {passive:false});
