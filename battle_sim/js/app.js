@@ -1316,6 +1316,29 @@ refreshAll();
       return side === 'blue' ? Math.PI : 0;
     }
 
+    function ensureTokenUnitCatalogEntry(type, source){
+      const unitType = String(type || '').trim();
+      if(!unitType) return '';
+      if(UNIT_CATALOG[unitType]) return unitType;
+
+      const src = String(source || '').trim();
+      const bySource = {
+        militia: 'militia',
+        sergeants: 'militia_tr',
+        nehts: 'foot_nehts',
+        knights: 'foot_knights',
+        other: 'city100',
+      };
+      const fallbackType = bySource[src] || 'militia';
+      const fallbackTpl = UNIT_CATALOG[fallbackType] || UNIT_CATALOG.militia;
+      if(!fallbackTpl) return '';
+
+      UNIT_CATALOG[unitType] = Object.assign({}, fallbackTpl, {
+        name: `${fallbackTpl.name} (${unitType})`,
+      });
+      return unitType;
+    }
+
     function findFreeDeployPose(u, baseX, baseY, angle, band){
       const mapW = Number(scenario.map.w || 2200);
       const mapH = Number(scenario.map.h || 1400);
@@ -1380,7 +1403,7 @@ refreshAll();
 
       for(const [order, item] of allUnits.entries()){
         const {army, idx, row} = item;
-          const type = String(row && row.unit_id || '').trim();
+          const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
           const col = order % cols;
@@ -1415,7 +1438,7 @@ refreshAll();
     if(hydrate){
       if(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length){
         for(const row of realtimeState.units){
-          const type = String(row && row.unit_id || '').trim();
+          const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
           const payload = {
