@@ -806,29 +806,6 @@ function war_battle_ensure_realtime(array &$battle, array $state): void {
   $battle['realtime'] = $rt;
 }
 
-function war_battle_restart(array &$battle, array $state, string $side = ''): void {
-  $now = time();
-  $prevRev = (int)($battle['realtime']['state']['rev'] ?? 0);
-  $battle['ready'] = ['A' => false, 'B' => false];
-  $battle['status'] = 'setup';
-  $battle['auto_resolved'] = false;
-  unset($battle['auto_resolve_result'], $battle['finished_at'], $battle['winner']);
-  $battle['auto_resolve_at'] = $now + 2 * 24 * 60 * 60;
-  $battle['realtime'] = [
-    'state' => [
-      'rev' => max(1, $prevRev + 1),
-      'turn' => 1,
-      'phase' => 'movement',
-      'active_side' => 'A',
-      'units' => war_battle_default_realtime_units($battle, $state),
-      'updated_at' => $now,
-    ],
-    'history' => [],
-  ];
-  if (!is_array($battle['log'] ?? null)) $battle['log'] = [];
-  $battle['log'][] = ['at' => $now, 'event' => 'battle_restarted', 'side' => $side];
-}
-
 function war_battle_units_index_by_uid(array $units): array {
   $idx = [];
   foreach ($units as $i => $u) {
