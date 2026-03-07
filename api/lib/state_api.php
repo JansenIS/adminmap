@@ -814,11 +814,11 @@ function api_validate_changes_apply_payload(array $payload): array {
   foreach ($changes as $idx => $entry) {
     if (!is_array($entry)) return ['ok' => false, 'error' => 'invalid_change_entry', 'index' => $idx];
     $kind = (string)($entry['kind'] ?? '');
-    $allowedEntry = $kind === 'province' ? ['kind','pid','changes'] : ($kind === 'realm' ? ['kind','type','id','changes'] : ['kind','changes']);
+    $allowedEntry = $kind === 'province' ? ['kind','pid','changes'] : ($kind === 'realm' ? ['kind','type','id','changes'] : ($kind === 'army' ? ['kind','army_uid','changes'] : ['kind','changes']));
     foreach ($entry as $k => $_v) {
       if (!in_array((string)$k, $allowedEntry, true)) return ['ok' => false, 'error' => 'invalid_change_field', 'index' => $idx, 'field' => 'changes.' . (string)$idx . '.' . (string)$k];
     }
-    if (!in_array($kind, ['province', 'realm'], true)) return ['ok' => false, 'error' => 'invalid_change_kind', 'index' => $idx];
+    if (!in_array($kind, ['province', 'realm', 'army'], true)) return ['ok' => false, 'error' => 'invalid_change_kind', 'index' => $idx];
     if (!is_array($entry['changes'] ?? null)) return ['ok' => false, 'error' => 'invalid_change_changes', 'index' => $idx];
     if ($kind === 'province') {
       if ((int)($entry['pid'] ?? 0) <= 0) return ['ok' => false, 'error' => 'invalid_change_pid', 'index' => $idx];
@@ -830,8 +830,25 @@ function api_validate_changes_apply_payload(array $payload): array {
       $schema = api_validate_realm_changes_schema((array)$entry['changes'], 'changes.' . (string)$idx . '.changes');
       if (!$schema['ok']) return ['ok' => false, 'error' => (string)$schema['error'], 'index' => $idx, 'field' => (string)($schema['field'] ?? '')];
     }
+    if ($kind === 'army') {
+      if (trim((string)($entry['army_uid'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_change_army_uid', 'index' => $idx];
+      $schema = api_validate_army_changes_schema((array)$entry['changes'], 'changes.' . (string)$idx . '.changes');
+      if (!$schema['ok']) return ['ok' => false, 'error' => $schema['error'], 'field' => $schema['field'] ?? null, 'index' => $idx];
+    }
   }
   return ['ok' => true, 'changes' => $changes];
+}
+
+function api_validate_army_changes_schema(array $changes, string $prefix = 'changes'): array {
+  $allowed = ['current_pid', 'moved_this_turn', 'moved_turn_year'];
+  foreach ($changes as $field => $value) {
+    $f = (string)$field;
+    if (!in_array($f, $allowed, true)) return ['ok' => false, 'error' => 'invalid_field', 'field' => $prefix . '.' . $f];
+    if ($f === 'current_pid' && !is_numeric($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.current_pid'];
+    if ($f === 'moved_this_turn' && !is_bool($value)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.moved_this_turn'];
+    if ($f === 'moved_turn_year' && !(is_numeric($value) || $value === null)) return ['ok' => false, 'error' => 'invalid_type', 'field' => $prefix . '.moved_turn_year'];
+  }
+  return ['ok' => true];
 }
 
 function api_patch_province(array $state, int $pid, array $changes): array {
@@ -972,6 +989,40 @@ function api_patch_realm(array $state, string $type, string $id, array $changes)
 
   $state['generated_utc'] = gmdate('c');
   return ['ok' => true, 'state' => $state, 'updated_fields' => $updated];
+}
+
+function api_patch_army(array $state, string $armyUid, array $changes): array {
+  $uid = trim($armyUid);
+  if ($uid === '') return ['ok' => false, 'error' => 'invalid_army_uid'];
+  if (!is_array($state['army_registry'] ?? null)) return ['ok' => false, 'error' => 'army_not_found'];
+  $idx = null;
+  foreach ($state['army_registry'] as $i => $row) {
+    if (!is_array($row)) continue;
+    if (trim((string)($row['army_uid'] ?? '')) !== $uid) continue;
+    $idx = $i;
+    break;
+  }
+  if ($idx === null) return ['ok' => false, 'error' => 'army_not_found'];
+
+  $schema = api_validate_army_changes_schema($changes, 'changes');
+  if (!$schema['ok']) return ['ok' => false, 'error' => $schema['error'], 'field' => $schema['field'] ?? null];
+
+  foreach ($changes as $field => $value) {
+    if ($field === 'current_pid') {
+      $state['army_registry'][$idx]['current_pid'] = max(0, (int)$value);
+      continue;
+    }
+    if ($field === 'moved_this_turn') {
+      $state['army_registry'][$idx]['moved_this_turn'] = (bool)$value;
+      continue;
+    }
+    if ($field === 'moved_turn_year') {
+      $state['army_registry'][$idx]['moved_turn_year'] = ($value === null) ? null : (int)$value;
+      continue;
+    }
+  }
+
+  return ['ok' => true, 'state' => $state];
 }
 
 function api_write_migrated_bundle(array $bundle, bool $replaceMapState): array {
@@ -1133,6 +1184,22 @@ function api_apply_changeset(array $state, array $changes): array {
         continue;
       }
       $res = api_patch_realm($state, $type, $id, $delta);
+      if (!$res['ok']) {
+        $errors[] = ['index' => $idx, 'error' => (string)($res['error'] ?? 'patch_failed')];
+        continue;
+      }
+      $state = $res['state'];
+      $applied++;
+      continue;
+    }
+
+    if ($kind === 'army') {
+      $armyUid = trim((string)($entry['army_uid'] ?? ''));
+      if ($armyUid === '') {
+        $errors[] = ['index' => $idx, 'error' => 'invalid_army_uid'];
+        continue;
+      }
+      $res = api_patch_army($state, $armyUid, $delta);
       if (!$res['ok']) {
         $errors[] = ['index' => $idx, 'error' => (string)($res['error'] ?? 'patch_failed')];
         continue;
