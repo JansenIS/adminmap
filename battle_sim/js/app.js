@@ -1380,13 +1380,27 @@ refreshAll();
       };
     }
 
-    function spawnArmyRows(rows, side){
-      const allUnits = [];
+    function flattenArmyRows(rows){
+      const out = [];
       for(const army of rows){
         const units = Array.isArray(army && army.units) ? army.units : [];
         for(const [idx, row] of units.entries()){
-          allUnits.push({ army, idx, row });
+          out.push({
+            uid: String((army && army.army_uid) || '') + '#' + String(idx),
+            army,
+            idx,
+            row,
+          });
         }
+      }
+      return out;
+    }
+
+    function spawnArmyRows(rows, side){
+      const flatRows = flattenArmyRows(rows);
+      const allUnits = [];
+      for(const item of flatRows){
+        allUnits.push({ army: item.army, idx: item.idx, row: item.row, uid: item.uid });
       }
 
       const total = Math.max(1, allUnits.length);
@@ -1402,7 +1416,7 @@ refreshAll();
       const angle = autoDeployAngle(side);
 
       for(const [order, item] of allUnits.entries()){
-        const {army, idx, row} = item;
+        const {army, idx, row, uid} = item;
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1429,6 +1443,7 @@ refreshAll();
             u.angle = pose.angle;
             u._battleArmyUid = String(army && army.army_uid || "");
             u._battleUnitIdx = Number(idx);
+            u._battleUid = String(uid || '');
             clampUnitToDeployBand(u);
           }
         }
@@ -1437,7 +1452,67 @@ refreshAll();
 
     if(hydrate){
       if(realtimeState && Array.isArray(realtimeState.units) && realtimeState.units.length){
-        for(const row of realtimeState.units){
+        const realtimeUnits = Array.isArray(realtimeState.units) ? realtimeState.units.slice() : [];
+        const realtimeUidSet = new Set();
+        const armyDefaults = new Map();
+
+        function registerArmyDefaults(rows, side){
+          for(const item of flattenArmyRows(rows)){
+            const uid = String(item && item.uid || '').trim();
+            if(!uid) continue;
+            const srcRow = item && item.row ? item.row : {};
+            armyDefaults.set(uid, {
+              uid,
+              army_uid: String(item.army && item.army.army_uid || ''),
+              unit_idx: Number(item.idx),
+              unit_id: String(srcRow.unit_id || ''),
+              source: String(srcRow.source || ''),
+              side,
+              men: Math.max(0, Number(srcRow.size) || 0),
+            });
+          }
+        }
+
+        registerArmyDefaults(mine, ownSide);
+        registerArmyDefaults(enemy, enemySide);
+
+        for(const row of realtimeUnits){
+          const uid = String(row && row.uid || '').trim();
+          if(!uid) continue;
+          realtimeUidSet.add(uid);
+
+          const defaults = armyDefaults.get(uid);
+          if(!defaults) continue;
+
+          const curMen = Math.max(0, Number(row.men) || 0);
+          const hasValidMen = curMen > 0;
+          const defaultMen = Math.max(0, Number(defaults.men) || 0);
+          if(!hasValidMen && defaultMen > 0){
+            row.men = defaultMen;
+          }
+          if(!row.unit_id && defaults.unit_id) row.unit_id = defaults.unit_id;
+          if(!row.source && defaults.source) row.source = defaults.source;
+          if(!row.army_uid && defaults.army_uid) row.army_uid = defaults.army_uid;
+          if(!Number.isFinite(Number(row.unit_idx))) row.unit_idx = defaults.unit_idx;
+          if(!row.side && defaults.side) row.side = defaults.side;
+        }
+
+        for(const [uid, defaults] of armyDefaults.entries()){
+          if(realtimeUidSet.has(uid)) continue;
+          if(defaults.men <= 0) continue;
+          realtimeUnits.push({
+            uid: defaults.uid,
+            army_uid: defaults.army_uid,
+            unit_idx: defaults.unit_idx,
+            unit_id: defaults.unit_id,
+            source: defaults.source,
+            side: defaults.side,
+            formation: 'line',
+            men: defaults.men,
+          });
+        }
+
+        for(const row of realtimeUnits){
           const type = ensureTokenUnitCatalogEntry(String(row && row.unit_id || '').trim(), String(row && row.source || '').trim());
           const tpl = UNIT_CATALOG[type];
           if(!tpl) continue;
@@ -1446,8 +1521,8 @@ refreshAll();
             side: String(row.side || 'blue') === 'red' ? 'red' : 'blue',
             formation: String(row.formation || 'line'),
             men: Math.max(0, Number(row.men) || 0),
-            baseSize: Math.max(1, Number(row.baseSize || tpl.baseSize) || 1),
-            baseXpl: Math.max(0, Number(row.baseXpl || tpl.baseXpl) || 0),
+            baseSize: Math.max(1, Number(row.baseSize || row.base_size || tpl.baseSize) || 1),
+            baseXpl: Math.max(0, Number(row.baseXpl || row.base_xpl || tpl.baseXpl) || 0),
             name: String(tpl.name || type),
             x: Number(row.x || 0),
             y: Number(row.y || 0),
