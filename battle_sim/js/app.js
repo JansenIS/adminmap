@@ -1144,13 +1144,23 @@ if(battle.started && battle.phase==="ranged" && picked){
 }
 
 
+  async function parseJsonResponse(res){
+    const raw = await res.text();
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch(err) {
+      const snippet = String(raw || '').slice(0, 300).replace(/\s+/g, ' ');
+      throw new Error('invalid_json_response' + (snippet ? (': ' + snippet) : ''));
+    }
+  }
+
   async function sendBattleActions(actions){
     if(!tokenMode.enabled) return null;
     const rr = await fetch('/api/war/battle/commit/', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ token: battleToken, base_rev: Number(tokenMode.lastRealtimeRev || 0), actions: Array.isArray(actions)?actions:[] })
     });
-    const jj = await rr.json();
+    const jj = await parseJsonResponse(rr);
     if(!rr.ok || !jj.ok) throw new Error((jj && (jj.reason || jj.error)) || ('HTTP ' + rr.status));
     if(jj && jj.realtime && jj.realtime.state && Number.isFinite(Number(jj.realtime.state.rev))) tokenMode.lastRealtimeRev = Number(jj.realtime.state.rev);
     return jj;
@@ -1333,7 +1343,7 @@ refreshAll();
     const hydrate = !opts || opts.hydrate !== false;
     if(!tokenMode.enabled) return;
     const res = await fetch('/api/war/battle/session/?token=' + encodeURIComponent(battleToken), { cache: 'no-store' });
-    const json = await res.json();
+    const json = await parseJsonResponse(res);
     if(!res.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + res.status));
 
     tokenMode.side = String(json.side || '');
@@ -1627,7 +1637,7 @@ refreshAll();
     if(readyBtn){
       readyBtn.addEventListener('click', async ()=>{
         const rr = await fetch('/api/war/battle/ready/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: battleToken, ready: true })});
-        const jj = await rr.json();
+        const jj = await parseJsonResponse(rr);
         if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
         tokenMode.ready = true;
         E.log('Сторона отмечена как готовая.', 'ok');
@@ -1681,7 +1691,7 @@ refreshAll();
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ token: battleToken })
         });
-        const jj = await rr.json();
+        const jj = await parseJsonResponse(rr);
         if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
         E.log('Бой перезапущен и состояние обновлено.', 'ok');
         await loadTokenBattleScenario({ hydrate: true });
@@ -1695,7 +1705,7 @@ refreshAll();
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ token: battleToken })
         });
-        const jj = await rr.json();
+        const jj = await parseJsonResponse(rr);
         if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
         E.log('Бой полностью пересоздан с нуля.', 'ok');
         await loadTokenBattleScenario({ hydrate: true });
@@ -1716,7 +1726,7 @@ refreshAll();
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ token: battleToken, remaining_units: remaining })
         });
-        const jj = await rr.json();
+        const jj = await parseJsonResponse(rr);
         if(!rr.ok || !jj.ok) throw new Error((jj && jj.error) || ('HTTP ' + rr.status));
         E.log('Итог боя сохранён на карту.', 'ok');
         await loadTokenBattleScenario({ hydrate: false });
