@@ -1,600 +1,419 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<title>Player Admin — альтернативный UI</title>
-<style>
-    :root { color-scheme: dark; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e7eef7; }
-    .app { display:flex; height:100vh; height:100dvh; }
-    .sidebar { width: 420px; min-width: 360px; max-width: 520px; border-right:1px solid #223041; background:#0d131b; padding:14px 14px 18px; box-sizing:border-box; overflow:auto; }
-    h1 { font-size:16px; margin:0 0 10px; font-weight:650; }
-    .muted { color:#a6b4c5; font-size:12px; line-height:1.35; }
-    .card { margin-top:12px; padding:12px; background:#0b0f14; border:1px solid #223041; border-radius:12px; }
-    .grid { display:grid; grid-template-columns: 120px 1fr; gap:10px; align-items:center; }
-    .grid label { font-size:12px; color:#a6b4c5; }
-    input[type="text"], input[type="number"], select { width:100%; box-sizing:border-box; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; outline:none; }
-    select[multiple] { height: 160px; }
-    input[type="color"]{ width:52px; height:32px; border:0; background:transparent; padding:0; }
-    input[type="range"]{ width:100%; }
-    .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    button { background:#1a2634; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; cursor:pointer; font-weight:650; }
-    button:hover { background:#223446; }
-    textarea { width:100%; min-height:160px; resize:vertical; background:#0b0f14; color:#e7eef7; border:1px solid #2b3f56; border-radius:10px; padding:10px; box-sizing:border-box; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
-    .maparea { flex:1; overflow:auto; padding:14px; box-sizing:border-box; }
-    /* IMPORTANT: mapWrap gets explicit px width/height from JS. Base image MUST fill it without changing aspect.
-       If JS gives correct aspect (W/H), there will be NO stretch. */
-    #mapWrap { position:relative; display:inline-block; }
-    #baseMap { position:absolute; left:0; top:0; width:100%; height:100%; max-width:none; max-height:none; display:block; }
-    canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
-    #tooltip { position:fixed; z-index:50; pointer-events:none; background: rgba(13,19,27,0.92); border:1px solid #2b3f56; border-radius:10px; padding:8px 10px; font-size:12px; color:#e7eef7; display:none; box-shadow: 0 8px 30px rgba(0,0,0,0.35); max-width: 360px; }
-    .kv { font-size:12px; margin-top:8px; } .kv div { margin:4px 0; } .kv b { font-weight:650; }
-    .small { font-size:11px; color:#a6b4c5; line-height:1.35; }
-    .emblemPreview { width: 100%; height: 140px; border:1px dashed #2b3f56; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#0b0f14; overflow:hidden; }
-    .emblemPreview img { max-width:100%; max-height:100%; display:block; }
-    .provinceCardPreview { width:100%; height:180px; border:1px dashed #2b3f56; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#0b0f14; overflow:hidden; margin-top:10px; }
-    .provinceCardPreview img { max-width:100%; max-height:100%; display:block; }
-    .palette { display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; margin-top:8px; }
-    .swatch { border:1px solid #2b3f56; border-radius:8px; height:24px; }
-
-    .person-link { background:none; border:0; color:#9bc7ff; padding:0; margin:0; cursor:pointer; font:inherit; text-decoration:underline; }
-    .person-link:hover { color:#c3ddff; }
-    .person-modal { position:fixed; inset:0; z-index:110; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
-    .person-modal.open { display:flex; }
-    .person-modal__window { width:min(520px, 96vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
-    .person-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
-    .person-modal__content { padding:16px; clear:both; }
-    .person-modal__photo-wrap { width:180px; aspect-ratio:1/1; border:1px solid #2b3f56; border-radius:12px; overflow:hidden; background:#111923; }
-    .person-modal__photo { width:100%; height:100%; object-fit:cover; display:block; }
-    .person-modal__name { margin:14px 0 8px; font-size:24px; }
-    .person-modal__kv { display:grid; gap:8px; font-size:13px; }
-    .person-modal__kv b { color:#a6b4c5; }
-    .person-modal__bio { margin-top:14px; line-height:1.45; color:#d8e1ec; }
-    .editor-modal { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
-    .editor-modal.open { display:flex; }
-    .editor-modal__window { width:min(900px, 98vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
-    .editor-modal__head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px; border-bottom:1px solid #223041; }
-    .editor-modal__body { padding:16px; }
-    .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
-    .editor-modal textarea { min-height:120px; }
-    .wiki-editor-modal__preview { margin-top:10px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; display:flex; align-items:center; justify-content:center; min-height:220px; }
-    .wiki-editor-modal__preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
-    .wiki-editor-modal__preview-empty { color:#a6b4c5; font-size:12px; }
-    .wiki-editor-modal__status { margin-top:10px; font-size:12px; color:#a6b4c5; }
-    .province-modal { position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.7); backdrop-filter: blur(2px); }
-    .province-modal.open { display:flex; }
-    .province-modal__window { width:min(840px, 96vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
-    .province-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
-    .province-modal__content { padding:16px; clear:both; }
-    .province-modal__map-shot { width:100%; max-height:320px; object-fit:contain; border:1px solid #223041; border-radius:12px; background:#080c11; }
-    .province-modal__lineage { margin-top:14px; display:grid; gap:10px; }
-    .province-modal__lineage-item { display:flex; align-items:center; gap:10px; font-size:14px; }
-    .province-modal__lineage-item span { color:#a6b4c5; min-width:120px; }
-    .province-modal__herald { width:42px; height:42px; border-radius:8px; border:1px solid #2b3f56; background:#111923; object-fit:contain; }
-    .province-modal__header { margin-top:18px; display:flex; gap:12px; align-items:center; }
-    .province-modal__title { margin:0; font-size:28px; letter-spacing:0.08em; text-transform:uppercase; }
-    .province-modal__text { margin-top:16px; line-height:1.45; color:#d8e1ec; }
-    .province-modal__text p { margin:0 0 0.7em; }
-    .province-modal__text p:last-child { margin-bottom:0; }
-    .province-modal__text ul { margin:0.4em 0 0.8em 1.2em; padding:0; }
-    .province-modal__text h1, .province-modal__text h2, .province-modal__text h3 { margin:0.4em 0; }
-    .province-modal__text code { background:#111923; border:1px solid #2b3f56; border-radius:6px; padding:1px 5px; }
-
-    .arrierban-grid { display:grid; grid-template-columns: 1.1fr 110px 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
-    .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
-    .arrierban-category { margin-top:12px; border-top:1px solid #2b3f56; padding-top:10px; }
-    .arrierban-category__title { font-size:12px; font-weight:700; margin-bottom:8px; color:#d9e5f2; }
-    .arrierban-grid input[type="number"] { padding:6px 8px; }
-    .arrierban-row-alloc { display:grid; gap:6px; }
-    .arrierban-row-alloc__entry { display:flex; gap:6px; align-items:center; }
-    .arrierban-row-alloc__entry input[type="number"] { flex:1; }
-    .arrierban-row-alloc__remove { min-width:32px; }
-    .arrierban-row-alloc__add { justify-self:start; font-size:11px; padding:4px 8px; }
-
-
-    .army-markers-layer { position:absolute; inset:0; pointer-events:none; z-index:20; }
-    .army-marker { position:absolute; width:34px; height:34px; border-radius:999px; border:2px solid rgba(230,240,255,.95); box-shadow:0 4px 12px rgba(0,0,0,.35); transform:translate(-50%, -50%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,.7); overflow:hidden; }
-    .army-marker--feudal { width:30px; height:30px; }
-    .army-marker__emblem { width:62%; height:62%; object-fit:contain; border-radius:50%; background:rgba(0,0,0,.18); }
-    .army-manager-list { display:grid; gap:6px; max-height:340px; overflow:auto; }
-    .army-manager-category { margin-top:8px; border-top:1px solid #2b3f56; padding-top:8px; }
-    .army-manager-category__title { font-size:11px; color:#a6b4c5; text-transform:uppercase; letter-spacing:.04em; }
-    .army-manager-row { display:grid; grid-template-columns: 24px 90px 1fr 90px; gap:8px; align-items:center; font-size:12px; border:1px solid #2b3f56; border-radius:8px; padding:6px; }
-  </style>
-
-<style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Player admin — альтернативный UI v2</title>
+  <style>
   :root{
-    --bg:#07111b;
-    --bg2:#0b1724;
-    --panel:rgba(12, 21, 33, 0.92);
-    --panel-2:rgba(10, 18, 28, 0.94);
-    --border:#24384c;
-    --border-strong:#375371;
-    --text:#e9f2ff;
-    --muted:#9eb3c9;
-    --accent:#80b8ff;
-    --accent-2:#4d8bff;
-    --shadow:0 18px 48px rgba(0,0,0,.34);
     color-scheme:dark;
+    --bg:#07111b;
+    --bg-2:#0b1724;
+    --panel:rgba(10,18,28,.96);
+    --panel-2:rgba(14,24,37,.97);
+    --panel-3:rgba(18,29,44,.98);
+    --border:#253a50;
+    --border-strong:#395a79;
+    --text:#e9f2ff;
+    --muted:#9eb4cb;
+    --accent:#79b2ff;
+    --shadow:0 18px 44px rgba(0,0,0,.34);
+    --radius:18px;
   }
-  *{ box-sizing:border-box; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
   body{
     margin:0;
-    min-height:100vh;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     color:var(--text);
     background:
-      radial-gradient(circle at top left, rgba(63,114,183,.18), transparent 32%),
-      radial-gradient(circle at top right, rgba(98,56,136,.14), transparent 26%),
-      linear-gradient(180deg, #08111b 0%, #071019 100%);
+      radial-gradient(circle at top left, rgba(77,124,199,.16), transparent 34%),
+      radial-gradient(circle at top right, rgba(118,63,151,.12), transparent 28%),
+      linear-gradient(180deg,#08111b 0%, #071019 100%);
   }
-  a{ color:#a7d0ff; }
-  button, select, input, textarea{ font:inherit; }
-  .workspace{
-    min-height:100vh;
-    display:grid;
-    grid-template-rows:auto 1fr;
-  }
+  button,select,input,textarea{font:inherit}
+  a{color:#abd1ff}
+  .workspace{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
   .topbar{
-    position:sticky;
-    top:0;
-    z-index:30;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    padding:14px 16px;
-    border-bottom:1px solid rgba(43,67,92,.75);
-    background:rgba(7,14,22,.86);
-    backdrop-filter: blur(12px);
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 16px;border-bottom:1px solid rgba(43,67,92,.76);
+    background:rgba(7,14,22,.88);backdrop-filter:blur(12px);
   }
-  .topbar__brand{ display:flex; flex-direction:column; gap:3px; min-width:0; }
-  .topbar__title{ font-size:18px; font-weight:750; letter-spacing:.01em; }
-  .topbar__meta{ color:var(--muted); font-size:12px; }
-  .topbar__actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-  .toplink, .ghost-chip{
-    display:inline-flex; align-items:center; gap:8px;
-    padding:9px 12px; border-radius:12px;
-    border:1px solid var(--border); background:rgba(15,26,40,.8);
-    color:var(--text); text-decoration:none; font-size:13px; font-weight:650;
+  .topbar__brand{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .topbar__title{font-size:18px;font-weight:760;letter-spacing:.01em}
+  .topbar__meta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar__actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+  .toplink,.quick-chip,.ghost-chip{
+    display:inline-flex;align-items:center;gap:8px;
+    min-height:38px;padding:8px 12px;border-radius:12px;
+    border:1px solid var(--border);text-decoration:none;
+    background:rgba(15,26,40,.84);color:var(--text);font-size:13px;font-weight:650;
   }
-  .ghost-chip{ color:var(--muted); }
+  .ghost-chip{color:var(--muted);background:rgba(10,19,30,.7)}
   .layout-grid{
-    min-height:0;
-    display:grid;
-    grid-template-columns:minmax(300px, 360px) minmax(0, 1fr) minmax(320px, 390px);
-    gap:14px;
-    padding:14px;
+    min-height:0;display:grid;
+    grid-template-columns:minmax(290px,360px) minmax(0,1fr) minmax(320px,390px);
+    gap:14px;padding:14px;
   }
-  .rail{
-    min-height:0;
-    overflow:auto;
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-    padding-right:2px;
-  }
-  .rail::-webkit-scrollbar, .maparea::-webkit-scrollbar{ width:10px; height:10px; }
-  .rail::-webkit-scrollbar-thumb, .maparea::-webkit-scrollbar-thumb{ background:#1f3244; border-radius:999px; }
-  .rail-section{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-  }
+  .rail{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+  .rail::-webkit-scrollbar,.maparea::-webkit-scrollbar{width:10px;height:10px}
+  .rail::-webkit-scrollbar-thumb,.maparea::-webkit-scrollbar-thumb{background:#1f3244;border-radius:999px}
+  .rail-section{display:flex;flex-direction:column;gap:10px}
   .section-title{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:8px;
-    padding:0 2px;
-    color:#cfe0f2;
-    font-size:12px;
-    font-weight:750;
-    letter-spacing:.08em;
-    text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:0 2px;color:#d4e5f8;font-size:12px;font-weight:760;
+    letter-spacing:.08em;text-transform:uppercase;
   }
-  .section-note{
-    color:var(--muted);
-    font-size:11px;
-    font-weight:500;
-    text-transform:none;
-    letter-spacing:normal;
-  }
+  .section-subtitle{font-size:11px;color:var(--muted);text-transform:none;letter-spacing:normal}
   .card{
-    margin-top:0 !important;
-    padding:14px !important;
-    border-radius:18px !important;
-    border:1px solid var(--border) !important;
-    background:
-      linear-gradient(180deg, rgba(16,25,38,.95) 0%, rgba(10,17,28,.95) 100%) !important;
+    padding:14px;border-radius:var(--radius);border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(15,25,38,.96) 0%, rgba(10,17,27,.96) 100%);
     box-shadow:var(--shadow);
   }
-  .muted{ color:var(--muted) !important; }
-  .small{ color:var(--muted) !important; }
-  .grid{ gap:10px 12px !important; }
+  .card--tight{padding:12px}
+  .card h3{margin:0 0 12px;font-size:15px}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .card-title{font-size:15px;font-weight:740}
+  .card-note{font-size:11px;color:var(--muted)}
+  .metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .metric{
+    padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d;
+  }
+  .metric__label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+  .metric__value{font-size:14px;font-weight:700;line-height:1.3}
+  .grid{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;align-items:center}
+  .grid label{font-size:12px;color:var(--muted)}
   input[type="text"], input[type="number"], select, textarea{
-    background:#0a131d !important;
-    border:1px solid #2b425a !important;
-    border-radius:12px !important;
-    color:var(--text) !important;
+    width:100%;box-sizing:border-box;background:#0a131d;color:var(--text);
+    border:1px solid #2a4158;border-radius:12px;padding:9px 11px;outline:none;
   }
+  select[multiple]{height:150px}
+  input[type="color"]{width:58px;height:36px;padding:0;border:0;background:transparent}
+  input[type="range"]{width:100%}
+  textarea{min-height:160px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-size:12px}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
   button{
-    background:linear-gradient(180deg, #17283b 0%, #112032 100%) !important;
-    border:1px solid #304c68 !important;
-    border-radius:12px !important;
-    color:var(--text) !important;
-    box-shadow:none !important;
+    background:#152231;color:var(--text);border:1px solid #2c445d;border-radius:12px;
+    padding:8px 12px;cursor:pointer;font-weight:670;
   }
-  button:hover{ background:linear-gradient(180deg, #1a3046 0%, #15283c 100%) !important; }
-  .btnrow{ gap:8px !important; }
-  .map-shell{
-    min-height:0;
-    display:grid;
-    grid-template-rows:auto 1fr;
-    gap:12px;
-  }
-  .map-toolbar{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    padding:14px 16px;
-    border:1px solid var(--border);
-    border-radius:18px;
-    background:rgba(11,19,30,.92);
+  button:hover{background:#1d3044}
+  .btn-soft{background:#0d1b29}
+  .btn-danger{border-color:#6a3944}
+  .kv{font-size:12px;display:grid;gap:7px}
+  .kv b{color:#a7bdd3;font-weight:670;margin-right:6px}
+  .small,.muted{color:var(--muted);font-size:12px;line-height:1.45}
+  .small{font-size:11px}
+  .hidden{display:none !important}
+  .utility-store{display:none !important}
+  .divider{height:1px;background:#23374b;margin:2px 0}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .status-strip{display:flex;flex-wrap:wrap;gap:8px}
+  .status-pill{padding:7px 10px;border-radius:999px;background:#0b1520;border:1px solid #25394d;color:var(--muted);font-size:11px;font-weight:650}
+  .map-shell{min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
+  .map-topbar,.map-toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border-radius:20px;border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(15,24,37,.96) 0%, rgba(9,16,26,.96) 100%);
     box-shadow:var(--shadow);
   }
-  .map-toolbar__title{ font-size:15px; font-weight:750; }
-  .map-toolbar__meta{ color:var(--muted); font-size:12px; margin-top:3px; }
-  .map-toolbar__chips{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .map-toolbar__title{font-size:16px;font-weight:760}
+  .map-toolbar__meta{font-size:12px;color:var(--muted)}
+  .map-toolbar__chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
   .map-stage{
-    min-height:0;
-    border:1px solid var(--border);
-    border-radius:22px;
-    background:linear-gradient(180deg, rgba(7,14,22,.96), rgba(9,16,26,.96));
-    box-shadow:var(--shadow);
-    overflow:hidden;
-    display:grid;
-    grid-template-rows:auto 1fr;
+    min-height:0;display:grid;grid-template-rows:auto 1fr;
+    border-radius:22px;border:1px solid var(--border);overflow:hidden;
+    background:rgba(6,10,16,.88);box-shadow:var(--shadow);
   }
   .map-stage__head{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    padding:12px 14px;
-    border-bottom:1px solid rgba(40,59,80,.9);
-    background:rgba(10,16,25,.92);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border-bottom:1px solid #203346;background:rgba(9,15,23,.92)
   }
-  .map-stage__head strong{ font-size:13px; }
-  .map-stage__head span{ font-size:12px; color:var(--muted); }
-  .maparea{
-    min-height:0 !important;
-    overflow:auto !important;
-    padding:18px !important;
-    box-sizing:border-box;
-    background:
-      linear-gradient(180deg, rgba(5,10,17,.4), rgba(5,10,17,0) 120px),
-      radial-gradient(circle at top, rgba(80,122,182,.09), transparent 45%);
+  .map-stage__head strong{font-size:14px}
+  .map-stage__head span{font-size:12px;color:var(--muted)}
+  .maparea{min-height:0;overflow:auto;padding:12px;background:linear-gradient(180deg,#071019 0%, #060d15 100%)}
+  #mapWrap{position:relative;display:inline-block}
+  #baseMap{position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;display:block}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  #tooltip{position:fixed;z-index:60;pointer-events:none;background:rgba(13,19,27,.94);border:1px solid #2b3f56;border-radius:10px;padding:8px 10px;font-size:12px;color:#e7eef7;display:none;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:360px}
+  .army-markers-layer{position:absolute;inset:0;pointer-events:none;z-index:20}
+  .army-marker{position:absolute;width:34px;height:34px;border-radius:999px;border:2px solid rgba(230,240,255,.95);box-shadow:0 4px 12px rgba(0,0,0,.35);transform:translate(-50%, -50%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.7);overflow:hidden}
+  .army-marker--feudal{width:30px;height:30px}
+  .army-marker__emblem{width:62%;height:62%;object-fit:contain;border-radius:50%;background:rgba(0,0,0,.18)}
+  .emblemPreview, .provinceCardPreview{
+    width:100%;border:1px dashed #2e465f;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    background:#09111a;overflow:hidden;
   }
-  .maparea #mapWrap{
-    background:#0a121c;
-    border:1px solid rgba(41,60,82,.7);
-    border-radius:18px;
-    box-shadow:0 10px 28px rgba(0,0,0,.24);
-    overflow:hidden;
-  }
-  .panel-placeholder{
-    padding:14px;
-    border-radius:18px;
-    border:1px dashed #35506c;
-    background:rgba(9,18,30,.78);
-  }
-  .panel-placeholder h3{
-    margin:0 0 8px;
-    font-size:14px;
-  }
-  .panel-placeholder p{
-    margin:0;
-    color:var(--muted);
-    font-size:13px;
-    line-height:1.45;
-  }
-  .future-list{
-    margin:10px 0 0;
-    padding-left:18px;
-    color:#d5e6fb;
-    font-size:13px;
-    line-height:1.5;
-  }
-  .future-list li+li{ margin-top:4px; }
-  .status-strip{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    margin-top:8px;
-  }
-  .status-pill{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding:6px 10px;
-    border-radius:999px;
-    border:1px solid #2b425a;
-    background:#0a141f;
-    color:#cfe0f2;
-    font-size:12px;
-  }
-  details.workspace-details{
-    border:1px solid var(--border);
-    background:rgba(9,17,27,.84);
-    border-radius:16px;
-    overflow:hidden;
-    box-shadow:var(--shadow);
-  }
-  details.workspace-details > summary{
-    list-style:none;
-    cursor:pointer;
-    padding:12px 14px;
-    font-size:13px;
-    font-weight:700;
-    color:#d8e7f8;
-    background:rgba(11,18,28,.94);
-    border-bottom:1px solid rgba(39,57,77,.8);
-  }
-  details.workspace-details > summary::-webkit-details-marker{ display:none; }
-  details.workspace-details > .workspace-details__body{
-    padding:12px;
-    display:grid;
-    gap:12px;
-  }
-  .hidden-copy{ display:none !important; }
+  .emblemPreview{height:140px}
+  .provinceCardPreview{height:170px}
+  .emblemPreview img,.provinceCardPreview img{max-width:100%;max-height:100%;display:block}
+  .placeholder-card{padding:14px;border-radius:18px;border:1px dashed #36516e;background:rgba(9,16,25,.72)}
+  .placeholder-card h3{margin:0 0 8px;font-size:15px}
+  .placeholder-card p{margin:0;color:var(--muted);line-height:1.5;font-size:13px}
+  .placeholder-card ul{margin:10px 0 0 18px;padding:0;color:#d7e6f8;line-height:1.55;font-size:13px}
+  .palette{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+  .swatch{border:1px solid #2b3f56;border-radius:8px;height:24px}
+  .form-subgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .toolbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .toolbar-row .grid{margin:0}
+  .compact-info{display:flex;flex-wrap:wrap;gap:8px}
+  .compact-info__item{padding:8px 10px;border-radius:12px;background:#0a1420;border:1px solid #24384d;font-size:12px}
+  .map-quick-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .map-note{font-size:12px;color:var(--muted)}
+  .person-link { background:none; border:0; color:#9bc7ff; padding:0; margin:0; cursor:pointer; font:inherit; text-decoration:underline; }
+  .person-link:hover { color:#c3ddff; }
+  .person-modal,.editor-modal,.province-modal { position:fixed; inset:0; z-index:110; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.72); backdrop-filter: blur(2px); }
+  .person-modal.open,.editor-modal.open,.province-modal.open { display:flex; }
+  .person-modal__window,.editor-modal__window,.province-modal__window { width:min(900px, 98vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
+  .province-modal__window{width:min(840px,96vw)}
+  .person-modal__close,.province-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
+  .editor-modal__head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px; border-bottom:1px solid #223041; }
+  .editor-modal__body,.person-modal__content,.province-modal__content { padding:16px; clear:both; }
+  .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
+  .editor-modal textarea { min-height:120px; }
+  .person-modal__photo-wrap { width:180px; aspect-ratio:1/1; border:1px solid #2b3f56; border-radius:12px; overflow:hidden; background:#111923; }
+  .person-modal__photo { width:100%; height:100%; object-fit:cover; display:block; }
+  .person-modal__name { margin:14px 0 8px; font-size:24px; }
+  .person-modal__kv { display:grid; gap:8px; font-size:13px; }
+  .person-modal__kv b { color:#a6b4c5; }
+  .person-modal__bio { margin-top:14px; line-height:1.45; color:#d8e1ec; }
+  .province-modal__map-shot { width:100%; max-height:320px; object-fit:contain; border:1px solid #223041; border-radius:12px; background:#080c11; }
+  .province-modal__lineage { margin-top:14px; display:grid; gap:10px; }
+  .province-modal__lineage-item { display:flex; align-items:center; gap:10px; font-size:14px; }
+  .province-modal__lineage-item span { color:#a6b4c5; min-width:120px; }
+  .province-modal__herald { width:42px; height:42px; border-radius:8px; border:1px solid #2b3f56; background:#111923; object-fit:contain; }
+  .province-modal__header { margin-top:18px; display:flex; gap:12px; align-items:center; }
+  .province-modal__title { margin:0; font-size:28px; letter-spacing:0.08em; text-transform:uppercase; }
+  .province-modal__text { margin-top:16px; line-height:1.45; color:#d8e1ec; }
+  .province-modal__text p { margin:0 0 0.7em; }
+  .province-modal__text p:last-child { margin-bottom:0; }
+  .province-modal__text ul { margin:0.4em 0 0.8em 1.2em; padding:0; }
+  .province-modal__text h1, .province-modal__text h2, .province-modal__text h3 { margin:0.4em 0; }
+  .province-modal__text code { background:#111923; border:1px solid #2b3f56; border-radius:6px; padding:1px 5px; }
+  .wiki-editor-modal__preview { margin-top:10px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; display:flex; align-items:center; justify-content:center; min-height:220px; }
+  .wiki-editor-modal__preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
+  .wiki-editor-modal__preview-empty { color:#a6b4c5; font-size:12px; }
+  .wiki-editor-modal__status { margin-top:10px; font-size:12px; color:#a6b4c5; }
+  .arrierban-grid { display:grid; grid-template-columns: 1.1fr 110px 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
+  .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
+  .arrierban-grid input[type="number"] { padding:6px 8px; }
+  .army-manager-list { display:grid; gap:6px; max-height:340px; overflow:auto; }
+  @media (max-width: 1300px){ .layout-grid{grid-template-columns:minmax(260px,330px) minmax(0,1fr) minmax(300px,360px)} }
+  @media (max-width: 1100px){ .layout-grid{grid-template-columns:1fr} .rail{max-height:none} .map-shell{order:-1} .topbar{align-items:flex-start} }
 
-  @media (max-width: 1380px){
-    .layout-grid{
-      grid-template-columns:minmax(280px, 330px) minmax(0, 1fr) minmax(290px, 350px);
-    }
-  }
-  @media (max-width: 1080px){
-    .layout-grid{
-      grid-template-columns:1fr;
-      grid-template-rows:auto minmax(46vh, 62vh) auto;
-    }
-    .rail{
-      overflow:visible;
-    }
-    .map-shell{
-      order:-1;
-    }
-    .topbar{
-      position:static;
-    }
-  }
-</style>
+  .entity-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .entity-grid .full{grid-column:1/-1}
+  .selection-card .selection-name{font-size:17px}
+  .selection-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .summary-box{padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d}
+  .summary-box__label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .summary-box__value{font-size:13px;font-weight:700;word-break:break-word}
+  .placeholder-grid{display:grid;gap:10px}
+  </style>
 </head>
-
 <body>
-  <div class="workspace">
-    <header class="topbar">
-      <div class="topbar__brand">
-        <div class="topbar__title">Player Admin — интерфейс игрока</div>
-        <div class="topbar__meta">Карта как основная сцена, справа — выбранная сущность и действия, слева — ход, война и системные настройки.</div>
-      </div>
-      <div class="topbar__actions">
-        <a class="toplink" href="/entity_cabinet.html">Кабинет сущности</a>
-        <a class="toplink" href="/index.html" target="_blank" rel="noopener">Публичная карта</a>
-      </div>
-    </header>
-
-    <div class="layout-grid">
-      <aside class="rail">
-        <div class="rail-section">
-          <div class="section-title">Доступ и ход</div>
-          <div class="card">
-<div class="muted">Ссылка в player_admin на 24 часа</div>
-<div class="grid" style="margin-top:8px; grid-template-columns:120px 1fr;">
-<label>Тип сущности</label>
-<select id="playerAdminTokenEntityType">
-<option value="great_houses">Большой Дом</option>
-<option value="minor_houses">Вассал (Малый Дом)</option>
-<option value="free_cities">Вольный Город</option>
-</select>
-<label>Сущность</label>
-<select id="playerAdminTokenEntityId">
-<option value="">Загрузка…</option>
-</select>
-</div>
-<div class="btnrow"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div>
-<input id="playerAdminTokenLink" placeholder="Ссылка появится здесь" readonly="" style="margin-top:8px;" type="text"/>
-</div>
-          <div class="card">
-<div class="muted">Режим миграции</div>
-<div class="small" id="flagsStatus" style="margin-top:6px;">Флаги: backend</div>
-<div class="btnrow" style="margin-top:8px;">
-</div>
-</div>
-          <div class="card">
-<div class="muted">Ходы и казна (основная карта)</div>
-<div class="kv">
-<div><b>Текущий ход/год:</b> <span id="turnCurrentYear">—</span></div>
-<div><b>Статус:</b> <span id="turnCurrentStatus">—</span></div>
-<div><b>Казна провинций:</b> <span id="turnTreasuryProvSum">—</span></div>
-<div><b>Казна сущностей:</b> <span id="turnTreasuryEntitySum">—</span></div>
-</div>
-<details style="margin-top:8px;">
-<summary class="small">Показать казну сущностей</summary>
-<div class="small" id="turnEntityTreasuryList" style="margin-top:6px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
-</details>
-<div class="btnrow">
-<button id="btnMakeTurn" type="button">Сделать ход</button>
-<button id="btnRefreshTurn" type="button">Обновить статус</button>
-<button id="btnOpenTurnAdmin" type="button">Открыть админку хода</button>
-<button id="btnSaveTurnToBackend" type="button">Сохранить ход</button>
-</div>
-<div class="small" id="turnActionStatus" style="margin-top:8px;">—</div>
-</div>
-        </div>
-
-        <details class="workspace-details" open>
-          <summary>Карта и война</summary>
-          <div class="workspace-details__body">
-            <div class="card">
-<div class="grid">
-<label>Режим</label>
-<select id="viewMode">
-<option value="provinces">Физическая карта</option>
-<option value="war">Война</option>
-<option value="kingdoms">Королевства</option>
-<option value="great_houses">Большие Дома</option>
-<option value="minor_houses">Малые Дома</option>
-<option value="free_cities">Вольные Города</option>
-<option value="special_territories">Особые Территории</option>
-</select>
-</div>
-</div>
-            <div class="card" id="warBattleLinksCard">
-<div class="muted">Боевые симуляции</div>
-<div class="small" id="warBattleLinks" style="margin-top:8px; white-space:pre-wrap;">—</div>
-</div>
-            <div class="card" id="warMoveCard">
-<div class="muted">Передвижение армий (режим «Война»)</div>
-<div class="grid" style="margin-top:10px; grid-template-columns: 130px 1fr;">
-<label>Армия</label>
-<select id="warArmySelect"></select>
-<label>Радиус за ход</label>
-<div class="small" id="warMoveRadius">—</div>
-<label>Доступно провинций</label>
-<div class="small" id="warMoveReachCount">—</div>
-</div>
-<div class="btnrow">
-<button id="warRefreshArmies" type="button">Обновить список армий</button>
-<button id="warClearSelection" type="button">Снять выбор армии</button>
-</div>
-<div class="small" id="warMoveHint" style="margin-top:8px;">Выберите армию, затем кликните по подсвеченной провинции на карте.</div>
-</div>
-            <div class="card">
-<div class="muted">Масштаб карты</div>
-<div class="btnrow" style="margin-top:10px;">
-<button class="zoomBtn" data-zoom="fit" type="button">По экрану</button>
-<button class="zoomBtn" data-zoom="1" type="button">1×</button>
-<button class="zoomBtn" data-zoom="2" type="button">2×</button>
-<button class="zoomBtn" data-zoom="5" type="button">5×</button>
-<button class="zoomBtn" data-zoom="10" type="button">10×</button>
-</div>
-<div class="small" style="margin-top:8px;">Колесо мыши над картой — плавный зум.</div>
-</div>
-            <div class="card">
-<div class="muted">Геральдика провинций</div>
-<div class="btnrow">
-<button id="toggleProvEmblems" type="button">Скрыть геральдику провинций</button>
-</div>
-</div>
-          </div>
-        </details>
-      </aside>
-
-      <section class="map-shell">
-        <div class="map-toolbar">
-          <div>
-            <div class="map-toolbar__title">Карта сущности</div>
-            <div class="map-toolbar__meta">Основные действия игрока совершаются прямо со сцены карты: выбор провинции, управление армиями, переход в карточки и редакторы.</div>
-          </div>
-          <div class="map-toolbar__chips">
-            <span class="ghost-chip">Собственные провинции</span>
-            <span class="ghost-chip">Военный режим</span>
-            <span class="ghost-chip">Созыв и армии</span>
-          </div>
-        </div>
-        <div class="map-stage">
-          <div class="map-stage__head">
-            <div><strong>Рабочее поле игрока</strong><span> Все существующие токены, механики и API остаются прежними; меняется только организация пространства.</span></div>
-            <div class="status-strip">
-              <span class="status-pill">ЛКМ: выбор</span>
-              <span class="status-pill">Ctrl/Shift: мультивыбор</span>
-              <span class="status-pill">Колесо: зум</span>
-            </div>
-          </div>
-          <main class="maparea" id="mapArea">
-<div id="mapWrap">
-<img alt="Карта" id="baseMap" src="map.png"/>
-<canvas id="fill"></canvas>
-<canvas id="emblems"></canvas>
-<canvas id="hover"></canvas>
-<div class="army-markers-layer" id="armyMarkers"></div>
-</div>
-<div id="tooltip"></div>
-</main>
-        </div>
-      </section>
-
-      <aside class="rail">
-        <div class="rail-section">
-          <div class="section-title">Инспектор</div>
-          <div class="card">
-<div class="kv">
-<div><b>Выбрано:</b> <span id="selName">—</span></div>
-<div><b>PID:</b> <span id="selPid">—</span></div>
-<div><b>KEY:</b> <span id="selKey">—</span></div>
-<div><b>Выделено:</b> <span id="multiSelCount">0</span></div>
-</div>
-</div>
-          <div class="card">
-<div class="muted">Феодальные сущности (Ctrl/Shift+клик для мультивыбора провинций)</div>
-<div class="grid" style="margin-top:10px;">
-<label>Тип</label>
-<select id="realmType">
-<option value="kingdoms">Королевства</option>
-<option value="great_houses">Большие Дома</option>
-<option value="minor_houses">Малые Дома</option>
-<option value="free_cities">Вольные Города</option>
-<option value="special_territories">Особые Территории</option>
-</select>
-<label>Сущность</label>
-<select id="realmSelect"></select>
-<label>Название</label>
-<input id="realmName" placeholder="Название" type="text"/>
-<label>Правитель</label>
-<input id="realmRuler" list="peopleList" placeholder="Имя правителя (добавит в список)" type="text"/>
-<label>Цвет</label>
-<input id="realmColor" type="color" value="#ff3b30"/>
-<label>Столица KEY</label>
-<input id="realmCapital" placeholder="Напр. 34172" type="text"/>
-<label>Масштаб герба</label>
-<div style="display:flex; gap:10px; align-items:center;">
-<input id="realmEmblemScale" max="3" min="0.2" step="0.1" type="range" value="1"/>
-<span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span>
-</div>
-</div>
-<div class="btnrow">
-<button id="realmUploadEmblemBtn" type="button">Загрузить герб сущности</button>
-<button id="realmRemoveEmblemBtn" type="button">Удалить герб сущности</button>
-<button id="realmArrierbanBtn" type="button">Арьербан (созыв войск)</button>
-<button id="realmDomainArrierbanBtn" type="button">Созвать доменное войско</button>
-<button id="realmRoyalArrierbanBtn" style="display:none;" type="button">Королевский призыв</button>
-<button id="realmArrierbanDismissBtn" type="button">Распустить армии (с потерями)</button>
-<button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
-</div>
-<pre class="small" id="realmArrierbanOutput" style="margin-top:10px; white-space:pre-wrap;"></pre>
-<input accept="image/svg+xml,.svg" id="realmEmblemFile" style="display:none;" type="file"/>
-</div>
-        </div>
-
-        <div class="panel-placeholder">
-          <h3>Место под ближайшие игровые модули</h3>
-          <p>Эта колонка рассчитана не только под текущие карты и войну, но и под следующие игровые интерфейсы без новой полной переделки.</p>
-          <ul class="future-list">
-            <li>приказы и вердикты прямо из кабинета игрока;</li>
-            <li>дипломатия, телеграф и регистрация организаций;</li>
-            <li>игра на персонажах и личные каналы;</li>
-            <li>будущие LLM-NPC реакции, хроника и биржевые события.</li>
-          </ul>
-        </div>
-      </aside>
+<div class="workspace">
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="topbar__title">Карта игрока</div>
+      <div class="topbar__meta">Карта — основная сцена. Управление сущностью, войной и будущими RP-модулями вынесено в боковые панели.</div>
     </div>
-  </div>
+    <div class="topbar__actions">
+      <a class="toplink" href="/entity_cabinet.html">Кабинет сущности</a>
+      <a class="toplink" href="/index.html" target="_blank" rel="noopener">Публичная карта</a>
+    </div>
+  </header>
 
-  <textarea id="state" spellcheck="false" style="display:none;"></textarea>
-  <div aria-hidden="true" class="province-modal" id="provinceModal">
+  <div class="layout-grid">
+    <aside class="rail">
+      <section class="rail-section">
+        <div class="section-title">Управление</div>
+
+        <article class="card card--tight">
+          <div class="card-head">
+            <div class="card-title">Доступ и токен</div>
+            <div class="card-note" id="flagsStatus">backend</div>
+          </div>
+          <div class="grid">
+            <label>Тип</label>
+            <select id="playerAdminTokenEntityType">
+              <option value="great_houses">Большой Дом</option>
+              <option value="minor_houses">Вассал (Малый Дом)</option>
+              <option value="free_cities">Вольный Город</option>
+            </select>
+            <label>Сущность</label>
+            <select id="playerAdminTokenEntityId"><option value="">Загрузка…</option></select>
+          </div>
+          <div class="btnrow" style="margin-top:10px;"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div>
+          <input id="playerAdminTokenLink" type="text" readonly placeholder="Ссылка появится здесь" style="margin-top:10px;" />
+        </article>
+
+        <article class="card card--tight">
+          <div class="card-head">
+            <div class="card-title">Ход</div>
+            <div class="card-note" id="turnActionStatus">—</div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div>
+            <div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div>
+            <div class="metric"><span class="metric__label">Казна игрока</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div>
+            <div class="metric"><span class="metric__label">Казна сущности</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div>
+          </div>
+          <details style="margin-top:10px;">
+            <summary class="small">Развернуть ведомость</summary>
+            <div id="turnEntityTreasuryList" class="small" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
+          </details>
+          <div class="btnrow" style="margin-top:10px;">
+            <button id="btnMakeTurn" type="button">Сделать ход</button>
+            <button id="btnRefreshTurn" type="button">Обновить</button>
+            <button id="btnSaveTurnToBackend" type="button">Сохранить ход</button>
+            <button id="btnOpenTurnAdmin" type="button">Ходы</button>
+          </div>
+        </article>
+
+        <article class="card card--tight">
+          <div class="card-head"><div class="card-title">Слой карты</div></div>
+          <div class="grid" style="grid-template-columns:90px 1fr;">
+            <label>Слой</label>
+            <select id="viewMode">
+              <option value="provinces">Физическая карта</option>
+              <option value="war">Война</option>
+              <option value="kingdoms">Королевства</option>
+              <option value="great_houses">Большие Дома</option>
+              <option value="minor_houses">Малые Дома</option>
+              <option value="free_cities">Вольные Города</option>
+              <option value="special_territories">Особые Территории</option>
+            </select>
+          </div>
+          <div class="btnrow" style="margin-top:10px;">
+            <button id="toggleProvEmblems" type="button">Геральдика провинций</button>
+          </div>
+          <div class="utility-store">
+            <button class="zoomBtn" data-zoom="fit" type="button">По экрану</button>
+          </div>
+        </article>
+
+        <article id="warBattleLinksCard" class="card card--tight">
+          <div class="card-head"><div class="card-title">Боевые сессии</div></div>
+          <div id="warBattleLinks" class="small" style="white-space:pre-wrap;">—</div>
+        </article>
+
+        <article id="warMoveCard" class="card card--tight">
+          <div class="card-head"><div class="card-title">Передвижение армий</div></div>
+          <div class="grid" style="grid-template-columns:120px 1fr;">
+            <label>Армия</label>
+            <select id="warArmySelect"></select>
+            <label>Радиус</label>
+            <div class="small" id="warMoveRadius">—</div>
+            <label>Доступно</label>
+            <div class="small" id="warMoveReachCount">—</div>
+          </div>
+          <div class="btnrow" style="margin-top:10px;">
+            <button id="warRefreshArmies" type="button">Обновить список</button>
+            <button id="warClearSelection" type="button">Снять выбор</button>
+          </div>
+          <div id="warMoveHint" class="small" style="margin-top:8px;">—</div>
+        </article>
+      </section>
+    </aside>
+
+    <section class="map-shell">
+      <div class="map-toolbar">
+        <div>
+          <div class="map-toolbar__title">Сцена карты сущности</div>
+          <div class="map-toolbar__meta">Автоподгонка при загрузке. Выбор провинций, война и переходы в карточки остаются прежними.</div>
+        </div>
+        <div class="map-toolbar__chips">
+          <span class="ghost-chip">ЛКМ — выбор</span>
+          <span class="ghost-chip">Ctrl/Shift — мультивыбор</span>
+          <span class="ghost-chip">Колесо — зум</span>
+        </div>
+      </div>
+      <div class="map-stage">
+        <div class="map-stage__head">
+          <div>
+            <strong>Карта</strong>
+            <span>Все текущие механики и API сохранены; меняется только организация интерфейса.</span>
+          </div>
+          <div class="status-strip">
+            <span class="status-pill">Собственные провинции</span>
+            <span class="status-pill">Армии и созыв</span>
+            <span class="status-pill">Будущие приказы / телеграф</span>
+          </div>
+        </div>
+        <main id="mapArea" class="maparea">
+          <div id="mapWrap">
+            <img id="baseMap" src="map.png" alt="Карта" />
+            <canvas id="fill"></canvas>
+            <canvas id="emblems"></canvas>
+            <canvas id="hover"></canvas>
+            <div id="armyMarkers" class="army-markers-layer"></div>
+          </div>
+          <div id="tooltip"></div>
+        </main>
+      </div>
+    </section>
+
+    <aside class="rail">
+      <section class="rail-section">
+        <div class="section-title">Сущность и инспектор</div>
+
+        <article class="card card--tight selection-card">
+          <div class="card-head"><div class="card-title">Выбранная провинция</div></div>
+          <div class="selection-name" id="selName">—</div>
+          <div class="selection-summary" style="margin-top:10px;">
+            <div class="summary-box"><div class="summary-box__label">PID</div><div class="summary-box__value" id="selPid">—</div></div>
+            <div class="summary-box"><div class="summary-box__label">KEY</div><div class="summary-box__value" id="selKey">—</div></div>
+            <div class="summary-box"><div class="summary-box__label">Выделено</div><div class="summary-box__value" id="multiSelCount">0</div></div>
+            <div class="summary-box"><div class="summary-box__label">Режим</div><div class="summary-box__value">Инспектор / модальные окна</div></div>
+          </div>
+        </article>
+
+        <article class="card card--tight">
+          <div class="card-head"><div class="card-title">Сущность</div></div>
+          <div class="entity-grid">
+            <div class="full"><label class="small">Тип</label><select id="realmType"><option value="kingdoms">Королевства</option><option value="great_houses">Большие Дома</option><option value="minor_houses">Малые Дома</option><option value="free_cities">Вольные Города</option><option value="special_territories">Особые Территории</option></select></div>
+            <div class="full"><label class="small">Сущность</label><select id="realmSelect"></select></div>
+            <div class="full"><label class="small">Название</label><input id="realmName" type="text" placeholder="Название" /></div>
+            <div><label class="small">Правитель</label><input id="realmRuler" type="text" list="peopleList" placeholder="Правитель" /></div>
+            <div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30" /></div>
+            <div><label class="small">Столица KEY</label><input id="realmCapital" type="text" placeholder="34172" /></div>
+            <div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" /><span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span></div></div>
+          </div>
+          <div class="btnrow" style="margin-top:10px;">
+            <button id="realmUploadEmblemBtn" type="button">Загрузить герб</button>
+            <button id="realmRemoveEmblemBtn" type="button">Удалить герб</button>
+            <button id="realmArrierbanBtn" type="button">Арьербан</button>
+            <button id="realmDomainArrierbanBtn" type="button">Доменное войско</button>
+            <button id="realmRoyalArrierbanBtn" type="button" style="display:none;">Королевский призыв</button>
+            <button id="realmArrierbanDismissBtn" type="button">Распустить армии</button>
+            <button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
+          </div>
+          <pre id="realmArrierbanOutput" class="small" style="margin-top:10px; white-space:pre-wrap;"></pre>
+          <input id="realmEmblemFile" type="file" accept="image/svg+xml,.svg" class="hidden" />
+        </article>
+
+        <article class="placeholder-card">
+          <h3>Модули следующего этапа</h3>
+          <p>Здесь уже оставлено место под новые игровые экраны без новой перепаковки player map.</p>
+          <ul>
+            <li>Приказы и вердикты.</li>
+            <li>Телеграф и дипломатия.</li>
+            <li>Регистрация организаций и игра на персонажах.</li>
+            <li>Автоматическая летопись, NPC-реакции и LLM-каналы.</li>
+          </ul>
+        </article>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div class="utility-store">
+  <textarea id="state" spellcheck="false"></textarea>
+</div>
+
+<div aria-hidden="true" class="province-modal" id="provinceModal">
 <div aria-label="Страница провинции" aria-modal="true" class="province-modal__window" role="dialog">
 <button aria-label="Закрыть" class="province-modal__close" id="provinceModalClose" type="button">×</button>
 <div class="province-modal__content">
@@ -611,7 +430,9 @@
 <p class="province-modal__text" id="modalProvinceDescription">Описание провинции пока не заполнено.</p>
 </div>
 </div>
-</div><div aria-hidden="true" class="person-modal" id="personModal">
+</div>
+
+<div aria-hidden="true" class="person-modal" id="personModal">
 <div aria-label="Карточка персонажа" aria-modal="true" class="person-modal__window" role="dialog">
 <button aria-label="Закрыть" class="person-modal__close" id="personModalClose" type="button">×</button>
 <div class="person-modal__content">
@@ -625,7 +446,9 @@
 <p class="person-modal__bio" id="personModalBio">Биография будет добавлена позже.</p>
 </div>
 </div>
-</div><div aria-hidden="true" class="editor-modal" id="playerWikiEditorModal">
+</div>
+
+<div aria-hidden="true" class="editor-modal" id="playerWikiEditorModal">
 <div class="editor-modal__window">
 <div class="editor-modal__head">
 <div>
@@ -680,7 +503,9 @@
 <div class="wiki-editor-modal__status" id="playerWikiEditorStatus">—</div>
 </div>
 </div>
-</div><div aria-hidden="true" class="editor-modal" id="manualEditModal">
+</div>
+
+<div aria-hidden="true" class="editor-modal" id="manualEditModal">
 <div class="editor-modal__window">
 <div class="editor-modal__head">
 <div>
@@ -719,7 +544,9 @@
 </div>
 </div>
 </div>
-</div><div aria-hidden="true" class="editor-modal" id="arrierbanModal">
+</div>
+
+<div aria-hidden="true" class="editor-modal" id="arrierbanModal">
 <div class="editor-modal__window">
 <div class="editor-modal__head">
 <div>
@@ -741,7 +568,9 @@
 </div>
 </div>
 </div>
-</div><div aria-hidden="true" class="editor-modal" id="armyManageModal">
+</div>
+
+<div aria-hidden="true" class="editor-modal" id="armyManageModal">
 <div class="editor-modal__window">
 <div class="editor-modal__head">
 <div>
@@ -766,7 +595,41 @@
 </div>
 </div>
 </div>
-  <script src="js/feature_flags.js"></script><datalist id="peopleList"></datalist><script src="js/state_loader.js"></script><script src="js/app_core.js"></script><script src="js/admin_war_shared.js"></script><script src="js/army_state.js"></script><script src="js/player_admin.js"></script><script src="js/admin.js"></script>
-</body>
+<script src="js/feature_flags.js"></script>
+<datalist id="peopleList"></datalist>
+<script src="js/state_loader.js"></script>
+<script src="js/app_core.js"></script>
+<script src="js/admin_war_shared.js"></script>
+<script src="js/army_state.js"></script>
+<script src="js/player_admin.js"></script>
+<script src="js/admin.js"></script>
 
+<script>
+(function(){
+  function autoFitMap(){
+    const fitBtn = document.querySelector('.zoomBtn[data-zoom="fit"]');
+    if (!fitBtn) return;
+    let count = 0;
+    const run = () => {
+      if (count > 8) return;
+      count += 1;
+      try { fitBtn.click(); } catch(_e) {}
+    };
+    const schedule = (ms) => setTimeout(run, ms);
+    if (document.readyState === 'complete') { schedule(30); schedule(220); schedule(700); }
+    else window.addEventListener('load', () => { schedule(30); schedule(220); schedule(700); }, { once:true });
+    const mapArea = document.getElementById('mapArea');
+    if (mapArea && 'ResizeObserver' in window) {
+      const ro = new ResizeObserver(() => schedule(30));
+      ro.observe(mapArea);
+      setTimeout(() => { try { ro.disconnect(); } catch(_e) {} }, 4000);
+    }
+    const baseMap = document.getElementById('baseMap');
+    if (baseMap) baseMap.addEventListener('load', () => schedule(30), { once:true });
+  }
+  autoFitMap();
+})();
+</script>
+
+</body>
 </html>
