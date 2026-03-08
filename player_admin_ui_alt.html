@@ -211,204 +211,117 @@
   .summary-box__value{font-size:13px;font-weight:700;word-break:break-word}
   .placeholder-grid{display:grid;gap:10px}
   </style>
+
+<style>
+html,body{height:100%;overflow:hidden}
+body{min-height:100vh;overflow:hidden}
+.workspace{height:100vh;grid-template-rows:auto 1fr}
+.topbar{padding:10px 14px}.topbar__meta{display:none}.topbar__title{font-size:17px}
+.layout-grid{min-height:0;display:grid;grid-template-columns:70px minmax(0,1fr) 340px;gap:12px;padding:12px}
+.launcher{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:2px}
+.launcher::-webkit-scrollbar,.inspector::-webkit-scrollbar{width:8px;height:8px}.launcher::-webkit-scrollbar-thumb,.inspector::-webkit-scrollbar-thumb{background:#1f3244;border-radius:999px}
+.launcher-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:62px;padding:8px;border-radius:16px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--text);cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.03em;text-align:center}
+.launcher-btn:hover,.launcher-btn.is-active{border-color:#4772a1;background:linear-gradient(180deg, rgba(24,42,63,.96), rgba(13,24,37,.96))}
+.launcher-btn strong{font-size:14px;line-height:1}
+.map-shell{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
+.appbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg, rgba(14,24,37,.96), rgba(9,16,26,.96));box-shadow:var(--shadow)}
+.appbar__left,.appbar__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.select-compact{min-width:220px}
+.map-stage{min-height:0;border-radius:22px;border:1px solid var(--border);overflow:hidden;background:rgba(6,10,16,.92);box-shadow:var(--shadow);display:grid;grid-template-rows:auto 1fr}
+.map-stage__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #203346;background:rgba(9,15,23,.94)}
+.map-stage__head .chips{display:flex;gap:8px;flex-wrap:wrap}
+.map-chip{padding:7px 10px;border-radius:999px;background:#0b1520;border:1px solid #25394d;color:var(--muted);font-size:11px;font-weight:650}
+.maparea{min-height:0;overflow:auto;padding:8px;background:linear-gradient(180deg,#071019 0%, #060d15 100%);display:flex;align-items:center;justify-content:center}
+#mapWrap{position:relative;display:block;line-height:0;background:#0a121c;border:1px solid rgba(41,60,82,.7);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.24);overflow:hidden;margin:auto}
+.inspector{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}.inspector-card{padding:14px;border-radius:18px;border:1px solid var(--border);background:linear-gradient(180deg, rgba(15,25,38,.96) 0%, rgba(10,17,27,.96) 100%);box-shadow:var(--shadow)}.inspector-card h3{margin:0 0 10px;font-size:14px}
+.kpi-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.kpi{padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d}.kpi label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}.kpi span{font-size:13px;font-weight:700;line-height:1.3}
+.selection-name{font-size:20px;font-weight:780;line-height:1.2;margin-bottom:10px}.selection-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.selection-meta div{padding:8px 10px;border-radius:12px;background:#0a1420;border:1px solid #24384d}.selection-meta label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}.selection-meta b{font-size:13px}
+.inspector-actions,.btnrow{display:flex;flex-wrap:wrap;gap:8px}.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini-grid .full{grid-column:1/-1}.mini-grid label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}.pillbar{display:flex;gap:8px;flex-wrap:wrap}.pillbar span{padding:7px 10px;border-radius:999px;border:1px solid #25394d;background:#0b1520;color:var(--muted);font-size:11px}
+.utility-store{display:none !important}.hidden-inline{display:none !important}
+.panel-modal{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,10,.72);backdrop-filter:blur(2px)}.panel-modal.open{display:flex}.panel-modal__window{width:min(920px,96vw);max-height:94vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:18px;box-shadow:0 22px 70px rgba(0,0,0,.48)}.panel-modal__window--wide{width:min(1180px,97vw)}.panel-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041;position:sticky;top:0;background:#0d131b;z-index:2}.panel-modal__title{font-size:16px;font-weight:760}.panel-modal__body{padding:16px;display:grid;gap:12px}.panel-stack{display:grid;gap:12px}.placeholder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.placeholder-box{padding:14px;border-radius:16px;border:1px dashed #36516e;background:rgba(9,16,25,.72)}.placeholder-box h4{margin:0 0 8px;font-size:14px}.placeholder-box p{margin:0;color:var(--muted);line-height:1.45;font-size:13px}.quick-future{display:grid;gap:10px}.quick-future button{justify-content:flex-start}
+@media (max-width:1180px){.layout-grid{grid-template-columns:64px minmax(0,1fr) 320px}.select-compact{min-width:180px}}@media (max-width:980px){.layout-grid{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}.launcher{flex-direction:row;overflow:auto}.inspector{max-height:42vh}.map-shell{order:-1}}
+</style>
 </head>
 <body>
 <div class="workspace">
   <header class="topbar">
-    <div class="topbar__brand">
-      <div class="topbar__title">Карта игрока</div>
-      <div class="topbar__meta">Карта — основная сцена. Управление сущностью, войной и будущими RP-модулями вынесено в боковые панели.</div>
-    </div>
+    <div class="topbar__brand"><div class="topbar__title">Карта сущности</div></div>
     <div class="topbar__actions">
-      <a class="toplink" href="/entity_cabinet.html">Кабинет сущности</a>
+      <a class="toplink" href="/entity_cabinet.html">Кабинет</a>
       <a class="toplink" href="/index.html" target="_blank" rel="noopener">Публичная карта</a>
     </div>
   </header>
-
   <div class="layout-grid">
-    <aside class="rail">
-      <section class="rail-section">
-        <div class="section-title">Управление</div>
-
-        <article class="card card--tight">
-          <div class="card-head">
-            <div class="card-title">Доступ и токен</div>
-            <div class="card-note" id="flagsStatus">backend</div>
-          </div>
-          <div class="grid">
-            <label>Тип</label>
-            <select id="playerAdminTokenEntityType">
-              <option value="great_houses">Большой Дом</option>
-              <option value="minor_houses">Вассал (Малый Дом)</option>
-              <option value="free_cities">Вольный Город</option>
-            </select>
-            <label>Сущность</label>
-            <select id="playerAdminTokenEntityId"><option value="">Загрузка…</option></select>
-          </div>
-          <div class="btnrow" style="margin-top:10px;"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div>
-          <input id="playerAdminTokenLink" type="text" readonly placeholder="Ссылка появится здесь" style="margin-top:10px;" />
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head">
-            <div class="card-title">Ход</div>
-            <div class="card-note" id="turnActionStatus">—</div>
-          </div>
-          <div class="metric-grid">
-            <div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div>
-            <div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div>
-            <div class="metric"><span class="metric__label">Казна игрока</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div>
-            <div class="metric"><span class="metric__label">Казна сущности</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div>
-          </div>
-          <details style="margin-top:10px;">
-            <summary class="small">Развернуть ведомость</summary>
-            <div id="turnEntityTreasuryList" class="small" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
-          </details>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="btnMakeTurn" type="button">Сделать ход</button>
-            <button id="btnRefreshTurn" type="button">Обновить</button>
-            <button id="btnSaveTurnToBackend" type="button">Сохранить ход</button>
-            <button id="btnOpenTurnAdmin" type="button">Ходы</button>
-          </div>
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head"><div class="card-title">Слой карты</div></div>
-          <div class="grid" style="grid-template-columns:90px 1fr;">
-            <label>Слой</label>
-            <select id="viewMode">
-              <option value="provinces">Физическая карта</option>
-              <option value="war">Война</option>
-              <option value="kingdoms">Королевства</option>
-              <option value="great_houses">Большие Дома</option>
-              <option value="minor_houses">Малые Дома</option>
-              <option value="free_cities">Вольные Города</option>
-              <option value="special_territories">Особые Территории</option>
-            </select>
-          </div>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="toggleProvEmblems" type="button">Геральдика провинций</button>
-          </div>
-          <div class="utility-store">
-            <button class="zoomBtn" data-zoom="fit" type="button">По экрану</button>
-          </div>
-        </article>
-
-        <article id="warBattleLinksCard" class="card card--tight">
-          <div class="card-head"><div class="card-title">Боевые сессии</div></div>
-          <div id="warBattleLinks" class="small" style="white-space:pre-wrap;">—</div>
-        </article>
-
-        <article id="warMoveCard" class="card card--tight">
-          <div class="card-head"><div class="card-title">Передвижение армий</div></div>
-          <div class="grid" style="grid-template-columns:120px 1fr;">
-            <label>Армия</label>
-            <select id="warArmySelect"></select>
-            <label>Радиус</label>
-            <div class="small" id="warMoveRadius">—</div>
-            <label>Доступно</label>
-            <div class="small" id="warMoveReachCount">—</div>
-          </div>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="warRefreshArmies" type="button">Обновить список</button>
-            <button id="warClearSelection" type="button">Снять выбор</button>
-          </div>
-          <div id="warMoveHint" class="small" style="margin-top:8px;">—</div>
-        </article>
-      </section>
-    </aside>
-
+    <nav class="launcher" aria-label="Разделы управления">
+      <button class="launcher-btn" data-panel="playerTurnPanel" type="button"><strong>Ход</strong><span>казна</span></button>
+      <button class="launcher-btn" data-panel="playerWarPanel" type="button"><strong>Война</strong><span>битвы</span></button>
+      <button class="launcher-btn" data-panel="playerForcePanel" type="button"><strong>Силы</strong><span>созыв</span></button>
+      <button class="launcher-btn" data-panel="playerOrdersPanel" type="button"><strong>Приказы</strong><span>rp</span></button>
+      <button class="launcher-btn" data-panel="playerTelegraphPanel" type="button"><strong>Связь</strong><span>телеграф</span></button>
+      <button class="launcher-btn" data-panel="playerDiplomacyPanel" type="button"><strong>Дипл.</strong><span>сделки</span></button>
+      <button class="launcher-btn" data-panel="playerCharactersPanel" type="button"><strong>Лица</strong><span>персонажи</span></button>
+      <button class="launcher-btn" data-panel="playerChroniclePanel" type="button"><strong>Летоп.</strong><span>события</span></button>
+    </nav>
     <section class="map-shell">
-      <div class="map-toolbar">
-        <div>
-          <div class="map-toolbar__title">Сцена карты сущности</div>
-          <div class="map-toolbar__meta">Автоподгонка при загрузке. Выбор провинций, война и переходы в карточки остаются прежними.</div>
+      <div class="appbar">
+        <div class="appbar__left">
+          <select class="select-compact" id="viewMode">
+            <option value="provinces">Физическая карта</option>
+            <option value="war">Война</option>
+            <option value="kingdoms">Королевства</option>
+            <option value="great_houses">Большие Дома</option>
+            <option value="minor_houses">Малые Дома</option>
+            <option value="free_cities">Вольные Города</option>
+            <option value="special_territories">Особые Территории</option>
+          </select>
+          <button id="toggleProvEmblems" type="button">Гербы</button>
+          <div class="utility-store"><button class="zoomBtn" data-zoom="fit" type="button">По экрану</button></div>
         </div>
-        <div class="map-toolbar__chips">
-          <span class="ghost-chip">ЛКМ — выбор</span>
-          <span class="ghost-chip">Ctrl/Shift — мультивыбор</span>
-          <span class="ghost-chip">Колесо — зум</span>
+        <div class="appbar__right">
+          <button data-panel="playerWarPanel" type="button">Бои</button>
+          <button data-panel="playerForcePanel" type="button">Армии</button>
+          <button data-panel="playerOrdersPanel" type="button">Приказы</button>
+          <button data-panel="playerTelegraphPanel" type="button">Телеграф</button>
         </div>
       </div>
       <div class="map-stage">
-        <div class="map-stage__head">
-          <div>
-            <strong>Карта</strong>
-            <span>Все текущие механики и API сохранены; меняется только организация интерфейса.</span>
-          </div>
-          <div class="status-strip">
-            <span class="status-pill">Собственные провинции</span>
-            <span class="status-pill">Армии и созыв</span>
-            <span class="status-pill">Будущие приказы / телеграф</span>
-          </div>
-        </div>
+        <div class="map-stage__head"><div class="chips"><span class="map-chip">ЛКМ: выбор</span><span class="map-chip">Ctrl/Shift: мультивыбор</span><span class="map-chip">Колесо: зум</span></div><div class="chips"><span class="map-chip" id="flagsStatus">backend</span></div></div>
         <main id="mapArea" class="maparea">
-          <div id="mapWrap">
-            <img id="baseMap" src="map.png" alt="Карта" />
-            <canvas id="fill"></canvas>
-            <canvas id="emblems"></canvas>
-            <canvas id="hover"></canvas>
-            <div id="armyMarkers" class="army-markers-layer"></div>
-          </div>
+          <div id="mapWrap"><img id="baseMap" src="map.png" alt="Карта" /><canvas id="fill"></canvas><canvas id="emblems"></canvas><canvas id="hover"></canvas><div id="armyMarkers" class="army-markers-layer"></div></div>
           <div id="tooltip"></div>
         </main>
       </div>
     </section>
-
-    <aside class="rail">
-      <section class="rail-section">
-        <div class="section-title">Сущность и инспектор</div>
-
-        <article class="card card--tight selection-card">
-          <div class="card-head"><div class="card-title">Выбранная провинция</div></div>
-          <div class="selection-name" id="selName">—</div>
-          <div class="selection-summary" style="margin-top:10px;">
-            <div class="summary-box"><div class="summary-box__label">PID</div><div class="summary-box__value" id="selPid">—</div></div>
-            <div class="summary-box"><div class="summary-box__label">KEY</div><div class="summary-box__value" id="selKey">—</div></div>
-            <div class="summary-box"><div class="summary-box__label">Выделено</div><div class="summary-box__value" id="multiSelCount">0</div></div>
-            <div class="summary-box"><div class="summary-box__label">Режим</div><div class="summary-box__value">Инспектор / модальные окна</div></div>
-          </div>
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head"><div class="card-title">Сущность</div></div>
-          <div class="entity-grid">
-            <div class="full"><label class="small">Тип</label><select id="realmType"><option value="kingdoms">Королевства</option><option value="great_houses">Большие Дома</option><option value="minor_houses">Малые Дома</option><option value="free_cities">Вольные Города</option><option value="special_territories">Особые Территории</option></select></div>
-            <div class="full"><label class="small">Сущность</label><select id="realmSelect"></select></div>
-            <div class="full"><label class="small">Название</label><input id="realmName" type="text" placeholder="Название" /></div>
-            <div><label class="small">Правитель</label><input id="realmRuler" type="text" list="peopleList" placeholder="Правитель" /></div>
-            <div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30" /></div>
-            <div><label class="small">Столица KEY</label><input id="realmCapital" type="text" placeholder="34172" /></div>
-            <div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" /><span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span></div></div>
-          </div>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="realmUploadEmblemBtn" type="button">Загрузить герб</button>
-            <button id="realmRemoveEmblemBtn" type="button">Удалить герб</button>
-            <button id="realmArrierbanBtn" type="button">Арьербан</button>
-            <button id="realmDomainArrierbanBtn" type="button">Доменное войско</button>
-            <button id="realmRoyalArrierbanBtn" type="button" style="display:none;">Королевский призыв</button>
-            <button id="realmArrierbanDismissBtn" type="button">Распустить армии</button>
-            <button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
-          </div>
-          <pre id="realmArrierbanOutput" class="small" style="margin-top:10px; white-space:pre-wrap;"></pre>
-          <input id="realmEmblemFile" type="file" accept="image/svg+xml,.svg" class="hidden" />
-        </article>
-
-        <article class="placeholder-card">
-          <h3>Модули следующего этапа</h3>
-          <p>Здесь уже оставлено место под новые игровые экраны без новой перепаковки player map.</p>
-          <ul>
-            <li>Приказы и вердикты.</li>
-            <li>Телеграф и дипломатия.</li>
-            <li>Регистрация организаций и игра на персонажах.</li>
-            <li>Автоматическая летопись, NPC-реакции и LLM-каналы.</li>
-          </ul>
-        </article>
-      </section>
+    <aside class="inspector">
+      <article class="inspector-card">
+        <h3>Выбор</h3>
+        <div class="selection-name" id="selName">—</div>
+        <div class="selection-meta"><div><label>PID</label><b id="selPid">—</b></div><div><label>KEY</label><b id="selKey">—</b></div><div><label>Выделено</label><b id="multiSelCount">0</b></div></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button data-native-modal="provinceModal" type="button">Карточка</button><button data-native-modal="playerWikiEditorModal" type="button">Wiki</button><button data-panel="playerOrdersPanel" type="button">Приказ</button><button data-panel="playerTelegraphPanel" type="button">Телеграф</button></div>
+      </article>
+      <article class="inspector-card">
+        <h3>Текущий ход</h3>
+        <div class="kpi-row"><div class="kpi"><label>Год / ход</label><span id="turnCurrentYear">—</span></div><div class="kpi"><label>Статус</label><span id="turnCurrentStatus">—</span></div><div class="kpi"><label>Казна игрока</label><span id="turnTreasuryProvSum">—</span></div><div class="kpi"><label>Казна сущности</label><span id="turnTreasuryEntitySum">—</span></div></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button data-panel="playerTurnPanel" type="button">Панель хода</button><button id="btnRefreshTurn" type="button">Обновить</button><button id="btnMakeTurn" type="button">Сделать ход</button></div>
+      </article>
+      <article class="inspector-card">
+        <h3>Сущность</h3>
+        <div class="mini-grid"><div class="full"><label>Тип</label><select id="realmType"><option value="kingdoms">Королевства</option><option value="great_houses">Большие Дома</option><option value="minor_houses">Малые Дома</option><option value="free_cities">Вольные Города</option><option value="special_territories">Особые Территории</option></select></div><div class="full"><label>Сущность</label><select id="realmSelect"></select></div></div>
+        <div class="pillbar" style="margin-top:10px;"><span>Армии</span><span>Приказы</span><span>Будущая дипломатия</span></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button id="realmArrierbanBtn" type="button">Арьербан</button><button id="realmDomainArrierbanBtn" type="button">Домен</button><button id="realmArrierbanDismissBtn" type="button">Роспуск</button><button id="realmArmyManageBtn" type="button">Менеджмент</button><button data-panel="playerDiplomacyPanel" type="button">Дипломатия</button><button data-panel="playerCharactersPanel" type="button">Персонажи</button></div>
+      </article>
+      <article class="inspector-card"><h3>Новые блоки</h3><div class="quick-future"><button data-panel="playerOrdersPanel" type="button">Приказы и вердикты</button><button data-panel="playerTelegraphPanel" type="button">Телеграф и письма</button><button data-panel="playerDiplomacyPanel" type="button">Дипломатия</button><button data-panel="playerCharactersPanel" type="button">Организации и персонажи</button><button data-panel="playerChroniclePanel" type="button">Автоматическая летопись</button></div></article>
     </aside>
   </div>
 </div>
-
+<div class="panel-modal" id="playerTurnPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Ход и доступ</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body panel-stack"><article class="card card--tight"><div class="card-head"><div class="card-title">Доступ</div></div><div class="grid"><label>Тип</label><select id="playerAdminTokenEntityType"><option value="great_houses">Большой Дом</option><option value="minor_houses">Вассал (Малый Дом)</option><option value="free_cities">Вольный Город</option></select><label>Сущность</label><select id="playerAdminTokenEntityId"><option value="">Загрузка…</option></select></div><div class="btnrow" style="margin-top:10px;"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div><input id="playerAdminTokenLink" type="text" readonly placeholder="Ссылка появится здесь" style="margin-top:10px;" /></article><article class="card card--tight"><div class="card-head"><div class="card-title">Действия хода</div><div class="card-note" id="turnActionStatus">—</div></div><div class="btnrow"><button id="btnSaveTurnToBackend" type="button">Сохранить ход</button><button id="btnOpenTurnAdmin" type="button">Ходы</button></div><details style="margin-top:10px;"><summary class="small">Ведомость сущности</summary><div id="turnEntityTreasuryList" class="small" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div></details></article></div></div></div>
+<div class="panel-modal" id="playerWarPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Война и перемещение</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body panel-stack"><article id="warBattleLinksCard" class="card card--tight"><div class="card-head"><div class="card-title">Боевые сессии</div></div><div id="warBattleLinks" class="small" style="white-space:pre-wrap;">—</div></article><article id="warMoveCard" class="card card--tight"><div class="card-head"><div class="card-title">Передвижение армий</div></div><div class="grid" style="grid-template-columns:120px 1fr;"><label>Армия</label><select id="warArmySelect"></select><label>Радиус</label><div class="small" id="warMoveRadius">—</div><label>Доступно</label><div class="small" id="warMoveReachCount">—</div></div><div class="btnrow" style="margin-top:10px;"><button id="warRefreshArmies" type="button">Обновить список</button><button id="warClearSelection" type="button">Снять выбор</button></div><div id="warMoveHint" class="small" style="margin-top:8px;">—</div></article></div></div></div>
+<div class="panel-modal" id="playerForcePanel" aria-hidden="true"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Силы, созыв и сущность</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body panel-stack"><article class="card card--tight"><div class="card-head"><div class="card-title">Параметры сущности</div></div><div class="entity-grid"><div class="full"><label class="small">Название</label><input id="realmName" type="text" placeholder="Название" /></div><div><label class="small">Правитель</label><input id="realmRuler" type="text" list="peopleList" placeholder="Правитель" /></div><div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30" /></div><div><label class="small">Столица KEY</label><input id="realmCapital" type="text" placeholder="34172" /></div><div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" type="range" min="0.2" max="3" step="0.1" value="1" /><span id="realmEmblemScaleVal" class="muted" style="width:44px; text-align:right;">1</span></div></div></div><div class="btnrow" style="margin-top:10px;"><button id="realmUploadEmblemBtn" type="button">Загрузить герб</button><button id="realmRemoveEmblemBtn" type="button">Удалить герб</button><button id="realmRoyalArrierbanBtn" type="button" class="hidden-inline">Королевский призыв</button></div><pre id="realmArrierbanOutput" class="small" style="margin-top:10px; white-space:pre-wrap;"></pre><input id="realmEmblemFile" type="file" accept="image/svg+xml,.svg" class="hidden" /></article></div></div></div>
+<div class="panel-modal" id="playerOrdersPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Приказы и вердикты</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body placeholder-grid"><div class="placeholder-box"><h4>RP-приказы</h4><p>Журнал приказов по ходу: черновики, отправка из панели игрока, статусы, привязка к провинции, армии, персонажу и организации.</p></div><div class="placeholder-box"><h4>Вердикты администрации</h4><p>Поток вердиктов с машиночитаемыми последствиями: казна, армия, право, дипломатия, летопись и события карты.</p></div></div></div></div>
+<div class="panel-modal" id="playerTelegraphPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Телеграф</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body placeholder-grid"><div class="placeholder-box"><h4>Игровой телеграф</h4><p>Сообщения между сущностями, организациями и персонажами с привязкой к ходу, доставке и публичности.</p></div><div class="placeholder-box"><h4>NPC-каналы</h4><p>Резерв под сообщения от нейросетевых NPC и реакцию на события карты без новой переделки player map.</p></div></div></div></div>
+<div class="panel-modal" id="playerDiplomacyPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Дипломатия</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body placeholder-grid"><div class="placeholder-box"><h4>Переговоры</h4><p>Потоки переговоров, проекты договоров, права прохода, приглашения в войну и торговые соглашения.</p></div><div class="placeholder-box"><h4>Военная дипломатия</h4><p>Союзные армии, передача командования, капитуляции, контрибуции и условия мира.</p></div></div></div></div>
+<div class="panel-modal" id="playerCharactersPanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Организации и персонажи</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body placeholder-grid"><div class="placeholder-box"><h4>Организации</h4><p>Регистрация дворцов, орденов, цехов, фракций и иных организаций с отдельными правами и приказами.</p></div><div class="placeholder-box"><h4>Игра на персонажах</h4><p>Роли, должности, контроль отдельных лиц и привязка личных приказов к игровым действиям.</p></div></div></div></div>
+<div class="panel-modal" id="playerChroniclePanel" aria-hidden="true"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Летопись</div><button data-close-panel type="button">Закрыть</button></div><div class="panel-modal__body placeholder-grid"><div class="placeholder-box"><h4>Автоматическая хроника</h4><p>Лента событий карты: движения армий, вердикты, смена контроля, итоги хода, войны и дипломатические акты.</p></div><div class="placeholder-box"><h4>Реакции NPC</h4><p>Резерв под нейросетевые реакции на новости, летописные заметки и биржевые или военные действия по событиям карты.</p></div></div></div></div>
 <div class="utility-store">
   <textarea id="state" spellcheck="false"></textarea>
 </div>
@@ -631,5 +544,20 @@
 })();
 </script>
 
+
+<script>
+(function(){
+  function openPanel(id){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.toggle('is-active', b.dataset.panel===id));const el=document.getElementById(id);if(el)el.classList.add('open');}
+  function closePanels(){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.remove('is-active'));}
+  document.querySelectorAll('[data-panel]').forEach(btn=>btn.addEventListener('click', ()=>openPanel(btn.dataset.panel)));
+  document.querySelectorAll('[data-close-panel]').forEach(btn=>btn.addEventListener('click', closePanels));
+  document.querySelectorAll('.panel-modal').forEach(modal=>modal.addEventListener('click', e=>{ if(e.target===modal) closePanels(); }));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePanels(); });
+  document.querySelectorAll('[data-native-modal]').forEach(btn=>btn.addEventListener('click', ()=>{ const el=document.getElementById(btn.getAttribute('data-native-modal')); if(el) el.classList.add('open'); }));
+  function fitMap(){const area=document.getElementById('mapArea');const wrap=document.getElementById('mapWrap');const img=document.getElementById('baseMap');if(!area||!wrap||!img)return;const nw=img.naturalWidth||img.width||0,nh=img.naturalHeight||img.height||0;const aw=Math.max(0, area.clientWidth-20),ah=Math.max(0, area.clientHeight-20);if(!nw||!nh||!aw||!ah)return;const s=Math.min(aw/nw, ah/nh);wrap.style.width=Math.max(1,Math.floor(nw*s))+'px';wrap.style.height=Math.max(1,Math.floor(nh*s))+'px';}
+  const img=document.getElementById('baseMap');if(img){if(img.complete)setTimeout(fitMap,40);else img.addEventListener('load',fitMap,{once:true});}
+  window.addEventListener('load',()=>setTimeout(fitMap,80),{once:true});window.addEventListener('resize',fitMap);const area=document.getElementById('mapArea');if(area&&'ResizeObserver'in window){new ResizeObserver(fitMap).observe(area);} 
+})();
+</script>
 </body>
 </html>
