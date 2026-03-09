@@ -357,8 +357,24 @@ function vk_bot_cache_remote_image_for_orders(string $url): array {
     if (is_resource($fi)) finfo_close($fi);
     if (is_string($det) && $det !== '') $mime = $det;
   }
-  $allowed = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif'];
-  if (!isset($allowed[$mime])) return ['ok' => false, 'error' => 'unsupported_mime', 'mime' => $mime];
+  $allowed = [
+    'image/jpeg'=>'jpg',
+    'image/jpg'=>'jpg',
+    'image/pjpeg'=>'jpg',
+    'image/png'=>'png',
+    'image/x-png'=>'png',
+    'image/webp'=>'webp',
+    'image/gif'=>'gif',
+  ];
+  if (!isset($allowed[$mime])) {
+    $ext = mb_strtolower(pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION));
+    $byExt = ['jpg' => 'jpg', 'jpeg' => 'jpg', 'png' => 'png', 'webp' => 'webp', 'gif' => 'gif'];
+    if (isset($byExt[$ext])) {
+      $mime = array_search($byExt[$ext], $allowed, true) ?: $mime;
+    } else {
+      return ['ok' => false, 'error' => 'unsupported_mime', 'mime' => $mime];
+    }
+  }
 
   $dir = api_repo_root() . '/data/orders_uploads';
   if (!is_dir($dir)) @mkdir($dir, 0775, true);
@@ -381,7 +397,7 @@ function vk_bot_download_vk_attachment_image(string $vkAttachment): array {
   $att = trim($vkAttachment);
   if ($att === '') return ['ok' => false, 'error' => 'empty_attachment'];
   if (vk_bot_str_starts_with($att, 'photo')) $att = substr($att, 5);
-  $parts = explode('_', $att);
+  $parts = explode('_', $att, 3);
   if (count($parts) < 2) return ['ok' => false, 'error' => 'invalid_attachment_format', 'attachment' => $vkAttachment];
   $ownerId = trim((string)$parts[0]);
   $photoId = trim((string)$parts[1]);
