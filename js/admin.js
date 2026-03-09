@@ -42,6 +42,7 @@
   const btnApplyFill = el("applyFill");
   const btnClearFill = el("clearFill");
   const btnSaveProv = el("saveProv");
+  const playerProvinceEditorLock = el("playerProvinceEditorLock");
 
   const viewModeSelect = el("viewMode");
   const toggleProvEmblemsBtn = el("toggleProvEmblems");
@@ -1613,7 +1614,15 @@
     selectedKey = key >>> 0;
     const pd = getProvData(selectedKey);
     multiSelCount.textContent = String(selectedKeys.size || (selectedKey ? 1 : 0));
-    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainText.textContent = "—"; seniorText.textContent = "—"; terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
+    if (!selectedKey || !pd) {
+      selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainText.textContent = "—"; seniorText.textContent = "—"; terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null);
+      if (playerProvinceEditorLock) playerProvinceEditorLock.textContent = "Выберите провинцию";
+      if (provNameInput) provNameInput.disabled = false;
+      if (ownerInput) ownerInput.disabled = false;
+      if (terrainSelect) terrainSelect.disabled = false;
+      if (btnSaveProv) btnSaveProv.disabled = false;
+      return;
+    }
     selName.textContent = pd.name || (meta && meta.name) || "—"; selPid.textContent = String(pd.pid ?? (meta ? meta.pid : "—")); selKey.textContent = String(selectedKey);
     provNameInput.value = pd.name || ""; ownerInput.value = pd.owner || "";
     if (pd.owner) ensurePerson(pd.owner);
@@ -1623,6 +1632,17 @@
     renderPersonNode(suzerainText, derived.suzerain || "");
     renderPersonNode(seniorText, derived.senior || "");
     terrainSelect.value = pd.terrain || "";
+    if (isPlayerAdminMode()) {
+      const pid = Number(pd.pid ?? (meta ? meta.pid : 0)) >>> 0;
+      const editable = playerOwnsPid(pid);
+      if (provNameInput) provNameInput.disabled = !editable;
+      if (ownerInput) ownerInput.disabled = !editable;
+      if (terrainSelect) terrainSelect.disabled = !editable;
+      if (btnSaveProv) btnSaveProv.disabled = !editable;
+      if (playerProvinceEditorLock) playerProvinceEditorLock.textContent = editable ? "Своя провинция" : "Чужая провинция (только просмотр)";
+    } else if (playerProvinceEditorLock) {
+      playerProvinceEditorLock.textContent = "Редактирование";
+    }
     if (colorInput && alphaInput && alphaVal && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
@@ -4262,9 +4282,7 @@
           const pid = meta && meta.pid != null ? Number(meta.pid) >>> 0 : (pidByKey.get(key >>> 0) || 0);
           if (!playerOwnsPid(pid)) {
             openProvinceModal(map, key, meta).catch((e) => console.warn(e));
-            return;
           }
-          openPlayerWikiEditorModal(map, key, meta).catch((e) => console.warn(e));
           return;
         }
         openManualEditModal(map, key, meta);
