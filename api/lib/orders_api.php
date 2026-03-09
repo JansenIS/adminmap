@@ -951,24 +951,14 @@ function orders_api_process_outbox(): array {
         $attachment = vk_bot_try_build_wall_photo_attachment($img);
         if ($attachment !== '') break;
       }
+      $imageAttachmentWarning = null;
       if (!empty($images) && $attachment === '') {
-        $job['status'] = 'wall_post_failed_retry';
-        $job['last_error'] = 'image_attachment_unresolved';
-        $job['last_error_details'] = [
+        $imageAttachmentWarning = [
           'images_count' => count($images),
           'hint' => 'Не удалось подготовить attachment для wall.post',
           'vk_api_error' => vk_bot_get_last_api_error(),
         ];
-        $failed++;
-        if ($attempt >= $maxAttempts) {
-          $job['status'] = 'wall_post_failed_permanent';
-          $job['next_attempt_at'] = '';
-        } else {
-          $retryDelay = $baseRetrySeconds * (2 ** ($attempt - 1));
-          $job['next_attempt_at'] = gmdate('c', $nowTs + $retryDelay);
-        }
-        $job['updated_at'] = gmdate('c');
-        continue;
+        orders_api_event_append('vk_wall_attachment_unresolved_fallback_to_text', (string)($job['order_id'] ?? ''), $imageAttachmentWarning);
       }
       $params = [
         'owner_id' => $ownerId,
@@ -983,6 +973,7 @@ function orders_api_process_outbox(): array {
         $job['wall_post_id'] = (string)$resp['response']['post_id'];
         $job['last_error'] = '';
         $job['last_error_details'] = [];
+        if (is_array($imageAttachmentWarning)) $job['last_error_details']['warning'] = $imageAttachmentWarning;
         $job['next_attempt_at'] = '';
         $done++;
         orders_api_event_append('vk_wall_published', (string)($job['order_id'] ?? ''), ['post_id' => $job['wall_post_id']]);
@@ -990,6 +981,7 @@ function orders_api_process_outbox(): array {
         $job['status'] = 'wall_post_failed_retry';
         $job['last_error'] = 'vk_api_error';
         $job['last_error_details'] = vk_bot_get_last_api_error();
+        if (is_array($imageAttachmentWarning)) $job['last_error_details']['image_attachment_warning'] = $imageAttachmentWarning;
         $failed++;
       }
     }
