@@ -240,32 +240,7 @@ body{min-height:100vh;overflow:hidden}
 .utility-store{display:none!important}
 .panel-modal{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,10,.72);backdrop-filter:blur(2px)}.panel-modal.open{display:flex}.panel-modal__window{width:min(980px,96vw);max-height:94vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:18px;box-shadow:0 22px 70px rgba(0,0,0,.48)}.panel-modal__window--wide{width:min(1220px,97vw)}.panel-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041;position:sticky;top:0;background:#0d131b;z-index:2}.panel-modal__title{font-size:16px;font-weight:760}.panel-modal__body{padding:16px;display:grid;gap:12px}.placeholder-box{padding:14px;border-radius:16px;border:1px dashed #36516e;background:rgba(9,16,25,.72);color:var(--muted);line-height:1.45;font-size:13px}.placeholder-box h4{margin:0 0 8px;font-size:14px;color:var(--text)}.province-assets .emblemPreview,.province-assets .provinceCardPreview{display:none!important}
 @media (max-width:1280px){.topbar{grid-template-columns:1fr}.topbar__actions{justify-content:flex-start}.layout-grid{grid-template-columns:minmax(0,1fr) 330px}.select-compact{min-width:180px}}
-@media (max-width:980px){.topbar__main{gap:10px}.layout-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr}.map-shell{order:-1}.topbar__menu{overflow:auto;flex-wrap:nowrap;padding-bottom:2px}}
-.launcher-btn[data-panel="adminAccessPanel"],.launcher-btn[data-panel="adminDataPanel"],.launcher-btn[data-panel="adminOrdersPanel"],.launcher-btn[data-panel="adminNpcPanel"]{display:none}
-.map-shell{position:relative}
-.inspector{position:absolute;right:18px;top:88px;z-index:60;width:min(340px,calc(100vw - 36px));min-height:auto;max-height:calc(100vh - 150px);overflow:auto;padding:0;display:none;gap:10px}
-.inspector.is-open{display:flex}
-.inspector .card{box-shadow:0 14px 38px rgba(0,0,0,.4)}
-.inspector .card:not(.mini-inspector-card):not(.multi-actions-card){display:none}
-.inspector.multi-active .multi-actions-card{display:block}
-.mini-inspector-card .kv{margin-top:10px}
-.mini-actions{display:flex;gap:8px;align-items:center}
-.quick-icon{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid #38536f;background:#0f1f30;color:#e9f2ff;font-weight:800;padding:0}
-.quick-icon:hover{background:#1b334a;border-color:#50769d}
-.quick-icon--more{font-size:18px;line-height:1}
-.mini-close{margin-left:auto;background:#0d1a29;color:var(--muted)}
-.more-menu{display:none;flex-direction:column;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #22374d}
-.more-menu.open{display:flex}
-.more-menu button{width:100%;justify-content:flex-start;text-align:left}
-.action-strip{position:absolute;right:20px;bottom:20px;z-index:55;display:none;gap:6px;padding:8px;border-radius:12px;background:rgba(7,14,22,.86);border:1px solid #2a425a;backdrop-filter:blur(8px)}
-.action-strip.is-open{display:flex}
-.appbar__right button[data-panel="adminDataPanel"]{display:none}
-.panel-modal{justify-content:flex-end;align-items:stretch;padding:0;background:rgba(3,7,12,.34);backdrop-filter:blur(1px);pointer-events:none}
-.panel-modal.open{display:flex;pointer-events:auto}
-.panel-modal__window{height:100vh;max-height:100vh;width:min(680px,94vw);border-radius:0;border-left:1px solid #2b3f56;border-top:none;border-bottom:none;border-right:none;box-shadow:-18px 0 44px rgba(0,0,0,.42)}
-.panel-modal__window--wide{width:min(820px,96vw)}
-@media (max-width:980px){.inspector{top:auto;bottom:16px;max-height:56vh}.action-strip{right:16px;bottom:16px}.panel-modal__window,.panel-modal__window--wide{width:100vw}}
-
+@media (max-width:980px){.topbar__main{gap:10px}.layout-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr}.inspector{max-height:42vh}.map-shell{order:-1}.topbar__menu{overflow:auto;flex-wrap:nowrap;padding-bottom:2px}}
 </style></head>
 <body>
 <div class="workspace">
@@ -314,7 +289,7 @@ body{min-height:100vh;overflow:hidden}
 <div id="tooltip"></div>
 </main>
 </div>
-</section><aside class="inspector" id="miniInspector"><article class="card card--tight mini-inspector-card">
+</section><aside class="inspector"><article class="card card--tight">
 <div class="selection-head">
 <div>
 <div class="selection-name" id="selName">—</div>
@@ -324,13 +299,7 @@ body{min-height:100vh;overflow:hidden}
 <span>Выделено <b id="multiSelCount">0</b></span>
 </div>
 </div>
-<div class="mini-actions">
-<button class="quick-icon" id="quickProvince" title="Открыть редактор провинции" type="button">✎</button>
-<button class="quick-icon" id="quickRealm" title="Открыть сущность и домен" type="button">♛</button>
-<button class="quick-icon" id="quickWar" title="Открыть армии и войну" type="button">⚔</button>
-<button class="quick-icon quick-icon--more" id="quickMore" title="Дополнительные действия" type="button">…</button>
-<button class="quick-icon mini-close" id="miniInspectorClose" title="Скрыть контекст" type="button">×</button>
-</div>
+
 </div>
 
 <div class="kv">
@@ -339,7 +308,7 @@ body{min-height:100vh;overflow:hidden}
 <div><b>Сеньор:</b> <span id="seniorText">—</span></div>
 <div><b>Люди:</b> <datalist id="peopleList"></datalist></div>
 </div>
-</article><article class="card card--tight multi-actions-card" id="provincePropsCard">
+</article><article class="card card--tight" id="provincePropsCard">
 <div class="card-head">
 <div>
 <div class="card-title">Массовые свойства</div>
@@ -374,7 +343,7 @@ body{min-height:100vh;overflow:hidden}
 <button id="btnRefreshTurn" type="button">Обновить</button>
 <button id="btnOpenTurnAdmin" type="button">Админка хода</button>
 </div>
-</article><article class="card card--tight"><h3>Новые блоки</h3><button data-panel="adminOrdersPanel" type="button">Приказы и вердикты</button><button data-panel="adminNpcPanel" type="button">NPC и LLM</button><div class="more-menu" id="miniMoreMenu"><button data-panel="adminAccessPanel" type="button">Доступ игрока</button><button data-panel="adminDataPanel" type="button">Экспорт / импорт / snapshot</button><button data-panel="adminOrdersPanel" type="button">RP-приказы и вердикты</button><button data-panel="adminNpcPanel" type="button">NPC и LLM</button></div></article></aside><div class="action-strip" id="mapActionStrip"><button class="quick-icon" id="stripProvince" title="Редактировать провинцию" type="button">✎</button><button class="quick-icon" id="stripRealm" title="Открыть сущность" type="button">♛</button><button class="quick-icon" id="stripWar" title="Открыть войны и армии" type="button">⚔</button><button class="quick-icon quick-icon--more" id="stripMore" title="Дополнительно" type="button">…</button></div></div>
+</article><article class="card card--tight"><h3>Новые блоки</h3><button data-panel="adminOrdersPanel" type="button">Приказы и вердикты</button><button data-panel="adminNpcPanel" type="button">NPC и LLM</button></article></aside></div>
 </div>
 <div aria-hidden="true" class="person-modal" id="personModal">
 <div aria-label="Карточка персонажа" aria-modal="true" class="person-modal__window" role="dialog">
@@ -512,74 +481,193 @@ body{min-height:100vh;overflow:hidden}
 <script defer src="js/admin_player_admin_tokens.js"></script>
 <script>
 (function(){
-  const state={explicitUntil:0};
-  function markExplicit(){state.explicitUntil=Date.now()+900;}
-  function isExplicit(){return Date.now()<state.explicitUntil;}
-  function openPanel(id){
-    markExplicit();
-    document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));
-    document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.toggle('is-active', b.dataset.panel===id));
-    const el=document.getElementById(id);
-    if(el)el.classList.add('open');
-  }
-  function closePanels(){
-    document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));
-    document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.remove('is-active'));
-  }
-  function updateMiniInspector(){
-    const inspector=document.getElementById('miniInspector');
-    if(!inspector)return;
-    const pid=(document.getElementById('selPid')?.textContent||'').trim();
-    const name=(document.getElementById('selName')?.textContent||'').trim();
-    const multi=(document.getElementById('multiSelCount')?.textContent||'0').trim();
-    const hasOne=pid && pid!=='—' && pid!=='-';
-    const hasMulti=Number(multi)>1;
-    inspector.classList.toggle('is-open', hasOne || hasMulti);
-    inspector.classList.toggle('multi-active', hasMulti);
-    const strip=document.getElementById('mapActionStrip');
-    if(strip)strip.classList.toggle('is-open', hasOne);
-    if(!hasOne && !hasMulti){
-      document.getElementById('miniMoreMenu')?.classList.remove('open');
+  function autoFitMap(){
+    const fitBtn = document.querySelector('.zoomBtn[data-zoom="fit"]');
+    if (!fitBtn) return;
+    let count = 0;
+    const run = () => {
+      if (count > 8) return;
+      count += 1;
+      try { fitBtn.click(); } catch(_e) {}
+    };
+    const schedule = (ms) => setTimeout(run, ms);
+    if (document.readyState === 'complete') { schedule(30); schedule(220); schedule(700); schedule(1200); }
+    else window.addEventListener('load', () => { schedule(30); schedule(220); schedule(700); schedule(1200); }, { once:true });
+    const mapArea = document.getElementById('mapArea');
+    if (mapArea && 'ResizeObserver' in window) {
+      const ro = new ResizeObserver(() => schedule(60));
+      ro.observe(mapArea);
+      setTimeout(() => { try { ro.disconnect(); } catch(_e) {} }, 5000);
     }
-    if(!name || name==='—'){
-      const key=document.getElementById('selKey');
-      if(key && key.textContent.trim()==='') key.textContent='—';
-      ['suzerainText','seniorText'].forEach(id=>{const el=document.getElementById(id);if(el && !el.textContent.trim())el.textContent='—';});
-    }
+    const baseMap = document.getElementById('baseMap');
+    if (baseMap) baseMap.addEventListener('load', () => schedule(30), { once:true });
+    window.addEventListener('resize', () => schedule(60));
   }
-  function safeBind(id, handler){const el=document.getElementById(id);if(el)el.addEventListener('click',handler);}
+  autoFitMap();
+})();
+</script>
+<div aria-hidden="true" class="panel-modal" id="adminAccessPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Доступ игрока</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight token-card">
+<div class="card-head">
+<div>
+<div class="card-title">Доступ игрока</div>
+<div class="card-note">Ссылка на player_admin по сущности</div>
+</div>
+</div>
+<div class="grid">
+<label>Тип</label>
+<select id="playerAdminTokenEntityType">
+<option value="great_houses">Большой Дом</option>
+<option value="minor_houses">Вассал (Малый Дом)</option>
+<option value="free_cities">Вольный Город</option>
+</select>
+<label>Сущность</label>
+<select id="playerAdminTokenEntityId"><option value="">Загрузка…</option></select>
+</div>
+<div class="btnrow" style="margin-top:10px;"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div>
+<input id="playerAdminTokenLink" placeholder="Ссылка появится здесь" readonly="" style="margin-top:10px;" type="text"/>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminProvincePanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Провинция</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Паспорт провинции</div></div>
+<div class="grid">
+<label>Название</label>
+<input id="provName" placeholder="Название провинции" type="text"/>
+<label>Местность</label>
+<select id="terrainSelect"></select>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="saveProv" type="button">Сохранить провинцию</button>
+<button id="uploadEmblemBtn" type="button">Загрузить герб</button>
+<button id="removeEmblemBtn" type="button">Удалить герб</button>
+<button id="uploadProvinceImageBtn" type="button">Загрузить карточку</button>
+<button id="buildProvinceImageBtn" type="button">Собрать карточку</button>
+</div>
+<div class="province-assets" style="margin-top:10px;">
+<div class="emblemPreview"><img alt="Герб провинции" id="emblemPreviewImg"/><div class="small" id="emblemPreviewEmpty">Герб не загружен</div></div>
+<div class="provinceCardPreview"><img alt="Карточка провинции" id="provinceCardPreviewImg"/><div class="small" id="provinceCardPreviewEmpty">Карточка не загружена</div></div>
+</div>
+<input accept="image/svg+xml,.svg" class="hidden" id="emblemFile" type="file"/>
+<input accept="image/*" class="hidden" id="provinceImageFile" type="file"/>
+</article><article class="card card--tight">
+<div class="card-head"><div class="card-title">Заливка и подсветка</div></div>
+<div class="grid" style="grid-template-columns:100px 1fr;">
+<label>Цвет</label>
+<div style="display:flex; gap:10px; align-items:center;"><input id="color" type="color" value="#ff3b30"/><span class="muted">заливка</span></div>
+<label>Прозрачность</label>
+<div style="display:flex; gap:10px; align-items:center;"><input id="alpha" max="255" min="0" type="range" value="140"/><span class="muted" id="alphaVal" style="width:44px; text-align:right;">140</span></div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="applyFill" type="button">Применить</button>
+<button id="clearFill" type="button">Снять</button>
+</div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminRealmPanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Сущности и вассалы</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Сущность</div></div>
+<div class="realm-grid">
+<div class="full">
+<label class="small">Тип</label>
+<select id="realmType">
+<option value="kingdoms">Королевства</option>
+<option value="great_houses">Большие Дома</option>
+<option value="minor_houses">Малые Дома</option>
+<option value="free_cities">Вольные Города</option>
+<option value="special_territories">Особые Территории</option>
+</select>
+</div>
+<div class="full">
+<label class="small">Сущность</label>
+<select id="realmSelect"></select>
+</div>
+<div class="full"><label class="small">Название</label><input id="realmName" placeholder="Название" type="text"/></div>
+<div><label class="small">Правитель</label><input id="realmRuler" list="peopleList" placeholder="Правитель" type="text"/></div>
+<div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30"/></div>
+<div><label class="small">Столица KEY</label><input id="realmCapital" placeholder="34172" type="text"/></div>
+<div><label class="small">Воинственность</label><input id="realmWarlikeCoeff" placeholder="1.00" step="0.01" type="number"/></div>
+<div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" max="3" min="0.2" step="0.1" type="range" value="1"/><span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span></div></div>
+<div class="full"><label class="small">Правящий дом</label><select id="realmRulingHouse"></select></div>
+<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHouses" multiple=""></select></div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="newRealm" type="button">Новая сущность</button>
+<button id="saveRealm" type="button">Сохранить</button>
+<button id="deleteRealm" type="button">Удалить</button>
+<button id="addSelectedToRealm" type="button">Добавить выбранные</button>
+<button id="removeSelectedFromRealm" type="button">Убрать выбранные</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="realmUploadEmblemBtn" type="button">Загрузить герб</button>
+<button id="realmRemoveEmblemBtn" type="button">Удалить герб</button>
+<button id="realmArrierbanBtn" type="button">Арьербан</button>
+<button id="realmDomainArrierbanBtn" type="button">Доменное войско</button>
+<button id="realmRoyalArrierbanBtn" style="display:none;" type="button">Королевский призыв</button>
+<button id="realmArrierbanDismissBtn" type="button">Распустить армии</button>
+<button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
+</div>
+<pre class="small" id="realmArrierbanOutput" style="margin-top:10px; white-space:pre-wrap;"></pre>
+<input accept="image/svg+xml,.svg" class="hidden" id="realmEmblemFile" type="file"/>
+</article><article class="card card--tight">
+<div class="card-head"><div class="card-title">Малый дом / вассал</div></div>
+<div class="grid">
+<label id="minorParentLabel">Сюзерен</label>
+<select id="minorGreatHouseSelect"></select>
+<label id="minorEntityLabel">Сущность</label>
+<select id="minorVassalSelect"></select>
+<label id="minorEntityNameLabel">Название</label>
+<input id="minorVassalName" placeholder="Название сущности" type="text"/>
+<label id="minorEntityRulerLabel">Правитель</label>
+<input id="minorVassalRuler" list="peopleList" placeholder="Правитель" type="text"/>
+</div>
+<input id="minorParentType" type="hidden" value="great_houses"/>
+<div class="btnrow" style="margin-top:10px;">
+<button id="minorSetCapital" type="button">Столица по выбору</button>
+<button id="minorAddDomain" type="button">Добавить домен</button>
+<button id="minorRemoveDomain" type="button">Убрать домен</button>
+<button id="minorCreateVassal" type="button">Создать вассала</button>
+<button id="minorSetVassalCapital" type="button">Столица вассала</button>
+<button id="minorAddVassalProvinces" type="button">Добавить провинции</button>
+<button id="minorRemoveVassalProvinces" type="button">Убрать провинции</button>
+</div>
+<div class="palette" id="minorPalette"></div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminWarPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Война и перемещение</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight" id="warMoveCard">
+<div class="card-head"><div class="card-title">Передвижение армий</div></div>
+<div class="grid" style="grid-template-columns:120px 1fr;">
+<label>Армия</label>
+<select id="warArmySelect"></select>
+<label>Радиус</label>
+<div class="small" id="warMoveRadius">—</div>
+<label>Доступно</label>
+<div class="small" id="warMoveReachCount">—</div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="warRefreshArmies" type="button">Обновить список</button>
+<button id="warClearSelection" type="button">Снять выбор</button>
+</div>
+<div class="small" id="warMoveHint" style="margin-top:8px;">—</div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminDataPanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Экспорт, импорт и snapshot</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Экспорт и импорт</div></div>
+<div class="btnrow">
+<button id="exportProvincesPng" type="button">PNG провинций</button>
+<button id="exportKingdomsPng" type="button">PNG королевств</button>
+<button id="exportGreatHousesPng" type="button">PNG больших домов</button>
+<button id="exportMinorHousesPng" type="button">PNG малых домов</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="export" type="button">Экспорт в поле</button>
+<button id="download" type="button">Скачать snapshot</button>
+<button id="exportMigrated" type="button">Migrated bundle</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="import" type="button">Импорт</button>
+<button id="saveImportedBackend" type="button">Сохранить импорт</button>
+<button id="saveServer" type="button">Сохранить на сервер</button>
+</div>
+<input accept="application/json,.json" class="hidden" id="importFile" type="file"/>
+<textarea id="state" spellcheck="false" style="margin-top:10px; min-height:120px;"></textarea>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminOrdersPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Приказы, вердикты и телеграф</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><div class="placeholder-box"><h4>Очередь приказов</h4><p>Модерация RP-приказов из панели игрока и бота, со статусами, фильтрами и привязкой к ходу.</p></div><div class="placeholder-box"><h4>Вердикты и последствия</h4><p>Текстовые вердикты и их структурированные эффекты на казну, право, дипломатию, армии, хронику и события карты.</p></div><div class="placeholder-box"><h4>Телеграф</h4><p>Входящие и исходящие телеграфные сообщения, системные уведомления и переписка сущностей.</p></div><div class="placeholder-box"><h4>Летопись</h4><p>Автоматическая хроника карты с публикацией событий и ручной редактурой администрации.</p></div></div></div></div><div aria-hidden="true" class="panel-modal" id="adminNpcPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">NPC, организации и LLM</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><div class="placeholder-box"><h4>Организации</h4><p>Регистрация орденов, цехов, дворов и иных структур с отдельными правами и доступом.</p></div><div class="placeholder-box"><h4>Персонажи</h4><p>Игра на персонажах, должности, роли и контроль лиц внутри сущности.</p></div><div class="placeholder-box"><h4>LLM-дипломатия</h4><p>Нейросетевые NPC для переговоров, реакции на карту, телеграфа и торговли от новостей.</p></div><div class="placeholder-box"><h4>LLM-война</h4><p>Принятие решений NPC по войне через структурированные действия, а не прямое изменение state.</p></div></div></div></div><script>
+(function(){
+  function openPanel(id){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.toggle('is-active', b.dataset.panel===id));const el=document.getElementById(id);if(el)el.classList.add('open');}
+  function closePanels(){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.remove('is-active'));}
   document.querySelectorAll('[data-panel]').forEach(btn=>btn.addEventListener('click',()=>openPanel(btn.dataset.panel)));
   document.querySelectorAll('[data-close-panel]').forEach(btn=>btn.addEventListener('click',closePanels));
   document.querySelectorAll('.panel-modal').forEach(modal=>modal.addEventListener('click',e=>{if(e.target===modal)closePanels();}));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePanels();document.getElementById('miniMoreMenu')?.classList.remove('open');}});
-
-  safeBind('quickProvince',()=>openPanel('adminProvincePanel'));
-  safeBind('quickRealm',()=>openPanel('adminRealmPanel'));
-  safeBind('quickWar',()=>openPanel('adminWarPanel'));
-  safeBind('quickMore',()=>document.getElementById('miniMoreMenu')?.classList.toggle('open'));
-  safeBind('miniInspectorClose',()=>{document.getElementById('miniInspector')?.classList.remove('is-open');document.getElementById('mapActionStrip')?.classList.remove('is-open');});
-  safeBind('stripProvince',()=>openPanel('adminProvincePanel'));
-  safeBind('stripRealm',()=>openPanel('adminRealmPanel'));
-  safeBind('stripWar',()=>openPanel('adminWarPanel'));
-  safeBind('stripMore',()=>document.getElementById('miniMoreMenu')?.classList.toggle('open'));
-
-  const provinceModal=document.getElementById('adminProvincePanel');
-  if(provinceModal){
-    const ob=new MutationObserver(()=>{
-      if(provinceModal.classList.contains('open') && !isExplicit()){
-        provinceModal.classList.remove('open');
-      }
-    });
-    ob.observe(provinceModal,{attributes:true,attributeFilter:['class']});
-  }
-
-  const pidEl=document.getElementById('selPid');
-  const nameEl=document.getElementById('selName');
-  const multiEl=document.getElementById('multiSelCount');
-  [pidEl,nameEl,multiEl].forEach(el=>{if(el)new MutationObserver(updateMiniInspector).observe(el,{childList:true,subtree:true,characterData:true});});
-  const ownerInput=document.getElementById('ownerInput');
-  if(ownerInput){ownerInput.placeholder='Владелец / правитель';}
-  updateMiniInspector();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanels();});
 })();
 </script></body>
 </html>
