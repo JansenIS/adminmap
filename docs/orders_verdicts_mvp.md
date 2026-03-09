@@ -7,7 +7,7 @@
 - Реализован pipeline: `draft -> submitted -> pending_review -> verdict_ready -> approved -> published`, плюс `needs_clarification|rejected`.
 - Вынесена единая таблица outcome tiers (`orders_api_outcome_tiers`).
 - Добавлены сущности в рабочем MVP-формате: `Order`, `OrderActionItem`, `Verdict`, `VerdictRoll`, `OrderEffect`, `OrderPublication`, `OrderAuditLog`.
-- Добавлены события жизненного цикла в event-log (`order_submitted`, `order_clarification_requested`, `order_rejected`, `order_roll_locked`, `order_effect_applied`, `order_published`, `vk_wall_publish_requested`, `vk_wall_published`, `player_notified`).
+- Добавлены события жизненного цикла в event-log (`order_submitted`, `order_clarification_requested`, `order_rejected`, `order_roll_locked`, `order_effect_applied`, `order_published`, `player_notified`).
 - Расширено применение структурированных эффектов: `treasury_delta`, `entity_income_delta`, `province_income_delta`, `building_add/remove`, `law_add/remove/update`, `garrison_change`, `militia_change`, `army_create`, `unit_raise`, `unit_disband`, `army_merge`, `army_split`, а также registry-поддержка для `treaty_create/update`, `trade_agreement_create`, `war_declare/end`, `vassalage_change`, `province_control_change`, `entity_relation_note`, `map_event_note`.
 - Денежные изменения пишутся в `turn.treasury_ledger` с привязкой к `order/effect/admin`.
 
@@ -17,6 +17,7 @@
   - `GET /api/orders/my/index.php`
   - `GET /api/orders/admin-queue/index.php`
   - `GET /api/orders/feed/index.php`
+  - `GET /api/orders/rss/`
   - `POST /api/orders/upload/index.php`
   - `GET /api/orders/show/index.php?id=...`
   - `POST /api/orders/patch/index.php?id=...`
@@ -34,11 +35,10 @@
 - Добавлена публичная alt-лента: `orders_feed_ui_alt.html` + `js/orders_feed_ui_alt.js`.
 - В `player_admin_ui_alt.html` и `admin_ui_alt.html` добавлены ссылки на новые alt-экраны без переписывания оригиналов.
 
-### VK + публикация
+### VK + приказы
 - Расширен текущий callback flow VK-бота: меню приказов, пошаговая подача, списки «мои/черновики/вердикты/уточнения».
 - Добавлены bot-уведомления на `needs_clarification` и `published`.
-- Реализован outbox-процессор публикации на стену VK с retry-safe статусами `pending_wall_post|wall_posted|wall_post_failed`.
-- В `api/jobs/run-once` добавана обработка `kind=orders_outbox`.
+- Публикация на стену VK удалена: вместо этого добавлен RSS-экспорт летописи для импорта во VK (`GET /api/orders/rss/`) с VK-совместимой HTML-разметкой описания и изображением из public-вложений.
 
 ### Feature flags
 В `js/feature_flags.js`:
@@ -46,7 +46,6 @@
 - `VERDICTS_V1`
 - `ORDER_FEED_V1`
 - `VK_ORDER_FLOW_V1`
-- `VK_WALL_ORDER_PUBLISH_V1`
 
 ---
 

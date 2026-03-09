@@ -11,7 +11,6 @@ function orders_api_base_dir(): string { return api_repo_root() . '/data/orders'
 function orders_api_orders_path(): string { return orders_api_base_dir() . '/orders.json'; }
 function orders_api_events_path(): string { return orders_api_base_dir() . '/events.json'; }
 function orders_api_publications_path(): string { return orders_api_base_dir() . '/publications.json'; }
-function orders_api_outbox_path(): string { return orders_api_base_dir() . '/vk_outbox.json'; }
 function orders_api_admin_tokens_path(): string { return api_repo_root() . '/data/admin_tokens.json'; }
 
 function orders_api_locks_path(): string { return orders_api_base_dir() . '/locks.json'; }
@@ -86,7 +85,6 @@ function orders_api_ensure_store(): void {
   }
   if (!is_file(orders_api_events_path())) api_atomic_write_json(orders_api_events_path(), ['events' => []]);
   if (!is_file(orders_api_publications_path())) api_atomic_write_json(orders_api_publications_path(), ['rows' => []]);
-  if (!is_file(orders_api_outbox_path())) api_atomic_write_json(orders_api_outbox_path(), ['rows' => []]);
   if (!is_file(orders_api_locks_path())) api_atomic_write_json(orders_api_locks_path(), ['locks' => []]);
 }
 
@@ -113,7 +111,7 @@ function orders_api_seed_orders(): array {
       'effects' => [
         ['id'=>'ef_seed_1','order_id'=>'ord_seed_001','order_action_item_id'=>'ai_seed_1','effect_type'=>'entity_income_delta','payload'=>['delta'=>120,'reason'=>'Восстановление пашен'],'is_enabled'=>true,'applied'=>true,'applied_at'=>$now,'applied_by'=>'seed_admin'],
       ],
-      'publication' => ['id'=>'pub_seed_1','order_id'=>'ord_seed_001','event_feed_entry_id'=>'evt_seed_1','vk_wall_post_id'=>'wall_seed_1','public_payload_snapshot'=>[]],
+      'publication' => ['id'=>'pub_seed_1','order_id'=>'ord_seed_001','event_feed_entry_id'=>'evt_seed_1','public_payload_snapshot'=>[]],
       'audit_log' => [],
     ],
     [
@@ -834,27 +832,9 @@ function orders_api_publish(array &$order, string $adminUserId): array {
 
   $order['publication'] = [
     'id' => orders_api_next_id('publication'),'order_id' => (string)$order['id'],'event_feed_entry_id' => (string)$public['id'],
-    'vk_wall_post_id' => '', 'public_payload_snapshot' => $public,
+    'public_payload_snapshot' => $public,
   ];
   orders_api_event_append('order_published', (string)$order['id'], ['feed_id' => (string)$public['id']]);
-
-  $outRaw = @file_get_contents(orders_api_outbox_path());
-  $out = is_string($outRaw) ? json_decode($outRaw, true) : null;
-  if (!is_array($out)) $out = ['rows' => []];
-  if (!is_array($out['rows'] ?? null)) $out['rows'] = [];
-  $out['rows'][] = [
-    'id' => orders_api_next_id('vkjob'),
-    'type' => 'vk_wall_publish',
-    'order_id' => (string)$order['id'],
-    'status' => 'pending_wall_post',
-    'attempts' => 0,
-    'last_error' => '',
-    'payload' => $public,
-    'created_at' => gmdate('c'),
-    'updated_at' => gmdate('c'),
-  ];
-  api_atomic_write_json(orders_api_outbox_path(), $out);
-  orders_api_event_append('vk_wall_publish_requested', (string)$order['id'], []);
 
   // notify player in bot (best-effort)
   $vkUid = (int)($order['author_vk_user_id'] ?? 0);
@@ -865,140 +845,4 @@ function orders_api_publish(array &$order, string $adminUserId): array {
   }
 
   return $public;
-}
-
-
-function orders_api_outbox_status_for_order(string $orderId): ?array {
-  $raw = @file_get_contents(orders_api_outbox_path());
-  $out = is_string($raw) ? json_decode($raw, true) : null;
-  $rows = is_array($out['rows'] ?? null) ? $out['rows'] : [];
-  for ($i = count($rows)-1; $i >= 0; $i--) {
-    $job = $rows[$i] ?? null;
-    if (!is_array($job)) continue;
-    if ((string)($job['order_id'] ?? '') !== $orderId) continue;
-    if ((string)($job['type'] ?? '') !== 'vk_wall_publish') continue;
-    return [
-      'id' => (string)($job['id'] ?? ''),
-      'status' => (string)($job['status'] ?? ''),
-      'attempts' => (int)($job['attempts'] ?? 0),
-      'last_error' => (string)($job['last_error'] ?? ''),
-      'last_error_details' => is_array($job['last_error_details'] ?? null) ? $job['last_error_details'] : [],
-      'next_attempt_at' => (string)($job['next_attempt_at'] ?? ''),
-      'updated_at' => (string)($job['updated_at'] ?? ''),
-      'wall_post_id' => (string)($job['wall_post_id'] ?? ''),
-    ];
-  }
-  return null;
-}
-
-function orders_api_process_outbox(): array {
-  $raw = @file_get_contents(orders_api_outbox_path());
-  $out = is_string($raw) ? json_decode($raw, true) : null;
-  if (!is_array($out)) $out = ['rows' => []];
-  if (!is_array($out['rows'] ?? null)) $out['rows'] = [];
-
-  $done = 0; $failed = 0;
-  $maxAttempts = 5;
-  $baseRetrySeconds = 300;
-  $nowTs = time();
-  foreach ($out['rows'] as &$job) {
-    if (!is_array($job)) continue;
-    if ((string)($job['type'] ?? '') !== 'vk_wall_publish') continue;
-    if ((string)($job['status'] ?? '') === 'wall_posted') continue;
-    if ((string)($job['status'] ?? '') === 'wall_post_failed_permanent') continue;
-
-    $nextTs = strtotime((string)($job['next_attempt_at'] ?? ''));
-    if ($nextTs !== false && $nextTs > $nowTs) continue;
-
-    $attempt = (int)($job['attempts'] ?? 0) + 1;
-    $job['attempts'] = $attempt;
-    $payload = is_array($job['payload'] ?? null) ? $job['payload'] : [];
-    $text = "Летопись хода " . (string)($payload['turn_year'] ?? '') . "\n"
-      . (string)($payload['entity_id'] ?? '') . "\n"
-      . (string)($payload['title'] ?? '') . "\n\n"
-      . (string)($payload['rp_post'] ?? '') . "\n\nВердикт:\n"
-      . (string)($payload['public_verdict_text'] ?? '');
-
-    $cfg = vk_bot_load_config();
-    if (!$cfg['enabled'] || $cfg['access_token'] === '' || $cfg['group_id'] === '') {
-      $job['status'] = 'wall_post_failed_retry';
-      $job['last_error'] = 'vk_not_configured';
-      $job['last_error_details'] = [
-        'enabled' => (bool)$cfg['enabled'],
-        'has_access_token' => $cfg['access_token'] !== '',
-        'group_id' => (string)$cfg['group_id'],
-      ];
-      $failed++;
-    } else {
-      $ownerId = '-' . preg_replace('/[^0-9]/', '', (string)$cfg['group_id']);
-      $attachment = '';
-      $images = (array)($payload['images'] ?? []);
-      $candidates = $images;
-      if ($attachment === '' && (string)($job['order_id'] ?? '') !== '') {
-        $storeForJob = orders_api_load_store();
-        $idxForJob = orders_api_find_index($storeForJob['orders'] ?? [], (string)$job['order_id']);
-        if ($idxForJob >= 0) {
-          $ordForJob = $storeForJob['orders'][$idxForJob] ?? null;
-          if (is_array($ordForJob)) {
-            foreach ((array)($ordForJob['public_images'] ?? []) as $im) $candidates[] = $im;
-            foreach ((array)($ordForJob['attachment_registry'] ?? []) as $im) {
-              if (is_array($im) && (string)($im['visibility'] ?? '') === 'public') $candidates[] = $im;
-            }
-          }
-        }
-      }
-      foreach ($candidates as $img) {
-        $attachment = vk_bot_try_build_wall_photo_attachment($img);
-        if ($attachment !== '') break;
-      }
-      $imageAttachmentWarning = null;
-      if (!empty($images) && $attachment === '') {
-        $imageAttachmentWarning = [
-          'images_count' => count($images),
-          'hint' => 'Не удалось подготовить attachment для wall.post',
-          'vk_api_error' => vk_bot_get_last_api_error(),
-        ];
-        orders_api_event_append('vk_wall_attachment_unresolved_fallback_to_text', (string)($job['order_id'] ?? ''), $imageAttachmentWarning);
-      }
-      $params = [
-        'owner_id' => $ownerId,
-        'from_group' => 1,
-        'message' => mb_substr($text, 0, 3900),
-      ];
-      if ($attachment !== '') $params['attachments'] = $attachment;
-
-      $resp = vk_bot_vk_api_call('wall.post', $params);
-      if (is_array($resp) && isset($resp['response']['post_id'])) {
-        $job['status'] = 'wall_posted';
-        $job['wall_post_id'] = (string)$resp['response']['post_id'];
-        $job['last_error'] = '';
-        $job['last_error_details'] = [];
-        if (is_array($imageAttachmentWarning)) $job['last_error_details']['warning'] = $imageAttachmentWarning;
-        $job['next_attempt_at'] = '';
-        $done++;
-        orders_api_event_append('vk_wall_published', (string)($job['order_id'] ?? ''), ['post_id' => $job['wall_post_id']]);
-      } else {
-        $job['status'] = 'wall_post_failed_retry';
-        $job['last_error'] = 'vk_api_error';
-        $job['last_error_details'] = vk_bot_get_last_api_error();
-        if (is_array($imageAttachmentWarning)) $job['last_error_details']['image_attachment_warning'] = $imageAttachmentWarning;
-        $failed++;
-      }
-    }
-
-    if ((string)$job['status'] !== 'wall_posted') {
-      if ($attempt >= $maxAttempts) {
-        $job['status'] = 'wall_post_failed_permanent';
-        $job['next_attempt_at'] = '';
-      } else {
-        $retryDelay = $baseRetrySeconds * (2 ** ($attempt - 1));
-        $job['next_attempt_at'] = gmdate('c', $nowTs + $retryDelay);
-      }
-    }
-    $job['updated_at'] = gmdate('c');
-  }
-  unset($job);
-
-  api_atomic_write_json(orders_api_outbox_path(), $out);
-  return ['processed' => $done + $failed, 'posted' => $done, 'failed' => $failed];
 }

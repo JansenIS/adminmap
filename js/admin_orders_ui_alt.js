@@ -105,9 +105,6 @@ async function mutate(path,payload){
     await load();
     const f=rows.find(x=>x.id===cur.id);
     if(f) openOrder(f);
-    if(d.outbox_run){
-      alert('Публикация: posted='+d.outbox_run.posted+' failed='+d.outbox_run.failed+(d.outbox_job_status?(' status='+d.outbox_job_status.status+' err='+ (d.outbox_job_status.last_error||'')) : ''));
-    }
   } finally { setBusy(false); }
 }
 

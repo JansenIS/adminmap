@@ -31,6 +31,4 @@ orders_api_audit_append($order,'order_published',$admin,['feed_id'=>$pub['id'] ?
 $store['orders'][$idx] = $order;
 orders_api_save_store($store);
 orders_api_emit_order_etag($order);
-$outboxRun = orders_api_process_outbox();
-$outboxStatus = orders_api_outbox_status_for_order((string)$order['id']);
-orders_api_response(['ok'=>true,'publication'=>$pub,'order'=>$order,'etag'=>orders_api_order_etag($order),'outbox_run'=>$outboxRun,'outbox_job_status'=>$outboxStatus]);
+orders_api_response(['ok'=>true,'publication'=>$pub,'order'=>$order,'etag'=>orders_api_order_etag($order)]);
