@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/lib/vk_bot_api.php';
+require_once dirname(__DIR__, 2) . '/lib/orders_api.php';
 
 function vk_bot_extract_image_url(array $message): string {
   $attachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
@@ -74,8 +75,14 @@ foreach ($apps as $app) {
   if (!is_array($app)) continue;
   if ((int)($app['vk_user_id'] ?? 0) !== $userId) continue;
   if (($app['status'] ?? '') !== 'approved') continue;
+  $resolved = vk_bot_resolve_application_entity($app);
+  if (!is_array($resolved)) continue;
   $hasApprovedStateApp = true;
   $approvedApp = $app;
+  if (!isset($approvedApp['approved_entity_type']) || !isset($approvedApp['approved_entity_id'])) {
+    $approvedApp['approved_entity_type'] = (string)$resolved['entity_type'];
+    $approvedApp['approved_entity_id'] = (string)$resolved['entity_id'];
+  }
 }
 $approvedCharacterApp = null;
 $pendingCharacterApp = null;
@@ -85,6 +92,18 @@ foreach ($charApps as $charApp) {
   if (($charApp['status'] ?? '') === 'approved') $approvedCharacterApp = $charApp;
   if (($charApp['status'] ?? '') === 'pending') $pendingCharacterApp = $charApp;
 }
+
+
+
+$vkOrderMenu = static function(int $userId) use ($cfg): void {
+  vk_bot_send_message($userId, 'Раздел приказов:', vk_bot_keyboard([
+    vk_bot_btn('Подать приказ', 'order_new', 'primary'),
+    vk_bot_btn('Мои приказы', 'order_my', 'secondary'),
+    vk_bot_btn('Черновики приказов', 'order_drafts', 'secondary'),
+    vk_bot_btn('Вердикты', 'order_verdicts', 'positive'),
+    vk_bot_btn('Запросы на уточнение', 'order_clarifications', 'negative'),
+  ]));
+};
 
 $sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array $approvedCharacterApp, ?array $pendingCharacterApp): void {
   $btns = [];
@@ -100,12 +119,71 @@ $sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array 
     }
   }
   $btns[] = vk_bot_btn('🎨 Портрет персонажа', 'character_image_start', 'primary');
+  if ($hasApprovedStateApp) $btns[] = vk_bot_btn('📜 Приказы', 'orders_menu', 'primary');
 
   $msg = 'Добро пожаловать. Выберите действие:';
   if (is_array($pendingCharacterApp) && !is_array($approvedCharacterApp)) {
     $msg .= "\nАнкета персонажа уже отправлена и ожидает модерации.";
   }
   vk_bot_send_message($userId, $msg, vk_bot_keyboard($btns));
+};
+
+
+$collectExistingEntitiesByType = static function(array $state, string $entityType): array {
+  $rows = [];
+  if ($entityType === 'minor_houses') {
+    $derived = player_admin_minor_houses_from_layer($state);
+    foreach ($derived as $id => $row) {
+      if (!is_array($row)) continue;
+      $name = trim((string)($row['name'] ?? $id));
+      if ($name === '') $name = (string)$id;
+      $rows[] = ['entity_type' => $entityType, 'entity_id' => (string)$id, 'name' => $name];
+    }
+  } else {
+    foreach (($state[$entityType] ?? []) as $id => $row) {
+      if (!is_array($row)) continue;
+      $name = trim((string)($row['name'] ?? $id));
+      if ($name === '') $name = (string)$id;
+      $rows[] = ['entity_type' => $entityType, 'entity_id' => (string)$id, 'name' => $name];
+    }
+  }
+  usort($rows, static function(array $a, array $b): int {
+    return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+  });
+  return $rows;
+};
+
+$sendExistingEntitySelection = static function(int $userId, array &$sessions, array $data, array $entities, string $entityType): void {
+  $numberMap = [];
+  $lines = [];
+  foreach (array_values($entities) as $i => $row) {
+    if ($i >= 180) break; // keep payload manageable
+    $num = (string)($i + 1);
+    $numberMap[$num] = ['entity_type' => $entityType, 'entity_id' => (string)($row['entity_id'] ?? '')];
+    $name = trim((string)($row['name'] ?? $row['entity_id'] ?? ''));
+    $lines[] = $num . '. ' . $name . ' (' . $entityType . ':' . (string)($row['entity_id'] ?? '') . ')';
+  }
+  $data['existing_entity_type'] = $entityType;
+  $data['entity_number_map'] = $numberMap;
+  vk_bot_set_user_session($sessions, $userId, ['stage' => 'choose_existing_entity', 'data' => $data]);
+  vk_bot_save_sessions($sessions);
+
+  $chunks = array_chunk($lines, 40);
+  if (empty($chunks)) {
+    vk_bot_send_message($userId, 'Список сущностей пуст.');
+    return;
+  }
+  $head = "Выберите сущность и отправьте номер из списка.
+Также можно отправить ID вручную в формате type:id.
+";
+  vk_bot_send_message($userId, $head . "
+" . implode("
+", $chunks[0]));
+  for ($i=1; $i<count($chunks); $i++) {
+    vk_bot_send_message($userId, "Продолжение списка:
+" . implode("
+", $chunks[$i]));
+  }
 };
 
 $sendTerritorySelection = static function (int $userId, array &$sessions, array $data, array $territories): void {
@@ -127,6 +205,142 @@ $sendTerritorySelection = static function (int $userId, array &$sessions, array 
     . implode("\n", $territoryLines);
   vk_bot_send_message($userId, $msg);
 };
+
+
+if ($cmd === 'orders_menu') {
+  $vkOrderMenu($userId);
+  echo 'ok'; exit;
+}
+
+if ($cmd === 'order_my' || $cmd === 'order_drafts' || $cmd === 'order_verdicts' || $cmd === 'order_clarifications') {
+  $store = orders_api_load_store();
+  $rows = [];
+  foreach (($store['orders'] ?? []) as $o) {
+    if (!is_array($o)) continue;
+    if ((int)($o['author_vk_user_id'] ?? 0) !== $userId) continue;
+    $st = (string)($o['status'] ?? '');
+    if ($cmd === 'order_drafts' && $st !== 'draft') continue;
+    if ($cmd === 'order_verdicts' && !in_array($st, ['verdict_ready','approved','published'], true)) continue;
+    if ($cmd === 'order_clarifications' && $st !== 'needs_clarification') continue;
+    $rows[] = '• ' . (string)($o['title'] ?? 'Без названия') . ' [' . $st . '] #' . (string)($o['id'] ?? '');
+  }
+  vk_bot_send_message($userId, empty($rows) ? 'Записей пока нет.' : implode("
+", array_slice($rows, -20)));
+  echo 'ok'; exit;
+}
+
+if ($cmd === 'order_new') {
+  $session = ['stage' => 'order_title', 'data' => ['order_form' => ['action_items' => [], 'public_images' => []]]];
+  vk_bot_set_user_session($sessions, $userId, $session);
+  vk_bot_save_sessions($sessions);
+  vk_bot_send_message($userId, 'Подача приказа: шаг 1/6. Введите заголовок.');
+  echo 'ok'; exit;
+}
+
+if (strpos($stage, 'order_') === 0) {
+  if ($text === '/cancel' || $cmd === 'cancel') {
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Подача приказа отменена.');
+    echo 'ok'; exit;
+  }
+  $form = is_array($data['order_form'] ?? null) ? $data['order_form'] : ['action_items' => [], 'public_images' => []];
+  if ($stage === 'order_title') {
+    if ($text === '') { vk_bot_send_message($userId, 'Введите заголовок приказа.'); echo 'ok'; exit; }
+    $form['title'] = $text;
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_rp_post', 'data' => ['order_form' => $form]]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Шаг 2/6. Введите основной РП-текст.');
+    echo 'ok'; exit;
+  }
+  if ($stage === 'order_rp_post') {
+    if ($text === '') { vk_bot_send_message($userId, 'Введите РП-текст приказа.'); echo 'ok'; exit; }
+    $form['rp_post'] = $text;
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_item_summary', 'data' => ['order_form' => $form]]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Шаг 3/6. Введите короткий пункт действия. После каждого пункта отправляйте категорию: economy|politics|laws|diplomacy|military|religion|intrigue|other');
+    echo 'ok'; exit;
+  }
+  if ($stage === 'order_item_summary') {
+    if ($text === '') { vk_bot_send_message($userId, 'Введите пункт или «готово».'); echo 'ok'; exit; }
+    if (mb_strtolower($text) === 'готово') {
+      vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_images', 'data' => ['order_form' => $form]]);
+      vk_bot_save_sessions($sessions);
+      vk_bot_send_message($userId, 'Шаг 4/6. Прикрепите изображения (фото/док) или напишите «далее».');
+      echo 'ok'; exit;
+    }
+    $form['_pending_summary'] = $text;
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_item_category', 'data' => ['order_form' => $form]]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Категория для пункта?');
+    echo 'ok'; exit;
+  }
+  if ($stage === 'order_item_category') {
+    $cat = trim(mb_strtolower($text));
+    if (!in_array($cat, ['economy','politics','laws','diplomacy','military','religion','intrigue','other'], true)) {
+      vk_bot_send_message($userId, 'Неверная категория. Используйте economy|politics|laws|diplomacy|military|religion|intrigue|other');
+      echo 'ok'; exit;
+    }
+    $form['action_items'][] = ['category' => $cat, 'summary' => (string)($form['_pending_summary'] ?? ''), 'details' => ''];
+    unset($form['_pending_summary']);
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_item_summary', 'data' => ['order_form' => $form]]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Пункт добавлен. Следующий пункт или «готово».');
+    echo 'ok'; exit;
+  }
+  if ($stage === 'order_images') {
+    if (mb_strtolower($text) === 'далее') {
+      $preview = 'Проверка приказа:
+' . (string)($form['title'] ?? '') . "
+Пунктов: " . count($form['action_items'] ?? []) . "
+Изображений: " . count($form['public_images'] ?? []);
+      vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_confirm', 'data' => ['order_form' => $form]]);
+      vk_bot_save_sessions($sessions);
+      vk_bot_send_message($userId, $preview . "
+Шаг 5/6. Отправить? (да/нет)");
+      echo 'ok'; exit;
+    }
+    $img = vk_bot_extract_image_url($message);
+    if ($img !== '') {
+      $form['public_images'][] = $img;
+      vk_bot_set_user_session($sessions, $userId, ['stage' => 'order_images', 'data' => ['order_form' => $form]]);
+      vk_bot_save_sessions($sessions);
+      vk_bot_send_message($userId, 'Изображение прикреплено. Ещё или «далее».');
+      echo 'ok'; exit;
+    }
+    vk_bot_send_message($userId, 'Прикрепите фото/док-изображение или отправьте «далее».');
+    echo 'ok'; exit;
+  }
+  if ($stage === 'order_confirm') {
+    if (mb_strtolower($text) !== 'да') {
+      vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+      vk_bot_save_sessions($sessions);
+      vk_bot_send_message($userId, 'Черновик сохранён в сессии. Начните снова через «Подать приказ».');
+      echo 'ok'; exit;
+    }
+    $map = vk_bot_resolve_user_entity_for_orders($apps, $userId);
+    if (!is_array($map)) {
+      vk_bot_send_message($userId, 'Не найдено одобренное государство для подачи приказа. Проверьте в заявке статус «approved» и поля approved_entity_type/approved_entity_id.');
+      echo 'ok'; exit;
+    }
+    $store = orders_api_load_store();
+    $id = orders_api_next_id('ord');
+    $items = [];
+    foreach (($form['action_items'] ?? []) as $i => $it) {
+      if (!is_array($it)) continue;
+      $items[] = ['id'=>orders_api_next_id('ai'),'order_id'=>$id,'sort_index'=>$i+1,'category'=>(string)($it['category'] ?? 'other'),'summary'=>(string)($it['summary'] ?? ''),'details'=>(string)($it['details'] ?? ''),'requested_effects_hint'=>'','target_scope'=>'entity'];
+    }
+    $order = ['id'=>$id,'turn_year'=>orders_api_current_turn_year(),'turn_id'=>'turn_' . orders_api_current_turn_year(),'entity_type'=>$map['entity_type'],'entity_id'=>$map['entity_id'],'character_id'=>null,'author_user_id'=>'','author_vk_user_id'=>$userId,'source'=>'vk','title'=>(string)($form['title'] ?? 'Приказ'),'rp_post'=>(string)($form['rp_post'] ?? ''),'public_images'=>array_values($form['public_images'] ?? []),'private_attachments'=>[],'status'=>'submitted','created_at'=>gmdate('c'),'updated_at'=>gmdate('c'),'submitted_at'=>gmdate('c'),'version'=>1,'action_items'=>$items,'verdict'=>null,'effects'=>[],'publication'=>null,'audit_log'=>[]];
+    orders_api_audit_append($order,'order_submitted','vk:' . $userId,[]);
+    $store['orders'][] = $order;
+    orders_api_save_store($store);
+    orders_api_event_append('order_submitted', $id, ['source' => 'vk']);
+    vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
+    vk_bot_save_sessions($sessions);
+    vk_bot_send_message($userId, 'Приказ отправлен на рассмотрение. № ' . $id);
+    echo 'ok'; exit;
+  }
+}
 
 if ($cmd === 'start' || $text === '/start' || $text === 'Начать') {
   $sendMainMenu($userId, $hasApprovedStateApp, $approvedCharacterApp, $pendingCharacterApp);
