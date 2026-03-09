@@ -95,7 +95,6 @@
         "id": "pub_seed_1",
         "order_id": "ord_seed_001",
         "event_feed_entry_id": "evt_seed_1",
-        "vk_wall_post_id": "wall_seed_1",
         "public_payload_snapshot": []
       },
       "audit_log": []
@@ -220,7 +219,6 @@
         "id": "publication_5e23051bbbed",
         "order_id": "ord_dc8ddb4f0c0b",
         "event_feed_entry_id": "feed_daa764977ac4",
-        "vk_wall_post_id": "",
         "public_payload_snapshot": {
           "id": "feed_daa764977ac4",
           "type": "order_publication",
