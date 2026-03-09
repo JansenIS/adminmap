@@ -52,6 +52,7 @@ function vk_bot_load_config(): array {
     'api_version' => trim((string)($cfg['api_version'] ?? '5.199')),
     'public_base_url' => rtrim(trim((string)($cfg['public_base_url'] ?? '')), '/'),
     'routerai_api_key' => trim((string)($cfg['routerai_api_key'] ?? '')),
+    'mini_app_url' => trim((string)($cfg['mini_app_url'] ?? '')),
   ];
 }
 
@@ -65,6 +66,7 @@ function vk_bot_save_config(array $cfg): bool {
     'api_version' => trim((string)($cfg['api_version'] ?? '5.199')),
     'public_base_url' => rtrim(trim((string)($cfg['public_base_url'] ?? '')), '/'),
     'routerai_api_key' => trim((string)($cfg['routerai_api_key'] ?? '')),
+    'mini_app_url' => trim((string)($cfg['mini_app_url'] ?? '')),
   ]);
 }
 
@@ -104,6 +106,19 @@ function vk_bot_image_user_limit(): int { return 10; }
 
 function vk_bot_log_error(string $message): void {
   @file_put_contents(api_repo_root() . '/data/vk_bot_last_error.log', date('c') . ' ' . $message . "\n", FILE_APPEND);
+}
+
+function vk_bot_set_last_api_error(string $code, array $details = []): void {
+  $GLOBALS['vk_bot_last_api_error'] = [
+    'code' => $code,
+    'details' => $details,
+    'ts' => time(),
+  ];
+}
+
+function vk_bot_get_last_api_error(): array {
+  $row = $GLOBALS['vk_bot_last_api_error'] ?? null;
+  return is_array($row) ? $row : [];
 }
 
 function vk_bot_set_last_render_error(?string $reason): void {
@@ -150,7 +165,11 @@ function vk_bot_btn(string $label, string $cmd, string $color = 'primary'): arra
 
 function vk_bot_vk_api_call(string $method, array $params): ?array {
   $cfg = vk_bot_load_config();
-  if ($cfg['access_token'] === '') return null;
+  vk_bot_set_last_api_error('none', []);
+  if ($cfg['access_token'] === '') {
+    vk_bot_set_last_api_error('missing_access_token', ['method' => $method]);
+    return null;
+  }
   $params['v'] = $cfg['api_version'] !== '' ? $cfg['api_version'] : '5.199';
   $params['access_token'] = $cfg['access_token'];
 
@@ -163,15 +182,21 @@ function vk_bot_vk_api_call(string $method, array $params): ?array {
   $err = curl_error($ch);
   curl_close($ch);
   if (!is_string($resp) || $resp === '' || $err !== '') {
+    vk_bot_set_last_api_error('curl_error', ['method' => $method, 'curl_error' => $err, 'response_excerpt' => substr((string)$resp, 0, 300)]);
     vk_bot_log_error('vk_api_call_error method=' . $method . ' err=' . $err);
     return null;
   }
   $decoded = json_decode($resp, true);
   if (!is_array($decoded)) {
+    vk_bot_set_last_api_error('invalid_json', ['method' => $method, 'response_excerpt' => substr($resp, 0, 300)]);
     vk_bot_log_error('vk_api_invalid_json method=' . $method);
     return null;
   }
   if (isset($decoded['error'])) {
+    vk_bot_set_last_api_error('vk_api_error', [
+      'method' => $method,
+      'vk_error' => is_array($decoded['error']) ? $decoded['error'] : ['raw' => $decoded['error']],
+    ]);
     vk_bot_log_error('vk_api_error method=' . $method . ' details=' . json_encode($decoded['error'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     return null;
   }
@@ -230,6 +255,84 @@ function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $file
   $photoId = (int)($saved['id'] ?? 0);
   if ($ownerId === 0 || $photoId === 0) return '';
   return 'photo' . $ownerId . '_' . $photoId;
+}
+
+
+function vk_bot_upload_wall_photo_blob(string $raw, string $fileName = 'order.png'): string {
+  if ($raw === '') return '';
+  $cfg = vk_bot_load_config();
+  $groupId = preg_replace('/[^0-9]/', '', (string)($cfg['group_id'] ?? ''));
+  if ($groupId === '') return '';
+
+  $serverResp = vk_bot_vk_api_call('photos.getWallUploadServer', ['group_id' => $groupId]);
+  $uploadUrl = trim((string)($serverResp['response']['upload_url'] ?? ''));
+  if ($uploadUrl === '') return '';
+
+  $tmpFile = tempnam(sys_get_temp_dir(), 'vkwall_');
+  if (!is_string($tmpFile) || $tmpFile === '') return '';
+  if (@file_put_contents($tmpFile, $raw) === false) { @unlink($tmpFile); return ''; }
+
+  $cfile = curl_file_create($tmpFile, 'image/png', $fileName);
+  $ch = curl_init($uploadUrl);
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, ['photo' => $cfile]);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
+  curl_close($ch);
+  @unlink($tmpFile);
+
+  if (!is_string($resp) || $resp === '' || $err !== '') {
+    vk_bot_log_error('vk_upload_wall_photo_error err=' . $err);
+    return '';
+  }
+  $decoded = json_decode($resp, true);
+  if (!is_array($decoded)) return '';
+
+  $saveResp = vk_bot_vk_api_call('photos.saveWallPhoto', [
+    'group_id' => $groupId,
+    'photo' => (string)($decoded['photo'] ?? ''),
+    'server' => (string)($decoded['server'] ?? ''),
+    'hash' => (string)($decoded['hash'] ?? ''),
+  ]);
+  $saved = is_array($saveResp['response'] ?? null) ? $saveResp['response'][0] ?? null : null;
+  if (!is_array($saved)) return '';
+  $owner = (string)($saved['owner_id'] ?? '');
+  $pid = (string)($saved['id'] ?? '');
+  if ($owner === '' || $pid === '') return '';
+  return 'photo' . $owner . '_' . $pid;
+}
+
+function vk_bot_try_build_wall_photo_attachment($value): string {
+  if (is_array($value)) {
+    $value = (string)($value['url'] ?? $value['src'] ?? $value['href'] ?? '');
+  }
+  $url = trim((string)$value);
+  if ($url === '') return '';
+
+  if (str_starts_with($url, '/')) {
+    $path = api_repo_root() . $url;
+  } elseif (preg_match('~^https?://~i', $url)) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+    $raw = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if (!is_string($raw) || $raw === '' || $err !== '' || $code < 200 || $code >= 300) return '';
+    return vk_bot_upload_wall_photo_blob($raw);
+  } else {
+    return '';
+  }
+
+  if (!is_file($path)) return '';
+  $raw = @file_get_contents($path);
+  if (!is_string($raw) || $raw === '') return '';
+  return vk_bot_upload_wall_photo_blob($raw, basename($path));
 }
 
 function vk_bot_collect_image_candidates_from_value($value, string &$imageUrl, string &$b64): void {
@@ -798,4 +901,29 @@ function vk_bot_create_player_admin_token(string $entityType, string $entityId, 
   ];
   if (!player_admin_save_tokens($tokens)) return null;
   return ['token' => $token, 'path' => '/player_admin.html?token=' . rawurlencode($token)];
+}
+
+function vk_bot_resolve_application_entity(array $app): ?array {
+  $pairs = [
+    ['approved_entity_type', 'approved_entity_id'],
+    ['entity_type', 'entity_id'],
+    ['selected_entity_type', 'selected_entity_id'],
+  ];
+  foreach ($pairs as $pair) {
+    $type = trim((string)($app[$pair[0]] ?? ''));
+    $id = trim((string)($app[$pair[1]] ?? ''));
+    if ($type !== '' && $id !== '') return ['entity_type' => $type, 'entity_id' => $id];
+  }
+  return null;
+}
+
+function vk_bot_resolve_user_entity_for_orders(array $apps, int $vkUserId): ?array {
+  foreach ($apps as $app) {
+    if (!is_array($app)) continue;
+    if ((int)($app['vk_user_id'] ?? 0) !== $vkUserId) continue;
+    if ((string)($app['status'] ?? '') !== 'approved') continue;
+    $resolved = vk_bot_resolve_application_entity($app);
+    if (is_array($resolved)) return $resolved;
+  }
+  return null;
 }
