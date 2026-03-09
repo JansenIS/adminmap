@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
-<title>Админка карты — admin_v2</title>
+<title>Админка карты — альтернативный UI v2</title>
 <style>
   :root{
     color-scheme:dark;
@@ -241,284 +241,162 @@ body{min-height:100vh;overflow:hidden}
 .panel-modal{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,10,.72);backdrop-filter:blur(2px)}.panel-modal.open{display:flex}.panel-modal__window{width:min(980px,96vw);max-height:94vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:18px;box-shadow:0 22px 70px rgba(0,0,0,.48)}.panel-modal__window--wide{width:min(1220px,97vw)}.panel-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041;position:sticky;top:0;background:#0d131b;z-index:2}.panel-modal__title{font-size:16px;font-weight:760}.panel-modal__body{padding:16px;display:grid;gap:12px}.placeholder-box{padding:14px;border-radius:16px;border:1px dashed #36516e;background:rgba(9,16,25,.72);color:var(--muted);line-height:1.45;font-size:13px}.placeholder-box h4{margin:0 0 8px;font-size:14px;color:var(--text)}.province-assets .emblemPreview,.province-assets .provinceCardPreview{display:none!important}
 @media (max-width:1280px){.topbar{grid-template-columns:1fr}.topbar__actions{justify-content:flex-start}.layout-grid{grid-template-columns:minmax(0,1fr) 330px}.select-compact{min-width:180px}}
 @media (max-width:980px){.topbar__main{gap:10px}.layout-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr}.inspector{max-height:42vh}.map-shell{order:-1}.topbar__menu{overflow:auto;flex-wrap:nowrap;padding-bottom:2px}}
-.inspector-shell{display:flex;flex-direction:column;gap:12px;min-height:0}
-.inspector-summary{display:grid;grid-template-columns:1fr;gap:10px}
-.inspector-summary__title{font-size:13px;font-weight:760;letter-spacing:.08em;text-transform:uppercase;color:#d4e5f8}
-.inspector-summary__text{font-size:12px;color:var(--muted);line-height:1.45}
-.inspector-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.inspector-tab{min-height:40px;padding:9px 10px;border-radius:12px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--muted);font-size:12px;font-weight:760;cursor:pointer}
-.inspector-tab:hover,.inspector-tab.is-active{border-color:#4772a1;background:linear-gradient(180deg, rgba(24,42,63,.96), rgba(13,24,37,.96));color:var(--text)}
-.inspector-pane{display:none;flex-direction:column;gap:12px;min-height:0}
-.inspector-pane.is-active{display:flex}
-.appbar--v2{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}
-.appbar__block{display:flex;flex-direction:column;gap:10px;min-width:0}
-.appbar__eyebrow{font-size:11px;line-height:1;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.appbar__headline{font-size:18px;font-weight:760;line-height:1.2}
-.appbar__support{font-size:12px;color:var(--muted);line-height:1.45}
-.appbar__controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.appbar__controls > *{flex:0 0 auto}
-.appbar__actions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.appbar__action{width:100%;justify-content:flex-start;text-align:left}
-.quick-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.quick-panel-grid button{width:100%;text-align:left;justify-content:flex-start}
-.inline-note{padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d;font-size:12px;color:var(--muted);line-height:1.45}
-.selection-card--v2 .kv{margin-top:10px}
-.selection-card--v2 .inline-actions{margin-top:12px}
-.turn-card--v2 details summary{cursor:pointer}
-.admin-v2-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.admin-v2-shortcuts .toplink{justify-content:center}
-@media (max-width:1280px){.inspector-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.appbar--v2{grid-template-columns:1fr}.appbar__actions-grid,.quick-panel-grid,.admin-v2-shortcuts{grid-template-columns:1fr}}
-@media (max-width:980px){.inspector-tabs{grid-template-columns:repeat(4,minmax(0,1fr));overflow:auto}.inspector-tab{white-space:nowrap}.appbar__controls{flex-direction:column;align-items:stretch}.appbar__controls > *{width:100%}.select-compact{min-width:0}}
-
+</style><style>
+/* admin_v2 deep IA overrides */
+.topbar__menu.launcher{display:none !important;}
+.topbar__main{align-items:flex-start; gap:18px;}
+.topbar__brand{display:flex; flex-direction:column; gap:8px;}
+.session-strip{display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:10px; flex:1;}
+.session-tile{background:linear-gradient(180deg,rgba(20,35,52,.9),rgba(11,22,35,.96)); border:1px solid var(--border); border-radius:16px; padding:12px 14px; min-height:72px; box-shadow:0 10px 26px rgba(0,0,0,.25);}
+.session-tile__label{font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:6px;}
+.session-tile__value{font-size:15px; font-weight:700; color:var(--text);}
+.session-tile__meta{margin-top:6px; color:var(--muted); font-size:12px;}
+.topbar__actions{justify-content:flex-end;}
+.appbar{grid-template-columns:1fr auto; align-items:center;}
+.appbar__right{display:none !important;}
+.map-stage__head{align-items:flex-start; gap:12px;}
+.map-stage__head .chips:last-child{display:none;}
+.inspector{display:block; overflow:auto;}
+.admin-v2-inspector{display:flex; flex-direction:column; gap:14px; min-height:0;}
+.inspector-tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; position:sticky; top:0; z-index:6; background:linear-gradient(180deg, rgba(7,17,27,.98), rgba(7,17,27,.88)); padding-bottom:4px;}
+.inspector-tab{border:1px solid var(--border); background:rgba(12,20,31,.9); color:var(--muted); border-radius:14px; padding:10px 12px; font-weight:700; cursor:pointer;}
+.inspector-tab.is-active{background:linear-gradient(180deg,rgba(28,51,76,.96),rgba(16,31,46,.96)); color:var(--text); border-color:var(--border-strong); box-shadow:0 12px 24px rgba(0,0,0,.28);}
+.inspector-pane{display:none; gap:14px;}
+.inspector-pane.is-active{display:flex; flex-direction:column;}
+.pane-intro{display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:14px 16px; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg,rgba(12,23,36,.94),rgba(8,16,26,.96));}
+.pane-intro__title{font-size:16px; font-weight:800; color:var(--text);}
+.pane-intro__text{font-size:13px; color:var(--muted); max-width:54ch; line-height:1.45;}
+.embed-section{display:flex; flex-direction:column; gap:10px;}
+.embed-section__head{display:flex; justify-content:space-between; gap:10px; align-items:flex-end;}
+.embed-section__title{font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
+.embed-section__note{font-size:12px; color:var(--muted);}
+.embed-stack{display:flex; flex-direction:column; gap:12px;}
+.embed-grid-2{display:grid; grid-template-columns:1fr; gap:12px;}
+.embedded-frame{padding:0; border:none; background:transparent; box-shadow:none;}
+.embedded-frame > .card,
+.embedded-frame > article,
+.embedded-frame > .placeholder-box{margin:0;}
+.embed-source{display:none !important;}
+.inspector .panel-modal__body{display:flex; flex-direction:column; gap:12px;}
+.inspector .panel-modal__body > *{margin:0;}
+.context-summary{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;}
+.context-summary .metric{min-height:74px;}
+.quick-note{padding:10px 12px; border-radius:14px; border:1px dashed var(--border-strong); color:var(--muted); font-size:12px; background:rgba(14,24,37,.68);}
+.placeholder-box{border-radius:16px;}
+.admin-v2-subtabs{display:flex; gap:8px; flex-wrap:wrap;}
+.admin-v2-subtabs button{padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:rgba(12,20,31,.8); color:var(--muted);}
+.admin-v2-subtabs button.is-active{color:var(--text); border-color:var(--border-strong); background:rgba(26,45,67,.95);}
+.admin-v2-subpane{display:none;}
+.admin-v2-subpane.is-active{display:block;}
+@media (max-width: 1180px){
+  .session-strip{grid-template-columns:1fr;}
+  .inspector-tabs{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width: 900px){
+  .session-strip{display:none;}
+  .pane-intro{flex-direction:column;}
+}
 </style></head>
 <body>
 <div class="workspace">
 <header class="topbar">
-  <div class="topbar__main">
-    <div class="topbar__brand">
-      <div class="topbar__title">Админка карты — admin_v2</div>
-      <div class="small" id="flagsStatus" style="display:none">Флаги: backend</div>
-    </div>
-    <nav aria-label="Навигация сессии" class="topbar__menu">
-      <a class="toplink" href="/index.html" rel="noopener" target="_blank">Публичная карта</a>
-      <a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Ходы</a>
-      <a class="toplink" href="/vk_admin.html" rel="noopener" target="_blank">VK</a>
-      <a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Война</a>
-    </nav>
-  </div>
-  <div class="topbar__actions">
-    <div class="status-strip" aria-label="Статус сессии">
-      <span class="status-pill">Карта: административный режим</span>
-      <span class="status-pill">Контекст справа, модальные процедуры отдельно</span>
-    </div>
-  </div>
-</header>
-<div class="layout-grid">
-  <section class="map-shell">
-    <div class="appbar appbar--v2">
-      <div class="appbar__block">
-        <div class="appbar__eyebrow">Режим карты</div>
-        <div class="appbar__headline">Просмотр и выбор на карте</div>
-        <div class="appbar__support">Верхняя панель оставлена только для слоя карты: режим отображения, геральдика и приведение к экрану. Редактирование сущностей и служебные операции вынесены в правый инспектор и процедуры.</div>
-        <div class="appbar__controls">
-          <select class="select-compact" id="viewMode">
-            <option value="provinces">Физическая карта</option>
-            <option value="province_properties">Свойства провинций</option>
-            <option value="war">Война</option>
-            <option value="kingdoms">Королевства</option>
-            <option value="great_houses">Большие Дома</option>
-            <option value="minor_houses">Малые Дома</option>
-            <option value="free_cities">Вольные Города</option>
-            <option value="special_territories">Особые Территории</option>
-          </select>
-          <button id="toggleProvEmblems" type="button">Геральдика провинций</button>
-          <button class="zoomBtn" data-zoom="fit" type="button">По экрану</button>
-        </div>
-      </div>
-      <div class="appbar__block">
-        <div class="appbar__eyebrow">Быстрые процедуры</div>
-        <div class="appbar__support">Только самые частые контекстные входы, без перегруза карты остальными контурами.</div>
-        <div class="appbar__actions-grid">
-          <button class="launcher-btn" data-panel="adminProvincePanel" type="button">Провинция</button>
-          <button class="launcher-btn" data-panel="adminRealmPanel" type="button">Сущность</button>
-          <button class="launcher-btn" data-panel="adminWarPanel" type="button">Армии</button>
-          <button class="launcher-btn" data-panel="adminDataPanel" type="button">Данные</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="map-stage">
-      <div class="map-stage__head">
-        <div class="compact-info">
-          <div class="compact-info__item">ЛКМ: выбор</div>
-          <div class="compact-info__item">Ctrl/Shift: мультивыбор</div>
-          <div class="compact-info__item">Колесо: зум</div>
-        </div>
-      </div>
-      <main class="maparea" id="mapArea">
-        <div id="mapWrap">
-          <img alt="Карта" id="baseMap" src="map.png"/>
-          <canvas id="fill"></canvas>
-          <canvas id="emblems"></canvas>
-          <canvas id="hover"></canvas>
-          <div class="army-markers-layer" id="armyMarkers"></div>
-        </div>
-        <div id="tooltip"></div>
-      </main>
-    </div>
-  </section>
-
-  <aside class="inspector">
-    <div class="inspector-shell">
-      <article class="card card--tight inspector-summary">
-        <div class="inspector-summary__title">Контекстный инспектор</div>
-        <div class="inspector-summary__text">Панель разбита по типу работы: текущий выбор, действия по выбору, иерархия/сценарные контуры и сервисные данные. Это уменьшает смешение обзора, редактирования и обслуживания state.</div>
-      </article>
-
-      <div class="inspector-tabs" role="tablist" aria-label="Разделы инспектора">
-        <button class="inspector-tab is-active" data-inspector-tab-button="selection" role="tab" aria-selected="true" type="button">Выбор</button>
-        <button class="inspector-tab" data-inspector-tab-button="actions" role="tab" aria-selected="false" type="button">Действия</button>
-        <button class="inspector-tab" data-inspector-tab-button="structure" role="tab" aria-selected="false" type="button">Структура</button>
-        <button class="inspector-tab" data-inspector-tab-button="data" role="tab" aria-selected="false" type="button">Данные</button>
-      </div>
-
-      <section class="inspector-pane is-active" data-inspector-pane="selection">
-        <article class="card card--tight selection-card--v2">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Текущий выбор</div>
-              <div class="card-note">Стабильная карточка состояния без пакетных и служебных операций.</div>
-            </div>
-          </div>
-          <div class="selection-head">
-            <div>
-              <div class="selection-name" id="selName">—</div>
-              <div class="selection-meta" style="margin-top:8px;">
-                <span>PID <b id="selPid">—</b></span>
-                <span>KEY <b id="selKey">—</b></span>
-                <span>Выделено <b id="multiSelCount">0</b></span>
-              </div>
-            </div>
-          </div>
-          <div class="kv" style="margin-top:10px;">
-            <div><b>Владелец:</b> <input id="ownerInput" list="peopleList" placeholder="Имя владельца" type="text"/></div>
-            <div><b>Сюзерен:</b> <span id="suzerainText">—</span></div>
-            <div><b>Сеньор:</b> <span id="seniorText">—</span></div>
-            <div><b>Люди:</b> <datalist id="peopleList"></datalist></div>
-          </div>
-          <div class="btnrow" style="margin-top:10px;">
-            <button class="launcher-btn" data-panel="adminProvincePanel" type="button">Паспорт провинции</button>
-            <button class="launcher-btn" data-panel="adminRealmPanel" type="button">Сущность и вассалы</button>
-          </div>
-        </article>
-
-        <article class="card card--tight turn-card--v2">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Состояние хода</div>
-              <div class="card-note">Отдельно от редактирования и пакетных действий.</div>
-            </div>
-            <div class="card-note" id="turnActionStatus">—</div>
-          </div>
-          <div class="metric-grid">
-            <div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div>
-            <div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div>
-            <div class="metric"><span class="metric__label">Казна провинций</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div>
-            <div class="metric"><span class="metric__label">Казна сущностей</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div>
-          </div>
-          <details style="margin-top:10px;">
-            <summary class="small">Казна сущностей</summary>
-            <div class="small" id="turnEntityTreasuryList" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
-          </details>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="btnMakeTurn" type="button">Сделать ход</button>
-            <button id="btnRefreshTurn" type="button">Обновить</button>
-            <button id="btnOpenTurnAdmin" type="button">Админка хода</button>
-          </div>
-        </article>
-      </section>
-
-      <section class="inspector-pane" data-inspector-pane="actions">
-        <article class="card card--tight" id="provincePropsCard">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Пакетные изменения</div>
-              <div class="card-note">Показываются отдельно от карточки выбора, чтобы массовые операции не конкурировали с чтением контекста.</div>
-            </div>
-          </div>
-          <div class="inline-note">Выделено: <span id="provincePropsCount">0</span></div>
-          <div class="grid" style="grid-template-columns:110px 1fr; margin-top:10px;">
-            <label>Местность</label>
-            <select id="provincePropsTerrain"></select>
-          </div>
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="provincePropsApply" type="button">Применить</button>
-            <button id="provincePropsClear" type="button">Снять выбор</button>
-          </div>
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Контекстные действия</div>
-              <div class="card-note">Только операции по текущему выбору и ближайшему сценарию.</div>
-            </div>
-          </div>
-          <div class="quick-panel-grid">
-            <button class="launcher-btn" data-panel="adminProvincePanel" type="button">Редактировать провинцию</button>
-            <button class="launcher-btn" data-panel="adminRealmPanel" type="button">Редактировать сущность</button>
-            <button class="launcher-btn" data-panel="adminWarPanel" type="button">Передвижение и армии</button>
-            <button class="launcher-btn" data-panel="adminAccessPanel" type="button">Ссылка игрока</button>
-          </div>
-        </article>
-      </section>
-
-      <section class="inspector-pane" data-inspector-pane="structure">
-        <article class="card card--tight">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Сущностная иерархия</div>
-              <div class="card-note">Домены, вассалы, сюзеренитет и военные контуры вынесены в отдельный слой работы.</div>
-            </div>
-          </div>
-          <div class="quick-panel-grid">
-            <button class="launcher-btn" data-panel="adminRealmPanel" type="button">Сущности и вассалы</button>
-            <button class="launcher-btn" data-panel="adminWarPanel" type="button">Война и перемещение</button>
-            <button class="launcher-btn" data-panel="adminOrdersPanel" type="button">RP, вердикты и телеграф</button>
-            <button class="launcher-btn" data-panel="adminNpcPanel" type="button">NPC, организации и LLM</button>
-          </div>
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Сценарные контуры</div>
-              <div class="card-note">Редкие и длительные рабочие контуры не занимают место в обзоре карты.</div>
-            </div>
-          </div>
-          <div class="kv">
-            <div><b>Провинция:</b> паспорт, герб, карточка, заливка.</div>
-            <div><b>Сущность:</b> домен, вассалы, призыв, армии.</div>
-            <div><b>Война:</b> движение, радиусы, доступные узлы.</div>
-            <div><b>RP:</b> приказы, вердикты, телеграф и летопись.</div>
-          </div>
-        </article>
-      </section>
-
-      <section class="inspector-pane" data-inspector-pane="data">
-        <article class="card card--tight">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Сервис и состояние</div>
-              <div class="card-note">Доступ, экспорт, snapshot и low-level операции отделены от повседневного контекста.</div>
-            </div>
-          </div>
-          <div class="quick-panel-grid">
-            <button class="launcher-btn" data-panel="adminAccessPanel" type="button">Доступ игрока</button>
-            <button class="launcher-btn" data-panel="adminDataPanel" type="button">Экспорт, импорт и snapshot</button>
-            <button class="launcher-btn" data-panel="adminProvincePanel" type="button">Паспорт провинции</button>
-            <button class="launcher-btn" data-panel="adminRealmPanel" type="button">Сущности и вассалы</button>
-          </div>
-        </article>
-
-        <article class="card card--tight">
-          <div class="card-head">
-            <div>
-              <div class="card-title">Внешние экраны</div>
-              <div class="card-note">Переходы в соседние административные интерфейсы без перегруза шапки.</div>
-            </div>
-          </div>
-          <div class="quick-panel-grid">
-            <a class="toplink" href="/index.html" rel="noopener" target="_blank">Публичная карта</a>
-            <a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Админка хода</a>
-            <a class="toplink" href="/vk_admin.html" rel="noopener" target="_blank">VK</a>
-            <a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Внешняя война</a>
-          </div>
-        </article>
-      </section>
-    </div>
-  </aside>
+<div class="topbar__main">
+<div class="topbar__brand">
+<div class="topbar__title">Админка карты</div><div class="small" id="flagsStatus" style="display:none">Флаги: backend</div>
 </div>
+<nav aria-label="Разделы админки" class="topbar__menu launcher">
+<button class="launcher-btn" data-panel="adminAccessPanel" type="button"><strong>Доступ</strong><span>токены</span></button>
+<button class="launcher-btn" data-panel="adminProvincePanel" type="button"><strong>Провинции</strong><span>редакт.</span></button>
+<button class="launcher-btn" data-panel="adminRealmPanel" type="button"><strong>Сущности</strong><span>дома</span></button>
+<button class="launcher-btn" data-panel="adminWarPanel" type="button"><strong>Война</strong><span>армии</span></button>
+<button class="launcher-btn" data-panel="adminDataPanel" type="button"><strong>Данные</strong><span>экспорт</span></button>
+<button class="launcher-btn" data-panel="adminOrdersPanel" type="button"><strong>RP</strong><span>приказы</span></button>
+</nav>
+</div>
+<div class="topbar__actions">
+<a class="toplink" href="/index.html" rel="noopener" target="_blank">Публичная карта</a>
+<a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Ходы</a>
+<a class="toplink" href="/vk_admin.html" rel="noopener" target="_blank">VK</a>
+<a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Война</a>
+</div>
+</header>
+<div class="layout-grid"><section class="map-shell">
+<div class="appbar"><div class="appbar__left"><select class="select-compact" id="viewMode">
+<option value="provinces">Физическая карта</option>
+<option value="province_properties">Свойства провинций</option>
+<option value="war">Война</option>
+<option value="kingdoms">Королевства</option>
+<option value="great_houses">Большие Дома</option>
+<option value="minor_houses">Малые Дома</option>
+<option value="free_cities">Вольные Города</option>
+<option value="special_territories">Особые Территории</option>
+</select><button id="toggleProvEmblems" type="button">Геральдика провинций</button><div class="utility-store"><button class="zoomBtn" data-zoom="fit" type="button">По экрану</button></div></div><div class="appbar__right"><button data-panel="adminProvincePanel" type="button">Провинция</button><button data-panel="adminRealmPanel" type="button">Сущность</button><button data-panel="adminWarPanel" type="button">Армии</button><button data-panel="adminDataPanel" type="button">Экспорт/импорт</button></div></div>
+<div class="map-stage">
+<div class="map-stage__head"><div class="chips"><span class="map-chip">ЛКМ: выбор</span><span class="map-chip">Ctrl/Shift: мультивыбор</span><span class="map-chip">Колесо: зум</span></div><div class="chips"></div></div>
+<main class="maparea" id="mapArea">
+<div id="mapWrap">
+<img alt="Карта" id="baseMap" src="map.png"/>
+<canvas id="fill"></canvas>
+<canvas id="emblems"></canvas>
+<canvas id="hover"></canvas>
+<div class="army-markers-layer" id="armyMarkers"></div>
+</div>
+<div id="tooltip"></div>
+</main>
+</div>
+</section><aside class="inspector"><article class="card card--tight">
+<div class="selection-head">
+<div>
+<div class="selection-name" id="selName">—</div>
+<div class="selection-meta" style="margin-top:8px;">
+<span>PID <b id="selPid">—</b></span>
+<span>KEY <b id="selKey">—</b></span>
+<span>Выделено <b id="multiSelCount">0</b></span>
+</div>
+</div>
+</div>
+<div class="kv">
+<div><b>Владелец:</b> <input id="ownerInput" list="peopleList" placeholder="Имя владельца" type="text"/></div>
+<div><b>Сюзерен:</b> <span id="suzerainText">—</span></div>
+<div><b>Сеньор:</b> <span id="seniorText">—</span></div>
+<div><b>Люди:</b> <datalist id="peopleList"></datalist></div>
+</div>
+</article><article class="card card--tight" id="provincePropsCard">
+<div class="card-head">
+<div>
+<div class="card-title">Массовые свойства</div>
+<div class="card-note">Выделено: <span id="provincePropsCount">0</span></div>
+</div>
+</div>
+<div class="grid" style="grid-template-columns:110px 1fr;">
+<label>Местность</label>
+<select id="provincePropsTerrain"></select>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="provincePropsApply" type="button">Применить</button>
+<button id="provincePropsClear" type="button">Снять выбор</button>
+</div>
+</article><article class="card card--tight">
+<div class="card-head">
+<div class="card-title">Ход</div>
+<div class="card-note" id="turnActionStatus">—</div>
+</div>
+<div class="metric-grid">
+<div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div>
+<div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div>
+<div class="metric"><span class="metric__label">Казна провинций</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div>
+<div class="metric"><span class="metric__label">Казна сущностей</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div>
+</div>
+<details style="margin-top:10px;">
+<summary class="small">Казна сущностей</summary>
+<div class="small" id="turnEntityTreasuryList" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
+</details>
+<div class="btnrow" style="margin-top:10px;">
+<button id="btnMakeTurn" type="button">Сделать ход</button>
+<button id="btnRefreshTurn" type="button">Обновить</button>
+<button id="btnOpenTurnAdmin" type="button">Админка хода</button>
+</div>
+</article><article class="card card--tight"><h3>Новые блоки</h3><button data-panel="adminOrdersPanel" type="button">Приказы и вердикты</button><button data-panel="adminNpcPanel" type="button">NPC и LLM</button></article></aside></div>
 </div>
 <div aria-hidden="true" class="person-modal" id="personModal">
 <div aria-label="Карточка персонажа" aria-modal="true" class="person-modal__window" role="dialog">
@@ -623,37 +501,34 @@ body{min-height:100vh;overflow:hidden}
 </div>
 </div>
 </div>
-
-
-<div style="display:none !important;" aria-hidden="true" id="adminCompatLayer">
-  <div id="provinceModal"><button id="provinceModalClose" type="button"></button><div id="modalProvinceTitle"></div><div id="modalProvinceDescription"></div><img id="modalProvinceHerald" alt="" /><img id="modalProvinceMapImage" alt="" /></div>
-  <div id="modalKingdomName"></div><img id="modalKingdomHerald" alt="" />
-  <div id="modalGreatHouseName"></div><img id="modalGreatHouseHerald" alt="" />
-  <div id="modalMinorHouseName"></div><img id="modalMinorHouseHerald" alt="" />
-  <div id="playerWikiEditorModal">
-    <div id="playerWikiEditorTitle"></div>
-    <div id="playerWikiEditorSubtitle"></div>
-    <button id="playerWikiEditorClose" type="button"></button>
-    <textarea id="playerWikiEditorDescription"></textarea>
-    <input id="playerWikiEditorAssetFile" type="file" />
-    <div id="playerWikiEditorAssetPreview"></div>
-    <div id="playerWikiEditorAssetEmpty"></div>
-    <input id="playerWikiEditorEmblemFile" type="file" />
-    <div id="playerWikiEditorEmblemPreview"></div>
-    <div id="playerWikiEditorEmblemEmpty"></div>
-    <button id="playerWikiEditorEmblemClear" type="button"></button>
-    <button id="playerWikiEditorSave" type="button"></button>
-    <div id="playerWikiEditorStatus"></div>
-  </div>
+<div aria-hidden="true" id="adminCompatLayer" style="display:none !important;">
+<div id="provinceModal"><button id="provinceModalClose" type="button"></button><div id="modalProvinceTitle"></div><div id="modalProvinceDescription"></div><img alt="" id="modalProvinceHerald"/><img alt="" id="modalProvinceMapImage"/></div>
+<div id="modalKingdomName"></div><img alt="" id="modalKingdomHerald"/>
+<div id="modalGreatHouseName"></div><img alt="" id="modalGreatHouseHerald"/>
+<div id="modalMinorHouseName"></div><img alt="" id="modalMinorHouseHerald"/>
+<div id="playerWikiEditorModal">
+<div id="playerWikiEditorTitle"></div>
+<div id="playerWikiEditorSubtitle"></div>
+<button id="playerWikiEditorClose" type="button"></button>
+<textarea id="playerWikiEditorDescription"></textarea>
+<input id="playerWikiEditorAssetFile" type="file"/>
+<div id="playerWikiEditorAssetPreview"></div>
+<div id="playerWikiEditorAssetEmpty"></div>
+<input id="playerWikiEditorEmblemFile" type="file"/>
+<div id="playerWikiEditorEmblemPreview"></div>
+<div id="playerWikiEditorEmblemEmpty"></div>
+<button id="playerWikiEditorEmblemClear" type="button"></button>
+<button id="playerWikiEditorSave" type="button"></button>
+<div id="playerWikiEditorStatus"></div>
 </div>
-
-<script defer src="js/feature_flags.js"></script>
-<script defer src="js/state_loader.js"></script>
-<script defer src="js/app_core.js"></script>
-<script defer src="js/admin_war_shared.js"></script>
-<script defer src="js/army_state.js"></script>
-<script defer src="js/admin.js"></script>
-<script defer src="js/admin_player_admin_tokens.js"></script>
+</div>
+<script defer="" src="js/feature_flags.js"></script>
+<script defer="" src="js/state_loader.js"></script>
+<script defer="" src="js/app_core.js"></script>
+<script defer="" src="js/admin_war_shared.js"></script>
+<script defer="" src="js/army_state.js"></script>
+<script defer="" src="js/admin.js"></script>
+<script defer="" src="js/admin_player_admin_tokens.js"></script>
 <script>
 (function(){
   function autoFitMap(){
@@ -844,22 +719,177 @@ body{min-height:100vh;overflow:hidden}
   document.querySelectorAll('.panel-modal').forEach(modal=>modal.addEventListener('click',e=>{if(e.target===modal)closePanels();}));
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanels();});
 })();
-</script>
-<script>
+</script><script>
 (function(){
-  const buttons=[...document.querySelectorAll('[data-inspector-tab-button]')];
-  const panes=[...document.querySelectorAll('[data-inspector-pane]')];
-  function setInspectorTab(name){
-    buttons.forEach(btn=>{
-      const active=btn.dataset.inspectorTabButton===name;
-      btn.classList.toggle('is-active',active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+  ready(function(){
+    const topbarMain = document.querySelector('.topbar__main');
+    if(topbarMain && !document.querySelector('.session-strip')){
+      const strip = document.createElement('div');
+      strip.className = 'session-strip';
+      strip.innerHTML = `
+        <div class="session-tile">
+          <div class="session-tile__label">Контекст карты</div>
+          <div class="session-tile__value">Карта — основной рабочий слой</div>
+          <div class="session-tile__meta">Выбор и чтение состояния происходят на карте. Правки и структура вынесены в отдельный инспектор.</div>
+        </div>
+        <div class="session-tile">
+          <div class="session-tile__label">Логика сессии</div>
+          <div class="session-tile__value">Навигация, а не инструменты</div>
+          <div class="session-tile__meta">В шапке оставлены только переходы в соседние админки и общий статус среды.</div>
+        </div>
+        <div class="session-tile">
+          <div class="session-tile__label">Редактирование</div>
+          <div class="session-tile__value">Отделено от обзора</div>
+          <div class="session-tile__meta">Паспорта, сущности, война и данные встроены во вкладки справа вместо постоянного прыжка по модалкам.</div>
+        </div>`;
+      topbarMain.appendChild(strip);
+    }
+
+    const appbarRight = document.querySelector('.appbar__right');
+    if(appbarRight){ appbarRight.innerHTML = ''; }
+    const mapHeadRight = document.querySelector('.map-stage__head .chips:last-child');
+    if(mapHeadRight){
+      mapHeadRight.innerHTML = '<span class="map-chip">Режим карты переключается сверху</span><span class="map-chip">Контекст и правки — справа</span>';
+    }
+
+    const inspector = document.querySelector('.inspector');
+    if(!inspector) return;
+
+    const originalCards = Array.from(inspector.children);
+    const selectionCard = originalCards[0] || null;
+    const provincePropsCard = document.getElementById('provincePropsCard');
+    const turnCard = originalCards[2] || null;
+    const newBlocksCard = originalCards[3] || null;
+
+    inspector.innerHTML = `
+      <div class="admin-v2-inspector">
+        <div class="inspector-tabs" role="tablist" aria-label="Контуры инспектора">
+          <button class="inspector-tab is-active" type="button" data-tab="overview">Выбор</button>
+          <button class="inspector-tab" type="button" data-tab="actions">Действия</button>
+          <button class="inspector-tab" type="button" data-tab="structure">Структура</button>
+          <button class="inspector-tab" type="button" data-tab="data">Данные</button>
+        </div>
+        <section class="inspector-pane is-active" data-pane="overview"></section>
+        <section class="inspector-pane" data-pane="actions"></section>
+        <section class="inspector-pane" data-pane="structure"></section>
+        <section class="inspector-pane" data-pane="data"></section>
+      </div>`;
+
+    const pane = name => inspector.querySelector(`.inspector-pane[data-pane="${name}"]`);
+    pane('overview').innerHTML = `
+      <div class="pane-intro"><div><div class="pane-intro__title">Текущий выбор и состояние мира</div><div class="pane-intro__text">Эта вкладка только читает контекст: что выбрано, кто владеет, каков статус хода и общая казна. Без тяжёлых редакторских форм.</div></div></div>
+      <div class="embed-section" id="overview-slot-main"></div>
+      <div class="quick-note">Редактирование паспорта провинции, массовые изменения и военные процедуры вынесены из обзорного слоя, чтобы карта и выбор читались быстрее.</div>`;
+    pane('actions').innerHTML = `
+      <div class="pane-intro"><div><div class="pane-intro__title">Контекстные действия по выбранному объекту</div><div class="pane-intro__text">Здесь находятся встроенные формы провинции и пакетные действия. Это рабочая зона правки, а не обзор.</div></div></div>
+      <div class="embed-section"><div class="embed-section__head"><div class="embed-section__title">Провинция и пакетные свойства</div><div class="embed-section__note">Паспорт провинции и массовые операции рядом, потому что оба сценария начинаются с выбора на карте.</div></div><div class="embed-stack" id="actions-slot-main"></div></div>`;
+    pane('structure').innerHTML = `
+      <div class="pane-intro"><div><div class="pane-intro__title">Иерархия мира, война и контуры управления</div><div class="pane-intro__text">Сущности, вассалы, передвижение армий и будущие блоки RP/NPC собраны в одном структурном слое, а не разбросаны по отдельным окнам.</div></div></div>
+      <div class="admin-v2-subtabs" role="tablist" aria-label="Структурные контуры">
+        <button class="is-active" type="button" data-subtab="realm">Сущности</button>
+        <button type="button" data-subtab="war">Война</button>
+        <button type="button" data-subtab="rp">RP и NPC</button>
+      </div>
+      <div class="admin-v2-subpane is-active" data-subpane="realm"><div class="embed-stack" id="structure-slot-realm"></div></div>
+      <div class="admin-v2-subpane" data-subpane="war"><div class="embed-stack" id="structure-slot-war"></div></div>
+      <div class="admin-v2-subpane" data-subpane="rp"><div class="embed-stack" id="structure-slot-rp"></div></div>`;
+    pane('data').innerHTML = `
+      <div class="pane-intro"><div><div class="pane-intro__title">Сервисный и низкоуровневый слой</div><div class="pane-intro__text">Экспорт, импорт, snapshot и генерация player-admin доступа отделены от основной работы с картой, чтобы не конкурировать за внимание.</div></div></div>
+      <div class="embed-section"><div class="embed-section__head"><div class="embed-section__title">Сервис карты</div><div class="embed-section__note">Операции состояния и обмена данными.</div></div><div class="embed-stack" id="data-slot-main"></div></div>`;
+
+    const overviewSlot = document.getElementById('overview-slot-main');
+    const actionsSlot = document.getElementById('actions-slot-main');
+    const structureRealmSlot = document.getElementById('structure-slot-realm');
+    const structureWarSlot = document.getElementById('structure-slot-war');
+    const structureRpSlot = document.getElementById('structure-slot-rp');
+    const dataSlot = document.getElementById('data-slot-main');
+
+    [selectionCard, turnCard].forEach(el => { if(el) overviewSlot.appendChild(el); });
+    [provincePropsCard].forEach(el => { if(el) actionsSlot.appendChild(el); });
+
+    function movePanelBodyChildren(panelId, target, options){
+      const panel = document.getElementById(panelId);
+      if(!panel || !target) return;
+      panel.classList.add('embed-source');
+      const body = panel.querySelector('.panel-modal__body');
+      if(!body) return;
+      const wrapper = document.createElement('section');
+      wrapper.className = 'embedded-frame';
+      if(options && options.title){
+        const head = document.createElement('div');
+        head.className = 'embed-section__head';
+        head.innerHTML = `<div class="embed-section__title">${options.title}</div>${options.note ? `<div class="embed-section__note">${options.note}</div>` : ''}`;
+        target.appendChild(head);
+      }
+      while(body.firstChild){ wrapper.appendChild(body.firstChild); }
+      target.appendChild(wrapper);
+    }
+
+    movePanelBodyChildren('adminProvincePanel', actionsSlot, {title:'Паспорт провинции', note:'Редактирование текущей провинции встроено в рабочую вкладку.'});
+    movePanelBodyChildren('adminRealmPanel', structureRealmSlot, {title:'Сущности и вассалы', note:'Редактирование иерархии вынесено в отдельный контур.'});
+    movePanelBodyChildren('adminWarPanel', structureWarSlot, {title:'Передвижение армий', note:'Военный сценарий отделён от общего редактирования карты.'});
+    movePanelBodyChildren('adminOrdersPanel', structureRpSlot, {title:'Приказы, телеграф и летопись', note:'Нарративные и RP-модули собраны вместе.'});
+    movePanelBodyChildren('adminNpcPanel', structureRpSlot, {title:'Организации, персонажи и LLM', note:'Будущие контуры управления и NPC находятся в том же структурном слое.'});
+    movePanelBodyChildren('adminDataPanel', dataSlot, {title:'Экспорт, импорт и snapshot', note:'Низкоуровневые операции не мешают основному сценарию.'});
+    movePanelBodyChildren('adminAccessPanel', dataSlot, {title:'Доступ игрока', note:'Генерация player-admin ссылки остаётся сервисной операцией.'});
+
+    if(newBlocksCard){ newBlocksCard.classList.add('embed-source'); }
+
+    inspector.querySelectorAll('.inspector-tab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        inspector.querySelectorAll('.inspector-tab').forEach(b=>b.classList.remove('is-active'));
+        inspector.querySelectorAll('.inspector-pane').forEach(p=>p.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        const p = pane(btn.dataset.tab);
+        if(p) p.classList.add('is-active');
+      });
     });
-    panes.forEach(pane=>pane.classList.toggle('is-active', pane.dataset.inspectorPane===name));
-  }
-  buttons.forEach(btn=>btn.addEventListener('click',()=>setInspectorTab(btn.dataset.inspectorTabButton)));
-  setInspectorTab('selection');
+
+    inspector.querySelectorAll('[data-subtab]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const root = btn.closest('.inspector-pane');
+        if(!root) return;
+        root.querySelectorAll('[data-subtab]').forEach(b=>b.classList.remove('is-active'));
+        root.querySelectorAll('.admin-v2-subpane').forEach(p=>p.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        const sub = root.querySelector(`.admin-v2-subpane[data-subpane="${btn.dataset.subtab}"]`);
+        if(sub) sub.classList.add('is-active');
+      });
+    });
+
+    document.querySelectorAll('[data-panel]').forEach(btn=>{
+      const map = {
+        adminProvincePanel:'actions',
+        adminRealmPanel:'structure',
+        adminWarPanel:'structure',
+        adminDataPanel:'data',
+        adminAccessPanel:'data',
+        adminOrdersPanel:'structure',
+        adminNpcPanel:'structure'
+      };
+      const submap = {
+        adminRealmPanel:'realm',
+        adminWarPanel:'war',
+        adminOrdersPanel:'rp',
+        adminNpcPanel:'rp'
+      };
+      if(map[btn.dataset.panel]){
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          const tabName = map[btn.dataset.panel];
+          const tabBtn = inspector.querySelector(`.inspector-tab[data-tab="${tabName}"]`);
+          if(tabBtn) tabBtn.click();
+          const subName = submap[btn.dataset.panel];
+          if(subName){
+            const subBtn = inspector.querySelector(`.inspector-pane[data-pane="structure"] [data-subtab="${subName}"]`);
+            if(subBtn) subBtn.click();
+          }
+        }, true);
+      }
+    });
+  });
 })();
-</script>
-</body>
+</script></body>
 </html>
