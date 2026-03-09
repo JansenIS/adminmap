@@ -799,3 +799,15 @@ function vk_bot_create_player_admin_token(string $entityType, string $entityId, 
   if (!player_admin_save_tokens($tokens)) return null;
   return ['token' => $token, 'path' => '/player_admin.html?token=' . rawurlencode($token)];
 }
+
+function vk_bot_resolve_user_entity_for_orders(array $apps, int $vkUserId): ?array {
+  foreach ($apps as $app) {
+    if (!is_array($app)) continue;
+    if ((int)($app['vk_user_id'] ?? 0) !== $vkUserId) continue;
+    if ((string)($app['status'] ?? '') !== 'approved') continue;
+    $type = trim((string)($app['entity_type'] ?? ''));
+    $id = trim((string)($app['entity_id'] ?? ''));
+    if ($type !== '' && $id !== '') return ['entity_type' => $type, 'entity_id' => $id];
+  }
+  return null;
+}
