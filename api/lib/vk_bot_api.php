@@ -216,7 +216,7 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
   vk_bot_vk_api_call('messages.send', $params);
 }
 
-function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $fileName = 'generated.png'): string {
+function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $fileName = 'generated.png', string $mimeHint = ''): string {
   if ($raw === '') return '';
   $serverResp = vk_bot_vk_api_call('photos.getMessagesUploadServer', ['peer_id' => $userId]);
   $uploadUrl = trim((string)($serverResp['response']['upload_url'] ?? ''));
@@ -470,9 +470,35 @@ function vk_bot_try_build_wall_photo_attachment($value): string {
   }
   if ($url === '') return '';
 
+  $tryResolveLocalPathFromUrl = static function(string $candidateUrl): string {
+    $parts = parse_url($candidateUrl);
+    if (!is_array($parts)) return '';
+    $path = rawurldecode(trim((string)($parts['path'] ?? '')));
+    if ($path === '' || !vk_bot_str_starts_with($path, '/data/orders_uploads/')) return '';
+
+    // For our own uploads we trust path prefix and map directly to disk.
+    // This avoids failures when public_base_url scheme/host differs (e.g. https in config, http in runtime).
+    return api_repo_root() . $path;
+  };
+
   if (vk_bot_str_starts_with($url, '/')) {
     $path = api_repo_root() . $url;
   } elseif (preg_match('~^https?://~i', $url)) {
+    $resolvedLocalPath = $tryResolveLocalPathFromUrl($url);
+    if ($resolvedLocalPath !== '') {
+      if (!is_file($resolvedLocalPath)) {
+        vk_bot_set_last_api_error('wall_attachment_local_file_missing', ['url' => $url, 'path' => $resolvedLocalPath]);
+        return '';
+      }
+      $raw = @file_get_contents($resolvedLocalPath);
+      if (!is_string($raw) || $raw === '') {
+        vk_bot_set_last_api_error('wall_attachment_local_file_read_failed', ['url' => $url, 'path' => $resolvedLocalPath]);
+        return '';
+      }
+      $mime = mime_content_type($resolvedLocalPath) ?: '';
+      return vk_bot_upload_wall_photo_blob($raw, basename($resolvedLocalPath), is_string($mime) ? $mime : '');
+    }
+
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 20);
@@ -484,7 +510,10 @@ function vk_bot_try_build_wall_photo_attachment($value): string {
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $ctype = trim((string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
     curl_close($ch);
-    if (!is_string($raw) || $raw === '' || $err !== '' || $code < 200 || $code >= 300) return '';
+    if (!is_string($raw) || $raw === '' || $err !== '' || $code < 200 || $code >= 300) {
+      vk_bot_set_last_api_error('wall_attachment_remote_download_failed', ['url' => $url, 'http_code' => $code, 'curl_error' => $err]);
+      return '';
+    }
     $ext = '';
     $path = parse_url($url, PHP_URL_PATH);
     if (is_string($path)) $ext = mb_strtolower(pathinfo($path, PATHINFO_EXTENSION));
@@ -494,9 +523,15 @@ function vk_bot_try_build_wall_photo_attachment($value): string {
     return '';
   }
 
-  if (!is_file($path)) return '';
+  if (!is_file($path)) {
+    vk_bot_set_last_api_error('wall_attachment_local_file_missing', ['url' => $url, 'path' => $path]);
+    return '';
+  }
   $raw = @file_get_contents($path);
-  if (!is_string($raw) || $raw === '') return '';
+  if (!is_string($raw) || $raw === '') {
+    vk_bot_set_last_api_error('wall_attachment_local_file_read_failed', ['url' => $url, 'path' => $path]);
+    return '';
+  }
   $mime = mime_content_type($path) ?: '';
   return vk_bot_upload_wall_photo_blob($raw, basename($path), is_string($mime) ? $mime : '');
 }
