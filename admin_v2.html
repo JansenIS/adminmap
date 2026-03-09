@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>Админка карты — admin_v2</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#07111b;
+    --bg-2:#0b1724;
+    --panel:rgba(10,18,28,.96);
+    --panel-2:rgba(14,24,37,.97);
+    --panel-3:rgba(18,29,44,.98);
+    --border:#253a50;
+    --border-strong:#395a79;
+    --text:#e9f2ff;
+    --muted:#9eb4cb;
+    --accent:#79b2ff;
+    --shadow:0 18px 44px rgba(0,0,0,.34);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(77,124,199,.16), transparent 34%),
+      radial-gradient(circle at top right, rgba(118,63,151,.12), transparent 28%),
+      linear-gradient(180deg,#08111b 0%, #071019 100%);
+  }
+  button,select,input,textarea{font:inherit}
+  a{color:#abd1ff}
+  .workspace{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+  .topbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 16px;border-bottom:1px solid rgba(43,67,92,.76);
+    background:rgba(7,14,22,.88);backdrop-filter:blur(12px);
+  }
+  .topbar__brand{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .topbar__title{font-size:18px;font-weight:760;letter-spacing:.01em}
+  .topbar__meta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar__actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+  .toplink,.quick-chip,.ghost-chip{
+    display:inline-flex;align-items:center;gap:8px;
+    min-height:38px;padding:8px 12px;border-radius:12px;
+    border:1px solid var(--border);text-decoration:none;
+    background:rgba(15,26,40,.84);color:var(--text);font-size:13px;font-weight:650;
+  }
+  .ghost-chip{color:var(--muted);background:rgba(10,19,30,.7)}
+  .layout-grid{
+    min-height:0;display:grid;
+    grid-template-columns:minmax(290px,360px) minmax(0,1fr) minmax(320px,390px);
+    gap:14px;padding:14px;
+  }
+  .rail{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+  .rail::-webkit-scrollbar,.maparea::-webkit-scrollbar{width:10px;height:10px}
+  .rail::-webkit-scrollbar-thumb,.maparea::-webkit-scrollbar-thumb{background:#1f3244;border-radius:999px}
+  .rail-section{display:flex;flex-direction:column;gap:10px}
+  .section-title{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:0 2px;color:#d4e5f8;font-size:12px;font-weight:760;
+    letter-spacing:.08em;text-transform:uppercase;
+  }
+  .section-subtitle{font-size:11px;color:var(--muted);text-transform:none;letter-spacing:normal}
+  .card{
+    padding:14px;border-radius:var(--radius);border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(15,25,38,.96) 0%, rgba(10,17,27,.96) 100%);
+    box-shadow:var(--shadow);
+  }
+  .card--tight{padding:12px}
+  .card h3{margin:0 0 12px;font-size:15px}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .card-title{font-size:15px;font-weight:740}
+  .card-note{font-size:11px;color:var(--muted)}
+  .metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .metric{
+    padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d;
+  }
+  .metric__label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+  .metric__value{font-size:14px;font-weight:700;line-height:1.3}
+  .grid{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;align-items:center}
+  .grid label{font-size:12px;color:var(--muted)}
+  input[type="text"], input[type="number"], select, textarea{
+    width:100%;box-sizing:border-box;background:#0a131d;color:var(--text);
+    border:1px solid #2a4158;border-radius:12px;padding:9px 11px;outline:none;
+  }
+  select[multiple]{height:150px}
+  input[type="color"]{width:58px;height:36px;padding:0;border:0;background:transparent}
+  input[type="range"]{width:100%}
+  textarea{min-height:160px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-size:12px}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  button{
+    background:#152231;color:var(--text);border:1px solid #2c445d;border-radius:12px;
+    padding:8px 12px;cursor:pointer;font-weight:670;
+  }
+  button:hover{background:#1d3044}
+  .btn-soft{background:#0d1b29}
+  .btn-danger{border-color:#6a3944}
+  .kv{font-size:12px;display:grid;gap:7px}
+  .kv b{color:#a7bdd3;font-weight:670;margin-right:6px}
+  .small,.muted{color:var(--muted);font-size:12px;line-height:1.45}
+  .small{font-size:11px}
+  .hidden{display:none !important}
+  .utility-store{display:none !important}
+  .divider{height:1px;background:#23374b;margin:2px 0}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .status-strip{display:flex;flex-wrap:wrap;gap:8px}
+  .status-pill{padding:7px 10px;border-radius:999px;background:#0b1520;border:1px solid #25394d;color:var(--muted);font-size:11px;font-weight:650}
+  .map-shell{min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
+  .map-topbar,.map-toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border-radius:20px;border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(15,24,37,.96) 0%, rgba(9,16,26,.96) 100%);
+    box-shadow:var(--shadow);
+  }
+  .map-toolbar__title{font-size:16px;font-weight:760}
+  .map-toolbar__meta{font-size:12px;color:var(--muted)}
+  .map-toolbar__chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+  .map-stage{
+    min-height:0;display:grid;grid-template-rows:auto 1fr;
+    border-radius:22px;border:1px solid var(--border);overflow:hidden;
+    background:rgba(6,10,16,.88);box-shadow:var(--shadow);
+  }
+  .map-stage__head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border-bottom:1px solid #203346;background:rgba(9,15,23,.92)
+  }
+  .map-stage__head strong{font-size:14px}
+  .map-stage__head span{font-size:12px;color:var(--muted)}
+  .maparea{min-height:0;overflow:auto;padding:12px;background:linear-gradient(180deg,#071019 0%, #060d15 100%)}
+  #mapWrap{position:relative;display:inline-block}
+  #baseMap{position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;display:block}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  #tooltip{position:fixed;z-index:60;pointer-events:none;background:rgba(13,19,27,.94);border:1px solid #2b3f56;border-radius:10px;padding:8px 10px;font-size:12px;color:#e7eef7;display:none;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:360px}
+  .army-markers-layer{position:absolute;inset:0;pointer-events:none;z-index:20}
+  .army-marker{position:absolute;width:34px;height:34px;border-radius:999px;border:2px solid rgba(230,240,255,.95);box-shadow:0 4px 12px rgba(0,0,0,.35);transform:translate(-50%, -50%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.7);overflow:hidden}
+  .army-marker--feudal{width:30px;height:30px}
+  .army-marker__emblem{width:62%;height:62%;object-fit:contain;border-radius:50%;background:rgba(0,0,0,.18)}
+  .emblemPreview, .provinceCardPreview{
+    width:100%;border:1px dashed #2e465f;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    background:#09111a;overflow:hidden;
+  }
+  .emblemPreview{height:140px}
+  .provinceCardPreview{height:170px}
+  .emblemPreview img,.provinceCardPreview img{max-width:100%;max-height:100%;display:block}
+  .placeholder-card{padding:14px;border-radius:18px;border:1px dashed #36516e;background:rgba(9,16,25,.72)}
+  .placeholder-card h3{margin:0 0 8px;font-size:15px}
+  .placeholder-card p{margin:0;color:var(--muted);line-height:1.5;font-size:13px}
+  .placeholder-card ul{margin:10px 0 0 18px;padding:0;color:#d7e6f8;line-height:1.55;font-size:13px}
+  .palette{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+  .swatch{border:1px solid #2b3f56;border-radius:8px;height:24px}
+  .form-subgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .toolbar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .toolbar-row .grid{margin:0}
+  .compact-info{display:flex;flex-wrap:wrap;gap:8px}
+  .compact-info__item{padding:8px 10px;border-radius:12px;background:#0a1420;border:1px solid #24384d;font-size:12px}
+  .map-quick-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .map-note{font-size:12px;color:var(--muted)}
+  .person-link { background:none; border:0; color:#9bc7ff; padding:0; margin:0; cursor:pointer; font:inherit; text-decoration:underline; }
+  .person-link:hover { color:#c3ddff; }
+  .person-modal,.editor-modal,.province-modal { position:fixed; inset:0; z-index:110; display:none; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(3,6,10,0.72); backdrop-filter: blur(2px); }
+  .person-modal.open,.editor-modal.open,.province-modal.open { display:flex; }
+  .person-modal__window,.editor-modal__window,.province-modal__window { width:min(900px, 98vw); max-height:95vh; overflow:auto; background:#0d131b; border:1px solid #2b3f56; border-radius:16px; box-shadow: 0 22px 70px rgba(0,0,0,0.48); }
+  .province-modal__window{width:min(840px,96vw)}
+  .person-modal__close,.province-modal__close { position:sticky; top:0; float:right; margin:10px; width:34px; height:34px; border-radius:9px; font-size:18px; line-height:1; }
+  .editor-modal__head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px; border-bottom:1px solid #223041; }
+  .editor-modal__body,.person-modal__content,.province-modal__content { padding:16px; clear:both; }
+  .editor-grid { display:grid; grid-template-columns: 180px 1fr; gap:10px 12px; align-items:center; }
+  .editor-modal textarea { min-height:120px; }
+  .person-modal__photo-wrap { width:180px; aspect-ratio:1/1; border:1px solid #2b3f56; border-radius:12px; overflow:hidden; background:#111923; }
+  .person-modal__photo { width:100%; height:100%; object-fit:cover; display:block; }
+  .person-modal__name { margin:14px 0 8px; font-size:24px; }
+  .person-modal__kv { display:grid; gap:8px; font-size:13px; }
+  .person-modal__kv b { color:#a6b4c5; }
+  .person-modal__bio { margin-top:14px; line-height:1.45; color:#d8e1ec; }
+  .province-modal__map-shot { width:100%; max-height:320px; object-fit:contain; border:1px solid #223041; border-radius:12px; background:#080c11; }
+  .province-modal__lineage { margin-top:14px; display:grid; gap:10px; }
+  .province-modal__lineage-item { display:flex; align-items:center; gap:10px; font-size:14px; }
+  .province-modal__lineage-item span { color:#a6b4c5; min-width:120px; }
+  .province-modal__herald { width:42px; height:42px; border-radius:8px; border:1px solid #2b3f56; background:#111923; object-fit:contain; }
+  .province-modal__header { margin-top:18px; display:flex; gap:12px; align-items:center; }
+  .province-modal__title { margin:0; font-size:28px; letter-spacing:0.08em; text-transform:uppercase; }
+  .province-modal__text { margin-top:16px; line-height:1.45; color:#d8e1ec; }
+  .province-modal__text p { margin:0 0 0.7em; }
+  .province-modal__text p:last-child { margin-bottom:0; }
+  .province-modal__text ul { margin:0.4em 0 0.8em 1.2em; padding:0; }
+  .province-modal__text h1, .province-modal__text h2, .province-modal__text h3 { margin:0.4em 0; }
+  .province-modal__text code { background:#111923; border:1px solid #2b3f56; border-radius:6px; padding:1px 5px; }
+  .wiki-editor-modal__preview { margin-top:10px; border:1px solid #223041; border-radius:12px; overflow:hidden; background:#09101a; display:flex; align-items:center; justify-content:center; min-height:220px; }
+  .wiki-editor-modal__preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
+  .wiki-editor-modal__preview-empty { color:#a6b4c5; font-size:12px; }
+  .wiki-editor-modal__status { margin-top:10px; font-size:12px; color:#a6b4c5; }
+  .arrierban-grid { display:grid; grid-template-columns: 1.1fr 110px 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
+  .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
+  .arrierban-grid input[type="number"] { padding:6px 8px; }
+  .army-manager-list { display:grid; gap:6px; max-height:340px; overflow:auto; }
+  @media (max-width: 1300px){ .layout-grid{grid-template-columns:minmax(260px,330px) minmax(0,1fr) minmax(300px,360px)} }
+  @media (max-width: 1100px){ .layout-grid{grid-template-columns:1fr} .rail{max-height:none} .map-shell{order:-1} .topbar{align-items:flex-start} }
+
+  .realm-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .realm-grid .full{grid-column:1/-1}
+  .left-sticky{display:flex;flex-direction:column;gap:14px}
+  .selection-head{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+  .selection-name{font-size:18px;font-weight:760;line-height:1.25}
+  .selection-meta{display:flex;flex-wrap:wrap;gap:8px}
+  .selection-meta span{padding:7px 9px;border-radius:999px;background:#0b1520;border:1px solid #25394d;font-size:11px;color:var(--muted)}
+  .province-assets{display:grid;grid-template-columns:1fr;gap:10px}
+  .badge-row{display:flex;gap:8px;flex-wrap:wrap}
+  .token-card input[readonly]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  </style>
+<style>
+html,body{height:100%;overflow:hidden}
+body{min-height:100vh;overflow:hidden}
+.workspace{height:100vh;grid-template-rows:auto 1fr}
+.topbar{padding:10px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.topbar__main{min-width:0;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.topbar__brand{min-width:0;flex:0 0 auto}.topbar__meta{display:none}.topbar__title{font-size:17px}
+.topbar__menu{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.topbar__actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.layout-grid{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;padding:12px}
+.launcher{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0}
+.launcher-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:8px 12px;border-radius:12px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--text);cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.02em;text-align:center;white-space:nowrap}
+.launcher-btn:hover,.launcher-btn.is-active{border-color:#4772a1;background:linear-gradient(180deg, rgba(24,42,63,.96), rgba(13,24,37,.96))}
+.launcher-btn strong{font-size:12px;line-height:1}.launcher-btn span{display:none}
+.appbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg, rgba(14,24,37,.96), rgba(9,16,26,.96));box-shadow:var(--shadow)}
+.appbar__left,.appbar__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.select-compact{min-width:230px}
+.map-stage{min-height:0}
+.map-stage__head span,.map-toolbar__meta,.ghost-chip,.section-title,.section-subtitle{display:none!important}
+.maparea{min-height:0;overflow:auto;padding:8px;background:linear-gradient(180deg,#071019 0%, #060d15 100%);display:block;position:relative}
+#mapWrap{position:relative;display:inline-block;line-height:0;background:#0a121c;border:1px solid rgba(41,60,82,.7);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.24);overflow:hidden}
+.inspector{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.inspector .card{margin:0!important}.selection-name{font-size:20px!important}.selection-meta span{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.utility-store{display:none!important}
+.panel-modal{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,10,.72);backdrop-filter:blur(2px)}.panel-modal.open{display:flex}.panel-modal__window{width:min(980px,96vw);max-height:94vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:18px;box-shadow:0 22px 70px rgba(0,0,0,.48)}.panel-modal__window--wide{width:min(1220px,97vw)}.panel-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041;position:sticky;top:0;background:#0d131b;z-index:2}.panel-modal__title{font-size:16px;font-weight:760}.panel-modal__body{padding:16px;display:grid;gap:12px}.placeholder-box{padding:14px;border-radius:16px;border:1px dashed #36516e;background:rgba(9,16,25,.72);color:var(--muted);line-height:1.45;font-size:13px}.placeholder-box h4{margin:0 0 8px;font-size:14px;color:var(--text)}.province-assets .emblemPreview,.province-assets .provinceCardPreview{display:none!important}
+@media (max-width:1280px){.topbar{grid-template-columns:1fr}.topbar__actions{justify-content:flex-start}.layout-grid{grid-template-columns:minmax(0,1fr) 330px}.select-compact{min-width:180px}}
+@media (max-width:980px){.topbar__main{gap:10px}.layout-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr}.inspector{max-height:42vh}.map-shell{order:-1}.topbar__menu{overflow:auto;flex-wrap:nowrap;padding-bottom:2px}}
+.inspector-shell{display:flex;flex-direction:column;gap:12px;min-height:0}
+.inspector-summary{display:grid;grid-template-columns:1fr;gap:10px}
+.inspector-summary__title{font-size:13px;font-weight:760;letter-spacing:.08em;text-transform:uppercase;color:#d4e5f8}
+.inspector-summary__text{font-size:12px;color:var(--muted);line-height:1.45}
+.inspector-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.inspector-tab{min-height:40px;padding:9px 10px;border-radius:12px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--muted);font-size:12px;font-weight:760;cursor:pointer}
+.inspector-tab:hover,.inspector-tab.is-active{border-color:#4772a1;background:linear-gradient(180deg, rgba(24,42,63,.96), rgba(13,24,37,.96));color:var(--text)}
+.inspector-pane{display:none;flex-direction:column;gap:12px;min-height:0}
+.inspector-pane.is-active{display:flex}
+.appbar--v2{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}
+.appbar__block{display:flex;flex-direction:column;gap:10px;min-width:0}
+.appbar__eyebrow{font-size:11px;line-height:1;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.appbar__headline{font-size:18px;font-weight:760;line-height:1.2}
+.appbar__support{font-size:12px;color:var(--muted);line-height:1.45}
+.appbar__controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.appbar__controls > *{flex:0 0 auto}
+.appbar__actions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.appbar__action{width:100%;justify-content:flex-start;text-align:left}
+.quick-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.quick-panel-grid button{width:100%;text-align:left;justify-content:flex-start}
+.inline-note{padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d;font-size:12px;color:var(--muted);line-height:1.45}
+.selection-card--v2 .kv{margin-top:10px}
+.selection-card--v2 .inline-actions{margin-top:12px}
+.turn-card--v2 details summary{cursor:pointer}
+.admin-v2-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.admin-v2-shortcuts .toplink{justify-content:center}
+@media (max-width:1280px){.inspector-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.appbar--v2{grid-template-columns:1fr}.appbar__actions-grid,.quick-panel-grid,.admin-v2-shortcuts{grid-template-columns:1fr}}
+@media (max-width:980px){.inspector-tabs{grid-template-columns:repeat(4,minmax(0,1fr));overflow:auto}.inspector-tab{white-space:nowrap}.appbar__controls{flex-direction:column;align-items:stretch}.appbar__controls > *{width:100%}.select-compact{min-width:0}}
+
+</style></head>
+<body>
+<div class="workspace">
+<header class="topbar">
+<div class="topbar__main">
+<div class="topbar__brand">
+<div class="topbar__title">Админка карты — admin_v2</div><div id="flagsStatus" class="small" style="display:none">Флаги: backend</div>
+</div>
+<nav aria-label="Разделы админки" class="topbar__menu launcher">
+<button class="launcher-btn" data-panel="adminAccessPanel" type="button"><strong>Доступ</strong><span>токены</span></button>
+<button class="launcher-btn" data-panel="adminProvincePanel" type="button"><strong>Провинции</strong><span>редакт.</span></button>
+<button class="launcher-btn" data-panel="adminRealmPanel" type="button"><strong>Сущности</strong><span>дома</span></button>
+<button class="launcher-btn" data-panel="adminWarPanel" type="button"><strong>Война</strong><span>армии</span></button>
+<button class="launcher-btn" data-panel="adminDataPanel" type="button"><strong>Данные</strong><span>экспорт</span></button>
+<button class="launcher-btn" data-panel="adminOrdersPanel" type="button"><strong>RP</strong><span>приказы</span></button>
+</nav>
+</div>
+<div class="topbar__actions">
+<a class="toplink" href="/index.html" rel="noopener" target="_blank">Публичная карта</a>
+<a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Ходы</a>
+<a class="toplink" href="/vk_admin.html" rel="noopener" target="_blank">VK</a>
+<a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Война</a>
+</div>
+</header>
+<div class="layout-grid"><section class="map-shell">
+<div class="appbar appbar--v2">
+  <div class="appbar__block">
+    <div class="appbar__eyebrow">Карта и контекст</div>
+    <div class="appbar__headline">Основное рабочее полотно администратора</div>
+    <div class="appbar__support">Слева — только работа с картой и режимами отображения. Всё сущностное и сценарное редактирование вынесено в правый инспектор и модальные панели, без изменения существующей логики.</div>
+    <div class="appbar__controls">
+      <select class="select-compact" id="viewMode">
+        <option value="provinces">Физическая карта</option>
+        <option value="province_properties">Свойства провинций</option>
+        <option value="war">Война</option>
+        <option value="kingdoms">Королевства</option>
+        <option value="great_houses">Большие Дома</option>
+        <option value="minor_houses">Малые Дома</option>
+        <option value="free_cities">Вольные Города</option>
+        <option value="special_territories">Особые Территории</option>
+      </select>
+      <button id="toggleProvEmblems" type="button">Геральдика провинций</button>
+      <button class="zoomBtn" data-zoom="fit" type="button">По экрану</button>
+    </div>
+  </div>
+  <div class="appbar__block">
+    <div class="appbar__eyebrow">Быстрые панели</div>
+    <div class="appbar__actions-grid">
+      <button class="appbar__action" data-panel="adminProvincePanel" type="button">Провинция</button>
+      <button class="appbar__action" data-panel="adminRealmPanel" type="button">Сущность</button>
+      <button class="appbar__action" data-panel="adminWarPanel" type="button">Армии и война</button>
+      <button class="appbar__action" data-panel="adminDataPanel" type="button">Экспорт и импорт</button>
+    </div>
+  </div>
+</div>
+<div class="map-stage">
+<div class="map-stage__head"><div class="chips"><span class="map-chip">ЛКМ: выбор</span><span class="map-chip">Ctrl/Shift: мультивыбор</span><span class="map-chip">Колесо: зум</span></div><div class="chips"></div></div>
+<main class="maparea" id="mapArea">
+<div id="mapWrap">
+<img alt="Карта" id="baseMap" src="map.png"/>
+<canvas id="fill"></canvas>
+<canvas id="emblems"></canvas>
+<canvas id="hover"></canvas>
+<div class="army-markers-layer" id="armyMarkers"></div>
+</div>
+<div id="tooltip"></div>
+</main>
+</div>
+</section><aside class="inspector"><div class="inspector-shell">
+  <article class="card card--tight inspector-summary">
+    <div class="inspector-summary__title">Правая панель</div>
+    <div class="inspector-summary__text">Инспектор разделён по задаче: обзор текущего выбора, правки по выбору, быстрый доступ к служебным панелям и отдельный блок для будущих систем. Это сокращает постоянные прыжки между несвязанными карточками.</div>
+    <div class="admin-v2-shortcuts">
+      <a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Ходы</a>
+      <a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Война</a>
+    </div>
+  </article>
+  <div class="inspector-tabs" role="tablist" aria-label="Разделы инспектора">
+    <button class="inspector-tab is-active" data-inspector-tab-button="overview" role="tab" aria-selected="true" type="button">Обзор</button>
+    <button class="inspector-tab" data-inspector-tab-button="editing" role="tab" aria-selected="false" type="button">Правки</button>
+    <button class="inspector-tab" data-inspector-tab-button="operations" role="tab" aria-selected="false" type="button">Панели</button>
+    <button class="inspector-tab" data-inspector-tab-button="future" role="tab" aria-selected="false" type="button">Новые блоки</button>
+  </div>
+
+  <section class="inspector-pane is-active" data-inspector-pane="overview">
+    <article class="card card--tight selection-card--v2">
+      <div class="selection-head">
+        <div>
+          <div class="selection-name" id="selName">—</div>
+          <div class="selection-meta" style="margin-top:8px;">
+            <span>PID <b id="selPid">—</b></span>
+            <span>KEY <b id="selKey">—</b></span>
+            <span>Выделено <b id="multiSelCount">0</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="kv">
+        <div><b>Владелец:</b> <input id="ownerInput" list="peopleList" placeholder="Имя владельца" type="text"/></div>
+        <div><b>Сюзерен:</b> <span id="suzerainText">—</span></div>
+        <div><b>Сеньор:</b> <span id="seniorText">—</span></div>
+        <div><b>Люди:</b> <datalist id="peopleList"></datalist></div>
+      </div>
+      <div class="inline-actions">
+        <button data-panel="adminProvincePanel" type="button">Паспорт провинции</button>
+        <button data-panel="adminRealmPanel" type="button">Сущность и вассалы</button>
+      </div>
+    </article>
+
+    <article class="card card--tight turn-card--v2">
+      <div class="card-head">
+        <div class="card-title">Ход</div>
+        <div class="card-note" id="turnActionStatus">—</div>
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div>
+        <div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div>
+        <div class="metric"><span class="metric__label">Казна провинций</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div>
+        <div class="metric"><span class="metric__label">Казна сущностей</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div>
+      </div>
+      <details style="margin-top:10px;">
+        <summary class="small">Казна сущностей</summary>
+        <div class="small" id="turnEntityTreasuryList" style="margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap;">—</div>
+      </details>
+      <div class="btnrow" style="margin-top:10px;">
+        <button id="btnMakeTurn" type="button">Сделать ход</button>
+        <button id="btnRefreshTurn" type="button">Обновить</button>
+        <button id="btnOpenTurnAdmin" type="button">Админка хода</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="inspector-pane" data-inspector-pane="editing">
+    <article class="card card--tight" id="provincePropsCard">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Массовые свойства</div>
+          <div class="card-note">Выделено: <span id="provincePropsCount">0</span></div>
+        </div>
+      </div>
+      <div class="inline-note">Пакетная правка оставлена в том же виде, но вынесена в отдельный раздел, чтобы не конкурировать с карточкой выбора и обзором хода.</div>
+      <div class="grid" style="grid-template-columns:110px 1fr; margin-top:10px;">
+        <label>Местность</label>
+        <select id="provincePropsTerrain"></select>
+      </div>
+      <div class="btnrow" style="margin-top:10px;">
+        <button id="provincePropsApply" type="button">Применить</button>
+        <button id="provincePropsClear" type="button">Снять выбор</button>
+      </div>
+    </article>
+
+    <article class="card card--tight">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Контекстные действия</div>
+          <div class="card-note">Открывают те же панели и модалки, что и раньше.</div>
+        </div>
+      </div>
+      <div class="quick-panel-grid">
+        <button data-panel="adminProvincePanel" type="button">Редактировать провинцию</button>
+        <button data-panel="adminRealmPanel" type="button">Редактировать сущность</button>
+        <button data-panel="adminWarPanel" type="button">Передвижение и армии</button>
+        <button data-panel="adminAccessPanel" type="button">Ссылка игрока</button>
+        <button data-panel="adminDataPanel" type="button">Snapshot и импорт</button>
+        <button data-panel="adminOrdersPanel" type="button">Приказы и вердикты</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="inspector-pane" data-inspector-pane="operations">
+    <article class="card card--tight">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Рабочие панели</div>
+          <div class="card-note">Быстрый доступ к основным административным контурам.</div>
+        </div>
+      </div>
+      <div class="quick-panel-grid">
+        <button data-panel="adminAccessPanel" type="button">Доступ игрока</button>
+        <button data-panel="adminProvincePanel" type="button">Паспорт провинции</button>
+        <button data-panel="adminRealmPanel" type="button">Сущности и вассалы</button>
+        <button data-panel="adminWarPanel" type="button">Война и перемещение</button>
+        <button data-panel="adminDataPanel" type="button">Экспорт, импорт и snapshot</button>
+        <button data-panel="adminOrdersPanel" type="button">RP и телеграф</button>
+      </div>
+    </article>
+    <article class="card card--tight">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Внешние переходы</div>
+          <div class="card-note">Соседние административные экраны без перегруза верхней панели.</div>
+        </div>
+      </div>
+      <div class="quick-panel-grid">
+        <a class="toplink" href="/index.html" rel="noopener" target="_blank">Публичная карта</a>
+        <a class="toplink" href="/turn_admin.html" rel="noopener" target="_blank">Админка хода</a>
+        <a class="toplink" href="/vk_admin.html" rel="noopener" target="_blank">VK</a>
+        <a class="toplink" href="/war_admin.html" rel="noopener" target="_blank">Внешняя война</a>
+      </div>
+    </article>
+  </section>
+
+  <section class="inspector-pane" data-inspector-pane="future">
+    <article class="card card--tight">
+      <h3 style="margin-bottom:8px;">Новые блоки</h3>
+      <div class="inline-note" style="margin-bottom:10px;">Будущие подсистемы отделены от операционного контура, чтобы не засорять обзор карты и текущую работу администратора.</div>
+      <div class="quick-panel-grid">
+        <button data-panel="adminOrdersPanel" type="button">Приказы и вердикты</button>
+        <button data-panel="adminNpcPanel" type="button">NPC и LLM</button>
+      </div>
+    </article>
+  </section>
+</div></aside></div>
+</div>
+<div aria-hidden="true" class="person-modal" id="personModal">
+<div aria-label="Карточка персонажа" aria-modal="true" class="person-modal__window" role="dialog">
+<button aria-label="Закрыть" class="person-modal__close" id="personModalClose" type="button">×</button>
+<div class="person-modal__content">
+<div class="person-modal__photo-wrap"><img alt="Фото персонажа" class="person-modal__photo" id="personModalPhoto"/></div>
+<h2 class="person-modal__name" id="personModalName">—</h2>
+<div class="person-modal__kv">
+<div><b>Сюзерен:</b> <span id="personModalSuzerain">—</span></div>
+<div><b>Сеньоры:</b> <span id="personModalSeniors">—</span></div>
+<div><b>Вассалы:</b> <span id="personModalVassals">—</span></div>
+</div>
+<p class="person-modal__bio" id="personModalBio">Биография будет добавлена позже.</p>
+</div>
+</div>
+</div>
+<div aria-hidden="true" class="editor-modal" id="manualEditModal">
+<div class="editor-modal__window">
+<div class="editor-modal__head">
+<div>
+<div id="manualEditTitle" style="font-weight:700;">Редактор</div>
+<div class="small" id="manualEditSubtitle">—</div>
+</div>
+<button id="manualEditClose" type="button">Закрыть</button>
+</div>
+<div class="editor-modal__body">
+<div class="editor-grid">
+<label>Название</label><input id="manualName" type="text"/>
+<label>Владелец / правитель</label><input id="manualOwner" list="peopleList" type="text"/>
+<label>Королевство ID</label><input id="manualKingdomId" type="text"/>
+<label>Большой дом ID</label><input id="manualGreatHouseId" type="text"/>
+<label>Малый дом ID</label><input id="manualMinorHouseId" type="text"/>
+<label>Вольный город ID</label><input id="manualFreeCityId" type="text"/>
+<label>Местность</label><input id="manualTerrain" type="text"/>
+<label>Казна</label><input id="manualTreasury" type="text"/>
+<label>Население</label><input id="manualPopulation" type="text"/>
+<label>Налог (доля)</label><input id="manualTax" type="text"/>
+<label>Здания (через запятую)</label><input id="manualBuildings" type="text"/>
+<label>Фон (URL/путь)</label><input id="manualBackground" type="text"/>
+<label>Карточка провинции</label><input id="manualCardImage" type="text"/>
+<label>Герб SVG</label><textarea id="manualEmblemSvg"></textarea>
+<label>Описание</label><textarea id="manualDescription"></textarea>
+<label>Цвет сущности</label><input id="manualColor" type="text"/>
+<label>Столица PID</label><input id="manualCapitalPid" type="text"/>
+<label>Провинции сущности (PID, через запятую)</label><input id="manualProvincePids" type="text"/>
+</div>
+<div style="margin-top:12px;">
+<label class="small" for="manualExtraJson">Дополнительные поля JSON (всё, что не покрыто полями выше):</label>
+<textarea id="manualExtraJson"></textarea>
+</div>
+<div class="btnrow" style="margin-top:12px;">
+<button id="manualEditSave" type="button">Сохранить изменения</button>
+</div>
+</div>
+</div>
+</div>
+<div aria-hidden="true" class="editor-modal" id="arrierbanModal">
+<div class="editor-modal__window">
+<div class="editor-modal__head">
+<div>
+<div id="arrierbanTitle" style="font-weight:700;">Арьербан</div>
+<div class="small" id="arrierbanSubtitle">—</div>
+</div>
+<button id="arrierbanClose" type="button">Закрыть</button>
+</div>
+<div class="editor-modal__body">
+<div class="small" id="arrierbanPools" style="margin-bottom:10px;">—</div>
+<div class="small" id="arrierbanRemaining" style="margin-bottom:10px;">—</div>
+<div class="arrierban-grid arrierban-grid__head">
+<div>Отряд</div><div>Категория</div><div>Стандарт</div><div>Мин. размер (10%)</div><div>Поотрядное распределение</div>
+</div>
+<div id="arrierbanRows" style="margin-top:8px; display:grid; gap:6px;"></div>
+<div class="small" id="arrierbanValidation" style="margin-top:10px; color:#ffb4b4;"></div>
+<div class="btnrow" style="margin-top:12px;">
+<button id="arrierbanApply" type="button">Подтвердить созыв</button>
+</div>
+</div>
+</div>
+</div>
+<div aria-hidden="true" class="editor-modal" id="armyManageModal">
+<div class="editor-modal__window">
+<div class="editor-modal__head">
+<div>
+<div id="armyManageTitle" style="font-weight:700;">Менеджмент армий</div>
+<div class="small" id="armyManageSubtitle">—</div>
+</div>
+<button id="armyManageClose" type="button">Закрыть</button>
+</div>
+<div class="editor-modal__body">
+<div class="army-manager-list" id="armyManageList"></div>
+<div class="grid" style="margin-top:10px;">
+<label>Размер для отделения</label>
+<input id="armySplitSize" min="1" step="1" type="number" value="10"/>
+</div>
+<div class="small" id="armyManageValidation" style="margin-top:10px; color:#ffb4b4;"></div>
+<div class="btnrow" style="margin-top:12px;">
+<button id="armyMergeBtn" type="button">Слить выбранные</button>
+<button id="armySplitBtn" type="button">Разделить выбранный</button>
+<button id="armyNormalizeBtn" type="button">Объединить одинаковые в армии</button>
+<button id="armyManageSave" type="button">Сохранить армии</button>
+</div>
+</div>
+</div>
+</div>
+
+
+<div style="display:none !important;" aria-hidden="true" id="adminCompatLayer">
+  <div id="provinceModal"><button id="provinceModalClose" type="button"></button><div id="modalProvinceTitle"></div><div id="modalProvinceDescription"></div><img id="modalProvinceHerald" alt="" /><img id="modalProvinceMapImage" alt="" /></div>
+  <div id="modalKingdomName"></div><img id="modalKingdomHerald" alt="" />
+  <div id="modalGreatHouseName"></div><img id="modalGreatHouseHerald" alt="" />
+  <div id="modalMinorHouseName"></div><img id="modalMinorHouseHerald" alt="" />
+  <div id="playerWikiEditorModal">
+    <div id="playerWikiEditorTitle"></div>
+    <div id="playerWikiEditorSubtitle"></div>
+    <button id="playerWikiEditorClose" type="button"></button>
+    <textarea id="playerWikiEditorDescription"></textarea>
+    <input id="playerWikiEditorAssetFile" type="file" />
+    <div id="playerWikiEditorAssetPreview"></div>
+    <div id="playerWikiEditorAssetEmpty"></div>
+    <input id="playerWikiEditorEmblemFile" type="file" />
+    <div id="playerWikiEditorEmblemPreview"></div>
+    <div id="playerWikiEditorEmblemEmpty"></div>
+    <button id="playerWikiEditorEmblemClear" type="button"></button>
+    <button id="playerWikiEditorSave" type="button"></button>
+    <div id="playerWikiEditorStatus"></div>
+  </div>
+</div>
+
+<script defer src="js/feature_flags.js"></script>
+<script defer src="js/state_loader.js"></script>
+<script defer src="js/app_core.js"></script>
+<script defer src="js/admin_war_shared.js"></script>
+<script defer src="js/army_state.js"></script>
+<script defer src="js/admin.js"></script>
+<script defer src="js/admin_player_admin_tokens.js"></script>
+<script>
+(function(){
+  function autoFitMap(){
+    const fitBtn = document.querySelector('.zoomBtn[data-zoom="fit"]');
+    if (!fitBtn) return;
+    let count = 0;
+    const run = () => {
+      if (count > 8) return;
+      count += 1;
+      try { fitBtn.click(); } catch(_e) {}
+    };
+    const schedule = (ms) => setTimeout(run, ms);
+    if (document.readyState === 'complete') { schedule(30); schedule(220); schedule(700); schedule(1200); }
+    else window.addEventListener('load', () => { schedule(30); schedule(220); schedule(700); schedule(1200); }, { once:true });
+    const mapArea = document.getElementById('mapArea');
+    if (mapArea && 'ResizeObserver' in window) {
+      const ro = new ResizeObserver(() => schedule(60));
+      ro.observe(mapArea);
+      setTimeout(() => { try { ro.disconnect(); } catch(_e) {} }, 5000);
+    }
+    const baseMap = document.getElementById('baseMap');
+    if (baseMap) baseMap.addEventListener('load', () => schedule(30), { once:true });
+    window.addEventListener('resize', () => schedule(60));
+  }
+  autoFitMap();
+})();
+</script>
+<div aria-hidden="true" class="panel-modal" id="adminAccessPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Доступ игрока</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight token-card">
+<div class="card-head">
+<div>
+<div class="card-title">Доступ игрока</div>
+<div class="card-note">Ссылка на player_admin по сущности</div>
+</div>
+</div>
+<div class="grid">
+<label>Тип</label>
+<select id="playerAdminTokenEntityType">
+<option value="great_houses">Большой Дом</option>
+<option value="minor_houses">Вассал (Малый Дом)</option>
+<option value="free_cities">Вольный Город</option>
+</select>
+<label>Сущность</label>
+<select id="playerAdminTokenEntityId"><option value="">Загрузка…</option></select>
+</div>
+<div class="btnrow" style="margin-top:10px;"><button id="playerAdminTokenCreateBtn" type="button">Сгенерировать ссылку</button></div>
+<input id="playerAdminTokenLink" placeholder="Ссылка появится здесь" readonly="" style="margin-top:10px;" type="text"/>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminProvincePanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Провинция</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Паспорт провинции</div></div>
+<div class="grid">
+<label>Название</label>
+<input id="provName" placeholder="Название провинции" type="text"/>
+<label>Местность</label>
+<select id="terrainSelect"></select>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="saveProv" type="button">Сохранить провинцию</button>
+<button id="uploadEmblemBtn" type="button">Загрузить герб</button>
+<button id="removeEmblemBtn" type="button">Удалить герб</button>
+<button id="uploadProvinceImageBtn" type="button">Загрузить карточку</button>
+<button id="buildProvinceImageBtn" type="button">Собрать карточку</button>
+</div>
+<div class="province-assets" style="margin-top:10px;">
+<div class="emblemPreview"><img alt="Герб провинции" id="emblemPreviewImg"/><div class="small" id="emblemPreviewEmpty">Герб не загружен</div></div>
+<div class="provinceCardPreview"><img alt="Карточка провинции" id="provinceCardPreviewImg"/><div class="small" id="provinceCardPreviewEmpty">Карточка не загружена</div></div>
+</div>
+<input accept="image/svg+xml,.svg" class="hidden" id="emblemFile" type="file"/>
+<input accept="image/*" class="hidden" id="provinceImageFile" type="file"/>
+</article><article class="card card--tight">
+<div class="card-head"><div class="card-title">Заливка и подсветка</div></div>
+<div class="grid" style="grid-template-columns:100px 1fr;">
+<label>Цвет</label>
+<div style="display:flex; gap:10px; align-items:center;"><input id="color" type="color" value="#ff3b30"/><span class="muted">заливка</span></div>
+<label>Прозрачность</label>
+<div style="display:flex; gap:10px; align-items:center;"><input id="alpha" max="255" min="0" type="range" value="140"/><span class="muted" id="alphaVal" style="width:44px; text-align:right;">140</span></div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="applyFill" type="button">Применить</button>
+<button id="clearFill" type="button">Снять</button>
+</div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminRealmPanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Сущности и вассалы</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Сущность</div></div>
+<div class="realm-grid">
+<div class="full">
+<label class="small">Тип</label>
+<select id="realmType">
+<option value="kingdoms">Королевства</option>
+<option value="great_houses">Большие Дома</option>
+<option value="minor_houses">Малые Дома</option>
+<option value="free_cities">Вольные Города</option>
+<option value="special_territories">Особые Территории</option>
+</select>
+</div>
+<div class="full">
+<label class="small">Сущность</label>
+<select id="realmSelect"></select>
+</div>
+<div class="full"><label class="small">Название</label><input id="realmName" placeholder="Название" type="text"/></div>
+<div><label class="small">Правитель</label><input id="realmRuler" list="peopleList" placeholder="Правитель" type="text"/></div>
+<div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30"/></div>
+<div><label class="small">Столица KEY</label><input id="realmCapital" placeholder="34172" type="text"/></div>
+<div><label class="small">Воинственность</label><input id="realmWarlikeCoeff" placeholder="1.00" step="0.01" type="number"/></div>
+<div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" max="3" min="0.2" step="0.1" type="range" value="1"/><span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span></div></div>
+<div class="full"><label class="small">Правящий дом</label><select id="realmRulingHouse"></select></div>
+<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHouses" multiple=""></select></div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="newRealm" type="button">Новая сущность</button>
+<button id="saveRealm" type="button">Сохранить</button>
+<button id="deleteRealm" type="button">Удалить</button>
+<button id="addSelectedToRealm" type="button">Добавить выбранные</button>
+<button id="removeSelectedFromRealm" type="button">Убрать выбранные</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="realmUploadEmblemBtn" type="button">Загрузить герб</button>
+<button id="realmRemoveEmblemBtn" type="button">Удалить герб</button>
+<button id="realmArrierbanBtn" type="button">Арьербан</button>
+<button id="realmDomainArrierbanBtn" type="button">Доменное войско</button>
+<button id="realmRoyalArrierbanBtn" style="display:none;" type="button">Королевский призыв</button>
+<button id="realmArrierbanDismissBtn" type="button">Распустить армии</button>
+<button id="realmArmyManageBtn" type="button">Менеджмент армий</button>
+</div>
+<pre class="small" id="realmArrierbanOutput" style="margin-top:10px; white-space:pre-wrap;"></pre>
+<input accept="image/svg+xml,.svg" class="hidden" id="realmEmblemFile" type="file"/>
+</article><article class="card card--tight">
+<div class="card-head"><div class="card-title">Малый дом / вассал</div></div>
+<div class="grid">
+<label id="minorParentLabel">Сюзерен</label>
+<select id="minorGreatHouseSelect"></select>
+<label id="minorEntityLabel">Сущность</label>
+<select id="minorVassalSelect"></select>
+<label id="minorEntityNameLabel">Название</label>
+<input id="minorVassalName" placeholder="Название сущности" type="text"/>
+<label id="minorEntityRulerLabel">Правитель</label>
+<input id="minorVassalRuler" list="peopleList" placeholder="Правитель" type="text"/>
+</div>
+<input id="minorParentType" type="hidden" value="great_houses"/>
+<div class="btnrow" style="margin-top:10px;">
+<button id="minorSetCapital" type="button">Столица по выбору</button>
+<button id="minorAddDomain" type="button">Добавить домен</button>
+<button id="minorRemoveDomain" type="button">Убрать домен</button>
+<button id="minorCreateVassal" type="button">Создать вассала</button>
+<button id="minorSetVassalCapital" type="button">Столица вассала</button>
+<button id="minorAddVassalProvinces" type="button">Добавить провинции</button>
+<button id="minorRemoveVassalProvinces" type="button">Убрать провинции</button>
+</div>
+<div class="palette" id="minorPalette"></div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminWarPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Война и перемещение</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight" id="warMoveCard">
+<div class="card-head"><div class="card-title">Передвижение армий</div></div>
+<div class="grid" style="grid-template-columns:120px 1fr;">
+<label>Армия</label>
+<select id="warArmySelect"></select>
+<label>Радиус</label>
+<div class="small" id="warMoveRadius">—</div>
+<label>Доступно</label>
+<div class="small" id="warMoveReachCount">—</div>
+</div>
+<div class="btnrow" style="margin-top:10px;">
+<button id="warRefreshArmies" type="button">Обновить список</button>
+<button id="warClearSelection" type="button">Снять выбор</button>
+</div>
+<div class="small" id="warMoveHint" style="margin-top:8px;">—</div>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminDataPanel"><div class="panel-modal__window panel-modal__window--wide"><div class="panel-modal__head"><div class="panel-modal__title">Экспорт, импорт и snapshot</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><article class="card card--tight">
+<div class="card-head"><div class="card-title">Экспорт и импорт</div></div>
+<div class="btnrow">
+<button id="exportProvincesPng" type="button">PNG провинций</button>
+<button id="exportKingdomsPng" type="button">PNG королевств</button>
+<button id="exportGreatHousesPng" type="button">PNG больших домов</button>
+<button id="exportMinorHousesPng" type="button">PNG малых домов</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="export" type="button">Экспорт в поле</button>
+<button id="download" type="button">Скачать snapshot</button>
+<button id="exportMigrated" type="button">Migrated bundle</button>
+</div>
+<div class="btnrow" style="margin-top:8px;">
+<button id="import" type="button">Импорт</button>
+<button id="saveImportedBackend" type="button">Сохранить импорт</button>
+<button id="saveServer" type="button">Сохранить на сервер</button>
+</div>
+<input accept="application/json,.json" class="hidden" id="importFile" type="file"/>
+<textarea id="state" spellcheck="false" style="margin-top:10px; min-height:120px;"></textarea>
+</article></div></div></div><div aria-hidden="true" class="panel-modal" id="adminOrdersPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">Приказы, вердикты и телеграф</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><div class="placeholder-box"><h4>Очередь приказов</h4><p>Модерация RP-приказов из панели игрока и бота, со статусами, фильтрами и привязкой к ходу.</p></div><div class="placeholder-box"><h4>Вердикты и последствия</h4><p>Текстовые вердикты и их структурированные эффекты на казну, право, дипломатию, армии, хронику и события карты.</p></div><div class="placeholder-box"><h4>Телеграф</h4><p>Входящие и исходящие телеграфные сообщения, системные уведомления и переписка сущностей.</p></div><div class="placeholder-box"><h4>Летопись</h4><p>Автоматическая хроника карты с публикацией событий и ручной редактурой администрации.</p></div></div></div></div><div aria-hidden="true" class="panel-modal" id="adminNpcPanel"><div class="panel-modal__window"><div class="panel-modal__head"><div class="panel-modal__title">NPC, организации и LLM</div><button data-close-panel="" type="button">Закрыть</button></div><div class="panel-modal__body"><div class="placeholder-box"><h4>Организации</h4><p>Регистрация орденов, цехов, дворов и иных структур с отдельными правами и доступом.</p></div><div class="placeholder-box"><h4>Персонажи</h4><p>Игра на персонажах, должности, роли и контроль лиц внутри сущности.</p></div><div class="placeholder-box"><h4>LLM-дипломатия</h4><p>Нейросетевые NPC для переговоров, реакции на карту, телеграфа и торговли от новостей.</p></div><div class="placeholder-box"><h4>LLM-война</h4><p>Принятие решений NPC по войне через структурированные действия, а не прямое изменение state.</p></div></div></div></div><script>
+(function(){
+  function openPanel(id){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.toggle('is-active', b.dataset.panel===id));const el=document.getElementById(id);if(el)el.classList.add('open');}
+  function closePanels(){document.querySelectorAll('.panel-modal').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.launcher-btn').forEach(b=>b.classList.remove('is-active'));}
+  document.querySelectorAll('[data-panel]').forEach(btn=>btn.addEventListener('click',()=>openPanel(btn.dataset.panel)));
+  document.querySelectorAll('[data-close-panel]').forEach(btn=>btn.addEventListener('click',closePanels));
+  document.querySelectorAll('.panel-modal').forEach(modal=>modal.addEventListener('click',e=>{if(e.target===modal)closePanels();}));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanels();});
+})();
+</script>
+<script>
+(function(){
+  const buttons=[...document.querySelectorAll('[data-inspector-tab-button]')];
+  const panes=[...document.querySelectorAll('[data-inspector-pane]')];
+  function setInspectorTab(name){
+    buttons.forEach(btn=>{
+      const active=btn.dataset.inspectorTabButton===name;
+      btn.classList.toggle('is-active',active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panes.forEach(pane=>pane.classList.toggle('is-active', pane.dataset.inspectorPane===name));
+  }
+  buttons.forEach(btn=>btn.addEventListener('click',()=>setInspectorTab(btn.dataset.inspectorTabButton)));
+  setInspectorTab('overview');
+})();
+</script>
+</body>
+</html>
