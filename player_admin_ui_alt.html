@@ -248,7 +248,7 @@ body{min-height:100vh;overflow:hidden}
 <div class="workspace">
   <header class="topbar">
 <div class="topbar__main">
-<div class="topbar__brand"><div class="topbar__title">Админка карты — игрок</div><div id="flagsStatus" class="small" style="display:none">Флаги: backend</div></div>
+<div class="topbar__brand"><div class="topbar__title">Карта сущности</div></div>
 <nav class="topbar__menu launcher" aria-label="Разделы управления">
 <button class="launcher-btn" data-panel="playerTurnPanel" type="button"><strong>Ход</strong><span>казна</span></button>
 <button class="launcher-btn" data-panel="playerWarPanel" type="button"><strong>Война</strong><span>битвы</span></button>
@@ -278,7 +278,7 @@ body{min-height:100vh;overflow:hidden}
             <option value="free_cities">Вольные Города</option>
             <option value="special_territories">Особые Территории</option>
           </select>
-          <button id="toggleProvEmblems" type="button">Геральдика провинций</button>
+          <button id="toggleProvEmblems" type="button">Гербы</button>
           <div class="utility-store"><button class="zoomBtn" data-zoom="fit" type="button">По экрану</button></div>
         </div>
         <div class="appbar__right">
@@ -289,51 +289,32 @@ body{min-height:100vh;overflow:hidden}
         </div>
       </div>
       <div class="map-stage">
-        <div class="map-stage__head"><div class="chips"><span class="map-chip">ЛКМ: выбор</span><span class="map-chip">Ctrl/Shift: мультивыбор</span><span class="map-chip">Колесо: зум</span></div><div class="chips"><span class="map-chip">backend</span></div></div>
+        <div class="map-stage__head"><div class="chips"><span class="map-chip">ЛКМ: выбор</span><span class="map-chip">Ctrl/Shift: мультивыбор</span><span class="map-chip">Колесо: зум</span></div><div class="chips"><span class="map-chip" id="flagsStatus">backend</span></div></div>
         <main id="mapArea" class="maparea">
           <div id="mapWrap"><img id="baseMap" src="map.png" alt="Карта" /><canvas id="fill"></canvas><canvas id="emblems"></canvas><canvas id="hover"></canvas><div id="armyMarkers" class="army-markers-layer"></div></div>
           <div id="tooltip"></div>
         </main>
       </div>
     </section>
-    <aside class="inspector" id="miniInspector">
-      <article class="card card--tight mini-inspector-card">
-        <div class="selection-head">
-          <div>
-            <div class="selection-name" id="selName">—</div>
-            <div class="selection-meta" style="margin-top:8px;">
-              <span>PID <b id="selPid">—</b></span>
-              <span>KEY <b id="selKey">—</b></span>
-              <span>Выделено <b id="multiSelCount">0</b></span>
-            </div>
-          </div>
-        </div>
-        <div class="btnrow" style="margin-top:10px;"><button data-native-modal="provinceModal" type="button">Карточка</button><button data-native-modal="playerWikiEditorModal" type="button">Wiki</button><button data-panel="playerOrdersPanel" type="button">Приказ</button><button data-panel="playerTelegraphPanel" type="button">Телеграф</button></div>
+    <aside class="inspector">
+      <article class="inspector-card">
+        <h3>Выбор</h3>
+        <div class="selection-name" id="selName">—</div>
+        <div class="selection-meta"><div><label>PID</label><b id="selPid">—</b></div><div><label>KEY</label><b id="selKey">—</b></div><div><label>Выделено</label><b id="multiSelCount">0</b></div></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button data-native-modal="provinceModal" type="button">Карточка</button><button data-native-modal="playerWikiEditorModal" type="button">Wiki</button><button data-panel="playerOrdersPanel" type="button">Приказ</button><button data-panel="playerTelegraphPanel" type="button">Телеграф</button></div>
       </article>
-      <article class="card card--tight">
-        <div class="card-head">
-          <div class="card-title">Ход</div>
-          <div class="card-note" id="turnActionStatus">—</div>
-        </div>
-        <div class="metric-grid"><div class="metric"><span class="metric__label">Год / ход</span><span class="metric__value" id="turnCurrentYear">—</span></div><div class="metric"><span class="metric__label">Статус</span><span class="metric__value" id="turnCurrentStatus">—</span></div><div class="metric"><span class="metric__label">Казна игрока</span><span class="metric__value" id="turnTreasuryProvSum">—</span></div><div class="metric"><span class="metric__label">Казна сущности</span><span class="metric__value" id="turnTreasuryEntitySum">—</span></div></div>
-        <div class="btnrow" style="margin-top:10px;"><button data-panel="playerTurnPanel" type="button">Панель хода</button><button id="btnRefreshTurn" type="button">Обновить</button><button id="btnMakeTurn" type="button">Сделать ход</button></div>
+      <article class="inspector-card">
+        <h3>Текущий ход</h3>
+        <div class="kpi-row"><div class="kpi"><label>Год / ход</label><span id="turnCurrentYear">—</span></div><div class="kpi"><label>Статус</label><span id="turnCurrentStatus">—</span></div><div class="kpi"><label>Казна игрока</label><span id="turnTreasuryProvSum">—</span></div><div class="kpi"><label>Казна сущности</label><span id="turnTreasuryEntitySum">—</span></div></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button data-panel="playerTurnPanel" type="button">Панель хода</button><button id="btnRefreshTurn" type="button">Обновить</button><button id="btnMakeTurn" type="button">Сделать ход</button></div>
       </article>
-      <article class="card card--tight">
-        <div class="card-head"><div class="card-title">Сущность</div></div>
-        <div class="grid" style="grid-template-columns:90px 1fr;"><label>Тип</label><select id="realmType"><option value="kingdoms">Королевства</option><option value="great_houses">Большие Дома</option><option value="minor_houses">Малые Дома</option><option value="free_cities">Вольные Города</option><option value="special_territories">Особые Территории</option></select><label>Сущность</label><select id="realmSelect"></select></div>
-        <div class="btnrow" style="margin-top:10px;"><button id="realmArrierbanBtn" type="button">Арьербан</button><button id="realmDomainArrierbanBtn" type="button">Домен</button><button id="realmArrierbanDismissBtn" type="button">Роспуск</button><button id="realmArmyManageBtn" type="button">Менеджмент</button></div>
+      <article class="inspector-card">
+        <h3>Сущность</h3>
+        <div class="mini-grid"><div class="full"><label>Тип</label><select id="realmType"><option value="kingdoms">Королевства</option><option value="great_houses">Большие Дома</option><option value="minor_houses">Малые Дома</option><option value="free_cities">Вольные Города</option><option value="special_territories">Особые Территории</option></select></div><div class="full"><label>Сущность</label><select id="realmSelect"></select></div></div>
+        <div class="pillbar" style="margin-top:10px;"><span>Армии</span><span>Приказы</span><span>Будущая дипломатия</span></div>
+        <div class="inspector-actions" style="margin-top:10px;"><button id="realmArrierbanBtn" type="button">Арьербан</button><button id="realmDomainArrierbanBtn" type="button">Домен</button><button id="realmArrierbanDismissBtn" type="button">Роспуск</button><button id="realmArmyManageBtn" type="button">Менеджмент</button><button data-panel="playerDiplomacyPanel" type="button">Дипломатия</button><button data-panel="playerCharactersPanel" type="button">Персонажи</button></div>
       </article>
-      <article class="card card--tight" id="playerProvinceEditorCard">
-        <div class="card-head"><div class="card-title">Редактор провинции</div><div class="card-note" id="playerProvinceEditorLock">Выберите провинцию</div></div>
-        <div class="grid" style="grid-template-columns:90px 1fr;">
-          <label>Название</label><input id="provName" placeholder="Название провинции" type="text"/>
-          <label>Владелец</label><input id="ownerInput" list="peopleList" placeholder="Имя владельца" type="text"/>
-          <label>Сюзерен</label><div class="muted" id="suzerainText">—</div>
-          <label>Сеньор</label><div class="muted" id="seniorText">—</div>
-          <label>Местность</label><select id="terrainSelect"></select>
-        </div>
-        <div class="btnrow" style="margin-top:10px;"><button id="saveProv" type="button">Сохранить провинцию</button><button data-native-modal="playerWikiEditorModal" type="button">Wiki и изображения</button></div>
-      </article>
+      <article class="inspector-card"><h3>Новые блоки</h3><div class="quick-future"><button data-panel="playerOrdersPanel" type="button">Приказы и вердикты</button><button data-panel="playerTelegraphPanel" type="button">Телеграф и письма</button><button data-panel="playerDiplomacyPanel" type="button">Дипломатия</button><button data-panel="playerCharactersPanel" type="button">Организации и персонажи</button><button data-panel="playerChroniclePanel" type="button">Автоматическая летопись</button></div></article>
     </aside>
   </div>
 </div>
@@ -394,6 +375,23 @@ body{min-height:100vh;overflow:hidden}
 <button id="playerWikiEditorClose" type="button">Закрыть</button>
 </div>
 <div class="editor-modal__body">
+<div class="grid" style="margin-bottom:12px;">
+<label>Название</label>
+<input id="provName" placeholder="Название провинции" type="text"/>
+<label>Владелец</label>
+<div>
+<input id="ownerInput" list="peopleList" placeholder="Имя владельца (добавит в список)" type="text"/>
+</div>
+<label>Сюзерен</label>
+<div class="muted" id="suzerainText">—</div>
+<label>Сеньор</label>
+<div class="muted" id="seniorText">—</div>
+<label>Местность</label>
+<select id="terrainSelect"></select>
+</div>
+<div class="btnrow" style="margin-bottom:12px;">
+<button id="saveProv" type="button">Сохранить провинцию</button>
+</div>
 <label for="playerWikiEditorDescription" style="display:block;">Описание</label>
 <textarea id="playerWikiEditorDescription" placeholder="Описание провинции"></textarea>
 <div style="margin-top:12px;">
