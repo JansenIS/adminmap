@@ -1,0 +1,30 @@
+{
+    "rows": [
+        {
+            "id": "vkjob_9947f3c3c900",
+            "type": "vk_wall_publish",
+            "order_id": "ord_dc8ddb4f0c0b",
+            "status": "pending_wall_post",
+            "attempts": 0,
+            "last_error": "",
+            "payload": {
+                "id": "feed_daa764977ac4",
+                "type": "order_publication",
+                "order_id": "ord_dc8ddb4f0c0b",
+                "turn_year": 1202,
+                "entity_type": "great_houses",
+                "entity_id": "Герцогство Людендорф",
+                "title": "Тестовый приказ",
+                "rp_post": "РП текст",
+                "public_verdict_text": "Пункт исполнен",
+                "images": [],
+                "categories": [
+                    "economy"
+                ],
+                "created_at": "2026-03-09T09:28:02+00:00"
+            },
+            "created_at": "2026-03-09T09:28:02+00:00",
+            "updated_at": "2026-03-09T09:28:02+00:00"
+        }
+    ]
+}
