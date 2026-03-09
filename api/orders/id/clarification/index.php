@@ -1,0 +1,26 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__, 3) . '/lib/orders_api.php';
+$admin = orders_api_require_admin();
+$id = trim((string)($_GET['id'] ?? ''));
+$p = orders_api_request_payload();
+if ($id === '') orders_api_response(['error'=>'id_required'],400);
+orders_api_acquire_order_lock($id, $admin);
+$store = orders_api_load_store();
+$idx = orders_api_find_index($store['orders'], $id);
+if ($idx < 0) orders_api_response(['error'=>'not_found'],404);
+$order = $store['orders'][$idx];
+orders_api_assert_version($order, $p, true);
+$order['status'] = 'needs_clarification';
+if (!is_array($order['verdict'] ?? null)) $order['verdict'] = ['id'=>orders_api_next_id('ver'),'order_id'=>$id,'admin_user_id'=>$admin,'public_verdict_text'=>'','private_notes'=>'','clarification_request_text'=>'','finalized_at'=>'','published_at'=>'','rolls'=>[]];
+$order['verdict']['clarification_request_text'] = mb_substr(trim((string)($p['text'] ?? 'Нужно уточнение.')),0,4000);
+$order['updated_at'] = gmdate('c');
+$order['version'] = (int)$order['version'] + 1;
+orders_api_audit_append($order,'order_clarification_requested',$admin,['text'=>$order['verdict']['clarification_request_text']]);
+orders_api_event_append('order_clarification_requested',$id,['text'=>$order['verdict']['clarification_request_text']]);
+$store['orders'][$idx] = $order;
+orders_api_save_store($store);
+$vkUid = (int)($order['author_vk_user_id'] ?? 0);
+if ($vkUid > 0) vk_bot_send_message($vkUid, 'По вашему приказу требуется уточнение: ' . $order['verdict']['clarification_request_text']);
+orders_api_emit_order_etag($order);
+orders_api_response(['ok'=>true,'order'=>$order,'etag'=>orders_api_order_etag($order)]);
