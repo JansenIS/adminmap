@@ -1,0 +1,22 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__, 3) . '/lib/orders_api.php';
+$id = trim((string)($_GET['id'] ?? ''));
+if ($id === '') orders_api_response(['error'=>'id_required'],400);
+$store = orders_api_load_store();
+$idx = orders_api_find_index($store['orders'], $id);
+if ($idx < 0) orders_api_response(['error'=>'not_found'],404);
+$state = api_load_state();
+$session = orders_api_require_player_session($state);
+$order = $store['orders'][$idx];
+if ((string)$order['entity_type'] !== (string)$session['entity_type'] || (string)$order['entity_id'] !== (string)$session['entity_id']) orders_api_response(['error'=>'forbidden'],403);
+if (!orders_api_status_transition_allowed((string)$order['status'], 'submitted') && (string)$order['status'] !== 'submitted') orders_api_response(['error'=>'status_transition_forbidden'],409);
+$order['status'] = 'submitted';
+$order['submitted_at'] = gmdate('c');
+$order['updated_at'] = gmdate('c');
+$order['version'] = (int)$order['version'] + 1;
+orders_api_audit_append($order,'order_submitted','player:' . $session['entity_id'],[]);
+orders_api_event_append('order_submitted',$id,[]);
+$store['orders'][$idx] = $order;
+orders_api_save_store($store);
+orders_api_response(['ok'=>true,'order'=>$order]);
