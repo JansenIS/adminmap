@@ -449,6 +449,29 @@ body{min-height:100vh;overflow:hidden}
 </div>
 </div>
 
+
+<div style="display:none !important;" aria-hidden="true" id="adminCompatLayer">
+  <div id="provinceModal"><button id="provinceModalClose" type="button"></button><div id="modalProvinceTitle"></div><div id="modalProvinceDescription"></div><img id="modalProvinceHerald" alt="" /><img id="modalProvinceMapImage" alt="" /></div>
+  <div id="modalKingdomName"></div><img id="modalKingdomHerald" alt="" />
+  <div id="modalGreatHouseName"></div><img id="modalGreatHouseHerald" alt="" />
+  <div id="modalMinorHouseName"></div><img id="modalMinorHouseHerald" alt="" />
+  <div id="playerWikiEditorModal">
+    <div id="playerWikiEditorTitle"></div>
+    <div id="playerWikiEditorSubtitle"></div>
+    <button id="playerWikiEditorClose" type="button"></button>
+    <textarea id="playerWikiEditorDescription"></textarea>
+    <input id="playerWikiEditorAssetFile" type="file" />
+    <div id="playerWikiEditorAssetPreview"></div>
+    <div id="playerWikiEditorAssetEmpty"></div>
+    <input id="playerWikiEditorEmblemFile" type="file" />
+    <div id="playerWikiEditorEmblemPreview"></div>
+    <div id="playerWikiEditorEmblemEmpty"></div>
+    <button id="playerWikiEditorEmblemClear" type="button"></button>
+    <button id="playerWikiEditorSave" type="button"></button>
+    <div id="playerWikiEditorStatus"></div>
+  </div>
+</div>
+
 <script src="js/feature_flags.js"></script>
 <script src="js/state_loader.js"></script>
 <script src="js/app_core.js"></script>
@@ -556,10 +579,10 @@ body{min-height:100vh;overflow:hidden}
 <div><label class="small">Правитель</label><input id="realmRuler" list="peopleList" placeholder="Правитель" type="text"/></div>
 <div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30"/></div>
 <div><label class="small">Столица KEY</label><input id="realmCapital" placeholder="34172" type="text"/></div>
-<div><label class="small">Воинственность</label><input id="realmWarlikeCoeff" min="1" max="100" step="1" type="number" value="30"/></div>
+<div><label class="small">Воинственность</label><input id="realmWarlikeCoeff" placeholder="1.00" step="0.01" type="number"/></div>
 <div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" max="3" min="0.2" step="0.1" type="range" value="1"/><span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span></div></div>
 <div class="full"><label class="small">Правящий дом</label><select id="realmRulingHouse"></select></div>
-<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHouses" multiple size="6"></select></div>
+<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHouses" multiple=""></select></div>
 </div>
 <div class="btnrow" style="margin-top:10px;">
 <button id="newRealm" type="button">Новая сущность</button>
