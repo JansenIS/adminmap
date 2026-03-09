@@ -451,16 +451,26 @@ body{min-height:100vh;overflow:hidden}
 <script>
 (function(){
   const alias = {
-    realmEmblemScaleInput:'realmEmblemScale',
-    realmNameInput:'realmName',
-    realmRulerInput:'realmRuler',
-    realmColorInput:'realmColor',
-    realmCapitalInput:'realmCapital',
-    realmTypeInput:'realmType',
-    realmSelectInput:'realmSelect',
-    realmRulingHouseInput:'realmRulingHouse',
-    realmVassalHousesInput:'realmVassalHouses',
-    realmWarlikeCoeffInput:'realmWarlikeCoeff'
+    realmEmblemScale:'realmEmblemScaleInput',
+    realmName:'realmNameInput',
+    realmRuler:'realmRulerInput',
+    realmColor:'realmColorInput',
+    realmCapital:'realmCapitalInput',
+    realmType:'realmTypeInput',
+    realmSelect:'realmSelectInput',
+    realmRulingHouse:'realmRulingHouseInput',
+    realmVassalHouses:'realmVassalHousesInput',
+    realmWarlikeCoeff:'realmWarlikeCoeffInput',
+    realmEmblemScaleInput:'realmEmblemScaleInput',
+    realmNameInput:'realmNameInput',
+    realmRulerInput:'realmRulerInput',
+    realmColorInput:'realmColorInput',
+    realmCapitalInput:'realmCapitalInput',
+    realmTypeInput:'realmTypeInput',
+    realmSelectInput:'realmSelectInput',
+    realmRulingHouseInput:'realmRulingHouseInput',
+    realmVassalHousesInput:'realmVassalHousesInput',
+    realmWarlikeCoeffInput:'realmWarlikeCoeffInput'
   };
   const docGet = Document.prototype.getElementById;
   Document.prototype.getElementById = function(id){
@@ -573,7 +583,7 @@ body{min-height:100vh;overflow:hidden}
 <div class="realm-grid">
 <div class="full">
 <label class="small">Тип</label>
-<select id="realmType">
+<select id="realmTypeInput">
 <option value="kingdoms">Королевства</option>
 <option value="great_houses">Большие Дома</option>
 <option value="minor_houses">Малые Дома</option>
@@ -583,16 +593,16 @@ body{min-height:100vh;overflow:hidden}
 </div>
 <div class="full">
 <label class="small">Сущность</label>
-<select id="realmSelect"></select>
+<select id="realmSelectInput"></select>
 </div>
-<div class="full"><label class="small">Название</label><input id="realmName" placeholder="Название" type="text"/></div>
-<div><label class="small">Правитель</label><input id="realmRuler" list="peopleList" placeholder="Правитель" type="text"/></div>
-<div><label class="small">Цвет</label><input id="realmColor" type="color" value="#ff3b30"/></div>
-<div><label class="small">Столица KEY</label><input id="realmCapital" placeholder="34172" type="text"/></div>
-<div><label class="small">Воинственность</label><input id="realmWarlikeCoeff" placeholder="1.00" step="0.01" type="number"/></div>
-<div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScale" max="3" min="0.2" step="0.1" type="range" value="1"/><span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span></div></div>
-<div class="full"><label class="small">Правящий дом</label><select id="realmRulingHouse"></select></div>
-<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHouses" multiple=""></select></div>
+<div class="full"><label class="small">Название</label><input id="realmNameInput" placeholder="Название" type="text"/></div>
+<div><label class="small">Правитель</label><input id="realmRulerInput" list="peopleList" placeholder="Правитель" type="text"/></div>
+<div><label class="small">Цвет</label><input id="realmColorInput" type="color" value="#ff3b30"/></div>
+<div><label class="small">Столица KEY</label><input id="realmCapitalInput" placeholder="34172" type="text"/></div>
+<div><label class="small">Воинственность</label><input id="realmWarlikeCoeffInput" placeholder="1.00" step="0.01" type="number"/></div>
+<div class="full"><label class="small">Масштаб герба</label><div style="display:flex; gap:10px; align-items:center;"><input id="realmEmblemScaleInput" max="3" min="0.2" step="0.1" type="range" value="1"/><span class="muted" id="realmEmblemScaleVal" style="width:44px; text-align:right;">1</span></div></div>
+<div class="full"><label class="small">Правящий дом</label><select id="realmRulingHouseInput"></select></div>
+<div class="full"><label class="small">Дома-вассалы</label><select id="realmVassalHousesInput" multiple=""></select></div>
 </div>
 <div class="btnrow" style="margin-top:10px;">
 <button id="newRealm" type="button">Новая сущность</button>
