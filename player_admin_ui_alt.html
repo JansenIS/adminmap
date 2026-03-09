@@ -134,8 +134,8 @@
   .map-stage__head span{font-size:12px;color:var(--muted)}
   .maparea{min-height:0;overflow:auto;padding:12px;background:linear-gradient(180deg,#071019 0%, #060d15 100%)}
   #mapWrap{position:relative;display:inline-block}
-  #baseMap{position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;display:block}
-  canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  #baseMap{position:relative;left:auto;top:auto;width:auto;height:auto;max-width:none;max-height:none;display:block}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:auto}
   #tooltip{position:fixed;z-index:60;pointer-events:none;background:rgba(13,19,27,.94);border:1px solid #2b3f56;border-radius:10px;padding:8px 10px;font-size:12px;color:#e7eef7;display:none;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:360px}
   .army-markers-layer{position:absolute;inset:0;pointer-events:none;z-index:20}
   .army-marker{position:absolute;width:34px;height:34px;border-radius:999px;border:2px solid rgba(230,240,255,.95);box-shadow:0 4px 12px rgba(0,0,0,.35);transform:translate(-50%, -50%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.7);overflow:hidden}
@@ -216,52 +216,56 @@
 html,body{height:100%;overflow:hidden}
 body{min-height:100vh;overflow:hidden}
 .workspace{height:100vh;grid-template-rows:auto 1fr}
-.topbar{padding:10px 14px}.topbar__meta{display:none}.topbar__title{font-size:17px}
-.layout-grid{min-height:0;display:grid;grid-template-columns:70px minmax(0,1fr) 340px;gap:12px;padding:12px}
-.launcher{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:2px}
-.launcher::-webkit-scrollbar,.inspector::-webkit-scrollbar{width:8px;height:8px}.launcher::-webkit-scrollbar-thumb,.inspector::-webkit-scrollbar-thumb{background:#1f3244;border-radius:999px}
-.launcher-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:62px;padding:8px;border-radius:16px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--text);cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.03em;text-align:center}
+.topbar{padding:10px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.topbar__main{min-width:0;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.topbar__brand{min-width:0;flex:0 0 auto}.topbar__title{font-size:17px}
+.topbar__menu{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.topbar__actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.layout-grid{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12px}
+.launcher{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0}
+.launcher-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:8px 12px;border-radius:12px;border:1px solid #263a4d;background:linear-gradient(180deg, rgba(16,28,42,.95), rgba(10,18,28,.95));color:var(--text);cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.02em;text-align:center;white-space:nowrap}
 .launcher-btn:hover,.launcher-btn.is-active{border-color:#4772a1;background:linear-gradient(180deg, rgba(24,42,63,.96), rgba(13,24,37,.96))}
-.launcher-btn strong{font-size:14px;line-height:1}
-.map-shell{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px}
+.launcher-btn strong{font-size:12px;line-height:1}.launcher-btn span{display:none}
 .appbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg, rgba(14,24,37,.96), rgba(9,16,26,.96));box-shadow:var(--shadow)}
-.appbar__left,.appbar__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.select-compact{min-width:220px}
+.appbar__left,.appbar__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.select-compact{min-width:230px}
 .map-stage{min-height:0;border-radius:22px;border:1px solid var(--border);overflow:hidden;background:rgba(6,10,16,.92);box-shadow:var(--shadow);display:grid;grid-template-rows:auto 1fr}
 .map-stage__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #203346;background:rgba(9,15,23,.94)}
 .map-stage__head .chips{display:flex;gap:8px;flex-wrap:wrap}
 .map-chip{padding:7px 10px;border-radius:999px;background:#0b1520;border:1px solid #25394d;color:var(--muted);font-size:11px;font-weight:650}
-.maparea{min-height:0;overflow:auto;padding:8px;background:linear-gradient(180deg,#071019 0%, #060d15 100%);display:flex;align-items:center;justify-content:center}
-#mapWrap{position:relative;display:block;line-height:0;background:#0a121c;border:1px solid rgba(41,60,82,.7);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.24);overflow:hidden;margin:auto}
+.maparea{min-height:0;overflow:auto;padding:8px;background:linear-gradient(180deg,#071019 0%, #060d15 100%);display:block;position:relative}
+#mapWrap{position:relative;display:inline-block;line-height:0;background:#0a121c;border:1px solid rgba(41,60,82,.7);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.24);overflow:hidden}
 .inspector{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}.inspector-card{padding:14px;border-radius:18px;border:1px solid var(--border);background:linear-gradient(180deg, rgba(15,25,38,.96) 0%, rgba(10,17,27,.96) 100%);box-shadow:var(--shadow)}.inspector-card h3{margin:0 0 10px;font-size:14px}
 .kpi-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.kpi{padding:10px 12px;border-radius:14px;background:#0a1420;border:1px solid #24384d}.kpi label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}.kpi span{font-size:13px;font-weight:700;line-height:1.3}
 .selection-name{font-size:20px;font-weight:780;line-height:1.2;margin-bottom:10px}.selection-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.selection-meta div{padding:8px 10px;border-radius:12px;background:#0a1420;border:1px solid #24384d}.selection-meta label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}.selection-meta b{font-size:13px}
 .inspector-actions,.btnrow{display:flex;flex-wrap:wrap;gap:8px}.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mini-grid .full{grid-column:1/-1}.mini-grid label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}.pillbar{display:flex;gap:8px;flex-wrap:wrap}.pillbar span{padding:7px 10px;border-radius:999px;border:1px solid #25394d;background:#0b1520;color:var(--muted);font-size:11px}
 .utility-store{display:none !important}.hidden-inline{display:none !important}
 .panel-modal{position:fixed;inset:0;z-index:140;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,10,.72);backdrop-filter:blur(2px)}.panel-modal.open{display:flex}.panel-modal__window{width:min(920px,96vw);max-height:94vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:18px;box-shadow:0 22px 70px rgba(0,0,0,.48)}.panel-modal__window--wide{width:min(1180px,97vw)}.panel-modal__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #223041;position:sticky;top:0;background:#0d131b;z-index:2}.panel-modal__title{font-size:16px;font-weight:760}.panel-modal__body{padding:16px;display:grid;gap:12px}.panel-stack{display:grid;gap:12px}.placeholder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.placeholder-box{padding:14px;border-radius:16px;border:1px dashed #36516e;background:rgba(9,16,25,.72)}.placeholder-box h4{margin:0 0 8px;font-size:14px}.placeholder-box p{margin:0;color:var(--muted);line-height:1.45;font-size:13px}.quick-future{display:grid;gap:10px}.quick-future button{justify-content:flex-start}
-@media (max-width:1180px){.layout-grid{grid-template-columns:64px minmax(0,1fr) 320px}.select-compact{min-width:180px}}@media (max-width:980px){.layout-grid{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}.launcher{flex-direction:row;overflow:auto}.inspector{max-height:42vh}.map-shell{order:-1}}
+@media (max-width:1280px){.topbar{grid-template-columns:1fr}.topbar__actions{justify-content:flex-start}.layout-grid{grid-template-columns:minmax(0,1fr) 320px}.select-compact{min-width:180px}}
+@media (max-width:980px){.layout-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr}.inspector{max-height:42vh}.map-shell{order:-1}.topbar__main{gap:10px}.topbar__menu{overflow:auto;flex-wrap:nowrap;padding-bottom:2px}}
 </style>
 </head>
 <body>
 <div class="workspace">
   <header class="topbar">
-    <div class="topbar__brand"><div class="topbar__title">Карта сущности</div></div>
-    <div class="topbar__actions">
-      <a class="toplink" href="/entity_cabinet.html">Кабинет</a>
-      <a class="toplink" href="/index.html" target="_blank" rel="noopener">Публичная карта</a>
-    </div>
-  </header>
+<div class="topbar__main">
+<div class="topbar__brand"><div class="topbar__title">Карта сущности</div></div>
+<nav class="topbar__menu launcher" aria-label="Разделы управления">
+<button class="launcher-btn" data-panel="playerTurnPanel" type="button"><strong>Ход</strong><span>казна</span></button>
+<button class="launcher-btn" data-panel="playerWarPanel" type="button"><strong>Война</strong><span>битвы</span></button>
+<button class="launcher-btn" data-panel="playerForcePanel" type="button"><strong>Силы</strong><span>созыв</span></button>
+<button class="launcher-btn" data-panel="playerOrdersPanel" type="button"><strong>Приказы</strong><span>rp</span></button>
+<button class="launcher-btn" data-panel="playerTelegraphPanel" type="button"><strong>Телеграф</strong><span>связь</span></button>
+<button class="launcher-btn" data-panel="playerDiplomacyPanel" type="button"><strong>Дипломатия</strong><span>сделки</span></button>
+<button class="launcher-btn" data-panel="playerCharactersPanel" type="button"><strong>Персонажи</strong><span>лица</span></button>
+<button class="launcher-btn" data-panel="playerChroniclePanel" type="button"><strong>Летопись</strong><span>события</span></button>
+</nav>
+</div>
+<div class="topbar__actions">
+<a class="toplink" href="/entity_cabinet.html">Кабинет</a>
+<a class="toplink" href="/index.html" target="_blank" rel="noopener">Публичная карта</a>
+</div>
+</header>
   <div class="layout-grid">
-    <nav class="launcher" aria-label="Разделы управления">
-      <button class="launcher-btn" data-panel="playerTurnPanel" type="button"><strong>Ход</strong><span>казна</span></button>
-      <button class="launcher-btn" data-panel="playerWarPanel" type="button"><strong>Война</strong><span>битвы</span></button>
-      <button class="launcher-btn" data-panel="playerForcePanel" type="button"><strong>Силы</strong><span>созыв</span></button>
-      <button class="launcher-btn" data-panel="playerOrdersPanel" type="button"><strong>Приказы</strong><span>rp</span></button>
-      <button class="launcher-btn" data-panel="playerTelegraphPanel" type="button"><strong>Связь</strong><span>телеграф</span></button>
-      <button class="launcher-btn" data-panel="playerDiplomacyPanel" type="button"><strong>Дипл.</strong><span>сделки</span></button>
-      <button class="launcher-btn" data-panel="playerCharactersPanel" type="button"><strong>Лица</strong><span>персонажи</span></button>
-      <button class="launcher-btn" data-panel="playerChroniclePanel" type="button"><strong>Летоп.</strong><span>события</span></button>
-    </nav>
     <section class="map-shell">
       <div class="appbar">
         <div class="appbar__left">
@@ -508,6 +512,40 @@ body{min-height:100vh;overflow:hidden}
 </div>
 </div>
 </div>
+<script>
+(function(){
+  const alias = {
+    realmEmblemScaleInput:'realmEmblemScale',
+    realmNameInput:'realmName',
+    realmRulerInput:'realmRuler',
+    realmColorInput:'realmColor',
+    realmCapitalInput:'realmCapital',
+    realmTypeInput:'realmType',
+    realmSelectInput:'realmSelect',
+    realmRulingHouseInput:'realmRulingHouse',
+    realmVassalHousesInput:'realmVassalHouses',
+    realmWarlikeCoeffInput:'realmWarlikeCoeff'
+  };
+  const docGet = Document.prototype.getElementById;
+  Document.prototype.getElementById = function(id){
+    const found = docGet.call(this, id);
+    if (found) return found;
+    const alt = alias[id];
+    return alt ? docGet.call(this, alt) : null;
+  };
+  const patchQS = (proto) => {
+    const nativeQS = proto.querySelector;
+    proto.querySelector = function(sel){
+      const found = nativeQS.call(this, sel);
+      if (found || typeof sel !== 'string' || !sel.startsWith('#')) return found;
+      const alt = alias[sel.slice(1)];
+      return alt ? nativeQS.call(this, '#' + alt) : null;
+    };
+  };
+  patchQS(Document.prototype);
+  patchQS(Element.prototype);
+})();
+</script>
 <script src="js/feature_flags.js"></script>
 <datalist id="peopleList"></datalist>
 <script src="js/state_loader.js"></script>
@@ -529,16 +567,17 @@ body{min-height:100vh;overflow:hidden}
       try { fitBtn.click(); } catch(_e) {}
     };
     const schedule = (ms) => setTimeout(run, ms);
-    if (document.readyState === 'complete') { schedule(30); schedule(220); schedule(700); }
-    else window.addEventListener('load', () => { schedule(30); schedule(220); schedule(700); }, { once:true });
+    if (document.readyState === 'complete') { schedule(30); schedule(220); schedule(700); schedule(1200); }
+    else window.addEventListener('load', () => { schedule(30); schedule(220); schedule(700); schedule(1200); }, { once:true });
     const mapArea = document.getElementById('mapArea');
     if (mapArea && 'ResizeObserver' in window) {
-      const ro = new ResizeObserver(() => schedule(30));
+      const ro = new ResizeObserver(() => schedule(60));
       ro.observe(mapArea);
-      setTimeout(() => { try { ro.disconnect(); } catch(_e) {} }, 4000);
+      setTimeout(() => { try { ro.disconnect(); } catch(_e) {} }, 5000);
     }
     const baseMap = document.getElementById('baseMap');
     if (baseMap) baseMap.addEventListener('load', () => schedule(30), { once:true });
+    window.addEventListener('resize', () => schedule(60));
   }
   autoFitMap();
 })();
@@ -554,9 +593,6 @@ body{min-height:100vh;overflow:hidden}
   document.querySelectorAll('.panel-modal').forEach(modal=>modal.addEventListener('click', e=>{ if(e.target===modal) closePanels(); }));
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePanels(); });
   document.querySelectorAll('[data-native-modal]').forEach(btn=>btn.addEventListener('click', ()=>{ const el=document.getElementById(btn.getAttribute('data-native-modal')); if(el) el.classList.add('open'); }));
-  function fitMap(){const area=document.getElementById('mapArea');const wrap=document.getElementById('mapWrap');const img=document.getElementById('baseMap');if(!area||!wrap||!img)return;const nw=img.naturalWidth||img.width||0,nh=img.naturalHeight||img.height||0;const aw=Math.max(0, area.clientWidth-20),ah=Math.max(0, area.clientHeight-20);if(!nw||!nh||!aw||!ah)return;const s=Math.min(aw/nw, ah/nh);wrap.style.width=Math.max(1,Math.floor(nw*s))+'px';wrap.style.height=Math.max(1,Math.floor(nh*s))+'px';}
-  const img=document.getElementById('baseMap');if(img){if(img.complete)setTimeout(fitMap,40);else img.addEventListener('load',fitMap,{once:true});}
-  window.addEventListener('load',()=>setTimeout(fitMap,80),{once:true});window.addEventListener('resize',fitMap);const area=document.getElementById('mapArea');if(area&&'ResizeObserver'in window){new ResizeObserver(fitMap).observe(area);} 
 })();
 </script>
 </body>
