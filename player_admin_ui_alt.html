@@ -597,5 +597,16 @@ body{min-height:100vh;overflow:hidden}
   document.querySelectorAll('[data-native-modal]').forEach(btn=>btn.addEventListener('click', ()=>{ const el=document.getElementById(btn.getAttribute('data-native-modal')); if(el) el.classList.add('open'); }));
 })();
 </script>
+
+<script>
+(function(){
+  const a=document.createElement('a');
+  a.href='player_orders_ui_alt.html'+location.search;
+  a.textContent='⚜ Приказы';
+  a.style.cssText='position:fixed;right:18px;bottom:18px;z-index:99;background:#17304a;color:#ddecff;border:1px solid #44678a;padding:10px 12px;border-radius:12px;text-decoration:none;font-weight:700';
+  document.body.appendChild(a);
+})();
+</script>
+
 </body>
 </html>
