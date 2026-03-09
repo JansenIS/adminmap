@@ -789,35 +789,25 @@ body{min-height:100vh;overflow:hidden}
     mapArea.addEventListener('pointerdown',()=>{ mapClickTs = Date.now(); }, true);
     mapArea.addEventListener('click',()=>{ setTimeout(updateMiniInspector,0); }, true);
   }
-  function forceHideModal(el){
-    if(!el) return;
-    if(el.classList.contains('open')) el.classList.remove('open');
-    if(el.style.display !== 'none') el.style.display='none';
-    if(el.getAttribute('aria-hidden') !== 'true') el.setAttribute('aria-hidden','true');
-  }
   const legacyProvinceModal=document.getElementById('provinceModal');
   if(legacyProvinceModal){
-    let lock=false;
     const closeLegacy=()=>{
-      if(lock) return;
-      lock=true;
-      forceHideModal(legacyProvinceModal);
-      lock=false;
+      legacyProvinceModal.classList.remove('open');
+      legacyProvinceModal.style.display='none';
+      legacyProvinceModal.setAttribute('aria-hidden','true');
     };
     closeLegacy();
-    new MutationObserver(()=>{ closeLegacy(); }).observe(legacyProvinceModal,{attributes:true,attributeFilter:['class','style','aria-hidden']});
+    new MutationObserver(closeLegacy).observe(legacyProvinceModal,{attributes:true,attributeFilter:['class','style','aria-hidden']});
   }
   const manualEditModal=document.getElementById('manualEditModal');
   if(manualEditModal){
-    let lock=false;
     const closeManualEdit=()=>{
-      if(lock) return;
-      lock=true;
-      forceHideModal(manualEditModal);
-      lock=false;
+      manualEditModal.classList.remove('open');
+      manualEditModal.style.display='none';
+      manualEditModal.setAttribute('aria-hidden','true');
     };
     closeManualEdit();
-    new MutationObserver(()=>{ closeManualEdit(); }).observe(manualEditModal,{attributes:true,attributeFilter:['class','style','aria-hidden']});
+    new MutationObserver(closeManualEdit).observe(manualEditModal,{attributes:true,attributeFilter:['class','style','aria-hidden']});
   }
   const provincePanel=document.getElementById('adminProvincePanel');
   if(provincePanel){
@@ -833,16 +823,5 @@ body{min-height:100vh;overflow:hidden}
   });
   updateMiniInspector();
 })();
-</script>
-<script>
-(function(){
-  const a=document.createElement('a');
-  a.href='admin_orders_ui_alt.html';
-  a.textContent='⚖ Вердикты';
-  a.style.cssText='position:fixed;right:18px;bottom:18px;z-index:99;background:#3a1f2d;color:#ffe5ef;border:1px solid #8a4a67;padding:10px 12px;border-radius:12px;text-decoration:none;font-weight:700';
-  document.body.appendChild(a);
-})();
-</script>
-
-</body>
+</script></body>
 </html>
