@@ -9,5 +9,25 @@
     "run_api": "mods/marine_provinces/api/run.php",
     "route_api": "mods/marine_provinces/api/route.php"
   },
-  "runtime_dir": "data/module_runtime/marine_provinces"
+  "runtime_dir": "data/module_runtime/marine_provinces",
+  "id": "marine_provinces",
+  "entry_ui_alt": "sidecar_admin.html?module=marine_provinces",
+  "api": {
+    "run": "mods/marine_provinces/api/run.php"
+  },
+  "supports": {
+    "dry_run": true,
+    "attach_to_turn": false,
+    "download": true,
+    "cleanup": true
+  },
+  "outputs": [
+    "summary.json",
+    "network.json"
+  ],
+  "tags": [
+    "logistics",
+    "marine",
+    "naval"
+  ]
 }

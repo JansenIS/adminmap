@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sidecar Control Center</title>
+  <link rel="stylesheet" href="js/sidecar_admin.css" />
+</head>
+<body>
+  <div class="workspace">
+    <header class="topbar">
+      <div>
+        <div class="title">Sidecar Control Center</div>
+        <div class="muted">Единая панель модулей для ui_alt</div>
+      </div>
+      <div class="actions">
+        <a class="btn" href="admin_ui_alt.html">← В admin ui_alt</a>
+        <button class="btn" id="refreshAll" type="button">Обновить статусы</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card controls">
+        <input id="search" placeholder="Поиск по имени/id/tags" />
+        <div id="tagFilters" class="tags"></div>
+        <div class="actions">
+          <button id="runLogistics" type="button">Запустить все logistics</button>
+          <button id="runUnified" type="button">Pipeline: river + marine + raster</button>
+          <button id="runEconomy" type="button">Pipeline: economy_full</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Pipeline registry</h3>
+        <div id="pipelines" class="pipelines"></div>
+      </section>
+
+      <section class="grid" id="modules"></section>
+
+      <section class="card">
+        <h3>Журнал</h3>
+        <pre id="log" class="log">Готово.</pre>
+      </section>
+    </main>
+  </div>
+  <script src="js/sidecar_admin.js"></script>
+</body>
+</html>

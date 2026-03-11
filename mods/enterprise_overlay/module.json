@@ -21,5 +21,25 @@
     "api_download": "mods/enterprise_overlay/api/download.php",
     "cli_run": "mods/enterprise_overlay/tools/run.php",
     "cli_cleanup": "mods/enterprise_overlay/tools/cleanup.php"
-  }
+  },
+  "id": "enterprise_overlay",
+  "entry_ui_alt": "sidecar_admin.html?module=enterprise_overlay",
+  "api": {
+    "run": "mods/enterprise_overlay/api/run.php"
+  },
+  "runtime_dir": "data/module_runtime/enterprise_overlay",
+  "supports": {
+    "dry_run": true,
+    "attach_to_turn": true,
+    "download": true,
+    "cleanup": true
+  },
+  "outputs": [
+    "state_overlay.json",
+    "trace.json"
+  ],
+  "tags": [
+    "economy",
+    "overlay"
+  ]
 }

@@ -1,0 +1,20 @@
+{
+  "logistics_full": {
+    "title": "Logistics Full",
+    "description": "river_logistics -> marine_provinces -> raster_logistics",
+    "steps": ["river_logistics", "marine_provinces", "raster_logistics"],
+    "tags": ["logistics"]
+  },
+  "economy_full": {
+    "title": "Economy Full",
+    "description": "enterprise_overlay -> enterprise_war_runtime",
+    "steps": ["enterprise_overlay", "enterprise_war_runtime"],
+    "tags": ["economy"]
+  },
+  "war_postprocess": {
+    "title": "War Postprocess",
+    "description": "arrierban_demography -> enterprise_war_runtime",
+    "steps": ["arrierban_demography", "enterprise_war_runtime"],
+    "tags": ["war"]
+  }
+}
