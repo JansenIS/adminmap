@@ -176,6 +176,16 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
   $store = telegraph_load_messages_store();
   $tgSettings = telegraph_load_settings_store();
   $senderProfile = telegraph_resolve_entity_sender_profile($state, $entityType, $entityId, $entityId);
+  $fallbackRulerName = trim((string)($approvedApp['form']['ruler_name'] ?? ''));
+  if ($fallbackRulerName !== '' && trim((string)($senderProfile['ruler_name'] ?? '')) === '') {
+    $entityName = trim((string)($senderProfile['entity_name'] ?? $entityId));
+    if ($entityName === '') $entityName = $entityId;
+    $senderProfile['ruler_name'] = $fallbackRulerName;
+    $senderProfile['sender_display_name'] = $entityName . ', правитель ' . $fallbackRulerName;
+    if (trim((string)($senderProfile['sender_character_id'] ?? '')) === '') {
+      $senderProfile['sender_character_id'] = telegraph_resolve_ruler_character_id($fallbackRulerName);
+    }
+  }
   if ($args === '' || mb_strtolower($args, 'UTF-8') === 'help') {
     $vkTelegraphRespond($peerId, $vkTgHelp);
     return true;

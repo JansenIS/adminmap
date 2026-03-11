@@ -159,8 +159,12 @@
   }
 
   async function relayTick(){
-    await fetch('/api/telegraph/relay/',{method:'POST',headers:H,body:JSON.stringify({action:'process_pending',limit:40})});
-    await loadRelayLog();
+    try {
+      await fetch('/api/telegraph/relay/',{method:'POST',headers:H,body:JSON.stringify({action:'process_pending',limit:40})});
+      await loadRelayLog();
+    } catch (_err) {
+      // keep auto-tick alive even if one request fails
+    }
   }
 
   async function loadRelayLog(){
@@ -184,7 +188,10 @@
     const on=!!e.target.checked;
     if (relayTimer) clearInterval(relayTimer);
     relayTimer=0;
-    if (on) relayTimer=setInterval(relayTick,30000);
+    if (on) {
+      relayTick();
+      relayTimer=setInterval(relayTick,30000);
+    }
   });
 
   const resetAllBtn=byId('resetAllImageUsage');
