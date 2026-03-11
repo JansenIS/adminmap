@@ -808,7 +808,7 @@ body{min-height:100vh;overflow:hidden}
   bind('stripMore',()=>document.getElementById('miniMoreMenu')?.classList.toggle('open'));
   bind('openOrdersAdminModule',()=>window.open('admin_orders_ui_alt.html','_blank','noopener'));
   bind('openDiplomacyConsoleModule',()=>window.open('diplomacy_console.html','_blank','noopener'));
-  bind('openTelegraphAdminModule',()=>{ const fab=document.getElementById('telegraphFab'); if(fab) fab.click(); else window.dispatchEvent(new Event('load')); });
+  bind('openTelegraphAdminModule',()=>window.dispatchEvent(new CustomEvent('adminmap:telegraph-open',{detail:{tab:'pending'}})));
   bind('openDiplomacyAdminModule',()=>{ const launcher=document.querySelector('.diplo-launcher'); if(launcher) launcher.click(); else window.dispatchEvent(new CustomEvent('adminmap:diplomacy-open')); });
   bind('toggleOrdersAdminEmbed',()=>{ const frame=document.getElementById('ordersAdminEmbed'); const btn=document.getElementById('toggleOrdersAdminEmbed'); if(!frame||!btn) return; const hidden=frame.classList.toggle('hidden'); btn.textContent=hidden?'Показать встроенную панель':'Скрыть встроенную панель'; });
   const mapArea=document.getElementById('mapArea');

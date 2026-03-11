@@ -295,6 +295,17 @@
     if (badge) badge.textContent = String(count);
   }
 
+
+  function applyRequestedTab(tabKey) {
+    if (!tabKey) return;
+    const modal = qs('#telegraphModal');
+    if (!modal) return;
+    const valid = tabs.some(t => t.key === tabKey);
+    if (!valid) return;
+    activeTab = tabKey;
+    modal.querySelectorAll('.telegraph-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabKey));
+  }
+
   function debounce(fn, delay) {
     let t = 0;
     return function () { clearTimeout(t); t = setTimeout(fn, delay); };
@@ -302,7 +313,10 @@
 
   window.addEventListener('adminmap:telegraph-open', function (e) {
     const d = (e && e.detail) || {};
-    forcedFilters = Object.assign({}, d || {});
+    applyRequestedTab((d.tab || '').toString());
+    const nextFilters = Object.assign({}, d || {});
+    delete nextFilters.tab;
+    forcedFilters = nextFilters;
     const modal = qs('#telegraphModal');
     if (modal) {
       modal.classList.add('open');
