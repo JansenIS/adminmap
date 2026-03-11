@@ -175,6 +175,7 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
   $state = api_load_state();
   $store = telegraph_load_messages_store();
   $tgSettings = telegraph_load_settings_store();
+  $senderProfile = telegraph_resolve_entity_sender_profile($state, $entityType, $entityId, $entityId);
   if ($args === '' || mb_strtolower($args, 'UTF-8') === 'help') {
     $vkTelegraphRespond($peerId, $vkTgHelp);
     return true;
@@ -234,7 +235,7 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
   $msg = [
     'id' => telegraph_next_id('tg'), 'created_at' => $now, 'updated_at' => $now,
     'turn' => (string)$turn['turn'], 'year' => (int)$turn['year'], 'scope' => $scope, 'delivery_mode' => 'instant',
-    'sender' => ['sender_type' => 'vk_user', 'sender_vk_user_id' => $userId, 'sender_entity_type' => $entityType, 'sender_entity_id' => $entityId, 'sender_character_id' => '', 'sender_display_name' => (string)$entityId],
+    'sender' => ['sender_type' => 'vk_user', 'sender_vk_user_id' => $userId, 'sender_entity_type' => $entityType, 'sender_entity_id' => $entityId, 'sender_character_id' => (string)($senderProfile['sender_character_id'] ?? ''), 'sender_display_name' => (string)($senderProfile['sender_display_name'] ?? $entityId)],
     'target' => ['target_type' => $scope === 'private' ? 'entity' : 'none', 'target_entity_type' => $targetEntityType, 'target_entity_id' => $targetEntityId, 'target_character_id' => '', 'target_channel_id' => ''],
     'visibility' => ['public_to_all' => $scope === 'public', 'visible_to_sender' => true, 'visible_to_target' => $scope === 'private', 'visible_to_admin' => true],
     'source' => ['source_type' => $isChat ? 'vk_chat' : 'vk_private', 'source_chat_id' => $peerId, 'source_message_id' => $messageId],

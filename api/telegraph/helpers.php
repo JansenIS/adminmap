@@ -26,6 +26,86 @@ function telegraph_normalize_tags($tags): array {
   return array_keys($out);
 }
 
+function telegraph_normalize_person_name(string $value): string {
+  $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+  if ($value === '') return '';
+  return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+}
+
+function telegraph_state_bucket_for_entity_type(string $entityType): ?string {
+  $map = [
+    'kingdom' => 'kingdoms',
+    'great_house' => 'great_houses',
+    'minor_house' => 'minor_houses',
+    'free_city' => 'free_cities',
+    'special_territory' => 'special_territories',
+  ];
+  if (isset($map[$entityType])) return $map[$entityType];
+  if (in_array($entityType, ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'], true)) return $entityType;
+  return null;
+}
+
+function telegraph_find_entity_in_state(array $state, string $entityType, string $entityId): ?array {
+  $bucket = telegraph_state_bucket_for_entity_type($entityType);
+  if ($bucket === null || $entityId === '') return null;
+  $row = $state[$bucket][$entityId] ?? null;
+  if (!is_array($row)) return null;
+  return $row;
+}
+
+function telegraph_genealogy_characters_index(): array {
+  static $cache = null;
+  if (is_array($cache)) return $cache;
+  $cache = [];
+  $path = api_repo_root() . '/data/genealogy_tree.json';
+  if (!is_file($path)) return $cache;
+  $raw = @file_get_contents($path);
+  $decoded = is_string($raw) ? json_decode($raw, true) : null;
+  $chars = is_array($decoded['characters'] ?? null) ? $decoded['characters'] : [];
+  foreach ($chars as $char) {
+    if (!is_array($char)) continue;
+    $charId = trim((string)($char['id'] ?? ''));
+    if ($charId === '') continue;
+    $variants = [
+      trim((string)($char['full_name'] ?? '')),
+      trim((string)($char['name'] ?? '')),
+    ];
+    foreach ($variants as $variant) {
+      $k = telegraph_normalize_person_name($variant);
+      if ($k === '' || isset($cache[$k])) continue;
+      $cache[$k] = $charId;
+    }
+  }
+  return $cache;
+}
+
+function telegraph_resolve_ruler_character_id(string $rulerName): string {
+  $key = telegraph_normalize_person_name($rulerName);
+  if ($key === '') return '';
+  $idx = telegraph_genealogy_characters_index();
+  if (isset($idx[$key])) return (string)$idx[$key];
+  foreach ($idx as $name => $charId) {
+    if (mb_strpos($name, $key) !== false || mb_strpos($key, $name) !== false) return (string)$charId;
+  }
+  return '';
+}
+
+function telegraph_resolve_entity_sender_profile(array $state, string $entityType, string $entityId, string $fallbackName = ''): array {
+  $row = telegraph_find_entity_in_state($state, $entityType, $entityId) ?? [];
+  $entityName = trim((string)($row['name'] ?? $fallbackName));
+  if ($entityName === '') $entityName = $entityId;
+  $rulerName = trim((string)($row['ruler'] ?? ''));
+  $senderCharacterId = telegraph_resolve_ruler_character_id($rulerName);
+  $displayName = $entityName;
+  if ($rulerName !== '') $displayName .= ', правитель ' . $rulerName;
+  return [
+    'entity_name' => $entityName,
+    'ruler_name' => $rulerName,
+    'sender_display_name' => $displayName,
+    'sender_character_id' => $senderCharacterId,
+  ];
+}
+
 function telegraph_actor_from_request(array $state): array {
   $adminToken = trim((string)($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? ''));
   if ($adminToken !== '' && in_array($adminToken, orders_api_admin_tokens(), true)) {
@@ -38,7 +118,12 @@ function telegraph_actor_from_request(array $state): array {
       return [
         'role' => 'player',
         'sender_type' => 'entity',
-        'sender_display_name' => (string)($session['entity_name'] ?? (($session['entity_type'] ?? '') . ':' . ($session['entity_id'] ?? ''))),
+        ...telegraph_resolve_entity_sender_profile(
+          $state,
+          (string)($session['entity_type'] ?? ''),
+          (string)($session['entity_id'] ?? ''),
+          (string)($session['entity_name'] ?? (($session['entity_type'] ?? '') . ':' . ($session['entity_id'] ?? '')))
+        ),
         'entity_type' => (string)($session['entity_type'] ?? ''),
         'entity_id' => (string)($session['entity_id'] ?? ''),
       ];
