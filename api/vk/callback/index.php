@@ -266,6 +266,175 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
 if ($vkTgMaybeHandle()) { echo 'ok'; exit; }
 
 
+$vkDiploMaybeHandle = static function() use ($text, $message, $userId, $approvedApp, $cfg): bool {
+  $txt = trim((string)$text);
+  if ($txt === '' || stripos($txt, '/diplo') !== 0) return false;
+  require_once dirname(__DIR__, 2) . '/diplomacy/bootstrap.php';
+  diplomacy_ensure_store();
+
+  $peerId = (int)($message['peer_id'] ?? $userId);
+  $fromId = (int)($message['from_id'] ?? 0);
+  if ($fromId <= 0 || $fromId === (int)($cfg['group_id'] ?? 0)) return true;
+  $eventId = (string)($message['conversation_message_id'] ?? ($message['id'] ?? '0'));
+  if (!diplomacy_claim_idempotency('vk_diplo:' . $peerId . ':' . $eventId . ':' . $userId)) {
+    vk_bot_send_message($userId, 'Дубликат /diplo callback проигнорирован.');
+    return true;
+  }
+  $isChat = $peerId >= 2000000000;
+  if ($isChat) {
+    $settings = diplomacy_load_json(diplomacy_settings_path(), ['allow_vk_chat_public_announcements' => false]);
+    if (!(bool)($settings['allow_vk_chat_public_announcements'] ?? false)) {
+      vk_bot_send_peer_message($peerId, 'Дипломатия доступна в ЛС боту.');
+      return true;
+    }
+  }
+
+  if (!is_array($approvedApp)) {
+    vk_bot_send_message($userId, 'Для дипломатии нужно approved привязка сущности.');
+    return true;
+  }
+  $selfType = (string)($approvedApp['approved_entity_type'] ?? '');
+  $selfId = (string)($approvedApp['approved_entity_id'] ?? '');
+  if ($selfType === '' || $selfId === '') {
+    $resolved = vk_bot_resolve_application_entity($approvedApp);
+    if (!is_array($resolved)) { vk_bot_send_message($userId, 'Не удалось резолвить вашу сущность.'); return true; }
+    $selfType = (string)$resolved['entity_type'];
+    $selfId = (string)$resolved['entity_id'];
+  }
+
+  $parts = preg_split('/\s+/u', $txt, 3);
+  $sub = mb_strtolower((string)($parts[1] ?? 'help'));
+
+  if ($sub === 'help') {
+    vk_bot_send_message($userId, "/diplo new <получатель> | <тема> | <текст>
+/diplo reply <thread_id> | <текст>
+/diplo inbox
+/diplo active
+/diplo unread
+/diplo propose <thread_id> | <proposal_type> | <кратко>
+/diplo accept <proposal_id>
+/diplo reject <proposal_id>
+/diplo counter <proposal_id> | <текст>");
+    return true;
+  }
+
+  $state = api_load_state();
+  $arg = (string)($parts[2] ?? '');
+  if ($sub === 'new') {
+    $seg = array_map('trim', explode('|', $arg));
+    if (count($seg) < 3) { vk_bot_send_message($userId, 'Формат: /diplo new <получатель> | <тема> | <текст>'); return true; }
+    $target = diplomacy_resolve_entity($state, (string)$seg[0]);
+    if (!is_array($target)) { vk_bot_send_message($userId, 'Получатель не найден.'); return true; }
+    $payload = ['target_entity' => (string)$target['entity_type'] . ':' . (string)$target['entity_id'], 'title' => (string)$seg[1], 'body' => (string)$seg[2], 'source_type' => 'vk_private'];
+    $_SERVER['HTTP_X_PLAYER_ADMIN_TOKEN'] = '';
+    $actor = ['role' => 'player', 'entity_type' => $selfType, 'entity_id' => $selfId, 'entity_name' => $selfId];
+    $threadStore = diplomacy_load_threads_store();
+    $messageStore = diplomacy_load_messages_store();
+    $tmpPayload = $payload;
+    // lightweight creation via API internals
+    $threadId = diplomacy_next_id('dth');
+    $now = diplomacy_now();
+    $thread = ['id'=>$threadId,'created_at'=>$now,'updated_at'=>$now,'created_by_type'=>'vk','created_by_user_id'=>(string)$userId,'created_by_entity_type'=>$selfType,'created_by_entity_id'=>$selfId,'title'=>(string)$seg[1],'status'=>'pending_response','kind'=>'bilateral','participants'=>[['entity_type'=>$selfType,'entity_id'=>$selfId,'role'=>'initiator','can_send'=>true,'can_ratify'=>true,'can_propose'=>true,'can_edit_draft'=>true,'joined_at'=>$now,'left_at'=>'','hidden_from_public'=>false],['entity_type'=>(string)$target['entity_type'],'entity_id'=>(string)$target['entity_id'],'role'=>'responder','can_send'=>true,'can_ratify'=>true,'can_propose'=>true,'can_edit_draft'=>true,'joined_at'=>$now,'left_at'=>'','hidden_from_public'=>false]],'visibility'=>'participants_only','linked_war_id'=>'','linked_order_id'=>'','linked_verdict_id'=>'','linked_chronicle_ids'=>[],'latest_message_at'=>$now,'unread_counters'=>[(string)$target['entity_type'].':'.(string)$target['entity_id']=>1],'tags'=>[],'metadata'=>[]];
+    $msg = ['id'=>diplomacy_next_id('dmsg'),'thread_id'=>$threadId,'created_at'=>$now,'sender_entity_type'=>$selfType,'sender_entity_id'=>$selfId,'sender_character_id'=>'','source_type'=>'vk_private','message_type'=>'note','body'=>(string)$seg[2],'attachments'=>[],'tags'=>['vk'],'linked_telegraph_message_id'=>'','visibility'=>'participants','moderation_status'=>'approved','metadata'=>[]];
+    $msg['linked_telegraph_message_id'] = diplomacy_to_telegraph($msg, $actor, $tmpPayload, $thread);
+    $threadStore['threads'][] = $thread; $messageStore['messages'][] = $msg;
+    diplomacy_save_threads_store($threadStore); diplomacy_save_messages_store($messageStore);
+    vk_bot_send_message($userId, 'Создан дипломатический тред #' . $threadId);
+    return true;
+  }
+  if ($sub === 'reply') {
+    $seg = array_map('trim', explode('|', $arg, 2));
+    if (count($seg) < 2) { vk_bot_send_message($userId, 'Формат: /diplo reply <thread_id> | <текст>'); return true; }
+    $threadId = (string)$seg[0];
+    $threadStore = diplomacy_load_threads_store(); $messageStore = diplomacy_load_messages_store();
+    foreach ($threadStore['threads'] as &$th) {
+      if (!is_array($th) || (string)($th['id'] ?? '') !== $threadId) continue;
+      if (!diplomacy_participant_match($th, $selfType, $selfId)) { vk_bot_send_message($userId, 'Нет доступа к треду.'); return true; }
+      $msg = ['id'=>diplomacy_next_id('dmsg'),'thread_id'=>$threadId,'created_at'=>diplomacy_now(),'sender_entity_type'=>$selfType,'sender_entity_id'=>$selfId,'sender_character_id'=>'','source_type'=>'vk_private','message_type'=>'note','body'=>(string)$seg[1],'attachments'=>[],'tags'=>['vk'],'linked_telegraph_message_id'=>'','visibility'=>'participants','moderation_status'=>'approved','metadata'=>[]];
+      $msg['linked_telegraph_message_id'] = diplomacy_to_telegraph($msg, ['entity_type'=>$selfType,'entity_id'=>$selfId,'entity_name'=>$selfId], [], $th);
+      $messageStore['messages'][] = $msg;
+      $th['latest_message_at'] = (string)$msg['created_at'];
+      foreach ((array)$th['participants'] as $p) { $k=(string)($p['entity_type']??'').':'.(string)($p['entity_id']??''); if ($k!==$selfType.':'.$selfId) $th['unread_counters'][$k]=(int)($th['unread_counters'][$k]??0)+1; }
+      diplomacy_save_threads_store($threadStore); diplomacy_save_messages_store($messageStore);
+      vk_bot_send_message($userId, 'Ответ отправлен в тред #' . $threadId);
+      return true;
+    }
+    unset($th);
+    vk_bot_send_message($userId, 'Тред не найден.');
+    return true;
+  }
+  if ($sub === 'inbox' || $sub === 'active' || $sub === 'unread') {
+    $threads = diplomacy_load_threads_store();
+    $lines = [];
+    foreach ($threads['threads'] as $th) {
+      if (!is_array($th) || !diplomacy_participant_match($th, $selfType, $selfId)) continue;
+      $u = (int)($th['unread_counters'][$selfType . ':' . $selfId] ?? 0);
+      if ($sub === 'unread' && $u <= 0) continue;
+      $lines[] = '#' . (string)$th['id'] . ' | ' . (string)($th['title'] ?? '') . ' | ' . (string)($th['status'] ?? '') . ($u > 0 ? (' | unread:' . $u) : '');
+      if (count($lines) >= 20) break;
+    }
+    vk_bot_send_message($userId, empty($lines) ? 'Нет данных.' : implode("
+", $lines));
+    return true;
+  }
+  if ($sub === 'propose') {
+    $seg = array_map('trim', explode('|', $arg));
+    if (count($seg) < 3) { vk_bot_send_message($userId, 'Формат: /diplo propose <thread_id> | <proposal_type> | <краткое описание>'); return true; }
+    $threadStore = diplomacy_load_threads_store();
+    $thread = null;
+    foreach ($threadStore['threads'] as $th) if (is_array($th) && (string)($th['id'] ?? '') === (string)$seg[0]) { $thread = $th; break; }
+    if (!is_array($thread) || !diplomacy_participant_match($thread, $selfType, $selfId)) { vk_bot_send_message($userId, 'Нет доступа к треду или тред не найден.'); return true; }
+    $store = diplomacy_load_proposals_store();
+    $p = ['id'=>diplomacy_next_id('dpr'),'thread_id'=>(string)$seg[0],'created_at'=>diplomacy_now(),'updated_at'=>diplomacy_now(),'created_by_entity_type'=>$selfType,'created_by_entity_id'=>$selfId,'proposal_type'=>(string)$seg[1],'title'=>'VK proposal','summary'=>(string)$seg[2],'status'=>'pending','clauses'=>[],'target_entities'=>[],'ratification_requirements'=>[],'ratifications'=>[],'effective_from'=>'','effective_until'=>'','linked_treaty_id'=>'','linked_order_id'=>'','linked_verdict_id'=>'','linked_war_id'=>'','linked_chronicle_ids'=>[],'metadata'=>['source'=>'vk']];
+    $store['proposals'][] = $p; diplomacy_save_proposals_store($store);
+    vk_bot_send_message($userId, 'Создано предложение #' . (string)$p['id']);
+    return true;
+  }
+  if (in_array($sub, ['accept', 'reject'], true)) {
+    $proposalId = trim($arg);
+    $store = diplomacy_load_proposals_store();
+    foreach ($store['proposals'] as &$p) {
+      if (!is_array($p) || (string)($p['id'] ?? '') !== $proposalId) continue;
+      $thread = null;
+      foreach (diplomacy_load_threads_store()['threads'] as $th) if (is_array($th) && (string)($th['id'] ?? '') === (string)($p['thread_id'] ?? '')) { $thread = $th; break; }
+      if (!is_array($thread) || !diplomacy_participant_match($thread, $selfType, $selfId)) { vk_bot_send_message($userId, 'Нет доступа к предложению.'); return true; }
+      $p['ratifications'][] = ['entity_type'=>$selfType,'entity_id'=>$selfId,'action'=>$sub==='accept'?'accept':'reject','note'=>'','at'=>diplomacy_now()];
+      $p['status'] = $sub==='accept' ? 'accepted_in_principle' : 'rejected';
+      diplomacy_save_proposals_store($store);
+      vk_bot_send_message($userId, 'Готово: ' . $proposalId . ' -> ' . $p['status']);
+      return true;
+    }
+    unset($p);
+    vk_bot_send_message($userId, 'Предложение не найдено.');
+    return true;
+  }
+  if ($sub === 'counter') {
+    $seg = array_map('trim', explode('|', $arg, 2));
+    if (count($seg) < 2) { vk_bot_send_message($userId, 'Формат: /diplo counter <proposal_id> | <текст>'); return true; }
+    $store = diplomacy_load_proposals_store();
+    foreach ($store['proposals'] as &$p) {
+      if (!is_array($p) || (string)($p['id'] ?? '') !== (string)$seg[0]) continue;
+      $thread = null;
+      foreach (diplomacy_load_threads_store()['threads'] as $th) if (is_array($th) && (string)($th['id'] ?? '') === (string)($p['thread_id'] ?? '')) { $thread = $th; break; }
+      if (!is_array($thread) || !diplomacy_participant_match($thread, $selfType, $selfId)) { vk_bot_send_message($userId, 'Нет доступа к предложению.'); return true; }
+      $p['ratifications'][] = ['entity_type'=>$selfType,'entity_id'=>$selfId,'action'=>'counter','note'=>(string)$seg[1],'at'=>diplomacy_now()];
+      $p['status'] = 'countered';
+      diplomacy_save_proposals_store($store);
+      vk_bot_send_message($userId, 'Отправлено встречное замечание по #' . (string)$seg[0]);
+      return true;
+    }
+    unset($p);
+    vk_bot_send_message($userId, 'Предложение не найдено.');
+    return true;
+  }
+
+  vk_bot_send_message($userId, 'Неизвестная команда /diplo. Используйте /diplo help');
+  return true;
+};
+
+if ($vkDiploMaybeHandle()) { echo 'ok'; exit; }
+
+
 $vkOrderMenu = static function(int $userId) use ($cfg): void {
   vk_bot_send_message($userId, 'Раздел приказов:', vk_bot_keyboard([
     vk_bot_btn('Подать приказ', 'order_new', 'primary'),

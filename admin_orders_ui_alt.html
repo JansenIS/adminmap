@@ -11,7 +11,7 @@ textarea{min-height:120px}.item{border:1px solid #334e68;border-radius:10px;padd
 .muted{color:#9cb5cd;font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{width:auto}
 .effect{border:1px solid #3a5874;border-radius:10px;padding:8px;margin-top:8px}.effect h4{margin:0 0 8px 0;font-size:13px}
 .hidden{display:none}
-</style><link rel="stylesheet" href="css/telegraph.css"></head><body>
+</style><link rel="stylesheet" href="css/telegraph.css"><link rel="stylesheet" href="css/diplomacy.css"></head><body>
 <header><b>Вердикты и эффекты</b><a href='admin_ui_alt.html' style='color:#9cc9ff'>← В админ alt</a></header>
 <main>
 <section class='card'>
@@ -33,7 +33,7 @@ textarea{min-height:120px}.item{border:1px solid #334e68;border-radius:10px;padd
       <h3 id='title'>—</h3>
       <div id='rp' class='muted'></div>
       <div id='images' class='muted' style='margin:8px 0'></div>
-      <div id='items'></div><div class='effect'><h4>Связанные телеграммы</h4><div id='telegraphOrderLinks' class='muted'>Выберите приказ для загрузки связей.</div></div>
+      <div id='items'></div><div class='effect'><h4>Связанные телеграммы</h4><div id='telegraphOrderLinks' class='muted'>Выберите приказ для загрузки связей.</div></div><div class='effect'><h4>Связанная дипломатия</h4><div id='diplomacyOrderLinks' class='muted'>Выберите приказ для загрузки связей.</div></div>
     </div>
     <div>
       <textarea id='publicVerdict' placeholder='Публичный РП-вердикт'></textarea>
@@ -74,4 +74,4 @@ textarea{min-height:120px}.item{border:1px solid #334e68;border-radius:10px;padd
   </div>
 </section>
 </main>
-<script src='js/admin_orders_ui_alt.js'></script><script src='js/telegraph.js'></script></body></html>
+<script src='js/admin_orders_ui_alt.js'></script><script src='js/telegraph.js'></script><script src='js/diplomacy.js'></script><script src='js/diplomacy_ui.js'></script></body></html>

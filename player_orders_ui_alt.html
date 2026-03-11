@@ -10,7 +10,7 @@ textarea{min-height:120px}.row{display:grid;grid-template-columns:1fr 1fr;gap:8p
 .step.active{background:#1a3450;color:#e9f3ff;border-color:#4d7aa4}.pane{display:none}.pane.active{display:block}.notice{padding:8px 10px;border:1px solid #3a5e7d;background:#12283b;border-radius:10px;font-size:12px}
 .badges{display:flex;gap:6px;flex-wrap:wrap}.badge{padding:5px 8px;border:1px solid #395670;border-radius:999px;background:#102132;color:#a9c0d8;font-size:11px}
 .preview{white-space:pre-wrap;border:1px dashed #37536d;border-radius:10px;padding:10px;background:#0d1a28}
-</style></head>
+</style><link rel="stylesheet" href="css/diplomacy.css"></head>
 <body><header><div><b>Приказы</b><div class="muted">Игра через намерения и вердикты</div><div id="statusNotices" class="badges" style="margin-top:6px"></div></div><div><a href="player_admin_ui_alt.html" style="color:#9cc9ff">← В alt-панель</a></div></header>
 <main>
 <section class="card"><div class="actions"><button id="newBtn">Создать приказ</button><button id="reloadBtn">Обновить</button></div><div class="row" style="margin-top:8px"><select id="statusFilter"><option value="">Все статусы</option><option>draft</option><option>submitted</option><option>needs_clarification</option><option>verdict_ready</option><option>published</option></select><input id="turnFilter" type="number" placeholder="Ход/год"></div><div id="list" class="list" style="margin-top:8px"></div></section>
@@ -64,4 +64,4 @@ textarea{min-height:120px}.row{display:grid;grid-template-columns:1fr 1fr;gap:8p
   <div class="actions" style="margin-top:12px"><button id="prevStep">← Назад</button><button id="nextStep">Далее →</button></div>
 </section>
 </main>
-<script src="js/player_orders_ui_alt.js"></script></body></html>
+<script src="js/player_orders_ui_alt.js"></script><script src="js/diplomacy.js"></script><script src="js/diplomacy_ui.js"></script></body></html>

@@ -9,4 +9,5 @@ window.ADMINMAP_FLAGS = Object.assign({
   VK_ORDER_FLOW_V1: true,
   VK_WALL_ORDER_PUBLISH_V1: true,
   TELEGRAPH_V1: true,
+  DIPLOMACY_V1: true,
 }, window.ADMINMAP_FLAGS || {});

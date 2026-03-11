@@ -1,0 +1,21 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Diplomacy Console</title>
+<link rel="stylesheet" href="css/diplomacy.css">
+<style>
+body{margin:0;background:#0b1118;color:#e8f0fa;font-family:Inter,system-ui}
+header{padding:12px 16px;border-bottom:1px solid #25384a;display:flex;justify-content:space-between;align-items:center}
+main{display:grid;grid-template-columns:340px 1fr 320px;gap:10px;padding:10px}
+.panel{border:1px solid #2a4158;border-radius:12px;background:#0f1822;padding:10px;min-height:80vh}
+.list{max-height:76vh;overflow:auto;display:grid;gap:6px}
+.item{border:1px solid #33506a;border-radius:8px;padding:6px;cursor:pointer}
+input,select,textarea,button{width:100%;box-sizing:border-box;background:#0b141e;color:#e8f0fa;border:1px solid #2d475f;border-radius:8px;padding:8px}
+textarea{min-height:90px}.row{display:grid;grid-template-columns:1fr 1fr;gap:6px}.actions{display:flex;gap:6px;flex-wrap:wrap}.actions button{width:auto}
+.muted{color:#9fb6cc;font-size:12px}
+</style></head><body>
+<header><b>Diplomacy Console</b><a href="/index_ui_alt.html" style="color:#9bc8ff">← назад</a></header>
+<main>
+<section class="panel"><h3>Треды</h3><div class="row"><input id="fParticipant" placeholder="participant"><select id="fStatus"><option value="">all</option><option>open</option><option>pending_response</option><option>active</option><option>closed</option></select></div><div class="actions" style="margin-top:6px"><button id="refreshThreads">Обновить</button></div><div id="threads" class="list"></div></section>
+<section class="panel"><h3 id="threadTitle">Thread</h3><div class="muted" id="threadMeta">—</div><div id="messages" class="list" style="margin-top:8px;max-height:38vh"></div><h4>Сообщение</h4><textarea id="msgBody" placeholder="Текст"></textarea><div class="row"><input id="msgOrder" placeholder="linked_order_id"><input id="msgVerdict" placeholder="linked_verdict_id"></div><div class="actions" style="margin-top:6px"><button id="sendMsg">Отправить</button></div><h4>Предложение</h4><div class="row"><input id="prTitle" placeholder="Заголовок"><select id="prType"><option>alliance</option><option>trade</option><option>nap</option><option>peace</option><option>truce</option><option>custom</option></select></div><textarea id="prSummary" placeholder="Описание"></textarea><div class="actions"><button id="createProposal">Создать proposal</button></div><div id="proposals" class="list" style="max-height:20vh"></div></section>
+<section class="panel"><h3>Связки / Арбитраж</h3><div class="row"><select id="orderSelect"><option value="">— приказ —</option></select><input id="orderId" placeholder="order_id"></div><div class="row"><select id="verdictSelect"><option value="">— вердикт —</option></select><input id="verdictId" placeholder="verdict_id"></div><div class="actions" style="margin-top:6px"><button id="linkOrder">Привязать приказ</button><button id="linkVerdict">Привязать вердикт</button></div><h4>Арбитраж</h4><select id="arbAction"><option>approve</option><option>reject</option><option>partially_approve</option><option>mark_violated</option><option>terminate</option><option>force_activate</option><option>close_thread</option></select><div class="actions" style="margin-top:6px"><button id="arbDo">Применить</button></div><div id="status" class="muted" style="margin-top:8px">—</div></section>
+</main>
+<script src="js/feature_flags.js"></script><script src="js/diplomacy.js"></script><script src="js/diplomacy_console.js"></script>
+</body></html>
