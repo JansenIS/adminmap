@@ -47,7 +47,7 @@ $msg = [
     'sender_vk_user_id' => 0,
     'sender_entity_type' => (string)($actor['entity_type'] ?? ''),
     'sender_entity_id' => (string)($actor['entity_id'] ?? ''),
-    'sender_character_id' => '',
+    'sender_character_id' => (string)($actor['sender_character_id'] ?? ''),
     'sender_display_name' => (string)($actor['sender_display_name'] ?? ''),
   ],
   'target' => [
