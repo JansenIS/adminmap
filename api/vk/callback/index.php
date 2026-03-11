@@ -232,14 +232,16 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
   $now = telegraph_now_iso();
   $autoApproveVk = (bool)($tgSettings['auto_approve_vk_public'] ?? false);
   $status = ($scope === 'public' && !$autoApproveVk) ? 'pending' : 'approved';
+  $senderDisplayName = (string)($senderProfile['sender_display_name'] ?? $entityId);
+  $autoTitle = 'Телеграмма от ' . $senderDisplayName;
   $msg = [
     'id' => telegraph_next_id('tg'), 'created_at' => $now, 'updated_at' => $now,
     'turn' => (string)$turn['turn'], 'year' => (int)$turn['year'], 'scope' => $scope, 'delivery_mode' => 'instant',
-    'sender' => ['sender_type' => 'vk_user', 'sender_vk_user_id' => $userId, 'sender_entity_type' => $entityType, 'sender_entity_id' => $entityId, 'sender_character_id' => (string)($senderProfile['sender_character_id'] ?? ''), 'sender_display_name' => (string)($senderProfile['sender_display_name'] ?? $entityId)],
+    'sender' => ['sender_type' => 'vk_user', 'sender_vk_user_id' => $userId, 'sender_entity_type' => $entityType, 'sender_entity_id' => $entityId, 'sender_character_id' => (string)($senderProfile['sender_character_id'] ?? ''), 'sender_display_name' => $senderDisplayName],
     'target' => ['target_type' => $scope === 'private' ? 'entity' : 'none', 'target_entity_type' => $targetEntityType, 'target_entity_id' => $targetEntityId, 'target_character_id' => '', 'target_channel_id' => ''],
     'visibility' => ['public_to_all' => $scope === 'public', 'visible_to_sender' => true, 'visible_to_target' => $scope === 'private', 'visible_to_admin' => true],
     'source' => ['source_type' => $isChat ? 'vk_chat' : 'vk_private', 'source_chat_id' => $peerId, 'source_message_id' => $messageId],
-    'content' => ['title' => '', 'body' => $body, 'short_preview' => mb_substr($body, 0, 120), 'tags' => ['vk'], 'attachments' => []],
+    'content' => ['title' => $autoTitle, 'body' => $body, 'short_preview' => mb_substr($body, 0, 120), 'tags' => ['vk'], 'attachments' => []],
     'routing' => ['relay_to_vk_public_chat' => $scope === 'public', 'include_in_public_feed' => $scope === 'public', 'include_in_entity_feed' => true, 'include_in_chronicle_candidate' => $scope === 'public'],
     'moderation' => ['status' => $status, 'moderation_note' => '', 'moderated_by' => '', 'moderated_at' => ''],
     'game_hooks' => ['linked_order_id' => '', 'linked_verdict_id' => '', 'linked_event_ids' => [], 'linked_diplomacy_thread_id' => '', 'linked_war_id' => ''],
@@ -255,8 +257,7 @@ $vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp
       if (!is_array($ch) || !(bool)($ch['enabled'] ?? false) || !(bool)($ch['relay_public'] ?? false)) continue;
       $relayPeer = (int)($ch['chat_id'] ?? 0);
       if ($relayPeer <= 0 || $relayPeer === $peerId) continue;
-      vk_bot_send_peer_message($relayPeer, '📨 /tg relay
-' . $body);
+      vk_bot_send_peer_message($relayPeer, '📨 ' . $autoTitle . "\n" . $body);
     }
   }
 
