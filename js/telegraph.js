@@ -213,8 +213,18 @@
   async function loadEntityOptions() {
     if (!canCompose) return;
     if (entityOptions.length) return;
-    const bootstrap = await api('/api/map/bootstrap/').catch(() => null);
-    const state = bootstrap && bootstrap.state && typeof bootstrap.state === 'object' ? bootstrap.state : (bootstrap && typeof bootstrap === 'object' ? bootstrap : null);
+    let state = null;
+
+    if (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.loadStateBackendOnly === 'function') {
+      const loaded = await window.AdminMapStateLoader.loadStateBackendOnly().catch(() => null);
+      state = loaded && loaded.state && typeof loaded.state === 'object' ? loaded.state : null;
+    }
+
+    if (!state) {
+      const bootstrap = await api('/api/map/bootstrap/').catch(() => null);
+      state = bootstrap && bootstrap.state && typeof bootstrap.state === 'object' ? bootstrap.state : (bootstrap && typeof bootstrap === 'object' ? bootstrap : null);
+    }
+
     entityOptions = state ? normalizeEntityOptions(state) : [];
     renderEntitySelect('tgTarget', 'Получатель: выберите сущность', true);
     if (isAdmin) renderEntitySelect('tgSender', 'Отправитель: Администратор', true);
