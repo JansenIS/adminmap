@@ -1,0 +1,30 @@
+.telegraph-fab{position:fixed;right:16px;bottom:16px;z-index:1200;border:1px solid #2b3f56;background:#1a2634;color:#e7eef7;padding:9px 12px;border-radius:10px;cursor:pointer}
+.telegraph-modal{position:fixed;inset:0;display:none;z-index:1201;background:rgba(0,0,0,.45)}
+.telegraph-modal.open{display:block}
+.telegraph-window{position:absolute;right:20px;top:20px;width:min(860px,94vw);max-height:92vh;overflow:auto;background:#0d131b;color:#e7eef7;border:1px solid #2b3f56;border-radius:12px;padding:12px}
+.telegraph-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.telegraph-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.telegraph-tabs button{background:#101823;border:1px solid #2b3f56;color:#d9e5f4;border-radius:8px;padding:6px 8px;cursor:pointer}.telegraph-tabs button.active{background:#1c2b3d}
+.telegraph-tools{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px}
+.telegraph-counters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.telegraph-pill{font-size:12px;background:#111c2b;border:1px solid #2c4058;border-radius:999px;padding:3px 8px}
+.telegraph-feed{display:grid;gap:8px}
+.telegraph-item{background:#101823;border:1px solid #26374b;padding:8px;border-radius:8px}
+.telegraph-item header{display:flex;justify-content:space-between;font-size:12px;color:#a6b4c5}
+.telegraph-item h4{margin:6px 0;font-size:14px}
+.telegraph-item p{margin:0 0 6px;font-size:13px;white-space:pre-wrap}
+.telegraph-item footer{font-size:11px;color:#9fb0c2}
+.telegraph-links{font-size:12px;margin-bottom:6px}.telegraph-links a,.telegraph-links button{color:#9bc7ff;background:none;border:none;padding:0;cursor:pointer}
+.telegraph-mod{display:flex;gap:6px;margin-bottom:6px}.telegraph-mod button{font-size:12px;background:#18283a;border:1px solid #2b3f56;color:#dce7f6;border-radius:8px;padding:4px 8px;cursor:pointer}
+.telegraph-badge{display:inline-flex;min-width:20px;justify-content:center;background:#223446;border-radius:999px;padding:2px 6px;margin-right:8px}
+.telegraph-compose{display:grid;gap:6px;padding-top:8px;border-top:1px solid #2b3f56;margin-top:8px}
+.telegraph-compose input,.telegraph-compose textarea,.telegraph-compose select,.telegraph-tools select,.telegraph-tools input{background:#0b0f14;color:#e7eef7;border:1px solid #2b3f56;border-radius:8px;padding:6px 8px}
+.telegraph-thread-modal{position:fixed;inset:0;display:none;background:rgba(0,0,0,.45)}.telegraph-thread-modal.open{display:block}
+.telegraph-thread-window{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,92vw);max-height:80vh;overflow:auto;background:#0d131b;border:1px solid #2b3f56;border-radius:12px;padding:10px}
+.telegraph-thread-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.telegraph-status.ok{color:#7de8a6}.telegraph-status.pending{color:#f3cf7b}.telegraph-status.warn{color:#f3cf7b}.telegraph-status.danger{color:#f48c8c}
+.telegraph-rail{position:fixed;left:14px;bottom:14px;width:min(360px,42vw);max-height:36vh;background:#0f1723;border:1px solid #2b3f56;border-radius:12px;padding:10px;z-index:1190;display:none}
+.telegraph-rail--visible{display:block}
+.telegraph-rail__head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.telegraph-rail__head button{background:#18283a;border:1px solid #2b3f56;color:#dce7f6;border-radius:8px;padding:4px 8px;cursor:pointer}
+.telegraph-rail__feed{display:grid;gap:6px;overflow:auto;max-height:24vh}
+.telegraph-rail__item{background:#111c2b;border:1px solid #2a3f57;border-radius:8px;padding:6px;font-size:12px}
+@media (max-width:1000px){.telegraph-tools{grid-template-columns:1fr 1fr}.telegraph-rail{display:none!important}}
