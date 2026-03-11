@@ -6,7 +6,11 @@
   "type": "sidecar",
   "requires": {
     "php": ">=8.0",
-    "extensions": ["json", "mbstring", "gd"]
+    "extensions": [
+      "json",
+      "mbstring",
+      "gd"
+    ]
   },
   "writes_to": [
     "data/module_runtime/river_logistics"
@@ -15,5 +19,26 @@
     "data/map_state.json",
     "data/turns/*",
     "hexmap/*"
+  ],
+  "id": "river_logistics",
+  "entry_ui_alt": "sidecar_admin.html?module=river_logistics",
+  "api": {
+    "run": "mods/river_logistics/api/run.php"
+  },
+  "runtime_dir": "data/module_runtime/river_logistics",
+  "supports": {
+    "dry_run": true,
+    "attach_to_turn": false,
+    "download": true,
+    "cleanup": true
+  },
+  "outputs": [
+    "network.json",
+    "summary.json"
+  ],
+  "tags": [
+    "logistics",
+    "river",
+    "raster"
   ]
 }

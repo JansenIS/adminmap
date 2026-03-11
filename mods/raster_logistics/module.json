@@ -12,5 +12,25 @@
   "optional_modules": [
     "mods/river_logistics",
     "mods/marine_provinces"
+  ],
+  "id": "raster_logistics",
+  "entry_ui_alt": "sidecar_admin.html?module=raster_logistics",
+  "api": {
+    "run": "mods/raster_logistics/api/run.php"
+  },
+  "supports": {
+    "dry_run": true,
+    "attach_to_turn": false,
+    "download": true,
+    "cleanup": true
+  },
+  "outputs": [
+    "network.json",
+    "summary.json"
+  ],
+  "tags": [
+    "logistics",
+    "raster",
+    "unified"
   ]
 }
