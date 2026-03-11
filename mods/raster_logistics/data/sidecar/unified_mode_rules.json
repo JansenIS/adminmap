@@ -1,0 +1,24 @@
+{
+  "auto_run_submodules": true,
+  "merge_marine_land_port_into_province": false,
+  "modes": {
+    "cargo": {
+      "weight": {
+        "land": 1.35,
+        "river": 0.72,
+        "sea_neutral": 0.55,
+        "sea_territorial": 0.62,
+        "sea_strait": 0.70
+      }
+    },
+    "army": {
+      "weight": {
+        "land": 1.0,
+        "river": 0.95,
+        "sea_neutral": 1.20,
+        "sea_territorial": 1.05,
+        "sea_strait": 1.15
+      }
+    }
+  }
+}

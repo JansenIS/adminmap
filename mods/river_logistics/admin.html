@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>River Logistics Admin</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background:#111827; color:#e5e7eb; }
+    .wrap { display:grid; grid-template-columns: 360px 1fr; min-height:100vh; }
+    .sidebar { padding:16px; border-right:1px solid #374151; background:#0f172a; overflow:auto; }
+    .canvasWrap { position:relative; overflow:auto; background:#020617; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    button, input, select, textarea { background:#1f2937; color:#e5e7eb; border:1px solid #374151; border-radius:8px; padding:8px 10px; }
+    button { cursor:pointer; }
+    button.primary { background:#2563eb; border-color:#2563eb; }
+    .field { margin-bottom:10px; }
+    .field label { display:block; font-size:12px; margin-bottom:4px; color:#93c5fd; }
+    #mapCanvas { display:block; margin:0 auto; background:#000; }
+    .routeList { max-height:260px; overflow:auto; border:1px solid #374151; border-radius:8px; padding:8px; }
+    .routeItem { padding:6px 8px; border-radius:6px; margin-bottom:6px; background:#111827; cursor:pointer; }
+    .routeItem.active { background:#1e3a8a; }
+    .small { font-size:12px; color:#94a3b8; }
+    pre { white-space:pre-wrap; background:#020617; border:1px solid #374151; border-radius:8px; padding:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="sidebar">
+      <h2>River Logistics</h2>
+      <div class="toolbar">
+        <button id="loadBtn">Загрузить</button>
+        <button id="saveBtn" class="primary">Сохранить sidecar</button>
+        <button id="runBtn">Пересобрать граф</button>
+      </div>
+
+      <div class="field">
+        <label>Новая река</label>
+        <button id="newRouteBtn">Добавить реку</button>
+        <button id="finishRouteBtn">Завершить полилинию</button>
+        <button id="deleteRouteBtn">Удалить реку</button>
+      </div>
+
+      <div class="field">
+        <label>Список рек</label>
+        <div id="routeList" class="routeList"></div>
+      </div>
+
+      <div class="field">
+        <label>ID</label>
+        <input id="routeId" />
+      </div>
+      <div class="field">
+        <label>Название</label>
+        <input id="routeName" />
+      </div>
+      <div class="field">
+        <label>Судоходная</label>
+        <select id="routeNavigable">
+          <option value="true">Да</option>
+          <option value="false">Нет</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Класс грузооборота</label>
+        <select id="routeCargoClass">
+          <option value="major">major</option>
+          <option value="minor">minor</option>
+          <option value="local">local</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Направление течения вдоль линии</label>
+        <select id="routeDirection">
+          <option value="forward">forward</option>
+          <option value="reverse">reverse</option>
+          <option value="bidirectional">bidirectional</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Порты (JSON-массив)</label>
+        <textarea id="routePorts" rows="8"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Результат последнего run</label>
+        <pre id="runOutput" class="small">—</pre>
+      </div>
+      <div class="small">
+        ЛКМ по карте добавляет точки активной реки. Shift+ЛКМ удаляет ближайшую точку.
+      </div>
+    </aside>
+    <main class="canvasWrap">
+      <canvas id="mapCanvas"></canvas>
+    </main>
+  </div>
+  <script src="./js/admin.js"></script>
+</body>
+</html>

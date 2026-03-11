@@ -1,0 +1,25 @@
+{
+  "name": "enterprise_overlay",
+  "title": "Enterprise Overlay Module",
+  "version": "1.0.0",
+  "type": "optional-sidecar-module",
+  "safe_uninstall": true,
+  "writes_to": [
+    "data/module_runtime/enterprise_overlay/state_overlay.json",
+    "data/module_runtime/enterprise_overlay/trace.json",
+    "data/module_runtime/enterprise_overlay/turn_overlays/*.json"
+  ],
+  "does_not_modify": [
+    "data/map_state.json",
+    "data/turns/*.json",
+    "treasury",
+    "core arrierban formulas"
+  ],
+  "entrypoints": {
+    "admin": "mods/enterprise_overlay/admin.html",
+    "api_run": "mods/enterprise_overlay/api/run.php",
+    "api_download": "mods/enterprise_overlay/api/download.php",
+    "cli_run": "mods/enterprise_overlay/tools/run.php",
+    "cli_cleanup": "mods/enterprise_overlay/tools/cleanup.php"
+  }
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enterprise Overlay Module</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; background:#111827; color:#e5e7eb; }
+    h1,h2 { margin: 0 0 12px; }
+    .card { background:#1f2937; border:1px solid #374151; border-radius:16px; padding:16px; margin-bottom:16px; }
+    label { display:block; margin:10px 0 6px; }
+    input[type="text"], input[type="number"] { width: 260px; max-width:100%; padding:10px 12px; border-radius:10px; border:1px solid #4b5563; background:#111827; color:#e5e7eb; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; }
+    .btn { padding:10px 14px; border-radius:10px; border:1px solid #4b5563; background:#2563eb; color:#fff; cursor:pointer; }
+    .btn.secondary { background:#374151; }
+    .btn.danger { background:#991b1b; }
+    pre { white-space:pre-wrap; word-break:break-word; background:#0b1220; padding:14px; border-radius:12px; border:1px solid #334155; }
+    .muted { color:#9ca3af; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+    .stat { background:#0f172a; border:1px solid #334155; border-radius:12px; padding:12px; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <h1>Enterprise Overlay Module</h1>
+  <p class="muted">Изолированный модуль. Ничего не пишет в map_state.json и turn-сейвы. Всё хранится только в data/module_runtime/enterprise_overlay/.</p>
+
+  <div class="card">
+    <h2>Запуск</h2>
+    <div class="row">
+      <div>
+        <label>Метка запуска</label>
+        <input id="runLabel" type="text" value="admin-ui">
+      </div>
+      <div>
+        <label>Год хода (необязательно)</label>
+        <input id="turnYear" type="number" min="0" step="1" value="0">
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <label><input id="dryRun" type="checkbox"> dry-run</label>
+      <label><input id="attachTurn" type="checkbox"> сохранить также как turn overlay</label>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn" id="runBtn">Пересчитать overlay</button>
+      <button class="btn secondary" id="latestBtn">Показать последний overlay</button>
+      <button class="btn secondary" id="downloadStateBtn">Скачать state overlay</button>
+      <button class="btn secondary" id="downloadTraceBtn">Скачать trace</button>
+      <button class="btn danger" id="cleanupBtn">Очистить runtime</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Сводка</h2>
+    <div class="grid" id="summaryGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ответ</h2>
+    <pre id="output">Пока пусто.</pre>
+  </div>
+
+  <script src="./js/admin.js"></script>
+</body>
+</html>

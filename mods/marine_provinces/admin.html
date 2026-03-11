@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Marine Provinces Module</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#111827;color:#e5e7eb;margin:0;padding:24px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .card{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:18px;margin:0 0 18px}
+    input,select,button,textarea{background:#0f172a;color:#e5e7eb;border:1px solid #475569;border-radius:10px;padding:10px 12px}
+    button{cursor:pointer}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row > *{flex:1 1 180px}
+    pre{white-space:pre-wrap;background:#0b1220;padding:14px;border-radius:12px;border:1px solid #374151;max-height:420px;overflow:auto}
+    a{color:#93c5fd}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Marine Provinces Sidecar</h1>
+    <p>Построение морских провинций, территориальных вод, нейтральных морей и морских маршрутов на базе <code>map.png</code> и <code>provinces_id.png</code>.</p>
+  </div>
+
+  <div class="card">
+    <h2>Построить морскую сеть</h2>
+    <div class="row">
+      <label>Dry run<select id="dryRun"><option value="1">Да</option><option value="0">Нет</option></select></label>
+      <label>Downsample<input id="downsample" type="number" min="1" step="1" value="4"></label>
+      <label>Территориальный радиус<input id="territorial" type="number" min="2" step="1" value="18"></label>
+      <label>Цель нейтральной морской провинции<input id="neutralArea" type="number" min="50" step="50" value="1800"></label>
+    </div>
+    <div style="margin-top:12px"><button id="runBtn">Построить</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Проверка морского маршрута</h2>
+    <div class="row">
+      <label>Откуда<input id="routeFrom" placeholder="ID провинции или node id"></label>
+      <label>Куда<input id="routeTo" placeholder="ID провинции или node id"></label>
+      <label>Режим<select id="routeMode"><option value="naval_trade">naval_trade</option><option value="naval_army">naval_army</option><option value="cabotage">cabotage</option></select></label>
+    </div>
+    <div style="margin-top:12px"><button id="routeBtn">Посчитать маршрут</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Результат</h2>
+    <p><a href="api/download.php?name=summary.json" target="_blank">summary.json</a> · <a href="api/download.php?name=network.json" target="_blank">network.json</a> · <a href="api/download.php?name=marine_overlay.png" target="_blank">marine_overlay.png</a></p>
+    <pre id="out">Готов к запуску.</pre>
+  </div>
+</div>
+<script src="js/admin.js"></script>
+</body>
+</html>

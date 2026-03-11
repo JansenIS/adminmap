@@ -1,0 +1,13 @@
+{
+  "name": "marine_provinces",
+  "title": "Marine Provinces Sidecar",
+  "version": "1.0.0",
+  "type": "sidecar-module",
+  "description": "Generates large marine provinces, coastal territorial waters, neutral waters, route graph and naval battle theatres from raster map.png and provinces_id.png without changing core saves.",
+  "entrypoints": {
+    "admin": "mods/marine_provinces/admin.html",
+    "run_api": "mods/marine_provinces/api/run.php",
+    "route_api": "mods/marine_provinces/api/route.php"
+  },
+  "runtime_dir": "data/module_runtime/marine_provinces"
+}

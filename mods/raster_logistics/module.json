@@ -1,0 +1,16 @@
+{
+  "name": "raster_logistics",
+  "title": "Raster Logistics Unified Overlay",
+  "version": "2.0.0-unified",
+  "type": "sidecar-module",
+  "description": "Unified land + river + marine raster logistics overlay for adminmap. Reads sidecar river and marine modules, merges them into one route graph, and writes only runtime overlays.",
+  "safe_remove": true,
+  "runtime_dir": "data/module_runtime/raster_logistics",
+  "requires": [
+    "php-gd"
+  ],
+  "optional_modules": [
+    "mods/river_logistics",
+    "mods/marine_provinces"
+  ]
+}

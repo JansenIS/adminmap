@@ -1,0 +1,25 @@
+{
+  "routes": [
+    {
+      "id": "great_river_1",
+      "name": "Великая Река",
+      "navigable": true,
+      "cargo_class": "major",
+      "direction": "forward",
+      "polyline": [
+        [120, 120],
+        [180, 150],
+        [240, 175],
+        [320, 210]
+      ],
+      "ports": [
+        {
+          "id": "great_river_1_port_1",
+          "name": "Речной порт 1",
+          "point": [180, 150],
+          "kind": "port"
+        }
+      ]
+    }
+  ]
+}

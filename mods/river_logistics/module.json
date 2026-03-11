@@ -1,0 +1,19 @@
+{
+  "name": "river_logistics",
+  "title": "River Logistics Sidecar Module",
+  "version": "1.0.0",
+  "author": "OpenAI",
+  "type": "sidecar",
+  "requires": {
+    "php": ">=8.0",
+    "extensions": ["json", "mbstring", "gd"]
+  },
+  "writes_to": [
+    "data/module_runtime/river_logistics"
+  ],
+  "does_not_modify": [
+    "data/map_state.json",
+    "data/turns/*",
+    "hexmap/*"
+  ]
+}

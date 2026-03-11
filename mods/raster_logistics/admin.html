@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Raster Logistics Unified</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;max-width:1100px}
+    textarea,input,select,button{font:inherit}
+    textarea{width:100%;min-height:220px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    .card{border:1px solid #ccc;border-radius:10px;padding:16px;margin:16px 0}
+    code{background:#f3f3f3;padding:2px 6px;border-radius:6px}
+    pre{background:#111;color:#eee;padding:12px;border-radius:10px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>Raster Logistics Unified Overlay</h1>
+  <p>Этот модуль строит общий логистический граф <code>land + river + marine</code>, используя <code>provinces_id.png</code> и sidecar runtime модулей рек и моря.</p>
+  <div class="card">
+    <div class="row">
+      <label><input type="checkbox" id="autoRun" checked> Автозапуск речного и морского модулей</label>
+      <label><input type="checkbox" id="mergePorts"> Слить морские land_port с провинцией</label>
+      <button id="runBtn">Пересобрать граф</button>
+      <a href="api/download.php" target="_blank">Скачать network.json</a>
+    </div>
+    <pre id="runOut">Ожидание запуска…</pre>
+  </div>
+  <div class="card">
+    <h2>Маршрут</h2>
+    <div class="row">
+      <input id="from" placeholder="from province id">
+      <input id="to" placeholder="to province id">
+      <select id="mode">
+        <option value="cargo">cargo</option>
+        <option value="army">army</option>
+        <option value="courier">courier</option>
+        <option value="naval">naval</option>
+      </select>
+      <button id="routeBtn">Посчитать маршрут</button>
+    </div>
+    <pre id="routeOut">Маршрут ещё не считался.</pre>
+  </div>
+  <script src="js/admin.js"></script>
+</body>
+</html>

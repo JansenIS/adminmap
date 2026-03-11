@@ -1,0 +1,48 @@
+{
+  "downsample": 4,
+  "territorial_radius_cells": 18,
+  "target_neutral_area_cells": 1800,
+  "min_neutral_area_cells": 500,
+  "max_neutral_seeds_per_component": 12,
+  "coast_dilation_steps": 1,
+  "sea_detect": {
+    "use_manual_mask_if_present": true,
+    "blue_min": 72,
+    "blue_green_bias": -10,
+    "blue_red_diff_min": 18,
+    "value_min": 35,
+    "min_border_component_cells": 120,
+    "open_sea_neighbor_radius": 2,
+    "open_sea_neighbor_threshold": 7,
+    "keep_border_margin_cells": 2
+  },
+  "modes": {
+    "naval_trade": {
+      "multipliers": {
+        "port_exit": 1.0,
+        "territorial": 1.05,
+        "neutral": 0.95,
+        "strait": 1.15
+      },
+      "forbid": []
+    },
+    "naval_army": {
+      "multipliers": {
+        "port_exit": 1.0,
+        "territorial": 1.0,
+        "neutral": 1.0,
+        "strait": 1.05
+      },
+      "forbid": []
+    },
+    "cabotage": {
+      "multipliers": {
+        "port_exit": 1.0,
+        "territorial": 0.9,
+        "neutral": 1.4,
+        "strait": 1.2
+      },
+      "forbid": []
+    }
+  }
+}
