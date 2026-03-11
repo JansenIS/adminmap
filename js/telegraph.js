@@ -1,6 +1,8 @@
 (function () {
-  const flags = window.ADMINMAP_FLAGS || {};
-  if (!flags.TELEGRAPH_V1) return;
+  const flags = (window.AdminMapStateLoader && typeof window.AdminMapStateLoader.getFlags === 'function')
+    ? window.AdminMapStateLoader.getFlags()
+    : (window.ADMINMAP_FLAGS || {});
+  if (flags.TELEGRAPH_V1 === false) return;
 
   const page = (location.pathname.split('/').pop() || '').toLowerCase();
   const isAdmin = ['admin.html', 'admin_ui_alt.html', 'admin_v2.html', 'vk_admin.html', 'admin_orders_ui_alt.html'].includes(page);
