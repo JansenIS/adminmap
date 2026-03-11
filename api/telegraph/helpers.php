@@ -49,8 +49,26 @@ function telegraph_find_entity_in_state(array $state, string $entityType, string
   $bucket = telegraph_state_bucket_for_entity_type($entityType);
   if ($bucket === null || $entityId === '') return null;
   $row = $state[$bucket][$entityId] ?? null;
-  if (!is_array($row)) return null;
-  return $row;
+  if (is_array($row)) return $row;
+
+  if ($bucket === 'minor_houses') {
+    foreach (['great_houses', 'special_territories'] as $parentBucket) {
+      foreach (($state[$parentBucket] ?? []) as $parentId => $parent) {
+        if (!is_array($parent)) continue;
+        $layer = is_array($parent['layer'] ?? null) ? $parent['layer'] : [];
+        foreach ((array)($layer['vassals'] ?? []) as $vassal) {
+          if (!is_array($vassal)) continue;
+          if (trim((string)($vassal['id'] ?? '')) !== $entityId) continue;
+          if (trim((string)($vassal['name'] ?? '')) === '') $vassal['name'] = $entityId;
+          if (trim((string)($vassal['parent_entity_type'] ?? '')) === '') $vassal['parent_entity_type'] = (string)$parentBucket;
+          if (trim((string)($vassal['parent_entity_id'] ?? '')) === '') $vassal['parent_entity_id'] = (string)$parentId;
+          return $vassal;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function telegraph_genealogy_characters_index(): array {

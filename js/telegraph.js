@@ -41,6 +41,7 @@
   let currentRows = [];
   let activeTab = tabs[0].key;
   let forcedFilters = {};
+  let entityOptions = [];
 
   const qs = (s, r) => (r || document).querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
@@ -99,7 +100,8 @@
         ${canCompose ? `
         <div id="telegraphCompose" class="telegraph-compose" style="display:none">
           <select id="tgScope"><option value="public">Публичная</option><option value="private">Приватная</option><option value="diplomatic">Дипломатическая</option>${isAdmin ? '<option value="admin">Служебная</option><option value="system">Системная</option>' : ''}</select>
-          <input id="tgTarget" placeholder="Получатель (type:id, имя, alias)" />
+          <select id="tgTarget"><option value="">Получатель: выберите сущность</option></select>
+          ${isAdmin ? '<select id="tgSender"><option value="">Отправитель: Администратор</option></select>' : ''}
           <input id="tgTitle" placeholder="Заголовок" />
           <textarea id="tgBody" placeholder="Текст"></textarea>
           <input id="tgTags" placeholder="Теги через запятую" />
@@ -137,7 +139,9 @@
         const el = qs('#telegraphCompose', modal);
         el.style.display = el.style.display === 'none' ? '' : 'none';
       };
+      qs('#tgScope', modal).onchange = onScopeChange;
       qs('#tgSend', modal).onclick = sendMsg;
+      loadEntityOptions();
     }
 
     refreshUnread();
@@ -145,6 +149,78 @@
     setInterval(refreshUnread, 20000);
     setInterval(loadRail, 30000);
   }
+
+
+  function normalizeEntityOptions(state) {
+    const buckets = ['kingdoms', 'great_houses', 'minor_houses', 'free_cities', 'special_territories'];
+    const out = [];
+    const seen = new Set();
+
+    const pushEntity = (bucket, id, row, suffix) => {
+      const entityId = String(id || '').trim();
+      if (!entityId) return;
+      const value = `${bucket}:${entityId}`;
+      if (seen.has(value)) return;
+      seen.add(value);
+      const name = String((row && row.name) || entityId).trim();
+      const tail = suffix ? ` · ${suffix}` : '';
+      out.push({ value, label: `${name} (${bucket}:${entityId}${tail})` });
+    };
+
+    buckets.forEach((bucket) => {
+      const rows = state && typeof state === 'object' ? (state[bucket] || {}) : {};
+      Object.entries(rows).forEach(([id, row]) => pushEntity(bucket, id, row, ''));
+    });
+
+    ['great_houses', 'special_territories'].forEach((parentType) => {
+      const parents = state && typeof state === 'object' ? (state[parentType] || {}) : {};
+      Object.entries(parents).forEach(([parentId, parent]) => {
+        const layer = parent && typeof parent === 'object' ? (parent.layer || {}) : {};
+        const vassals = Array.isArray(layer.vassals) ? layer.vassals : [];
+        vassals.forEach((v) => {
+          const vassalId = String((v && v.id) || '').trim();
+          if (!vassalId) return;
+          pushEntity('minor_houses', vassalId, v, `вассал ${parentType}:${parentId}`);
+        });
+      });
+    });
+
+    out.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+    return out;
+  }
+
+  function renderEntitySelect(selectId, placeholder, includeEmpty) {
+    const modal = qs('#telegraphModal');
+    const el = qs('#' + selectId, modal);
+    if (!el) return;
+    const opts = [];
+    if (includeEmpty) opts.push(`<option value="">${esc(placeholder)}</option>`);
+    opts.push(...entityOptions.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`));
+    el.innerHTML = opts.join('');
+  }
+
+  function onScopeChange() {
+    const modal = qs('#telegraphModal');
+    if (!modal) return;
+    const scope = qs('#tgScope', modal)?.value || 'public';
+    const targetEl = qs('#tgTarget', modal);
+    if (!targetEl) return;
+    const needsEntityTarget = !(scope === 'public' || scope === 'system');
+    targetEl.disabled = !needsEntityTarget;
+    if (!needsEntityTarget) targetEl.value = '';
+  }
+
+  async function loadEntityOptions() {
+    if (!canCompose) return;
+    if (entityOptions.length) return;
+    const bootstrap = await api('/api/map/bootstrap/').catch(() => null);
+    const state = bootstrap && bootstrap.state && typeof bootstrap.state === 'object' ? bootstrap.state : (bootstrap && typeof bootstrap === 'object' ? bootstrap : null);
+    entityOptions = state ? normalizeEntityOptions(state) : [];
+    renderEntitySelect('tgTarget', 'Получатель: выберите сущность', true);
+    if (isAdmin) renderEntitySelect('tgSender', 'Отправитель: Администратор', true);
+    onScopeChange();
+  }
+
 
   function buildQuery() {
     const modal = qs('#telegraphModal');
@@ -230,11 +306,11 @@
     const targetRaw = (qs('#tgTarget', modal).value || '').trim();
     const target = { target_type: scope === 'public' || scope === 'system' ? 'none' : 'entity' };
 
-    if (target.target_type === 'entity' && targetRaw) {
-      const resolved = await api('/api/telegraph/resolve_target/', { method: 'POST', body: JSON.stringify({ query: targetRaw }) }).catch(() => null);
-      if (!resolved || !resolved.found || !resolved.target) return alert('Получатель не найден');
-      target.target_entity_type = resolved.target.entity_type;
-      target.target_entity_id = resolved.target.entity_id;
+    if (target.target_type === 'entity') {
+      if (!targetRaw || targetRaw.indexOf(':') < 1) return alert('Выберите получателя из списка');
+      const [targetType, targetId] = targetRaw.split(':');
+      target.target_entity_type = targetType;
+      target.target_entity_id = targetId;
     }
 
     const payload = {
@@ -246,6 +322,18 @@
       relay_to_vk_public_chat: !!qs('#tgRelayVk', modal).checked,
       idempotency_key: 'web-' + Date.now() + '-' + Math.random().toString(16).slice(2),
     };
+
+    if (isAdmin) {
+      const senderRaw = (qs('#tgSender', modal)?.value || '').trim();
+      if (senderRaw) {
+        if (senderRaw.indexOf(':') < 1) return alert('Выберите отправителя из списка');
+        const [senderType, senderId] = senderRaw.split(':');
+        payload.sender_override = {
+          sender_entity_type: senderType,
+          sender_entity_id: senderId,
+        };
+      }
+    }
 
     const sender = isAdmin ? apiWithAdmin : api;
     const data = await sender('/api/telegraph/send/', { method: 'POST', body: JSON.stringify(payload) });

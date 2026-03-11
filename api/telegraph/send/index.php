@@ -34,6 +34,32 @@ if ($body === '') telegraph_response(['error' => 'body_required'], 400);
 $autoApproveWeb = (bool)($settings['auto_approve_web_public'] ?? false);
 $status = ($scope === 'public' && ($actor['role'] ?? '') !== 'admin' && !$autoApproveWeb) ? 'pending' : 'approved';
 
+
+$senderEntityType = (string)($actor['entity_type'] ?? '');
+$senderEntityId = (string)($actor['entity_id'] ?? '');
+$senderType = (string)($actor['sender_type'] ?? 'entity');
+$senderDisplayName = (string)($actor['sender_display_name'] ?? '');
+$senderCharacterId = (string)($actor['sender_character_id'] ?? '');
+
+if (($actor['role'] ?? '') === 'admin') {
+  $senderOverride = is_array($payload['sender_override'] ?? null) ? $payload['sender_override'] : [];
+  $overrideType = trim((string)($senderOverride['sender_entity_type'] ?? ''));
+  $overrideId = trim((string)($senderOverride['sender_entity_id'] ?? ''));
+  if (($overrideType !== '' || $overrideId !== '') && ($overrideType === '' || $overrideId === '')) {
+    telegraph_response(['error' => 'sender_override_invalid'], 400);
+  }
+  if ($overrideType !== '' && $overrideId !== '') {
+    $senderRow = telegraph_find_entity_in_state($state, $overrideType, $overrideId);
+    if (!is_array($senderRow)) telegraph_response(['error' => 'sender_not_found'], 400);
+    $profile = telegraph_resolve_entity_sender_profile($state, $overrideType, $overrideId, (string)($senderRow['name'] ?? $overrideId));
+    $senderEntityType = $overrideType;
+    $senderEntityId = $overrideId;
+    $senderType = 'entity';
+    $senderDisplayName = (string)($profile['sender_display_name'] ?? $overrideId);
+    $senderCharacterId = (string)($profile['sender_character_id'] ?? '');
+  }
+}
+
 $msg = [
   'id' => telegraph_next_id('tg'),
   'created_at' => $now,
@@ -43,12 +69,12 @@ $msg = [
   'scope' => $scope,
   'delivery_mode' => 'instant',
   'sender' => [
-    'sender_type' => (string)($actor['sender_type'] ?? 'entity'),
+    'sender_type' => $senderType,
     'sender_vk_user_id' => 0,
-    'sender_entity_type' => (string)($actor['entity_type'] ?? ''),
-    'sender_entity_id' => (string)($actor['entity_id'] ?? ''),
-    'sender_character_id' => (string)($actor['sender_character_id'] ?? ''),
-    'sender_display_name' => (string)($actor['sender_display_name'] ?? ''),
+    'sender_entity_type' => $senderEntityType,
+    'sender_entity_id' => $senderEntityId,
+    'sender_character_id' => $senderCharacterId,
+    'sender_display_name' => $senderDisplayName,
   ],
   'target' => [
     'target_type' => $targetType,
