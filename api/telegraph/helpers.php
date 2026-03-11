@@ -230,7 +230,11 @@ function telegraph_process_relay_queue(array $store, array $enabledChannels, int
     $sourceChatId = (int)($msg['source']['source_chat_id'] ?? 0);
     $title = trim((string)($msg['content']['title'] ?? ''));
     $body = trim((string)($msg['content']['body'] ?? ''));
-    $text = '📨 Телеграф' . ($title !== '' ? (': ' . $title) : '') . "\n" . $body;
+    $sender = trim((string)($msg['sender']['sender_display_name'] ?? ''));
+    $header = '📨 Телеграмма';
+    if ($sender !== '') $header .= ' от ' . $sender;
+    if ($title !== '') $header .= ': ' . $title;
+    $text = $header . "\n" . $body;
 
     $sent = 0;
     $errors = 0;

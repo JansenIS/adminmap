@@ -281,7 +281,11 @@
     if (!feed) return;
     const data = await api('/api/telegraph/list/?scope=public&per_page=8').catch(() => ({ rows: [] }));
     const rows = Array.isArray(data.rows) ? data.rows : [];
-    feed.innerHTML = rows.map(r => `<div class="telegraph-rail__item"><b>${esc((r.content || {}).title || 'Публичная телеграмма')}</b><div>${esc((r.content || {}).short_preview || '')}</div></div>`).join('') || '<div class="telegraph-empty">Нет сообщений</div>';
+    feed.innerHTML = rows.map(r => {
+      const sender = (r.sender || {}).sender_display_name || '';
+      const fallbackTitle = sender ? ('Телеграмма от ' + sender) : 'Публичная телеграмма';
+      return `<div class="telegraph-rail__item"><b>${esc((r.content || {}).title || fallbackTitle)}</b><div>${esc((r.content || {}).short_preview || '')}</div></div>`;
+    }).join('') || '<div class="telegraph-empty">Нет сообщений</div>';
   }
 
   async function refreshUnread() {
