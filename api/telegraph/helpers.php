@@ -233,7 +233,13 @@ function telegraph_process_relay_queue(array $store, array $enabledChannels, int
     $sender = trim((string)($msg['sender']['sender_display_name'] ?? ''));
     $header = '📨 Телеграмма';
     if ($sender !== '') $header .= ' от ' . $sender;
-    if ($title !== '') $header .= ': ' . $title;
+    $normalizedTitle = function_exists('mb_strtolower') ? mb_strtolower($title, 'UTF-8') : strtolower($title);
+    $normalizedAutoTitle = function_exists('mb_strtolower')
+      ? mb_strtolower('Телеграмма от ' . $sender, 'UTF-8')
+      : strtolower('Телеграмма от ' . $sender);
+    if ($title !== '' && ($sender === '' || $normalizedTitle !== $normalizedAutoTitle)) {
+      $header .= ': ' . $title;
+    }
     $text = $header . "\n" . $body;
 
     $sent = 0;
