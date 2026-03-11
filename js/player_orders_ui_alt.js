@@ -12,6 +12,51 @@ let autosaveTimer=null;
 const q=s=>document.querySelector(s);
 const qa=s=>[...document.querySelectorAll(s)];
 
+
+function consumeDiplomacyOrderContext(){
+  let raw='';
+  try { raw=localStorage.getItem('adminmap_order_diplomacy_context')||''; } catch(_e) { raw=''; }
+  if(!raw) return null;
+  let ctx=null;
+  try { ctx=JSON.parse(raw); } catch(_e) { ctx=null; }
+  localStorage.removeItem('adminmap_order_diplomacy_context');
+  if(!ctx || typeof ctx!=='object') return null;
+  return ctx;
+}
+
+function applyDiplomacyContextToDraft(ctx){
+  if(!ctx) return;
+  const thread=String(ctx.thread_id||'').trim();
+  const proposal=String(ctx.proposal_id||'').trim();
+  const treaty=String(ctx.treaty_id||'').trim();
+  const hints=[];
+  if(thread) hints.push('thread:'+thread);
+  if(proposal) hints.push('proposal:'+proposal);
+  if(treaty) hints.push('treaty:'+treaty);
+  const titleHint=(ctx.title_hint||'').toString().trim();
+  if(!q('#title').value.trim()) q('#title').value=(titleHint?('Дипломатия: '+titleHint):'Дипломатический приказ');
+  const bodyParts=[];
+  bodyParts.push('Контекст дипломатии: '+(hints.join(', ')||'—'));
+  if((ctx.body_hint||'').toString().trim()) bodyParts.push('Последнее сообщение:\n'+ctx.body_hint.toString().trim());
+  if(!q('#rpPost').value.trim()) q('#rpPost').value=bodyParts.join('\n\n');
+  const arr=collectItems();
+  arr.unshift({category:'diplomacy',summary:'Действие по дипломатическому контексту',details:'Основание: '+(hints.join(', ')||'—')});
+  drawItems(arr);
+  privateAttachments.unshift(normalizeAttachment({
+    url:'diplomacy://'+(thread||'context'),
+    visibility:'private',
+    access_scope:'private',
+    source:'web',
+    kind:'note',
+    title:'Diplomacy Context',
+    description:'Связанные сущности: '+(hints.join(', ')||'—'),
+    tags:['diplomacy','context'],
+    meta:{diplomacy_context:ctx}
+  },'private'));
+  drawAttachments();
+  renderPreview();
+}
+
 function authHeaders(){
   const t=new URLSearchParams(location.search).get('token')||localStorage.getItem('player_admin_token')||'';
   return t?{'X-Player-Admin-Token':t}:{};
@@ -253,6 +298,8 @@ function newOrder(){
   drawAttachments();
   fillAttachmentForm(null);
   q('#verdictBox').textContent='';
+  const diploCtx=consumeDiplomacyOrderContext();
+  if(diploCtx) applyDiplomacyContextToDraft(diploCtx);
   step=0;
   renderStepper();
   renderPreview();

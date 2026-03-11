@@ -97,6 +97,34 @@ async function renderTelegraphLinks(orderId, verdictId){
   if(vbtn && verdictId){ vbtn.onclick=()=>window.dispatchEvent(new CustomEvent('adminmap:telegraph-open',{detail:{linked_verdict_id:verdictId}})); }
 }
 
+
+function extractDiplomacyContextFromOrder(o){
+  const list=Array.isArray(o?.private_attachments)?o.private_attachments:[];
+  for(const att of list){
+    const meta=(att&&typeof att==='object')?att.meta:null;
+    if(meta && typeof meta==='object' && meta.diplomacy_context && typeof meta.diplomacy_context==='object') return meta.diplomacy_context;
+    const url=(att&&typeof att==='object'?String(att.url||''):String(att||''));
+    if(url.startsWith('diplomacy://')) return {thread_id:url.replace('diplomacy://','')};
+  }
+  return null;
+}
+
+function renderDiplomacyLinks(o){
+  const box=q('#diplomacyOrderLinks');
+  if(!box) return;
+  const ctx=extractDiplomacyContextFromOrder(o||{});
+  if(!ctx){ box.innerHTML='Связей с дипломатией не найдено.'; return; }
+  const threadId=(ctx.thread_id||'').toString();
+  const proposalId=(ctx.proposal_id||'').toString();
+  const treatyId=(ctx.treaty_id||'').toString();
+  box.innerHTML=`<div>thread: ${esc(threadId||'—')} · proposal: ${esc(proposalId||'—')} · treaty: ${esc(treatyId||'—')}</div><div class='actions' style='margin-top:6px'><button id='openDiploFromOrder' type='button'>Открыть дипломатию</button></div>`;
+  const btn=q('#openDiploFromOrder');
+  if(btn){ btn.onclick=()=>{
+    localStorage.setItem('adminmap_diplomacy_focus', JSON.stringify({thread_id:threadId, proposal_id:proposalId, treaty_id:treatyId}));
+    window.dispatchEvent(new CustomEvent('adminmap:diplomacy-open',{detail:{thread_id:threadId, proposal_id:proposalId, treaty_id:treatyId}}));
+  }; }
+}
+
 function openOrder(o){
   cur=o;
   q('#title').textContent=o.title||'—';
@@ -108,6 +136,7 @@ function openOrder(o){
   renderEffectsPreview();
   const verdictId=((o.verdict||{}).id||'').toString();
   renderTelegraphLinks(o.id, verdictId);
+  renderDiplomacyLinks(o);
 
   const items=q('#items'); items.innerHTML='';
   (o.action_items||[]).forEach(it=>{

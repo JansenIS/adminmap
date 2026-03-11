@@ -1,0 +1,13 @@
+.diplo-launcher{position:fixed;right:14px;bottom:14px;z-index:130;background:#243447;color:#fff;border:1px solid #4a6b8d;border-radius:12px;padding:10px 12px;cursor:pointer}
+.diplo-modal{position:fixed;inset:0;z-index:140;display:none;background:rgba(4,8,12,.76)}
+.diplo-modal.open{display:flex;align-items:center;justify-content:center}
+.diplo-window{width:min(980px,96vw);max-height:92vh;overflow:auto;background:#0d131b;color:#e7eef7;border:1px solid #2b3f56;border-radius:14px;padding:12px}
+.diplo-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.diplo-row input,.diplo-row select,.diplo-row textarea{background:#0b0f14;color:#e7eef7;border:1px solid #2b3f56;border-radius:8px;padding:8px}
+.diplo-col{border:1px solid #2b3f56;border-radius:10px;padding:8px;max-height:260px;overflow:auto}
+.diplo-pill{font-size:11px;background:#1d2b3a;border:1px solid #35516d;padding:2px 6px;border-radius:999px}
+.diplo-public-card{margin-top:12px}
+.diplo-feed-group{margin-top:8px;border-top:1px solid #223041;padding-top:8px}
+.diplo-feed-title{font-size:12px;color:#9db1c6;margin-bottom:6px}
+.diplo-feed-item{border:1px solid #2b3f56;border-radius:8px;padding:6px;margin-bottom:6px;background:#0b0f14}
+.diplo-feed-meta{font-size:11px;color:#8fa6bc;margin-top:4px}
