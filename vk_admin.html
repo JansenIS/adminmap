@@ -11,6 +11,7 @@
     button{background:#244c7f;color:#fff;border:0;border-radius:8px;padding:8px 10px;cursor:pointer}
     table{width:100%;border-collapse:collapse} td,th{border-bottom:1px solid #223041;padding:6px;text-align:left;vertical-align:top}
   </style>
+  <link rel="stylesheet" href="css/telegraph.css" />
 </head>
 <body>
   <div class="card">
@@ -60,7 +61,39 @@
       <tbody id="charAppsBody"></tbody>
     </table>
   </div>
+  
+  <div class="card">
+    <h2>Телеграф: политики модерации</h2>
+    <label><input id="telegraphAutoApproveWeb" type="checkbox" /> Auto-approve web public</label><br>
+    <label><input id="telegraphAutoApproveVk" type="checkbox" /> Auto-approve VK public</label><br>
+    <label><input id="telegraphRelayEnabled" type="checkbox" checked /> Relay enabled</label><br>
+    <button id="telegraphSaveSettings">Сохранить политики</button>
+  </div>
+
+  <div class="card">
+    <h2>Телеграф: VK каналы и ретрансляция</h2>
+    <table>
+      <thead><tr><th>chat_id / peer_id</th><th>Название</th><th>Enabled</th><th>Приём /tg</th><th>Relay public</th><th>Relay system</th><th></th></tr></thead>
+      <tbody id="telegraphChannelsBody"></tbody>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button id="telegraphAddChannel">Добавить канал</button>
+      <button id="telegraphSaveChannels">Сохранить каналы</button>
+      <button id="telegraphRelayTick">Запустить relay tick</button>
+      <label style="display:flex;align-items:center;gap:6px"><input id="telegraphRelayAuto" type="checkbox" /> Авто tick (30с)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Телеграф: relay log / error log</h2>
+    <table>
+      <thead><tr><th>Время</th><th>Message</th><th>Chat</th><th>Статус</th><th>Error</th><th>Source</th></tr></thead>
+      <tbody id="telegraphRelayLogBody"></tbody>
+    </table>
+  </div>
+
 
 <script src="/js/vk_admin.js"></script>
+  <script src="js/telegraph.js"></script>
 </body>
 </html>

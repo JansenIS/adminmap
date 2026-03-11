@@ -216,6 +216,19 @@ function vk_bot_send_message(int $userId, string $message, ?string $keyboardJson
   vk_bot_vk_api_call('messages.send', $params);
 }
 
+function vk_bot_send_peer_message(int $peerId, string $message, string $attachment = ''): void {
+  $cfg = vk_bot_load_config();
+  if ($cfg['access_token'] === '') return;
+  $params = [
+    'peer_id' => $peerId,
+    'random_id' => random_int(1, PHP_INT_MAX),
+    'message' => $message,
+  ];
+  if ($attachment !== '') $params['attachment'] = $attachment;
+  vk_bot_vk_api_call('messages.send', $params);
+}
+
+
 function vk_bot_upload_message_photo_blob(int $userId, string $raw, string $fileName = 'generated.png', string $mimeHint = ''): string {
   if ($raw === '') return '';
   $serverResp = vk_bot_vk_api_call('photos.getMessagesUploadServer', ['peer_id' => $userId]);

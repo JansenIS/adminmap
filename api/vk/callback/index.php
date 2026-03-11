@@ -111,6 +111,161 @@ foreach ($charApps as $charApp) {
 
 
 
+$vkTelegraphRespond = static function(int $peerId, string $messageText) use ($userId): void {
+  $isChat = $peerId >= 2000000000;
+  if ($isChat) {
+    vk_bot_send_peer_message($peerId, $messageText);
+  } else {
+    vk_bot_send_message($userId, $messageText);
+  }
+};
+
+$vkTgHelp = "/tg help — команды\n"
+  . "/tg <текст> | /tg public <текст> — публичная телеграмма\n"
+  . "/tg private <получатель> | <текст> — приватная\n"
+  . "/tg pm <получатель> | <текст> — приватная\n"
+  . "/tg to <получатель> | <текст> — приватная\n"
+  . "/tg inbox — входящие\n"
+  . "/tg outbox — исходящие\n"
+  . "/tg unread — непрочитанные";
+
+$vkTgMaybeHandle = static function() use ($text, $message, $userId, $approvedApp, $vkTelegraphRespond, $vkTgHelp): bool {
+  $txt = trim((string)$text);
+  if ($txt === '' || stripos($txt, '/tg') !== 0) return false;
+  require_once dirname(__DIR__, 2) . '/telegraph/bootstrap.php';
+  telegraph_ensure_store();
+
+  $peerId = (int)($message['peer_id'] ?? $userId);
+  $messageId = (string)($message['conversation_message_id'] ?? ($message['id'] ?? '0'));
+  $idempotencyKey = 'vk:' . $peerId . ':' . $messageId . ':' . $userId;
+  if (!telegraph_claim_idempotency($idempotencyKey)) {
+    $vkTelegraphRespond($peerId, 'Телеграф: дубликат callback проигнорирован.');
+    return true;
+  }
+
+  $isChat = $peerId >= 2000000000;
+  if ($isChat) {
+    $channels = telegraph_load_channels_store();
+    $enabled = false;
+    foreach (($channels['channels'] ?? []) as $ch) {
+      if (!is_array($ch)) continue;
+      if ((int)($ch['chat_id'] ?? 0) !== $peerId) continue;
+      if ((bool)($ch['enabled'] ?? false) && (bool)($ch['accept_tg_input'] ?? false)) $enabled = true;
+    }
+    if (!$enabled) return true;
+  }
+
+  if (!is_array($approvedApp)) {
+    $vkTelegraphRespond($peerId, 'Отказ: для Телеграфа нужна одобренная привязка сущности.');
+    return true;
+  }
+  $entityType = trim((string)($approvedApp['approved_entity_type'] ?? ''));
+  $entityId = trim((string)($approvedApp['approved_entity_id'] ?? ''));
+  if ($entityType === '' || $entityId === '') {
+    $resolved = vk_bot_resolve_application_entity($approvedApp);
+    if (!is_array($resolved)) {
+      $vkTelegraphRespond($peerId, 'Отказ: не удалось определить привязанную сущность.');
+      return true;
+    }
+    $entityType = (string)$resolved['entity_type'];
+    $entityId = (string)$resolved['entity_id'];
+  }
+
+  $args = trim(mb_substr($txt, 3));
+  $state = api_load_state();
+  $store = telegraph_load_messages_store();
+  $tgSettings = telegraph_load_settings_store();
+  if ($args === '' || mb_strtolower($args, 'UTF-8') === 'help') {
+    $vkTelegraphRespond($peerId, $vkTgHelp);
+    return true;
+  }
+
+  $lcArgs = mb_strtolower($args, 'UTF-8');
+  if (in_array($lcArgs, ['inbox','outbox','unread'], true)) {
+    $rows = [];
+    foreach (($store['messages'] ?? []) as $m) {
+      if (!is_array($m)) continue;
+      $senderOk = (string)($m['sender']['sender_entity_type'] ?? '') === $entityType && (string)($m['sender']['sender_entity_id'] ?? '') === $entityId;
+      $targetOk = (string)($m['target']['target_entity_type'] ?? '') === $entityType && (string)($m['target']['target_entity_id'] ?? '') === $entityId;
+      if ($lcArgs === 'inbox' && !$targetOk) continue;
+      if ($lcArgs === 'outbox' && !$senderOk) continue;
+      if ($lcArgs === 'unread' && !($targetOk && !(bool)($m['delivery']['read_by_target'] ?? false))) continue;
+      if (!$senderOk && !$targetOk && (string)($m['scope'] ?? '') !== 'public') continue;
+      $rows[] = '• ' . (string)($m['content']['short_preview'] ?? '') . ' [' . (string)($m['scope'] ?? '') . '] #' . (string)($m['id'] ?? '');
+    }
+    $vkTelegraphRespond($peerId, empty($rows) ? 'Нет сообщений.' : implode("
+", array_slice($rows, -10)));
+    return true;
+  }
+
+  $scope = 'public';
+  $body = $args;
+  $targetEntityType = '';
+  $targetEntityId = '';
+  if (preg_match('/^(public)\s+(.+)$/ui', $args, $m)) {
+    $body = trim((string)$m[2]);
+  } elseif (preg_match('/^(private|pm|to)\s+(.+)$/ui', $args, $m)) {
+    $scope = 'private';
+    $rest = trim((string)$m[2]);
+    $parts = explode('|', $rest, 2);
+    if (count($parts) < 2) {
+      $vkTelegraphRespond($peerId, 'Формат: /tg private <получатель> | <текст>');
+      return true;
+    }
+    $targetRaw = trim((string)$parts[0]);
+    $body = trim((string)$parts[1]);
+    $target = telegraph_resolve_target_entity($state, $targetRaw);
+    if (!is_array($target)) {
+      $vkTelegraphRespond($peerId, 'Получатель не найден: ' . $targetRaw);
+      return true;
+    }
+    $targetEntityType = (string)$target['entity_type'];
+    $targetEntityId = (string)$target['entity_id'];
+  }
+
+  if ($body === '') {
+    $vkTelegraphRespond($peerId, 'Пустой текст телеграммы.');
+    return true;
+  }
+  $turn = telegraph_turn_year();
+  $now = telegraph_now_iso();
+  $autoApproveVk = (bool)($tgSettings['auto_approve_vk_public'] ?? false);
+  $status = ($scope === 'public' && !$autoApproveVk) ? 'pending' : 'approved';
+  $msg = [
+    'id' => telegraph_next_id('tg'), 'created_at' => $now, 'updated_at' => $now,
+    'turn' => (string)$turn['turn'], 'year' => (int)$turn['year'], 'scope' => $scope, 'delivery_mode' => 'instant',
+    'sender' => ['sender_type' => 'vk_user', 'sender_vk_user_id' => $userId, 'sender_entity_type' => $entityType, 'sender_entity_id' => $entityId, 'sender_character_id' => '', 'sender_display_name' => (string)$entityId],
+    'target' => ['target_type' => $scope === 'private' ? 'entity' : 'none', 'target_entity_type' => $targetEntityType, 'target_entity_id' => $targetEntityId, 'target_character_id' => '', 'target_channel_id' => ''],
+    'visibility' => ['public_to_all' => $scope === 'public', 'visible_to_sender' => true, 'visible_to_target' => $scope === 'private', 'visible_to_admin' => true],
+    'source' => ['source_type' => $isChat ? 'vk_chat' : 'vk_private', 'source_chat_id' => $peerId, 'source_message_id' => $messageId],
+    'content' => ['title' => '', 'body' => $body, 'short_preview' => mb_substr($body, 0, 120), 'tags' => ['vk'], 'attachments' => []],
+    'routing' => ['relay_to_vk_public_chat' => $scope === 'public', 'include_in_public_feed' => $scope === 'public', 'include_in_entity_feed' => true, 'include_in_chronicle_candidate' => $scope === 'public'],
+    'moderation' => ['status' => $status, 'moderation_note' => '', 'moderated_by' => '', 'moderated_at' => ''],
+    'game_hooks' => ['linked_order_id' => '', 'linked_verdict_id' => '', 'linked_event_ids' => [], 'linked_diplomacy_thread_id' => '', 'linked_war_id' => ''],
+    'delivery' => ['read_by_sender' => true, 'read_by_target' => false, 'unread_counter_keys' => [], 'delivered_to_vk' => []],
+    'npc_hooks' => ['npc_reaction_status' => 'pending', 'llm_context_exported_at' => '', 'reaction_candidates' => []],
+  ];
+  $store['messages'][] = $msg;
+  telegraph_save_messages_store($store);
+
+  if ($scope === 'public' && $isChat && (bool)($tgSettings['relay_enabled'] ?? true)) {
+    $channels = telegraph_load_channels_store();
+    foreach (($channels['channels'] ?? []) as $ch) {
+      if (!is_array($ch) || !(bool)($ch['enabled'] ?? false) || !(bool)($ch['relay_public'] ?? false)) continue;
+      $relayPeer = (int)($ch['chat_id'] ?? 0);
+      if ($relayPeer <= 0 || $relayPeer === $peerId) continue;
+      vk_bot_send_peer_message($relayPeer, '📨 /tg relay
+' . $body);
+    }
+  }
+
+  $vkTelegraphRespond($peerId, 'Телеграмма принята: #' . (string)$msg['id'] . ' [' . $scope . ']');
+  return true;
+};
+
+if ($vkTgMaybeHandle()) { echo 'ok'; exit; }
+
+
 $vkOrderMenu = static function(int $userId) use ($cfg): void {
   vk_bot_send_message($userId, 'Раздел приказов:', vk_bot_keyboard([
     vk_bot_btn('Подать приказ', 'order_new', 'primary'),

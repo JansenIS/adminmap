@@ -1,6 +1,9 @@
 (async function(){
   const byId=(id)=>document.getElementById(id);
   const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','routerai_api_key'];
+  const ADMIN=localStorage.getItem('admin_token')||'dev-admin-token';
+  const H={'Content-Type':'application/json','X-Admin-Token':ADMIN};
+  let relayTimer=0;
 
   async function loadCfg(){
     const res=await fetch('/api/vk/config/'); const j=await res.json();
@@ -41,12 +44,7 @@
         const rulerHouse=set('Род правителя', patch.form.ruler_house||''); if (rulerHouse===null) return;
         const lore=set('Краткий лор', patch.form.lore||''); if (lore===null) return;
         const coaSvg=set('Герб (SVG-текст или URL)', patch.form.coa_svg||''); if (coaSvg===null) return;
-        patch.form.state_name=stateName.trim();
-        patch.form.capital_name=capitalName.trim();
-        patch.form.ruler_name=rulerName.trim();
-        patch.form.ruler_house=rulerHouse.trim();
-        patch.form.lore=lore.trim();
-        patch.form.coa_svg=coaSvg.trim();
+        patch.form.state_name=stateName.trim(); patch.form.capital_name=capitalName.trim(); patch.form.ruler_name=rulerName.trim(); patch.form.ruler_house=rulerHouse.trim(); patch.form.lore=lore.trim(); patch.form.coa_svg=coaSvg.trim();
         await fetch('/api/vk/applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'update',patch:{form:patch.form}})});
         await loadApps();
       };
@@ -60,15 +58,12 @@
   }
 
   async function loadCharacterApps(){
-    const body = byId('charAppsBody');
-    if (!body) return;
+    const body = byId('charAppsBody'); if (!body) return;
     const res=await fetch('/api/vk/character_applications/'); const j=await res.json();
-    const rows=Array.isArray(j.items)?j.items:[];
-    body.innerHTML='';
+    const rows=Array.isArray(j.items)?j.items:[]; body.innerHTML='';
     rows.forEach((a)=>{
       const tr=document.createElement('tr');
-      const f=a.form||{};
-      const relatives = Array.isArray(f.relatives)?f.relatives:[];
+      const f=a.form||{}; const relatives = Array.isArray(f.relatives)?f.relatives:[];
       const relText = relatives.slice(0,4).map((r)=>`${r.status||''}: ${r.name||''} (${r.birth_year||'?'})`).join('<br>') || '—';
       const details=`Сущность: ${a.approved_entity_type||''}:${a.approved_entity_id||''}<br>Год рожд.: ${f.birth_year||''}<br>Характер: ${(f.personality||'').slice(0,90)}<br>Биография: ${(f.biography||'').slice(0,90)}<br>Навыки: ${(f.skills||'').slice(0,90)}<br>Родственники:<br>${relText}`;
       tr.innerHTML=`<td>${a.id||''}</td><td>${a.status||''}</td><td>${a.vk_user_id||''}</td><td>${details}</td><td></td>`;
@@ -77,59 +72,120 @@
       approve.onclick=async()=>{await fetch('/api/vk/character_applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'approve'})});loadCharacterApps();};
       const reject=document.createElement('button'); reject.textContent='Отклонить'; reject.style.marginLeft='6px';
       reject.onclick=async()=>{await fetch('/api/vk/character_applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'reject'})});loadCharacterApps();};
-      td.appendChild(approve); td.appendChild(reject);
-      body.appendChild(tr);
+      td.appendChild(approve); td.appendChild(reject); body.appendChild(tr);
     });
   }
 
-  function escapeHtml(v){
-    return String(v ?? '').replace(/[&<>"']/g, (ch)=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch] || ch));
-  }
+  function escapeHtml(v){ return String(v ?? '').replace(/[&<>"']/g, (ch)=>({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch] || ch)); }
 
   async function loadImageUsage(){
-    const body=byId('imageUsageBody');
-    if (!body) return;
+    const body=byId('imageUsageBody'); if (!body) return;
     const logBody=byId('imageGenerationLogBody');
-    const res=await fetch('/api/vk/image_usage/');
-    const j=await res.json();
-    const rows=Array.isArray(j.items)?j.items:[];
-    body.innerHTML='';
+    const res=await fetch('/api/vk/image_usage/'); const j=await res.json();
+    const rows=Array.isArray(j.items)?j.items:[]; body.innerHTML='';
     rows.forEach((row)=>{
       const tr=document.createElement('tr');
-      const uid=String(row.vk_user_id||'');
-      const count=Number(row.count||0);
-      const ts=Number(row.updated_at||0);
+      const uid=String(row.vk_user_id||''); const count=Number(row.count||0); const ts=Number(row.updated_at||0);
       const updated=ts>0?new Date(ts*1000).toLocaleString():'—';
       tr.innerHTML=`<td>${uid}</td><td>${count}</td><td>${updated}</td><td></td>`;
-      const td=tr.lastElementChild;
-      const btn=document.createElement('button');
-      btn.textContent='Сбросить';
-      btn.onclick=async()=>{
-        await fetch('/api/vk/image_usage/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_user',vk_user_id:Number(uid)})});
-        await loadImageUsage();
-      };
-      td.appendChild(btn);
-      body.appendChild(tr);
+      const td=tr.lastElementChild; const btn=document.createElement('button'); btn.textContent='Сбросить';
+      btn.onclick=async()=>{ await fetch('/api/vk/image_usage/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_user',vk_user_id:Number(uid)})}); await loadImageUsage(); };
+      td.appendChild(btn); body.appendChild(tr);
     });
 
     if (logBody) {
-      const logRows=Array.isArray(j.generation_log)?j.generation_log:[];
-      logBody.innerHTML='';
+      const logRows=Array.isArray(j.generation_log)?j.generation_log:[]; logBody.innerHTML='';
       logRows.forEach((row)=>{
         const tr=document.createElement('tr');
-        const ts=Number(row.ts||0);
-        const at=ts>0?new Date(ts*1000).toLocaleString():'—';
-        const uid=String(row.vk_user_id||'');
-        const ok=!!row.ok;
-        const status=ok?'OK':('Ошибка: '+String(row.error||'unknown'));
-        const httpCode=Number(row.http_code||0);
-        const prompt=escapeHtml(String(row.prompt||''));
-        const routerResponse=escapeHtml(String(row.router_response||''));
+        const ts=Number(row.ts||0); const at=ts>0?new Date(ts*1000).toLocaleString():'—';
+        const uid=String(row.vk_user_id||''); const ok=!!row.ok; const status=ok?'OK':('Ошибка: '+String(row.error||'unknown')); const httpCode=Number(row.http_code||0);
+        const prompt=escapeHtml(String(row.prompt||'')); const routerResponse=escapeHtml(String(row.router_response||''));
         tr.innerHTML=`<td>${at}</td><td>${uid}</td><td>${escapeHtml(status)}</td><td>${httpCode||'—'}</td><td><pre style="margin:0;white-space:pre-wrap;max-width:280px">${prompt}</pre></td><td><pre style="margin:0;white-space:pre-wrap;max-width:520px">${routerResponse||'—'}</pre></td>`;
         logBody.appendChild(tr);
       });
     }
   }
+
+  function channelRow(ch){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><input data-k="chat_id" value="${Number(ch.chat_id||0)||''}" /></td><td><input data-k="title" value="${escapeHtml(ch.title||'')}" /></td><td><input data-k="enabled" type="checkbox" ${ch.enabled?'checked':''} /></td><td><input data-k="accept_tg_input" type="checkbox" ${ch.accept_tg_input?'checked':''} /></td><td><input data-k="relay_public" type="checkbox" ${ch.relay_public?'checked':''} /></td><td><input data-k="relay_system" type="checkbox" ${ch.relay_system?'checked':''} /></td><td><button type="button" data-remove="1">Удалить</button></td>`;
+    tr.querySelector('[data-remove]')?.addEventListener('click',()=>tr.remove());
+    return tr;
+  }
+
+
+  async function loadTelegraphSettings(){
+    const r=await fetch('/api/telegraph/settings/'); const d=await r.json();
+    const s=(d&&d.settings)||{};
+    if(byId('telegraphAutoApproveWeb')) byId('telegraphAutoApproveWeb').checked=!!s.auto_approve_web_public;
+    if(byId('telegraphAutoApproveVk')) byId('telegraphAutoApproveVk').checked=!!s.auto_approve_vk_public;
+    if(byId('telegraphRelayEnabled')) byId('telegraphRelayEnabled').checked=(s.relay_enabled!==false);
+  }
+
+  async function saveTelegraphSettings(){
+    await fetch('/api/telegraph/settings/',{method:'POST',headers:H,body:JSON.stringify({
+      auto_approve_web_public:!!byId('telegraphAutoApproveWeb')?.checked,
+      auto_approve_vk_public:!!byId('telegraphAutoApproveVk')?.checked,
+      relay_enabled:!!byId('telegraphRelayEnabled')?.checked,
+    })});
+    await loadTelegraphSettings();
+    alert('Политики Телеграфа сохранены');
+  }
+
+  async function loadTelegraphChannels(){
+    const body=byId('telegraphChannelsBody'); if (!body) return;
+    const res=await fetch('/api/telegraph/channels/'); const j=await res.json();
+    const rows=Array.isArray(j.channels)?j.channels:[]; body.innerHTML='';
+    rows.forEach(ch=>body.appendChild(channelRow(ch)));
+  }
+
+  async function saveTelegraphChannels(){
+    const body=byId('telegraphChannelsBody'); if (!body) return;
+    const rows=[];
+    body.querySelectorAll('tr').forEach(tr=>{
+      const get=(k)=>tr.querySelector(`[data-k="${k}"]`);
+      rows.push({
+        chat_id:Number(get('chat_id')?.value||0),
+        title:(get('title')?.value||'').trim(),
+        enabled:!!get('enabled')?.checked,
+        accept_tg_input:!!get('accept_tg_input')?.checked,
+        relay_public:!!get('relay_public')?.checked,
+        relay_system:!!get('relay_system')?.checked,
+      });
+    });
+    await fetch('/api/telegraph/channels/',{method:'POST',headers:H,body:JSON.stringify({channels:rows})});
+    await loadTelegraphChannels();
+    alert('Каналы Телеграфа сохранены');
+  }
+
+  async function relayTick(){
+    await fetch('/api/telegraph/relay/',{method:'POST',headers:H,body:JSON.stringify({action:'process_pending',limit:40})});
+    await loadRelayLog();
+  }
+
+  async function loadRelayLog(){
+    const body=byId('telegraphRelayLogBody'); if (!body) return;
+    const res=await fetch('/api/telegraph/relay/',{headers:{'X-Admin-Token':ADMIN}}); const j=await res.json();
+    const rows=Array.isArray(j.rows)?j.rows:[]; body.innerHTML='';
+    rows.slice(-100).reverse().forEach((row)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${escapeHtml(row.created_at||'')}</td><td>${escapeHtml(row.message_id||'')}</td><td>${Number(row.chat_id||0)||'—'}</td><td>${escapeHtml(row.status||'')}</td><td>${escapeHtml(row.error||'')}</td><td>${escapeHtml(row.source||'')}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  byId('telegraphSaveSettings')?.addEventListener('click',saveTelegraphSettings);
+  byId('telegraphAddChannel')?.addEventListener('click',()=>{
+    byId('telegraphChannelsBody')?.appendChild(channelRow({enabled:true,accept_tg_input:true,relay_public:true,relay_system:false}));
+  });
+  byId('telegraphSaveChannels')?.addEventListener('click',saveTelegraphChannels);
+  byId('telegraphRelayTick')?.addEventListener('click',relayTick);
+  byId('telegraphRelayAuto')?.addEventListener('change',(e)=>{
+    const on=!!e.target.checked;
+    if (relayTimer) clearInterval(relayTimer);
+    relayTimer=0;
+    if (on) relayTimer=setInterval(relayTick,30000);
+  });
 
   const resetAllBtn=byId('resetAllImageUsage');
   if (resetAllBtn){
@@ -144,4 +200,7 @@
   await loadApps();
   await loadCharacterApps();
   await loadImageUsage();
+  await loadTelegraphSettings();
+  await loadTelegraphChannels();
+  await loadRelayLog();
 })();
