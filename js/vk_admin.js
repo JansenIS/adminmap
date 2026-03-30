@@ -1,6 +1,6 @@
 (async function(){
   const byId=(id)=>document.getElementById(id);
-  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','routerai_api_key'];
+  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','mini_app_url','routerai_api_key'];
   const ADMIN=localStorage.getItem('admin_token')||'dev-admin-token';
   const H={'Content-Type':'application/json','X-Admin-Token':ADMIN};
   let relayTimer=0;

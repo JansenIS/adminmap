@@ -11,6 +11,7 @@ function vk_bot_applications_path(): string { return api_repo_root() . '/data/vk
 function vk_bot_character_applications_path(): string { return api_repo_root() . '/data/vk_bot_character_applications.json'; }
 function vk_bot_image_usage_path(): string { return api_repo_root() . '/data/vk_bot_image_usage.json'; }
 function vk_bot_image_generations_log_path(): string { return api_repo_root() . '/data/vk_bot_image_generations_log.json'; }
+function vk_bot_admin_mode_path(): string { return api_repo_root() . '/data/vk_bot_admin_mode.json'; }
 
 function vk_bot_files_mtime(array $paths): int {
   $mt = 0;
@@ -30,6 +31,7 @@ function vk_bot_data_mtime(): int {
     vk_bot_character_applications_path(),
     vk_bot_image_usage_path(),
     vk_bot_image_generations_log_path(),
+    vk_bot_admin_mode_path(),
   ]);
 }
 
@@ -80,6 +82,18 @@ function vk_bot_load_image_usage(): array { return vk_bot_load_json_file(vk_bot_
 function vk_bot_save_image_usage(array $rows): bool { return api_atomic_write_json(vk_bot_image_usage_path(), $rows); }
 function vk_bot_load_image_generations_log(): array { return vk_bot_load_json_file(vk_bot_image_generations_log_path(), []); }
 function vk_bot_save_image_generations_log(array $rows): bool { return api_atomic_write_json(vk_bot_image_generations_log_path(), $rows); }
+function vk_bot_load_admin_mode_store(): array {
+  $row = vk_bot_load_json_file(vk_bot_admin_mode_path(), []);
+  if (!is_array($row['confirmations'] ?? null)) $row['confirmations'] = [];
+  if (!is_array($row['pending_tokens'] ?? null)) $row['pending_tokens'] = [];
+  return $row;
+}
+function vk_bot_save_admin_mode_store(array $store): bool {
+  return api_atomic_write_json(vk_bot_admin_mode_path(), [
+    'confirmations' => is_array($store['confirmations'] ?? null) ? $store['confirmations'] : [],
+    'pending_tokens' => is_array($store['pending_tokens'] ?? null) ? $store['pending_tokens'] : [],
+  ]);
+}
 
 function vk_bot_append_image_generation_log(array $row): void {
   $rows = vk_bot_load_image_generations_log();
@@ -1051,6 +1065,265 @@ function vk_bot_render_territory_free_map(array $state, string $territoryType, s
   imagedestroy($mask);
   imagedestroy($baseMap);
   return '/data/vk_bot/territory_images/' . $name;
+}
+
+function vk_bot_render_single_province_map(int $pid): ?string {
+  vk_bot_set_last_render_error(null);
+  if (!function_exists('imagecreatetruecolor')) {
+    vk_bot_set_last_render_error('gd_extension_missing');
+    return null;
+  }
+  $root = api_repo_root();
+  $meta = vk_bot_load_json_file($root . '/provinces.json', []);
+  $mask = @imagecreatefrompng($root . '/provinces_id.png');
+  $baseMap = @imagecreatefrompng($root . '/map.png');
+  if (!$mask || !$baseMap || !is_array($meta['provinces'] ?? null)) {
+    vk_bot_set_last_render_error('map_assets_missing');
+    if ($mask) imagedestroy($mask);
+    if ($baseMap) imagedestroy($baseMap);
+    return null;
+  }
+  $targetKey = 0;
+  foreach ($meta['provinces'] as $row) {
+    if (!is_array($row)) continue;
+    if ((int)($row['pid'] ?? 0) !== $pid) continue;
+    $targetKey = (int)($row['key'] ?? 0);
+    break;
+  }
+  if ($targetKey <= 0) {
+    vk_bot_set_last_render_error('province_key_not_found');
+    imagedestroy($mask);
+    imagedestroy($baseMap);
+    return null;
+  }
+  $maskW = imagesx($mask);
+  $maskH = imagesy($mask);
+  $maskTrueColor = imageistruecolor($mask);
+  $minX = $maskW; $minY = $maskH; $maxX = -1; $maxY = -1;
+  for ($y = 0; $y < $maskH; $y++) {
+    for ($x = 0; $x < $maskW; $x++) {
+      $idx = imagecolorat($mask, $x, $y);
+      if ($maskTrueColor) {
+        $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255;
+      } else {
+        $rgb = imagecolorsforindex($mask, $idx);
+        $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0);
+      }
+      $key = ($r << 16) | ($g << 8) | $b;
+      if ($key !== $targetKey) continue;
+      if ($x < $minX) $minX = $x;
+      if ($y < $minY) $minY = $y;
+      if ($x > $maxX) $maxX = $x;
+      if ($y > $maxY) $maxY = $y;
+    }
+  }
+  if ($maxX < $minX || $maxY < $minY) {
+    vk_bot_set_last_render_error('province_pixels_not_found');
+    imagedestroy($mask);
+    imagedestroy($baseMap);
+    return null;
+  }
+  $pad = 48;
+  $cropX = max(0, $minX - $pad); $cropY = max(0, $minY - $pad);
+  $cropW = min($maskW - $cropX, ($maxX - $minX + 1) + 2 * $pad);
+  $cropH = min($maskH - $cropY, ($maxY - $minY + 1) + 2 * $pad);
+  $img = imagecreatetruecolor($cropW, $cropH);
+  imagealphablending($img, true);
+  imagesavealpha($img, true);
+  imagecopy($img, $baseMap, 0, 0, $cropX, $cropY, $cropW, $cropH);
+  $overlayColor = imagecolorallocatealpha($img, 210, 36, 36, 36);
+  for ($y = 0; $y < $cropH; $y++) {
+    for ($x = 0; $x < $cropW; $x++) {
+      $idx = imagecolorat($mask, $cropX + $x, $cropY + $y);
+      if ($maskTrueColor) {
+        $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255;
+      } else {
+        $rgb = imagecolorsforindex($mask, $idx);
+        $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0);
+      }
+      $key = ($r << 16) | ($g << 8) | $b;
+      if ($key !== $targetKey) continue;
+      imagesetpixel($img, $x, $y, $overlayColor);
+    }
+  }
+  $dir = $root . '/data/vk_bot/province_images';
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    vk_bot_set_last_render_error('cannot_create_output_dir');
+    imagedestroy($img); imagedestroy($mask); imagedestroy($baseMap);
+    return null;
+  }
+  $name = 'province_' . sprintf('%04d', $pid) . '_' . date('Ymd_His') . '_' . random_int(1000, 9999) . '.png';
+  $full = $dir . '/' . $name;
+  $ok = imagepng($img, $full);
+  imagedestroy($img); imagedestroy($mask); imagedestroy($baseMap);
+  if (!$ok) {
+    vk_bot_set_last_render_error('imagepng_failed');
+    return null;
+  }
+  return '/data/vk_bot/province_images/' . $name;
+}
+
+function vk_bot_create_admin_confirm_token(int $vkUserId): string {
+  $store = vk_bot_load_admin_mode_store();
+  $token = bin2hex(random_bytes(24));
+  $store['pending_tokens'][$token] = [
+    'vk_user_id' => $vkUserId,
+    'created_at' => time(),
+    'expires_at' => time() + 1800,
+  ];
+  vk_bot_save_admin_mode_store($store);
+  return $token;
+}
+
+function vk_bot_mark_admin_confirmed_by_token(string $token): ?int {
+  $store = vk_bot_load_admin_mode_store();
+  $row = $store['pending_tokens'][$token] ?? null;
+  if (!is_array($row)) return null;
+  $exp = (int)($row['expires_at'] ?? 0);
+  if ($exp > 0 && $exp < time()) {
+    unset($store['pending_tokens'][$token]);
+    vk_bot_save_admin_mode_store($store);
+    return null;
+  }
+  $vkUserId = (int)($row['vk_user_id'] ?? 0);
+  if ($vkUserId <= 0) return null;
+  $store['confirmations'][(string)$vkUserId] = ['confirmed' => true, 'confirmed_at' => time()];
+  unset($store['pending_tokens'][$token]);
+  vk_bot_save_admin_mode_store($store);
+  return $vkUserId;
+}
+
+function vk_bot_is_admin_confirmed(int $vkUserId): bool {
+  $store = vk_bot_load_admin_mode_store();
+  return (bool)($store['confirmations'][(string)$vkUserId]['confirmed'] ?? false);
+}
+
+function vk_bot_download_image_raw_by_message(array $message): ?array {
+  $vkAtt = '';
+  $attachments = is_array($message['attachments'] ?? null) ? $message['attachments'] : [];
+  foreach ($attachments as $a) {
+    if (!is_array($a) || ($a['type'] ?? '') !== 'photo' || !is_array($a['photo'] ?? null)) continue;
+    $owner = (string)($a['photo']['owner_id'] ?? '');
+    $pid = (string)($a['photo']['id'] ?? '');
+    $accessKey = trim((string)($a['photo']['access_key'] ?? ''));
+    if ($owner !== '' && $pid !== '') {
+      $vkAtt = 'photo' . $owner . '_' . $pid . ($accessKey !== '' ? ('_' . $accessKey) : '');
+      break;
+    }
+  }
+  if ($vkAtt !== '') {
+    $fetched = vk_bot_download_vk_attachment_image($vkAtt);
+    if ((bool)($fetched['ok'] ?? false)) {
+      return [
+        'raw' => (string)($fetched['raw'] ?? ''),
+        'content_type' => (string)($fetched['content_type'] ?? 'image/jpeg'),
+      ];
+    }
+  }
+  $url = '';
+  foreach ($attachments as $a) {
+    if (!is_array($a)) continue;
+    if (($a['type'] ?? '') === 'photo' && is_array($a['photo'] ?? null)) {
+      $sizes = is_array($a['photo']['sizes'] ?? null) ? $a['photo']['sizes'] : [];
+      $bestUrl = '';
+      $bestArea = -1;
+      foreach ($sizes as $size) {
+        if (!is_array($size)) continue;
+        $candidate = trim((string)($size['url'] ?? ''));
+        if ($candidate === '') continue;
+        $area = ((int)($size['width'] ?? 0)) * ((int)($size['height'] ?? 0));
+        if ($area > $bestArea) { $bestArea = $area; $bestUrl = $candidate; }
+      }
+      if ($bestUrl !== '') { $url = $bestUrl; break; }
+    }
+    if (($a['type'] ?? '') === 'doc' && is_array($a['doc'] ?? null)) {
+      $ext = mb_strtolower(trim((string)($a['doc']['ext'] ?? '')));
+      if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+        $candidate = trim((string)($a['doc']['url'] ?? ''));
+        if ($candidate !== '') { $url = $candidate; break; }
+      }
+    }
+  }
+  if ($url === '' || !preg_match('#^https?://#i', $url)) return null;
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+  curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+  $raw = curl_exec($ch);
+  $err = curl_error($ch);
+  $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $ctype = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+  curl_close($ch);
+  if (!is_string($raw) || $raw === '' || $err !== '' || $code >= 400) return null;
+  return ['raw' => $raw, 'content_type' => $ctype];
+}
+
+function vk_bot_build_and_save_province_card_image(array $state, int $pid, string $baseRaw): ?string {
+  if (!function_exists('imagecreatetruecolor')) return null;
+  $srcImg = @imagecreatefromstring($baseRaw);
+  if (!$srcImg) return null;
+  $w = 1280; $h = 720;
+  $canvas = imagecreatetruecolor($w, $h);
+  imagecopyresampled($canvas, $srcImg, 0, 0, 0, 0, $w, $h, imagesx($srcImg), imagesy($srcImg));
+  imagedestroy($srcImg);
+
+  $mask = @imagecreatefrompng(api_repo_root() . '/provinces_id.png');
+  $meta = vk_bot_load_json_file(api_repo_root() . '/provinces.json', []);
+  if ($mask && is_array($meta['provinces'] ?? null)) {
+    $targetKey = 0;
+    foreach ($meta['provinces'] as $row) {
+      if (!is_array($row)) continue;
+      if ((int)($row['pid'] ?? 0) !== $pid) continue;
+      $targetKey = (int)($row['key'] ?? 0);
+      break;
+    }
+    if ($targetKey > 0) {
+      $mw = imagesx($mask); $mh = imagesy($mask); $maskTrueColor = imageistruecolor($mask);
+      $minX = $mw; $minY = $mh; $maxX = -1; $maxY = -1;
+      for ($y = 0; $y < $mh; $y++) {
+        for ($x = 0; $x < $mw; $x++) {
+          $idx = imagecolorat($mask, $x, $y);
+          if ($maskTrueColor) { $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255; }
+          else { $rgb = imagecolorsforindex($mask, $idx); $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0); }
+          if ((($r << 16) | ($g << 8) | $b) !== $targetKey) continue;
+          if ($x < $minX) $minX = $x; if ($y < $minY) $minY = $y; if ($x > $maxX) $maxX = $x; if ($y > $maxY) $maxY = $y;
+        }
+      }
+      if ($maxX >= $minX && $maxY >= $minY) {
+        $boxSize = (int)round(min($w, $h) * 0.34);
+        $margin = (int)round(min($w, $h) * 0.04);
+        $boxX = $w - $boxSize - $margin;
+        $boxY = $h - $boxSize - $margin;
+        $bg = imagecolorallocatealpha($canvas, 8, 12, 17, 26);
+        imagefilledrectangle($canvas, $boxX, $boxY, $boxX + $boxSize, $boxY + $boxSize, $bg);
+        $fill = imagecolorallocatealpha($canvas, 175, 36, 36, 30);
+        $scaleX = ($boxSize * 0.84) / max(1, ($maxX - $minX + 1));
+        $scaleY = ($boxSize * 0.84) / max(1, ($maxY - $minY + 1));
+        $scale = min($scaleX, $scaleY);
+        $ox = $boxX + ($boxSize - ($maxX - $minX + 1) * $scale) * 0.5;
+        $oy = $boxY + ($boxSize - ($maxY - $minY + 1) * $scale) * 0.5;
+        for ($y = $minY; $y <= $maxY; $y++) {
+          for ($x = $minX; $x <= $maxX; $x++) {
+            $idx = imagecolorat($mask, $x, $y);
+            if ($maskTrueColor) { $r = ($idx >> 16) & 255; $g = ($idx >> 8) & 255; $b = $idx & 255; }
+            else { $rgb = imagecolorsforindex($mask, $idx); $r = (int)($rgb['red'] ?? 0); $g = (int)($rgb['green'] ?? 0); $b = (int)($rgb['blue'] ?? 0); }
+            if ((($r << 16) | ($g << 8) | $b) !== $targetKey) continue;
+            $dx = (int)floor($ox + ($x - $minX) * $scale);
+            $dy = (int)floor($oy + ($y - $minY) * $scale);
+            imagefilledrectangle($canvas, $dx, $dy, (int)ceil($dx + $scale), (int)ceil($dy + $scale), $fill);
+          }
+        }
+      }
+    }
+    imagedestroy($mask);
+  }
+  $name = sprintf('province_%04d.jpg', $pid);
+  $path = api_repo_root() . '/provinces/' . $name;
+  $ok = imagejpeg($canvas, $path, 82);
+  imagedestroy($canvas);
+  if (!$ok) return null;
+  return 'provinces/' . $name;
 }
 
 
