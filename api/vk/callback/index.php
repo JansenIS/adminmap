@@ -472,8 +472,6 @@ $sendMainMenu = static function (int $userId, bool $hasApprovedStateApp, ?array 
   }
   $btns[] = vk_bot_btn('🎨 Портрет персонажа', 'character_image_start', 'primary');
   if ($hasApprovedStateApp) $btns[] = vk_bot_btn('📜 Приказы', 'orders_menu', 'primary');
-  $btns[] = vk_bot_btn('Я админ', 'admin_mode_request', 'negative');
-  if (vk_bot_is_admin_confirmed($userId)) $btns[] = vk_bot_btn('🧭 Заполнение провинций', 'admin_provinces', 'positive');
 
   $msg = 'Добро пожаловать. Выберите действие:';
   if (is_array($pendingCharacterApp) && !is_array($approvedCharacterApp)) {
@@ -564,130 +562,6 @@ $sendTerritorySelection = static function (int $userId, array &$sessions, array 
 if ($cmd === 'orders_menu') {
   $vkOrderMenu($userId);
   echo 'ok'; exit;
-}
-
-if ($cmd === 'admin_mode_request') {
-  $miniAppUrl = trim((string)($cfg['mini_app_url'] ?? ''));
-  if ($miniAppUrl === '') {
-    $base = trim((string)($cfg['public_base_url'] ?? ''));
-    if ($base !== '') $miniAppUrl = rtrim($base, '/') . '/vk_admin_confirm.html';
-  }
-  if ($miniAppUrl === '') {
-    vk_bot_send_message($userId, 'Админ-сайт не настроен. Заполните mini_app_url в VK Bot Admin.');
-    echo 'ok'; exit;
-  }
-  $token = vk_bot_create_admin_confirm_token($userId);
-  $url = $miniAppUrl . (str_contains($miniAppUrl, '?') ? '&' : '?') . 'token=' . rawurlencode($token);
-  vk_bot_send_message($userId, 'Для входа в админ-режим откройте ссылку и нажмите кнопку «Я админ»: ' . $url);
-  echo 'ok'; exit;
-}
-
-if ($cmd === 'admin_provinces') {
-  if (!vk_bot_is_admin_confirmed($userId)) {
-    vk_bot_send_message($userId, 'Админ-режим не подтверждён. Сначала нажмите кнопку «Я админ» и подтвердите доступ через сайт.');
-    echo 'ok'; exit;
-  }
-  vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_pid', 'data' => []]);
-  vk_bot_save_sessions($sessions);
-  vk_bot_send_message($userId, 'Режим заполнения провинций. Введите PID провинции или «закончить».');
-  echo 'ok'; exit;
-}
-
-if (strpos($stage, 'admin_province_') === 0) {
-  if (!vk_bot_is_admin_confirmed($userId)) {
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, 'Доступ в админ-режим не подтверждён.');
-    echo 'ok'; exit;
-  }
-  if ($stage === 'admin_province_pid') {
-    $txt = mb_strtolower(trim($text), 'UTF-8');
-    if ($txt === 'закончить') {
-      vk_bot_set_user_session($sessions, $userId, ['stage' => 'start', 'data' => []]);
-      vk_bot_save_sessions($sessions);
-      vk_bot_send_message($userId, 'Выход из режима заполнения провинций.');
-      echo 'ok'; exit;
-    }
-    $pid = (int)$text;
-    $prov = $state['provinces'][(string)$pid] ?? null;
-    if ($pid <= 0 || !is_array($prov)) {
-      vk_bot_send_message($userId, 'Провинция не найдена. Введите корректный PID.');
-      echo 'ok'; exit;
-    }
-    $preview = vk_bot_render_single_province_map($pid);
-    $msg = 'PID ' . $pid . ': ' . trim((string)($prov['name'] ?? ('Провинция ' . $pid))) . ".\nЭто нужная провинция? (да/нет)";
-    if (is_string($preview) && $preview !== '' && trim((string)($cfg['public_base_url'] ?? '')) !== '') {
-      $msg .= "\nПревью: " . rtrim((string)$cfg['public_base_url'], '/') . $preview;
-    }
-    $data['pid'] = $pid;
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_confirm', 'data' => $data]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, $msg);
-    echo 'ok'; exit;
-  }
-  if ($stage === 'admin_province_confirm') {
-    if (mb_strtolower(trim($text), 'UTF-8') !== 'да') {
-      vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_pid', 'data' => []]);
-      vk_bot_save_sessions($sessions);
-      vk_bot_send_message($userId, 'Ок, введите другой PID или «закончить».');
-      echo 'ok'; exit;
-    }
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_name', 'data' => $data]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, 'Введите название провинции.');
-    echo 'ok'; exit;
-  }
-  if ($stage === 'admin_province_name') {
-    if (trim($text) === '') { vk_bot_send_message($userId, 'Название не может быть пустым.'); echo 'ok'; exit; }
-    $data['name'] = trim($text);
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_description', 'data' => $data]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, 'Введите описание провинции.');
-    echo 'ok'; exit;
-  }
-  if ($stage === 'admin_province_description') {
-    if (trim($text) === '') { vk_bot_send_message($userId, 'Описание не может быть пустым.'); echo 'ok'; exit; }
-    $data['description'] = trim($text);
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_card_image', 'data' => $data]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, 'Пришлите картинку для карточки провинции.');
-    echo 'ok'; exit;
-  }
-  if ($stage === 'admin_province_card_image') {
-    $pid = (int)($data['pid'] ?? 0);
-    if ($pid <= 0) {
-      vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_pid', 'data' => []]);
-      vk_bot_save_sessions($sessions);
-      vk_bot_send_message($userId, 'PID потерян, начните снова.');
-      echo 'ok'; exit;
-    }
-    $img = vk_bot_download_image_raw_by_message($message);
-    if (!is_array($img) || trim((string)($img['raw'] ?? '')) === '') {
-      vk_bot_send_message($userId, 'Не нашёл изображение. Пришлите фото/картинку.');
-      echo 'ok'; exit;
-    }
-    $cardPath = vk_bot_build_and_save_province_card_image($state, $pid, (string)$img['raw']);
-    if (!is_string($cardPath) || $cardPath === '') {
-      vk_bot_send_message($userId, 'Не удалось собрать карточку провинции.');
-      echo 'ok'; exit;
-    }
-    if (!isset($state['provinces'][(string)$pid]) || !is_array($state['provinces'][(string)$pid])) {
-      vk_bot_send_message($userId, 'Провинция не найдена в состоянии.');
-      echo 'ok'; exit;
-    }
-    $state['provinces'][(string)$pid]['name'] = (string)($data['name'] ?? '');
-    $state['provinces'][(string)$pid]['wiki_description'] = (string)($data['description'] ?? '');
-    $state['provinces'][(string)$pid]['province_card_image'] = $cardPath;
-    $state['provinces'][(string)$pid]['province_card_base_image'] = '';
-    if (!api_save_state($state)) {
-      vk_bot_send_message($userId, 'Ошибка сохранения состояния провинции.');
-      echo 'ok'; exit;
-    }
-    vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_pid', 'data' => []]);
-    vk_bot_save_sessions($sessions);
-    vk_bot_send_message($userId, 'Провинция заполнена. Введите новый PID или «закончить».');
-    echo 'ok'; exit;
-  }
 }
 
 if ($cmd === 'order_my' || $cmd === 'order_drafts' || $cmd === 'order_verdicts' || $cmd === 'order_clarifications') {
