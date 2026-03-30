@@ -12,6 +12,7 @@ function vk_bot_character_applications_path(): string { return api_repo_root() .
 function vk_bot_image_usage_path(): string { return api_repo_root() . '/data/vk_bot_image_usage.json'; }
 function vk_bot_image_generations_log_path(): string { return api_repo_root() . '/data/vk_bot_image_generations_log.json'; }
 function vk_bot_admin_mode_path(): string { return api_repo_root() . '/data/vk_bot_admin_mode.json'; }
+function vk_bot_idempotency_path(): string { return api_repo_root() . '/data/vk_bot_idempotency.json'; }
 
 function vk_bot_files_mtime(array $paths): int {
   $mt = 0;
@@ -32,6 +33,7 @@ function vk_bot_data_mtime(): int {
     vk_bot_image_usage_path(),
     vk_bot_image_generations_log_path(),
     vk_bot_admin_mode_path(),
+    vk_bot_idempotency_path(),
   ]);
 }
 
@@ -82,6 +84,40 @@ function vk_bot_load_image_usage(): array { return vk_bot_load_json_file(vk_bot_
 function vk_bot_save_image_usage(array $rows): bool { return api_atomic_write_json(vk_bot_image_usage_path(), $rows); }
 function vk_bot_load_image_generations_log(): array { return vk_bot_load_json_file(vk_bot_image_generations_log_path(), []); }
 function vk_bot_save_image_generations_log(array $rows): bool { return api_atomic_write_json(vk_bot_image_generations_log_path(), $rows); }
+function vk_bot_load_idempotency_store(): array {
+  $store = vk_bot_load_json_file(vk_bot_idempotency_path(), []);
+  if (!is_array($store['events'] ?? null)) $store['events'] = [];
+  return $store;
+}
+function vk_bot_save_idempotency_store(array $store): bool {
+  return api_atomic_write_json(vk_bot_idempotency_path(), [
+    'events' => is_array($store['events'] ?? null) ? $store['events'] : [],
+  ]);
+}
+function vk_bot_claim_event(string $eventKey, int $ttlSec = 86400, int $maxItems = 5000): bool {
+  $eventKey = trim($eventKey);
+  if ($eventKey === '') return false;
+  $now = time();
+  $store = vk_bot_load_idempotency_store();
+  $events = is_array($store['events'] ?? null) ? $store['events'] : [];
+  $next = [];
+  foreach ($events as $row) {
+    if (!is_array($row)) continue;
+    $key = trim((string)($row['key'] ?? ''));
+    if ($key === '') continue;
+    $ts = (int)($row['ts'] ?? 0);
+    if ($ttlSec > 0 && ($now - $ts) > $ttlSec) continue;
+    if ($key === $eventKey) return false;
+    $next[] = ['key' => $key, 'ts' => $ts];
+  }
+  $next[] = ['key' => $eventKey, 'ts' => $now];
+  if ($maxItems > 0 && count($next) > $maxItems) {
+    $next = array_slice($next, -$maxItems);
+  }
+  $store['events'] = $next;
+  vk_bot_save_idempotency_store($store);
+  return true;
+}
 function vk_bot_load_admin_mode_store(): array {
   $row = vk_bot_load_json_file(vk_bot_admin_mode_path(), []);
   if (!is_array($row['confirmations'] ?? null)) $row['confirmations'] = [];
@@ -1170,6 +1206,56 @@ function vk_bot_render_single_province_map(int $pid): ?string {
     return null;
   }
   return '/data/vk_bot/province_images/' . $name;
+}
+
+function vk_bot_render_pid_reference_map(): ?string {
+  vk_bot_set_last_render_error(null);
+  if (!function_exists('imagecreatetruecolor')) {
+    vk_bot_set_last_render_error('gd_extension_missing');
+    return null;
+  }
+  $root = api_repo_root();
+  $meta = vk_bot_load_json_file($root . '/provinces.json', []);
+  $baseMap = @imagecreatefrompng($root . '/map.png');
+  if (!$baseMap || !is_array($meta['provinces'] ?? null)) {
+    vk_bot_set_last_render_error('map_assets_missing');
+    if ($baseMap) imagedestroy($baseMap);
+    return null;
+  }
+  imagealphablending($baseMap, true);
+  imagesavealpha($baseMap, true);
+
+  $textColor = imagecolorallocate($baseMap, 255, 255, 255);
+  $shadowColor = imagecolorallocatealpha($baseMap, 0, 0, 0, 45);
+  foreach ($meta['provinces'] as $row) {
+    if (!is_array($row)) continue;
+    $pid = (int)($row['pid'] ?? 0);
+    $centroid = is_array($row['centroid'] ?? null) ? $row['centroid'] : null;
+    if ($pid <= 0 || !is_array($centroid) || count($centroid) < 2) continue;
+    $x = (int)round((float)$centroid[0]);
+    $y = (int)round((float)$centroid[1]);
+    $label = (string)$pid;
+    $labelWidth = imagefontwidth(2) * strlen($label);
+    $tx = $x - (int)floor($labelWidth / 2);
+    $ty = $y - 7;
+    imagefilledrectangle($baseMap, $tx - 2, $ty - 1, $tx + $labelWidth + 2, $ty + 13, $shadowColor);
+    imagestring($baseMap, 2, $tx, $ty, $label, $textColor);
+  }
+
+  $dir = $root . '/data/vk_bot';
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    vk_bot_set_last_render_error('cannot_create_output_dir');
+    imagedestroy($baseMap);
+    return null;
+  }
+  $full = $dir . '/pid_map.png';
+  $ok = imagepng($baseMap, $full);
+  imagedestroy($baseMap);
+  if (!$ok) {
+    vk_bot_set_last_render_error('imagepng_failed');
+    return null;
+  }
+  return '/data/vk_bot/pid_map.png';
 }
 
 function vk_bot_render_single_province_layer_map(array $state, int $pid, string $mode): ?string {
