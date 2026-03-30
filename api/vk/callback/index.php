@@ -68,6 +68,11 @@ $object = is_array($payload['object'] ?? null) ? $payload['object'] : [];
 $message = is_array($object['message'] ?? null) ? $object['message'] : $object;
 $userId = (int)($message['from_id'] ?? 0);
 if ($userId <= 0) { echo 'ok'; exit; }
+$peerId = (int)($message['peer_id'] ?? $userId);
+$eventId = trim((string)($message['conversation_message_id'] ?? ($message['id'] ?? '')));
+if ($eventId !== '' && !vk_bot_claim_event('vk:' . $peerId . ':' . $eventId . ':' . $userId)) {
+  echo 'ok'; exit;
+}
 $text = trim((string)($message['text'] ?? ''));
 $cmd = vk_bot_payload_cmd($message);
 if ($cmd === '') $cmd = vk_bot_payload_cmd($object);
@@ -587,7 +592,16 @@ if ($cmd === 'admin_provinces') {
   }
   vk_bot_set_user_session($sessions, $userId, ['stage' => 'admin_province_pid', 'data' => []]);
   vk_bot_save_sessions($sessions);
-  vk_bot_send_message($userId, 'Режим заполнения провинций. Введите PID провинции или «закончить».');
+  $msg = 'Режим заполнения провинций. Введите PID провинции или «закончить».';
+  $pidMapPath = vk_bot_render_pid_reference_map();
+  $attachment = '';
+  if (is_string($pidMapPath) && $pidMapPath !== '' && str_starts_with($pidMapPath, '/')) {
+    $rawPidMap = @file_get_contents(api_repo_root() . $pidMapPath);
+    if (is_string($rawPidMap) && $rawPidMap !== '') {
+      $attachment = vk_bot_upload_message_photo_blob($userId, $rawPidMap, 'pid_map.png', 'image/png');
+    }
+  }
+  vk_bot_send_message($userId, $msg, null, $attachment);
   echo 'ok'; exit;
 }
 
