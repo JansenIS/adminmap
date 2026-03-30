@@ -1225,6 +1225,28 @@ function vk_bot_render_pid_reference_map(): ?string {
   imagealphablending($baseMap, true);
   imagesavealpha($baseMap, true);
 
+  $mapW = imagesx($baseMap);
+  $mapH = imagesy($baseMap);
+  $metaW = 0.0;
+  $metaH = 0.0;
+  foreach ($meta['provinces'] as $row) {
+    if (!is_array($row)) continue;
+    $bbox = is_array($row['bbox'] ?? null) ? $row['bbox'] : null;
+    if (is_array($bbox) && count($bbox) >= 4) {
+      $metaW = max($metaW, (float)$bbox[2] + 1.0);
+      $metaH = max($metaH, (float)$bbox[3] + 1.0);
+    }
+    $centroid = is_array($row['centroid'] ?? null) ? $row['centroid'] : null;
+    if (is_array($centroid) && count($centroid) >= 2) {
+      $metaW = max($metaW, (float)$centroid[0] + 1.0);
+      $metaH = max($metaH, (float)$centroid[1] + 1.0);
+    }
+  }
+  $scaleX = ($metaW > 0.0) ? ((float)$mapW / $metaW) : 1.0;
+  $scaleY = ($metaH > 0.0) ? ((float)$mapH / $metaH) : 1.0;
+  if (!is_finite($scaleX) || $scaleX <= 0.0) $scaleX = 1.0;
+  if (!is_finite($scaleY) || $scaleY <= 0.0) $scaleY = 1.0;
+
   $textColor = imagecolorallocate($baseMap, 255, 255, 255);
   $shadowColor = imagecolorallocatealpha($baseMap, 0, 0, 0, 45);
   foreach ($meta['provinces'] as $row) {
@@ -1232,8 +1254,9 @@ function vk_bot_render_pid_reference_map(): ?string {
     $pid = (int)($row['pid'] ?? 0);
     $centroid = is_array($row['centroid'] ?? null) ? $row['centroid'] : null;
     if ($pid <= 0 || !is_array($centroid) || count($centroid) < 2) continue;
-    $x = (int)round((float)$centroid[0]);
-    $y = (int)round((float)$centroid[1]);
+    $x = (int)round((float)$centroid[0] * $scaleX);
+    $y = (int)round((float)$centroid[1] * $scaleY);
+    if ($x < 0 || $y < 0 || $x >= $mapW || $y >= $mapH) continue;
     $label = (string)$pid;
     $labelWidth = imagefontwidth(2) * strlen($label);
     $tx = $x - (int)floor($labelWidth / 2);
