@@ -1,6 +1,6 @@
 (async function(){
   const byId=(id)=>document.getElementById(id);
-  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','routerai_api_key'];
+  const fields=['group_id','confirmation_token','secret','access_token','api_version','public_base_url','mini_app_url','routerai_api_key'];
   const ADMIN=localStorage.getItem('admin_token')||'dev-admin-token';
   const H={'Content-Type':'application/json','X-Admin-Token':ADMIN};
   let relayTimer=0;
@@ -54,6 +54,35 @@
       reject.onclick=async()=>{await fetch('/api/vk/applications/patch/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id,action:'reject'})});loadApps();};
       td.appendChild(edit); td.appendChild(approve); td.appendChild(reject);
       tb.appendChild(tr);
+    });
+  }
+
+  async function loadAdminModeRequests(){
+    const body = byId('adminModeRequestsBody'); if (!body) return;
+    const res = await fetch('/api/vk/admin_mode/requests/'); const j = await res.json();
+    const rows = Array.isArray(j.items) ? j.items : [];
+    body.innerHTML = '';
+    rows.forEach((row)=>{
+      const tr = document.createElement('tr');
+      const created = Number(row.created_at||0) > 0 ? new Date(Number(row.created_at||0)*1000).toLocaleString() : '—';
+      tr.innerHTML = `<td>${row.id||''}</td><td>${row.vk_user_id||''}</td><td>${row.status||''}</td><td>${created}</td><td></td>`;
+      const td = tr.lastElementChild;
+      if (String(row.status||'') === 'pending') {
+        const approve = document.createElement('button'); approve.textContent = 'Подтвердить';
+        approve.onclick = async()=>{
+          await fetch('/api/vk/admin_mode/requests/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:row.id, action:'approve', admin:ADMIN})});
+          await loadAdminModeRequests();
+        };
+        const reject = document.createElement('button'); reject.textContent = 'Отклонить'; reject.style.marginLeft='6px';
+        reject.onclick = async()=>{
+          await fetch('/api/vk/admin_mode/requests/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:row.id, action:'reject', admin:ADMIN})});
+          await loadAdminModeRequests();
+        };
+        td.appendChild(approve); td.appendChild(reject);
+      } else {
+        td.textContent = '—';
+      }
+      body.appendChild(tr);
     });
   }
 
@@ -205,6 +234,7 @@
 
   await loadCfg();
   await loadApps();
+  await loadAdminModeRequests();
   await loadCharacterApps();
   await loadImageUsage();
   await loadTelegraphSettings();
