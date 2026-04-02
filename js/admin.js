@@ -27,6 +27,7 @@
   const alphaVal = el("alphaVal");
 
   const provNameInput = el("provName");
+  const provWikiDescriptionInput = el("provWikiDescription");
   const ownerInput = el("ownerInput");
   const peopleDatalist = el("peopleList");
 
@@ -42,6 +43,7 @@
   const btnApplyFill = el("applyFill");
   const btnClearFill = el("clearFill");
   const btnSaveProv = el("saveProv");
+  const markdownInsertButtons = Array.from(document.querySelectorAll(".markdown-insert-btn"));
 
   const viewModeSelect = el("viewMode");
   const toggleProvEmblemsBtn = el("toggleProvEmblems");
@@ -1613,7 +1615,7 @@
     selectedKey = key >>> 0;
     const pd = getProvData(selectedKey);
     multiSelCount.textContent = String(selectedKeys.size || (selectedKey ? 1 : 0));
-    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; ownerInput.value = ""; suzerainText.textContent = "—"; seniorText.textContent = "—"; terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
+    if (!selectedKey || !pd) { selName.textContent = "—"; selPid.textContent = "—"; selKey.textContent = "—"; provNameInput.value = ""; if (provWikiDescriptionInput) provWikiDescriptionInput.value = ""; ownerInput.value = ""; suzerainText.textContent = "—"; seniorText.textContent = "—"; terrainSelect.value = ""; setEmblemPreview(null); setProvinceCardPreview(null); return; }
     selName.textContent = pd.name || (meta && meta.name) || "—"; selPid.textContent = String(pd.pid ?? (meta ? meta.pid : "—")); selKey.textContent = String(selectedKey);
     provNameInput.value = pd.name || ""; ownerInput.value = pd.owner || "";
     if (pd.owner) ensurePerson(pd.owner);
@@ -1623,6 +1625,7 @@
     renderPersonNode(suzerainText, derived.suzerain || "");
     renderPersonNode(seniorText, derived.senior || "");
     terrainSelect.value = pd.terrain || "";
+    if (provWikiDescriptionInput) provWikiDescriptionInput.value = String(pd.wiki_description || "");
     if (colorInput && alphaInput && alphaVal && pd.fill_rgba && Array.isArray(pd.fill_rgba) && pd.fill_rgba.length === 4) { const rgba = pd.fill_rgba; colorInput.value = MapUtils.rgbToHex(rgba[0], rgba[1], rgba[2]); alphaInput.value = String(rgba[3] | 0); alphaVal.textContent = String(rgba[3] | 0); }
     setEmblemPreview(pd);
     setProvinceCardPreview(pd);
@@ -1788,7 +1791,19 @@
     closeManualEditModal();
   }
 
-  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
+  function saveProvinceFieldsFromUI() { if (!selectedKey) return; const pd = getProvData(selectedKey); if (!pd) return; pd.name = String(provNameInput.value || "").trim(); pd.owner = ensurePerson(ownerInput.value); pd.terrain = String(terrainSelect.value || "").trim(); pd.wiki_description = String((provWikiDescriptionInput && provWikiDescriptionInput.value) || "").trim(); if (typeof pd.province_card_image !== "string") pd.province_card_image = ""; selName.textContent = pd.name || selName.textContent; }
+  function insertMarkdownAroundSelection(prefix, suffix) {
+    if (!provWikiDescriptionInput) return;
+    const start = provWikiDescriptionInput.selectionStart || 0;
+    const end = provWikiDescriptionInput.selectionEnd || 0;
+    const selected = provWikiDescriptionInput.value.slice(start, end);
+    const next = provWikiDescriptionInput.value.slice(0, start) + prefix + selected + suffix + provWikiDescriptionInput.value.slice(end);
+    provWikiDescriptionInput.value = next;
+    const cursor = start + prefix.length + selected.length + suffix.length;
+    provWikiDescriptionInput.focus();
+    provWikiDescriptionInput.setSelectionRange(cursor, cursor);
+    saveProvinceFieldsFromUI();
+  }
   function applyFillFromUI(map) { if (!selectedKey || !colorInput || !alphaInput) return; const [r, g, b] = MapUtils.hexToRgb(colorInput.value); const a = Math.max(0, Math.min(255, parseInt(alphaInput.value, 10) | 0)); const rgba = [r, g, b, a]; const pd = getProvData(selectedKey); if (!pd) return; pd.fill_rgba = rgba; if (currentMode() === "provinces") map.setFill(selectedKey, rgba); }
   function exportStateToTextarea() { getCanonicalArmies(); const out = JSON.parse(JSON.stringify(state)); for (const pd of Object.values(out.provinces || {})) { if (!pd || typeof pd !== "object") continue; if (typeof pd.province_card_base_image === "string" && pd.province_card_base_image.startsWith("data:")) pd.province_card_base_image = ""; } out.generated_utc = new Date().toISOString(); stateTA.value = JSON.stringify(out, null, 2); }
   function downloadJsonFile(filename, payload) { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
@@ -4142,6 +4157,13 @@
 
     provNameInput.addEventListener("change", saveProvinceFieldsFromUI); ownerInput.addEventListener("change", () => { ensurePerson(ownerInput.value); saveProvinceFieldsFromUI(); });
     terrainSelect.addEventListener("change", saveProvinceFieldsFromUI);
+    if (provWikiDescriptionInput) {
+      provWikiDescriptionInput.addEventListener("change", saveProvinceFieldsFromUI);
+      provWikiDescriptionInput.addEventListener("input", saveProvinceFieldsFromUI);
+    }
+    markdownInsertButtons.forEach((btn) => {
+      btn.addEventListener("click", () => insertMarkdownAroundSelection(String(btn.dataset.prefix || ""), String(btn.dataset.suffix || "")));
+    });
     if (manualEditClose) manualEditClose.addEventListener('click', closeManualEditModal);
     if (manualEditSave) manualEditSave.addEventListener('click', () => {
       try {
