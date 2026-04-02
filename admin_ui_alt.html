@@ -196,6 +196,10 @@
   .wiki-editor-modal__preview img { max-width:100%; max-height:420px; display:block; object-fit:contain; }
   .wiki-editor-modal__preview-empty { color:#a6b4c5; font-size:12px; }
   .wiki-editor-modal__status { margin-top:10px; font-size:12px; color:#a6b4c5; }
+  .markdown-editor{display:grid;gap:8px}
+  .markdown-editor__toolbar{display:flex;flex-wrap:wrap;gap:6px}
+  .markdown-editor__toolbar button{padding:6px 10px;font-size:12px}
+  .markdown-editor textarea{min-height:170px;resize:vertical}
   .arrierban-grid { display:grid; grid-template-columns: 1.1fr 110px 90px 130px minmax(220px, 1fr); gap:8px; align-items:start; }
   .arrierban-grid__head { font-size:11px; color:#a6b4c5; }
   .arrierban-grid input[type="number"] { padding:6px 8px; }
@@ -622,6 +626,17 @@ body{min-height:100vh;overflow:hidden}
 <input id="provName" placeholder="Название провинции" type="text"/>
 <label>Местность</label>
 <select id="terrainSelect"></select>
+</div>
+<label style="margin-top:10px; display:block;">Описание провинции (Markdown)</label>
+<div class="markdown-editor">
+<div class="markdown-editor__toolbar">
+<button class="markdown-insert-btn" data-prefix="**" data-suffix="**" type="button">Жирный</button>
+<button class="markdown-insert-btn" data-prefix="_" data-suffix="_" type="button">Курсив</button>
+<button class="markdown-insert-btn" data-prefix="## " data-suffix="" type="button">Заголовок</button>
+<button class="markdown-insert-btn" data-prefix="- " data-suffix="" type="button">Список</button>
+<button class="markdown-insert-btn" data-prefix="[" data-suffix="](https://)" type="button">Ссылка</button>
+</div>
+<textarea id="provWikiDescription" placeholder="Описание в Markdown. Этот текст подтягивается в Wiki проекта."></textarea>
 </div>
 <div class="btnrow" style="margin-top:10px;">
 <button id="saveProv" type="button">Сохранить провинцию</button>
