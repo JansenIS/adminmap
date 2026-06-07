@@ -3,6 +3,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/state_api.php';
 require_once dirname(__DIR__, 2) . '/lib/player_admin_api.php';
+require_once dirname(__DIR__, 2) . '/lib/sync_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'PATCH') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['PATCH']], 405, api_state_mtime());
@@ -44,6 +45,8 @@ if (!$patched['ok']) {
 
 $ok = api_atomic_write_json(api_state_path(), $patched['state']);
 if (!$ok) api_json_response(['error' => 'write_failed'], 500, api_state_mtime());
+$syncEntityType = ['kingdoms' => 'realm', 'great_houses' => 'great_house', 'minor_houses' => 'minor_house', 'free_cities' => 'free_city', 'special_territories' => 'special_territory'][$type] ?? 'realm';
+if (!sync_record_external_change($syncEntityType, $id, 'patch', $changes, $patched['state'][$type][$id] ?? $changes)) api_json_response(['error' => 'sync_journal_failed'], 500, api_state_mtime());
 
 api_json_response([
   'ok' => true,

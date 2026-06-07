@@ -1,0 +1,1 @@
+<?php declare(strict_types=1); require_once dirname(__DIR__, 3) . '/lib/sync_api.php'; sync_endpoint_boot(); sync_require_method(['GET']); sync_json(sync_layers_delta(sync_parse_revision_param('since')));

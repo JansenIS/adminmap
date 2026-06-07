@@ -1,0 +1,1 @@
+<?php declare(strict_types=1); require_once dirname(__DIR__, 2) . '/lib/sync_api.php'; sync_endpoint_boot(); sync_require_method(['GET']); $since=sync_parse_revision_param('since'); $limit=max(1,min(5000,(int)($_GET['limit']??1000))); $cursor=isset($_GET['cursor'])?(string)$_GET['cursor']:null; sync_json(sync_delta_payload($since,$limit,$cursor,false));
