@@ -1,0 +1,25 @@
+{
+  "name": "adminmap-admin-desktop-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Админский desktop-first клиент adminmap без бинарных ассетов в git.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "node --check src/api.js && node --check src/store.js && node --check src/modules.js && node --check src/main.js && node --check vite.config.js",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "tauri": {
+    "entry": "index.html",
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5174"
+  }
+}
