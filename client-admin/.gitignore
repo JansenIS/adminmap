@@ -1,0 +1,37 @@
+# JS tooling output.
+node_modules/
+dist/
+.vite/
+.DS_Store
+
+# Tauri / native build output and generated installers.
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+*.exe
+*.msi
+*.app
+*.dmg
+*.deb
+*.rpm
+*.AppImage
+
+# Do not commit binary assets, but runtime cache directories are allowed to exist.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.ico
+*.icns
+*.bmp
+*.tif
+*.tiff
+*.avif
+*.bin
+*.dat
+*.pack
+*.zip
+*.7z
+*.tar
+*.gz
