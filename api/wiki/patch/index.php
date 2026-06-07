@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/lib/wiki_api.php';
+require_once dirname(__DIR__, 2) . '/lib/sync_api.php';
 
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'PATCH') {
   api_json_response(['error' => 'method_not_allowed', 'allowed' => ['PATCH']], 405, api_state_mtime());
@@ -35,6 +36,7 @@ if (($valid['kind'] ?? '') === 'province' || ($valid['kind'] ?? '') === 'entity'
 
     $ok = api_atomic_write_json(api_state_path(), $patched['state']);
     if (!$ok) api_json_response(['error' => 'write_failed'], 500, api_state_mtime());
+    if (!sync_record_external_change('wiki_page', 'province:' . (string)((int)$valid['pid']), 'patch', (array)$valid['changes'], $patched['state']['provinces'][(string)((int)$valid['pid'])] ?? [])) api_json_response(['error' => 'sync_journal_failed'], 500, api_state_mtime());
     api_json_response(['ok' => true, 'kind' => 'province', 'pid' => (int)$valid['pid'], 'updated_fields' => (int)($patched['updated_fields'] ?? 0)], 200, api_state_mtime());
   }
 
@@ -47,6 +49,7 @@ if (($valid['kind'] ?? '') === 'province' || ($valid['kind'] ?? '') === 'entity'
 
   $ok = api_atomic_write_json(api_state_path(), $patched['state']);
   if (!$ok) api_json_response(['error' => 'write_failed'], 500, api_state_mtime());
+  if (!sync_record_external_change('wiki_page', 'entity:' . (string)$valid['entity_type'] . ':' . (string)$valid['id'], 'patch', (array)$valid['changes'], $patched['state'][(string)$valid['entity_type']][(string)$valid['id']] ?? [])) api_json_response(['error' => 'sync_journal_failed'], 500, api_state_mtime());
   api_json_response(['ok' => true, 'kind' => 'entity', 'entity_type' => (string)$valid['entity_type'], 'id' => (string)$valid['id'], 'updated_fields' => (int)($patched['updated_fields'] ?? 0)], 200, api_state_mtime());
 }
 
@@ -68,6 +71,7 @@ if (($valid['kind'] ?? '') === 'character') {
   }
 
   if (!genealogy_save($data)) api_json_response(['error' => 'write_failed'], 500, genealogy_mtime());
+  if (!sync_record_external_change('wiki_page', 'character:' . $id, 'patch', $mapped, $updated)) api_json_response(['error' => 'sync_journal_failed'], 500, genealogy_mtime());
   api_json_response(['ok' => true, 'kind' => 'character', 'id' => $id, 'updated_fields' => count($mapped)], 200, genealogy_mtime());
 }
 
@@ -88,6 +92,7 @@ if (($valid['kind'] ?? '') === 'clan') {
   }
 
   if (!genealogy_save($data)) api_json_response(['error' => 'write_failed'], 500, genealogy_mtime());
+  if (!sync_record_external_change('wiki_page', 'clan:' . $id, 'patch', $changes, $data['clans'][$id] ?? [])) api_json_response(['error' => 'sync_journal_failed'], 500, genealogy_mtime());
   api_json_response(['ok' => true, 'kind' => 'clan', 'id' => $id, 'updated_fields' => $updatedFields], 200, genealogy_mtime());
 }
 
